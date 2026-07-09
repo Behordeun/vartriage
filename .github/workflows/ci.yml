@@ -27,7 +27,7 @@ jobs:
         run: pytest
 
       - name: Run mypy
-        run: mypy --strict vartriage/
+        run: mypy --strict --python-version=${{ matrix.python-version }} vartriage/
 
       - name: Build package
         run: |
