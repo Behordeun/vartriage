@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import logging
 from itertools import islice
-from typing import Iterator, Optional
+from typing import Iterator
 
 from vartriage.models.config import PrioritizationConfig
 from vartriage.models.variant import AnnotatedVariant, ScoredVariant
 from vartriage.prioritization.frequency_filter import FrequencyFilter
+from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
 from vartriage.prioritization.scoring import score_variants
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,18 @@ class PrioritizationEngine:
         self._config = config
         self._batch_size = config.batch_size
         self._frequency_filter = FrequencyFilter(config)
+        self._score_loader = ScoreLoader()
+        self._cadd_scores: dict[CoordinateKey, float] = {}
+        self._revel_scores: dict[CoordinateKey, float] = {}
+
+        if config.cadd_scores_path is not None:
+            self._cadd_scores = self._score_loader.load_cadd(
+                config.cadd_scores_path
+            )
+        if config.revel_scores_path is not None:
+            self._revel_scores = self._score_loader.load_revel(
+                config.revel_scores_path
+            )
 
     def prioritize(
         self, variants: Iterator[AnnotatedVariant]
@@ -119,10 +132,9 @@ class PrioritizationEngine:
     ) -> list[ScoredVariant]:
         """Score a single batch of variants.
 
-        Extracts CADD and REVEL scores (currently None placeholders since
-        score file lookup is handled by the pipeline orchestrator when
-        configured). Delegates to the scoring module for normalization,
-        composite computation, and sorting.
+        Extracts coordinate keys from each variant and performs lookups
+        against pre-loaded CADD and REVEL score dictionaries. Falls back
+        to None for variants without a matching score entry.
 
         Parameters
         ----------
@@ -134,8 +146,16 @@ class PrioritizationEngine:
         list[ScoredVariant]
             Scored variants sorted descending by composite rank, nulls last.
         """
-        cadd_scores: list[Optional[float]] = [None] * len(batch)
-        revel_scores: list[Optional[float]] = [None] * len(batch)
+        keys: list[CoordinateKey] = [
+            (v.variant.chrom, v.variant.pos, v.variant.ref, v.variant.alt)
+            for v in batch
+        ]
+        cadd_scores = self._score_loader.lookup_batch(
+            keys, self._cadd_scores
+        )
+        revel_scores = self._score_loader.lookup_batch(
+            keys, self._revel_scores
+        )
 
         return score_variants(batch, cadd_scores, revel_scores)
 
