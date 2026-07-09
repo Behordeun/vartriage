@@ -40,3 +40,8 @@ test_*.tmp.py
 
 # UV lock (optional, remove this line if you want to track it)
 # uv.lock
+
+.history
+.qodo
+.kiro
+.vscode
