@@ -3,13 +3,16 @@
 Serializes a sequence of ClassifiedVariant records into an RFC 4180 compliant
 CSV file with UTF-8 encoding. Each row represents one variant, with absent
 values represented as empty fields.
+
+Supports both Iterator and Sequence inputs — variants are written row by row
+as they are consumed from the iterator.
 """
 
 from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Sequence
+from typing import Iterator, Sequence, Union
 
 from vartriage.models.variant import ClassifiedVariant
 
@@ -104,15 +107,16 @@ def _variant_to_row(variant: ClassifiedVariant) -> list[str]:
 
 
 def write_csv(
-    variants: Sequence[ClassifiedVariant],
+    variants: Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]],
     output_path: Path,
 ) -> Path:
     """Serialize classified variants to an RFC 4180 compliant CSV file.
 
     Parameters
     ----------
-    variants : Sequence[ClassifiedVariant]
-        The prioritized variant list to serialize.
+    variants : Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]]
+        The prioritized variant list or iterator to serialize. Variants
+        are written row by row as they are consumed.
     output_path : Path
         Destination file path for the CSV output.
 

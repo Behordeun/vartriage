@@ -1,16 +1,14 @@
-"""JSON report writer for serializing classified variants.
+"""JSON report writer.
 
-Produces RFC 8259 compliant JSON with UTF-8 encoding. Field ordering is
-deterministic and matches the clinical report specification. Round-trip
-fidelity is guaranteed: serialize then deserialize yields identical values
-and ordering.
+Streams classified variants to RFC 8259 JSON with deterministic field
+ordering. Only one variant is in memory at a time (beyond the I/O buffer).
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Iterator, Sequence, Union
 
 from vartriage.models.variant import ClassifiedVariant
 
@@ -31,18 +29,7 @@ _OUTPUT_FIELDS: tuple[str, ...] = (
 
 
 def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
-    """Convert a ClassifiedVariant to an ordered dictionary for JSON output.
-
-    Parameters
-    ----------
-    variant : ClassifiedVariant
-        The classified variant to serialize.
-
-    Returns
-    -------
-    dict[str, Any]
-        Dictionary with output fields in specified order, absent values as None.
-    """
+    """Flatten a ClassifiedVariant into an output-ordered dict."""
     scored = variant.scored
     annotated = scored.annotated
     raw = annotated.variant
@@ -81,40 +68,45 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
 
 
 def write_json(
-    variants: Sequence[ClassifiedVariant],
+    variants: Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]],
     output_path: Path,
 ) -> Path:
-    """Serialize a list of classified variants to a JSON file.
-
-    Produces RFC 8259 compliant JSON with UTF-8 encoding. All output fields
-    are included in the specified order. Absent values are represented as
-    JSON ``null``. Round-trip fidelity is guaranteed: deserializing the
-    output produces identical values, types, and ordering.
+    """Write classified variants to a JSON file, streaming one at a time.
 
     Parameters
     ----------
-    variants : Sequence[ClassifiedVariant]
-        The classified variants to serialize, in prioritized rank order.
+    variants : Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]]
+        Variants in priority order. Iterators are consumed lazily.
     output_path : Path
-        Destination file path for the JSON output.
+        Destination file path.
 
     Returns
     -------
     Path
-        The path to the written JSON file.
+        The written file path.
 
     Raises
     ------
     IOError
-        If the file cannot be written due to a filesystem or encoding error.
+        If the write fails (filesystem or encoding error).
     """
-    records = [_variant_to_dict(v) for v in variants]
-
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(records, f, ensure_ascii=False, indent=2, allow_nan=False)
-            f.write("\n")
+            f.write("[\n")
+            first = True
+            for variant in variants:
+                if not first:
+                    f.write(",\n")
+                json.dump(
+                    _variant_to_dict(variant),
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                    allow_nan=False,
+                )
+                first = False
+            f.write("\n]\n")
     except (OSError, ValueError, TypeError) as exc:
         try:
             if output_path.exists():

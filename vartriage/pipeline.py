@@ -25,7 +25,6 @@ from vartriage.models.config import (
 )
 from vartriage.models.variant import (
     AnnotatedVariant,
-    ClassifiedVariant,
     Variant,
 )
 from vartriage.prioritization.engine import PrioritizationEngine
@@ -130,8 +129,6 @@ class Pipeline:
 
         report_generator = ReportGenerator(self._config.report)
 
-        classified_variants: list[ClassifiedVariant] = []
-
         with VCFParser(effective_vcf_path) as parser:
             filtered = quality_filter.apply(iter(parser))
 
@@ -144,23 +141,18 @@ class Pipeline:
 
             classified = acmg_classifier.classify(scored)
 
-            for variant in classified:
-                classified_variants.append(variant)
-
-        if annotation_engine is not None:
-            self._warning_accumulator.add_batch(
-                annotation_engine.warnings
+            result_path = report_generator.generate(
+                classified, effective_output_path
             )
 
-        logger.info(
-            "Pipeline processed %d classified variants. "
-            "Missing data warnings: %d",
-            len(classified_variants),
-            self._warning_accumulator.total_count,
-        )
+            if annotation_engine is not None:
+                self._warning_accumulator.add_batch(
+                    annotation_engine.warnings
+                )
 
-        result_path = report_generator.generate(
-            classified_variants, effective_output_path
+        logger.info(
+            "Pipeline completed. Missing data warnings: %d",
+            self._warning_accumulator.total_count,
         )
 
         logger.info("Report written to: %s", result_path)

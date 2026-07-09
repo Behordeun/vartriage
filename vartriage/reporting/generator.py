@@ -1,9 +1,10 @@
-"""Report generation orchestrator.
+"""Report generation — routes output to JSON, CSV, or PDF writers.
 
-Routes classified variant output to the appropriate format writer (JSON, CSV,
-or PDF) based on configuration. Writes to a temporary file first and performs
-an atomic rename on success, ensuring no partial or corrupted output reaches
-the target path on failure.
+Writes to a temp file first and does an atomic rename on success, so the
+target path never contains partial output if something fails mid-write.
+
+Accepts both iterators and sequences. JSON/CSV stream directly; PDF
+materializes everything since page layout needs random access.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import Sequence
+from typing import Iterator, Sequence, Union
 
 from vartriage.models.config import ReportConfig
 from vartriage.models.variant import ClassifiedVariant
@@ -20,22 +21,16 @@ from vartriage.reporting.json_writer import write_json
 
 
 class ReportGenerator:
-    """Generate clinical reports in JSON, CSV, or PDF format.
+    """Writes clinical reports in JSON, CSV, or PDF.
 
-    Routes to the appropriate format writer based on ``ReportConfig``.
-    All writes go through a temporary file with an atomic rename on
-    success, guaranteeing that the target path never holds partial output.
+    Uses a temp file + atomic rename so the output path is never left
+    in a half-written state. JSON and CSV stream from iterators without
+    buffering; PDF materializes all variants for pagination.
 
     Parameters
     ----------
     config : ReportConfig
-        Report generation settings including output format.
-
-    Raises
-    ------
-    IOError
-        If write fails. Partial or corrupted files are never produced
-        at the target path.
+        Settings including the desired output format.
     """
 
     def __init__(self, config: ReportConfig) -> None:
@@ -43,33 +38,31 @@ class ReportGenerator:
 
     def generate(
         self,
-        variants: Sequence[ClassifiedVariant],
+        variants: Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]],
         output_path: Path,
     ) -> Path:
-        """Serialize classified variants to the configured output format.
+        """Write classified variants to the configured format.
 
-        Writes to a temporary file in the same directory as the target,
-        then atomically moves the temp file to the final path on success.
-        On failure, the temp file is cleaned up and no partial output
-        exists at the target path.
+        Writes to a temp file alongside the target, then atomically
+        replaces it on success. On failure, cleans up the temp file.
 
         Parameters
         ----------
-        variants : Sequence[ClassifiedVariant]
-            The classified variants to include in the report, in
-            prioritized rank order. May be empty.
+        variants : Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]]
+            Classified variants in priority order. May be empty.
+            JSON/CSV consume iterators incrementally; PDF materializes.
         output_path : Path
-            Destination file path for the report output.
+            Where the final report lands.
 
         Returns
         -------
         Path
-            The path to the written report file.
+            The written report path.
 
         Raises
         ------
         IOError
-            If a write error or encoding error prevents report generation.
+            On write or encoding failure.
         """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -93,7 +86,8 @@ class ReportGenerator:
             elif fmt == "csv":
                 write_csv(variants, tmp_path)
             elif fmt == "pdf":
-                self._write_pdf(variants, tmp_path)
+                materialized = list(variants)
+                self._write_pdf(materialized, tmp_path)
             else:
                 raise IOError(
                     f"Unsupported output format: {fmt}"
@@ -122,24 +116,24 @@ class ReportGenerator:
         variants: Sequence[ClassifiedVariant],
         output_path: Path,
     ) -> Path:
-        """Write PDF output, auto-detecting reportlab availability.
+        """Render PDF, trying reportlab first then the text fallback.
 
         Parameters
         ----------
         variants : Sequence[ClassifiedVariant]
-            Variants to render.
+            Materialized variant list.
         output_path : Path
-            Temporary path for the PDF file.
+            Temp path for the PDF.
 
         Returns
         -------
         Path
-            The path to the written PDF.
+            Path to the rendered PDF.
 
         Raises
         ------
         IOError
-            If reportlab is not installed or rendering fails.
+            If no PDF backend is available or rendering fails.
         """
         try:
             from vartriage.reporting.pdf_writer import (
