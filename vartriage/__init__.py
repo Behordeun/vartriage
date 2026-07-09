@@ -42,12 +42,17 @@ from vartriage.models.variant import (
     ScoredVariant,
     Variant,
 )
+from vartriage.exceptions import VarTriageWarning
 from vartriage.models.warnings import MissingDataWarning
 from vartriage.pipeline import Pipeline
 from vartriage.prioritization.engine import PrioritizationEngine
 from vartriage.reporting.generator import ReportGenerator
 
-__version__ = "0.1.0"
+try:
+    from importlib.metadata import version as _get_version
+    __version__ = _get_version("vartriage")
+except Exception:
+    __version__ = "0.1.0"
 
 __all__ = [
     # Pipeline orchestrator
@@ -85,5 +90,6 @@ __all__ = [
     "ConfigurationError",
     "ReferenceFileError",
     # Warnings
+    "VarTriageWarning",
     "MissingDataWarning",
 ]
