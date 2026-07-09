@@ -1,7 +1,7 @@
 """Core data models for variant representation and classification.
 
-Immutable dataclasses and enumerations used throughout the pipeline,
-from raw VCF parsing through ACMG/AMP classification.
+Immutable dataclasses and enums used from VCF parsing through
+ACMG/AMP classification.
 """
 
 from __future__ import annotations
@@ -86,20 +86,11 @@ class ClinVarAssertion(Enum):
 
 
 class ACMGClassification(Enum):
-    """Final ACMG/AMP 2015 variant classification.
+    """Final ACMG/AMP 2015 classification for a variant.
 
-    Attributes
-    ----------
-    PATHOGENIC : str
-        Meets pathogenic combining criteria.
-    LIKELY_PATHOGENIC : str
-        Meets likely pathogenic combining criteria.
-    VUS : str
-        Variant of uncertain significance (default).
-    LIKELY_BENIGN : str
-        Meets likely benign combining criteria.
-    BENIGN : str
-        Meets benign combining criteria.
+    In v0.x, only PATHOGENIC, LIKELY_PATHOGENIC, and VUS are produced.
+    LIKELY_BENIGN and BENIGN exist for forward compatibility but the
+    current rules don't assign benign evidence tags yet.
     """
 
     PATHOGENIC = "Pathogenic"

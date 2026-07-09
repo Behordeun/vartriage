@@ -66,13 +66,13 @@ The output is a JSON file at `candidates.json` with variants ranked by composite
 
 ## What you need
 
-| Item | Purpose | Where to get it |
-|------|---------|-----------------|
-| VCF file | Input variants | Your sequencing pipeline (GATK, DeepVariant, etc.) |
-| Gene annotation (GTF/GFF) | Functional consequence assignment | [GENCODE](https://www.gencodegenes.org/human/) |
-| gnomAD frequency file | Population frequency filtering | [gnomAD downloads](https://gnomad.broadinstitute.org/downloads) |
-| ClinVar file (optional) | Clinical significance lookup | [ClinVar FTP](https://ftp.ncbi.nlm.nih.gov/pub/clinvar/) |
-| CADD scores (optional) | Pathogenicity scoring | [CADD download](https://cadd.gs.washington.edu/download) |
-| REVEL scores (optional) | Pathogenicity scoring | [REVEL download](https://sites.google.com/site/revelgenomics/) |
+| Item                      | Purpose                           | Where to get it                                                  |
+| ------------------------- | --------------------------------- | ---------------------------------------------------------------- |
+| VCF file                  | Input variants                    | Your sequencing pipeline (GATK, DeepVariant, etc.)               |
+| Gene annotation (GTF/GFF) | Functional consequence assignment | [GENCODE](https://www.gencodegenes.org/human/)                   |
+| gnomAD frequency file     | Population frequency filtering    | [gnomAD downloads](https://gnomad.broadinstitute.org/downloads)  |
+| ClinVar file (optional)   | Clinical significance lookup      | [ClinVar FTP](https://ftp.ncbi.nlm.nih.gov/pub/clinvar/)         |
+| CADD scores (optional)    | Pathogenicity scoring             | [CADD download](https://cadd.gs.washington.edu/download)         |
+| REVEL scores (optional)   | Pathogenicity scoring             | [REVEL download](https://sites.google.com/site/revelgenomics/)   |
 
 See [Reference Files](reference-files.md) for column format requirements and preparation steps.

@@ -1,12 +1,22 @@
-"""ACMG/AMP 2015 evidence combining rules for variant classification.
+"""ACMG/AMP 2015 evidence combining rules.
 
-This module implements the combining logic that maps a set of evidence tags
-(each carrying a strength tier) to a final ACMG classification. The rules
-follow the 2015 ACMG/AMP guidelines for interpreting sequence variants.
+Maps a set of evidence tags (with strength tiers) to a final classification.
+Counts evidence at each level and checks against threshold patterns.
 
-The combining function counts evidence at each strength level and checks
-whether any of the defined rule thresholds are met, returning the most
-severe classification that applies.
+Combining Rules
+---------------
+PATHOGENIC when any of:
+- ≥1 Very Strong + ≥1 Strong
+- ≥2 Strong + ≥1 Supporting
+- ≥1 Very Strong + ≥2 Supporting
+
+LIKELY_PATHOGENIC when any of:
+- ≥1 Very Strong + ≥1 Moderate
+- ≥1 Strong + 1–2 Moderate
+- ≥1 Strong + ≥2 Supporting
+
+Everything else (including empty evidence) → VUS.
+LIKELY_BENIGN and BENIGN are not produced yet — no benign tags are assigned.
 """
 
 from __future__ import annotations
@@ -20,24 +30,17 @@ from vartriage.models.variant import (
 
 
 def combine_evidence(tags: frozenset[EvidenceTag]) -> ACMGClassification:
-    """Combine ACMG evidence tags into a final classification.
-
-    Applies ACMG/AMP 2015 combining rules by counting evidence at each
-    strength tier and checking whether pathogenic or likely pathogenic
-    thresholds are met.
+    """Combine evidence tags into a final ACMG classification.
 
     Parameters
     ----------
     tags : frozenset[EvidenceTag]
-        Set of evidence tags assigned to a variant. Each tag maps to a
-        strength tier via ``EVIDENCE_STRENGTH_MAP``.
+        Evidence tags assigned to a variant.
 
     Returns
     -------
     ACMGClassification
-        The final classification: PATHOGENIC, LIKELY_PATHOGENIC, or VUS.
-        Likely_Benign and Benign are not produced in v1 since benign
-        evidence tags are not assigned by the current rule set.
+        PATHOGENIC, LIKELY_PATHOGENIC, or VUS.
     """
     if not tags:
         return ACMGClassification.VUS
@@ -56,18 +59,7 @@ def combine_evidence(tags: frozenset[EvidenceTag]) -> ACMGClassification:
 def _count_by_strength(
     tags: frozenset[EvidenceTag],
 ) -> dict[EvidenceStrength, int]:
-    """Count how many tags fall into each strength tier.
-
-    Parameters
-    ----------
-    tags : frozenset[EvidenceTag]
-        Evidence tags to categorize.
-
-    Returns
-    -------
-    dict[EvidenceStrength, int]
-        Counts per strength tier, defaulting to zero for absent tiers.
-    """
+    """Tally tags by strength tier."""
     counts: dict[EvidenceStrength, int] = {
         EvidenceStrength.VERY_STRONG: 0,
         EvidenceStrength.STRONG: 0,
@@ -81,23 +73,7 @@ def _count_by_strength(
 
 
 def _meets_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
-    """Check whether evidence meets any Pathogenic combining rule.
-
-    Pathogenic rules (ACMG/AMP 2015):
-    - >=1 Very Strong AND >=1 Strong
-    - >=2 Strong AND >=1 Supporting
-    - >=1 Very Strong AND >=2 Supporting
-
-    Parameters
-    ----------
-    counts : dict[EvidenceStrength, int]
-        Evidence counts by strength tier.
-
-    Returns
-    -------
-    bool
-        True if any pathogenic rule is satisfied.
-    """
+    """True if counts satisfy any Pathogenic rule."""
     vs = counts[EvidenceStrength.VERY_STRONG]
     s = counts[EvidenceStrength.STRONG]
     sup = counts[EvidenceStrength.SUPPORTING]
@@ -113,23 +89,7 @@ def _meets_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
 
 
 def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
-    """Check whether evidence meets any Likely Pathogenic combining rule.
-
-    Likely Pathogenic rules (ACMG/AMP 2015):
-    - 1 Very Strong AND 1 Moderate
-    - 1 Strong AND 1-2 Moderate
-    - 1 Strong AND >=2 Supporting
-
-    Parameters
-    ----------
-    counts : dict[EvidenceStrength, int]
-        Evidence counts by strength tier.
-
-    Returns
-    -------
-    bool
-        True if any likely pathogenic rule is satisfied.
-    """
+    """True if counts satisfy any Likely Pathogenic rule."""
     vs = counts[EvidenceStrength.VERY_STRONG]
     s = counts[EvidenceStrength.STRONG]
     m = counts[EvidenceStrength.MODERATE]

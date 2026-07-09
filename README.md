@@ -69,6 +69,30 @@ with VCFParser(Path("input.vcf.gz")) as parser:
         print(f"{variant.chrom}:{variant.pos} {variant.ref}>{variant.alt}")
 ```
 
+## Command Line
+
+After installation, the `vartriage` command is available:
+
+```bash
+vartriage --vcf sample.vcf.gz --output candidates.json
+```
+
+With annotation and scoring references:
+
+```bash
+vartriage \
+  --vcf sample.vcf.gz \
+  --output report.json \
+  --output-format json \
+  --gene-annotation gencode.v44.gtf \
+  --gnomad gnomad.v4.sites.tsv \
+  --clinvar clinvar_20240101.tsv \
+  --cadd-scores cadd_scores.tsv \
+  --revel-scores revel_scores.tsv
+```
+
+Run `vartriage --help` for all options.
+
 ## Pipeline stages
 
 ```text
@@ -243,7 +267,7 @@ pytest tests/ -m "not slow"          # skip performance benchmarks
 mypy --strict vartriage/  # type checking
 ```
 
-383 tests, 0 failures. mypy strict, 0 errors.
+Tests pass. mypy strict, 0 errors.
 
 ## Project layout
 
