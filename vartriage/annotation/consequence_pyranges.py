@@ -230,6 +230,39 @@ class PyRangesConsequenceAnnotator:
         self._index = PyRangesIntervalIndex()
         self._index.load(annotation_path)
 
+    def load(self, annotation_path: Path) -> None:
+        """Load gene annotation from a GTF/GFF file.
+
+        Parameters
+        ----------
+        annotation_path : Path
+            Path to the GTF or GFF gene annotation file.
+        """
+        self._index.load(annotation_path)
+
+    def overlap(
+        self, chrom: str, pos: int, ref: str, alt: str
+    ) -> list[dict[str, Any]]:
+        """Return overlapping gene regions for a variant coordinate.
+
+        Parameters
+        ----------
+        chrom : str
+            Chromosome name.
+        pos : int
+            1-based genomic position.
+        ref : str
+            Reference allele.
+        alt : str
+            Alternate allele.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            Overlapping regions from the interval index.
+        """
+        return self._index.overlap(chrom, pos, ref, alt)
+
     def assign(self, variant: Variant) -> FunctionalConsequence:
         """Assign the most severe functional consequence for a variant.
 

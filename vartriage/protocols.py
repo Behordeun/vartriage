@@ -1,13 +1,12 @@
-"""Abstract Protocol interfaces for pluggable pipeline backends.
+"""Protocol interfaces for pluggable pipeline backends.
 
-Contracts that both pure-Python fallback and optimized backends must satisfy.
-The pipeline depends only on these protocols — never on concrete library types.
+The pipeline depends only on these protocols, not on concrete library types.
 Each protocol has two implementations:
 
-- A pure-Python fallback (sorted-array interval tree, dictionary-based lookups,
-  no PDF) that works with only pysam + numpy installed.
-- An optimized backend (pyranges for intervals, polars for batch joins,
-  reportlab for PDF) activated when optional extras are installed.
+- Pure-Python fallback (sorted-array intervals, dict lookups, no PDF) —
+  works with just pysam + numpy.
+- Optimized backend (pyranges, polars, reportlab) — used when the
+  optional extras are installed.
 """
 
 from __future__ import annotations
@@ -15,27 +14,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional, Protocol
 
-from vartriage.models.variant import ClinVarAssertion
+from vartriage.models.variant import ClinVarAssertion, FunctionalConsequence, Variant
 
 
 class IntervalIndex(Protocol):
-    """Interface for genomic interval overlap queries.
-
-    Implementations must support loading gene annotation data from GTF/GFF
-    files and performing coordinate-based overlap lookups for variant
-    consequence assignment.
+    """Genomic interval overlap queries.
 
     Implementations
     ---------------
     SortedArrayIntervalIndex : pure-Python, always available
     PyRangesIntervalIndex : requires pyranges extra
-
-    Methods
-    -------
-    load(annotation_path)
-        Load gene annotation from GTF/GFF file.
-    overlap(chrom, pos, ref, alt)
-        Return overlapping gene regions for a variant coordinate.
     """
 
     def load(self, annotation_path: Path) -> None:
@@ -78,24 +66,34 @@ class IntervalIndex(Protocol):
         """
         ...
 
+    def assign_batch(
+        self, variants: list["Variant"]
+    ) -> list["FunctionalConsequence"]:
+        """Assign consequences to a batch of variants.
+
+        Returns a list of the same length as the input, positionally
+        matched.
+
+        Parameters
+        ----------
+        variants : list[Variant]
+            Variants to annotate.
+
+        Returns
+        -------
+        list[FunctionalConsequence]
+            Consequences, same order as input.
+        """
+        ...
+
 
 class FrequencyDatabase(Protocol):
-    """Interface for population frequency lookups.
-
-    Implementations must support loading reference frequency data and
-    performing batch lookups by genomic coordinate.
+    """Population allele frequency lookups.
 
     Implementations
     ---------------
     DictFrequencyDatabase : pure-Python dict, always available
     PolarsFrequencyDatabase : requires polars extra
-
-    Methods
-    -------
-    load(reference_path)
-        Load reference frequency data from file.
-    lookup_batch(variants)
-        Batch lookup of allele frequencies by coordinate.
     """
 
     def load(self, reference_path: Path) -> None:
@@ -135,22 +133,12 @@ class FrequencyDatabase(Protocol):
 
 
 class ClinVarDatabase(Protocol):
-    """Interface for ClinVar clinical significance lookups.
-
-    Implementations must support loading ClinVar reference data and
-    performing batch lookups by genomic coordinate.
+    """ClinVar clinical significance lookups.
 
     Implementations
     ---------------
     DictClinVarDatabase : pure-Python dict, always available
     PolarsClinVarDatabase : requires polars extra
-
-    Methods
-    -------
-    load(reference_path)
-        Load ClinVar reference data from file.
-    lookup_batch(variants)
-        Batch lookup of ClinVar assertions by coordinate.
     """
 
     def load(self, reference_path: Path) -> None:
@@ -190,20 +178,12 @@ class ClinVarDatabase(Protocol):
 
 
 class PDFRenderer(Protocol):
-    """Interface for PDF report generation.
-
-    Implementations must support rendering classified variant data into
-    a formatted clinical PDF report.
+    """PDF report generation.
 
     Implementations
     ---------------
     ReportlabPDFRenderer : requires reportlab extra
     PDFFallback : raises ImportError with install instructions
-
-    Methods
-    -------
-    render(variants, output_path)
-        Render classified variants to a PDF clinical report.
     """
 
     def render(self, variants: list[Any], output_path: Path) -> Path:

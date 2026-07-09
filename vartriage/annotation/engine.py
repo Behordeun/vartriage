@@ -1,10 +1,9 @@
-"""Annotation engine orchestrator with backend auto-detection.
+"""Annotation engine with backend auto-detection.
 
-Composes functional consequence assignment, population frequency lookups,
-and ClinVar assertion lookups into a single batch-processing pipeline.
-Auto-detects available backends (pyranges, polars) at construction time
-and selects the fastest available, falling back to pure-Python
-implementations when optional dependencies are not installed.
+Composes consequence assignment, gnomAD frequency lookups, and ClinVar
+lookups into a batch-processing pipeline. Picks the fastest available
+backend (pyranges, polars) at init time, falling back to pure-Python
+when the optional deps aren't installed.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ from __future__ import annotations
 import logging
 from itertools import islice
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Iterator, Optional
 
 from vartriage.models.config import AnnotationConfig
 from vartriage.models.variant import (
@@ -21,6 +20,11 @@ from vartriage.models.variant import (
     Variant,
 )
 from vartriage.models.warnings import MissingDataWarning
+from vartriage.protocols import (
+    ClinVarDatabase,
+    FrequencyDatabase,
+    IntervalIndex,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,31 +50,23 @@ def _polars_available() -> bool:
 
 
 class AnnotationEngine:
-    """Annotate variants with functional consequence and population data.
+    """Annotates variants with consequence, frequency, and ClinVar data.
 
-    Orchestrates consequence assignment, gnomAD frequency lookup, and
-    ClinVar assertion lookup in configurable batch sizes. Auto-detects
-    the fastest available backend at construction time:
+    Processes in configurable batch sizes. Picks the fastest backend
+    at construction time:
 
-    - Consequence: PyRangesIntervalIndex if pyranges installed, else
-      SortedArrayIntervalIndex (pure-Python)
-    - Frequency: PolarsFrequencyDatabase if polars installed, else
-      DictFrequencyDatabase (pure-Python)
-    - ClinVar: PolarsClinVarDatabase if polars installed, else
-      DictClinVarDatabase (pure-Python)
+    - Consequence: pyranges if available, else pure-Python sorted intervals
+    - Frequency/ClinVar: polars if available, else dict-based lookups
 
     Parameters
     ----------
     config : AnnotationConfig
-        Paths to gene annotation (GTF/GFF), gnomAD, and ClinVar reference
-        files, plus batch_size for vectorized operations.
+        Reference file paths and batch_size.
 
     Raises
     ------
     FileNotFoundError
-        If any required reference file path does not exist.
-    ReferenceFileError
-        If a reference file cannot be read or parsed.
+        If a required reference file is missing.
     ValueError
         If batch_size is outside [1_000, 100_000].
     """
@@ -83,25 +79,25 @@ class AnnotationEngine:
         self._validate_paths(config)
 
         # Initialize consequence annotator
-        self._consequence_annotator = self._build_consequence_annotator(
-            config.gene_annotation_path
+        self._consequence_annotator: IntervalIndex = (
+            self._build_consequence_annotator(
+                config.gene_annotation_path
+            )
         )
 
         # Initialize frequency database
-        self._frequency_db = self._build_frequency_db(config.gnomad_path)
+        self._frequency_db: FrequencyDatabase = (
+            self._build_frequency_db(config.gnomad_path)
+        )
 
         # Initialize ClinVar database (optional)
-        self._clinvar_db = self._build_clinvar_db(config.clinvar_path)
+        self._clinvar_db: Optional[ClinVarDatabase] = (
+            self._build_clinvar_db(config.clinvar_path)
+        )
 
     @property
     def warnings(self) -> list[MissingDataWarning]:
-        """All MissingDataWarning instances accumulated during annotation.
-
-        Returns
-        -------
-        list[MissingDataWarning]
-            Warnings emitted for variants missing from reference databases.
-        """
+        """Warnings accumulated for variants missing from references."""
         return self._warnings
 
     def annotate(
@@ -137,18 +133,7 @@ class AnnotationEngine:
     def _annotate_batch(
         self, batch: list[Variant]
     ) -> list[AnnotatedVariant]:
-        """Annotate a single batch of variants.
-
-        Parameters
-        ----------
-        batch : list[Variant]
-            Batch of variants to annotate.
-
-        Returns
-        -------
-        list[AnnotatedVariant]
-            Annotated variants in the same order as input.
-        """
+        """Run consequence + frequency + ClinVar on a single batch."""
         # Consequence assignment
         consequences = self._consequence_annotator.assign_batch(batch)
 
@@ -213,18 +198,7 @@ class AnnotationEngine:
         return results
 
     def _validate_paths(self, config: AnnotationConfig) -> None:
-        """Validate all reference file paths exist at initialization.
-
-        Parameters
-        ----------
-        config : AnnotationConfig
-            Configuration containing file paths to validate.
-
-        Raises
-        ------
-        FileNotFoundError
-            If any required reference file does not exist.
-        """
+        """Fail fast if any required reference file is missing."""
         if not config.gene_annotation_path.exists():
             raise FileNotFoundError(
                 f"Gene annotation file not found: "
@@ -241,22 +215,22 @@ class AnnotationEngine:
                 f"ClinVar reference file not found: {config.clinvar_path}"
             )
 
-    def _build_consequence_annotator(self, annotation_path: Path) -> Any:
-        """Build the best available consequence annotator.
+    def _build_consequence_annotator(
+        self, annotation_path: Path
+    ) -> IntervalIndex:
+        """Pick the best consequence annotator available.
 
-        Attempts to use the pyranges-based backend first; falls back
-        to the pure-Python sorted interval tree if pyranges is not
-        installed.
+        Tries pyranges first, falls back to the pure-Python interval tree.
 
         Parameters
         ----------
         annotation_path : Path
-            Path to the GTF/GFF gene annotation file.
+            GTF/GFF gene annotation file.
 
         Returns
         -------
-        ConsequenceAnnotator or PyRangesConsequenceAnnotator
-            The consequence annotator instance with loaded data.
+        IntervalIndex
+            Loaded consequence annotator.
         """
         if _pyranges_available():
             try:
@@ -283,22 +257,22 @@ class AnnotationEngine:
         )
         return ConsequenceAnnotator(annotation_path)
 
-    def _build_frequency_db(self, gnomad_path: Path) -> Any:
-        """Build the best available frequency database.
+    def _build_frequency_db(
+        self, gnomad_path: Path
+    ) -> FrequencyDatabase:
+        """Pick the best frequency database available.
 
-        Attempts to use the polars-based backend first; falls back to
-        the pure-Python dict-based implementation if polars is not
-        installed.
+        Tries polars first, falls back to the pure-Python dict.
 
         Parameters
         ----------
         gnomad_path : Path
-            Path to the gnomAD reference TSV file.
+            gnomAD reference TSV.
 
         Returns
         -------
-        DictFrequencyDatabase or PolarsFrequencyDatabase
-            The frequency database instance with loaded data.
+        FrequencyDatabase
+            Loaded frequency database.
         """
         if _polars_available():
             try:
@@ -309,7 +283,7 @@ class AnnotationEngine:
                 logger.info(
                     "Using polars backend for frequency lookup"
                 )
-                freq_db: Any = PolarsFrequencyDatabase()
+                freq_db: FrequencyDatabase = PolarsFrequencyDatabase()
                 freq_db.load(gnomad_path)
                 return freq_db
             except Exception as exc:
@@ -328,18 +302,20 @@ class AnnotationEngine:
         freq_db.load(gnomad_path)
         return freq_db
 
-    def _build_clinvar_db(self, clinvar_path: Optional[Path]) -> Any:
-        """Build the best available ClinVar database, or None if path is absent.
+    def _build_clinvar_db(
+        self, clinvar_path: Optional[Path]
+    ) -> Optional[ClinVarDatabase]:
+        """Pick the best ClinVar backend, or None if no path given.
 
         Parameters
         ----------
         clinvar_path : Optional[Path]
-            Path to the ClinVar reference file, or None to skip ClinVar.
+            ClinVar reference file, or None to skip.
 
         Returns
         -------
-        DictClinVarDatabase or PolarsClinVarDatabase or None
-            The ClinVar database instance with loaded data, or None.
+        Optional[ClinVarDatabase]
+            Loaded ClinVar database, or None.
         """
         if clinvar_path is None:
             return None
@@ -353,7 +329,7 @@ class AnnotationEngine:
                 logger.info(
                     "Using polars backend for ClinVar lookup"
                 )
-                clinvar_db: Any = PolarsClinVarDatabase()
+                clinvar_db: ClinVarDatabase = PolarsClinVarDatabase()
                 clinvar_db.load(clinvar_path)
                 return clinvar_db
             except Exception as exc:
