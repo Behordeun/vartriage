@@ -15,6 +15,13 @@ from unittest.mock import patch
 
 import pytest
 
+def _has_reportlab() -> bool:
+    try:
+        import reportlab  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.exceptions import ParseError
 from vartriage.io.vcf_parser import VCFParser
@@ -308,6 +315,10 @@ class TestEmptyInputHandling:
         lines = output.read_text().strip().split("\n")
         assert len(lines) == 1  # header only
 
+    @pytest.mark.skipif(
+        not _has_reportlab(),
+        reason="reportlab not installed",
+    )
     def test_report_generator_empty_pdf(self, tmp_path: Path) -> None:
         """Empty variant list produces a valid PDF (structure only)."""
         config = ReportConfig(output_format="pdf")
