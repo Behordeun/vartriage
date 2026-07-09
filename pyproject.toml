@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vartriage"
+version = "0.1.0"
+description = "A streaming pipeline library for identifying and classifying pathogenic genetic variants from VCF data"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Muhammad Abiodun SULAIMAN" },
+    { name = "Bolaji Fatai OYEYEMI" }
+]
+readme = "README.md"
+keywords = ["bioinformatics", "genomics", "variants", "vcf", "acmg", "pathogenicity"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "pysam>=0.22.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+accelerated = ["polars>=0.20.0", "pyranges>=0.1.0"]
+pdf = ["reportlab>=4.0"]
+all = ["polars>=0.20.0", "pyranges>=0.1.0", "reportlab>=4.0"]
+dev = [
+    "pytest>=7.0",
+    "hypothesis>=6.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+]
+test = [
+    "pytest>=7.0",
+    "hypothesis>=6.0",
+    "pytest-cov>=4.0",
+]
+docs = [
+    "mkdocs>=1.5,<2.0",
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.24",
+]
+
+[project.urls]
+Homepage = "https://github.com/muhammad/vartriage"
+Documentation = "https://github.com/muhammad/vartriage#readme"
+Repository = "https://github.com/muhammad/vartriage"
+Issues = "https://github.com/muhammad/vartriage/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vartriage"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+
+[[tool.mypy.overrides]]
+module = [
+    "pyranges",
+    "pyranges.*",
+    "pandas",
+    "pandas.*",
+    "reportlab",
+    "reportlab.*",
+    "pysam",
+    "pysam.*",
+]
+ignore_missing_imports = true

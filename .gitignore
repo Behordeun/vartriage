@@ -1,0 +1,39 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build and distribution
+*.egg-info/
+dist/
+build/
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+
+# Coverage
+.coverage
+htmlcov/
+
+# MkDocs build output
+site/
+
+# Environment variables
+.env
+
+# macOS
+.DS_Store
+
+# Temp test files
+test_*.tmp.py
+
+# UV lock (optional, remove this line if you want to track it)
+# uv.lock
