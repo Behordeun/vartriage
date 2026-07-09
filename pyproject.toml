@@ -77,6 +77,8 @@ python_version = "3.10"
 module = [
     "pyranges",
     "pyranges.*",
+    "polars",
+    "polars.*",
     "pandas",
     "pandas.*",
     "reportlab",
