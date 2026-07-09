@@ -11,12 +11,12 @@ processing 1,000+ variants to avoid iterative Python loops.
 from __future__ import annotations
 
 import warnings
-from dataclasses import replace
 from typing import Optional, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 
+from vartriage.exceptions import VarTriageWarning
 from vartriage.models.variant import AnnotatedVariant, ScoredVariant
 from vartriage.models.warnings import MissingDataWarning
 
@@ -26,7 +26,7 @@ CADD_WEIGHT: float = 0.4
 CADD_MAX_PHRED: float = 99.0
 
 
-class ScoreValidationWarning(UserWarning):
+class ScoreValidationWarning(VarTriageWarning):
     """Emitted when a pathogenicity score is out of its valid range."""
 
 

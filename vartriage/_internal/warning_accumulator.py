@@ -12,6 +12,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
 
+from vartriage.exceptions import VarTriageWarning
 from vartriage.models.config import MissingDataConfig
 from vartriage.models.warnings import MissingDataWarning
 
@@ -49,7 +50,7 @@ def is_connection_failure(reason: Optional[str]) -> bool:
 
 
 @dataclass
-class MissingDataSummaryWarning(UserWarning):
+class MissingDataSummaryWarning(VarTriageWarning):
     """Summary warning emitted when MissingDataWarning count exceeds the threshold.
 
     Attributes
