@@ -1,0 +1,3 @@
+# ACMGClassifier
+
+::: vartriage.ACMGClassifier

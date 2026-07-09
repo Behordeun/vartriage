@@ -1,0 +1,68 @@
+site_name: vartriage
+site_description: A streaming pipeline for identifying and classifying pathogenic genetic variants from VCF data
+repo_url: https://github.com/Behordeun/vartriage
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      accent: green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - search.highlight
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            show_source: false
+            show_root_heading: true
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Tutorial: tutorial.md
+  - Pipeline Stages: pipeline-stages.md
+  - Configuration: configuration.md
+  - Reference Files: reference-files.md
+  - API Reference:
+    - Overview: api/index.md
+    - Pipeline: api/pipeline.md
+    - VCFParser: api/parser.md
+    - QualityFilter: api/filter.md
+    - AnnotationEngine: api/annotation.md
+    - PrioritizationEngine: api/prioritization.md
+    - ACMGClassifier: api/classification.md
+    - ReportGenerator: api/reporting.md
+    - Data Models: api/models.md
+    - Configuration Classes: api/config.md
+    - Exceptions: api/exceptions.md
+  - Architecture: architecture.md
+  - Changelog: changelog.md
