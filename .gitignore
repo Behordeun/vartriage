@@ -32,6 +32,9 @@ site/
 # macOS
 .DS_Store
 
+# Archives
+archives/
+
 # Temp test files
 test_*.tmp.py
 
