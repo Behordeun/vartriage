@@ -1,3 +1,21 @@
+n
+
+ '*.md' | grep "—" | head -5
+(vartriage) muhammad@muhammad-2:~$ cd /Users/muhammad/Documents/DevProjects/personal_projects/Bioinformatics_Libraries/vartriage && git commit -m "feat: add gene list filtering to pipeline
+
+Add GeneFilter stage between annotation and prioritization.
+Restricts variant stream to genes in a user-supplied text file.
+Case-insensitive matching, warns on unmatched panel genes.
+
+- gene_name field on AnnotatedVariant
+- GeneFilterConfig + PipelineConfig.gene_filter
+- GeneFilter class with streaming apply()
+- Pipeline wiring and config validation
+- CLI --gene-list argument"
+  [feature/gene-list-filtering 01e627f] feat: add gene list filtering to pipeline
+  6 files changed, 269 insertions(+), 1 deletion(-)
+  create mode 100644 vartriage/filter/gene_filter.p
+
 # vartriage
 
 Variant prioritization pipeline for whole-genome sequencing data. Takes a VCF, applies quality filters, annotates functional consequence and population frequency, scores pathogenicity via CADD/REVEL/SpliceAI, runs ACMG/AMP evidence classification, and outputs a ranked candidate list.
@@ -107,6 +125,14 @@ Stages in brackets are optional and activate based on config.
 **Sample extraction** (`--sample`) - Pulls a single sample from multi-sample VCFs. Only variants where the named sample carries an alternate allele are kept. Optional `--min-gq` threshold drops low-confidence genotype calls.
 
 **Region filtering** (`--regions`) - Restricts to variants overlapping intervals in a BED file. Useful for gene panel target regions.
+VCFParser → [SampleExtractor] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
+```
+
+Stages in brackets are optional and activate based on config.
+
+**Sample extraction** (`--sample`) - Pulls a single sample from multi-sample VCFs. Only variants where the named sample carries an alternate allele are kept. Optional `--min-gq` threshold drops low-confidence genotype calls.
+
+**Region filtering** (`--regions`) - Restricts to variants overlapping intervals in a BED file. Useful for gene panel target regions.
 
 **Quality filtering** - Drops variants where FILTER isn't PASS/`.`, QUAL is below threshold (default 20), or QUAL is missing entirely.
 
@@ -134,6 +160,12 @@ When only two scores are available, weights redistribute proportionally. Single 
 | PM2 | gnomAD AF < 0.0001 |
 | PP3 | REVEL > 0.7 or SpliceAI > 0.5 on splice-adjacent |
 | PP5 | ClinVar Pathogenic without conflicting Benign |
+| Tag  | Condition                                     |
+| ---- | --------------------------------------------- |
+| PVS1 | Nonsense or Frameshift                        |
+| PM2  | gnomAD AF < 0.0001                            |
+| PP3  | REVEL > 0.7                                   |
+| PP5  | ClinVar Pathogenic without conflicting Benign |
 
 Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
 
@@ -146,15 +178,6 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 | Field | Type | Default | Range |
 | --- | --- | --- | --- |
 | min_qual | float | 20.0 | 0-1,000,000 |
-
-### AnnotationConfig
-
-| Field | Type | Default | Notes |
-|---|---|---|---|
-| gene_annotation_path | Path | required | GTF/GFF |
-| gnomad_path | Path | required | TSV or tabix VCF (.vcf.bgz/.vcf.gz) |
-| clinvar_path | Path | None | TSV |
-| batch_size | int | 10,000 | 1,000-100,000 |
 
 ### PrioritizationConfig
 
@@ -187,6 +210,25 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 | Field | Type | Default | Options |
 | --- | --- | --- | --- |
 | output_format | str | "json" | "json", "csv", "pdf", "vcf" |
+| Field    | Type  | Default | Range        |
+| -------- | ----- | ------- | ------------ |
+| min_qual | float | 20.0    | 0–1,000,000 |
+
+
+### PrioritizationConfig
+
+| Field                | Type  | Default | Notes          |
+| -------------------- | ----- | ------- | -------------- |
+| max_allele_frequency | float | 0.01    | 0.0–1.0       |
+| cadd_scores_path     | Path  | None    | CADD Phred TSV |
+| revel_scores_path    | Path  | None    | REVEL TSV      |
+| batch_size           | int   | 10,000  | 1,000–100,000 |
+
+### ReportConfig
+
+| Field         | Type | Default | Options              |
+| ------------- | ---- | ------- | -------------------- |
+| output_format | str  | "json"  | "json", "csv", "pdf" |
 
 ### GeneFilterConfig
 
