@@ -18,7 +18,8 @@ config = PipelineConfig(
     annotation=AnnotationConfig(
         gene_annotation_path=Path("data/references/gencode_chr22.gtf"),
         gnomad_path=Path("data/references/gnomad_chr22.tsv"),
-        clinvar_path=Path("data/references/clinvar.tsv"),
+        clinvar_path=None,
+        batch_size=1000,
     ),
     prioritization=PrioritizationConfig(
         max_allele_frequency=0.01,

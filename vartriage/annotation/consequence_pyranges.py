@@ -289,7 +289,10 @@ class PyRangesConsequenceAnnotator:
         return _most_severe_consequence_pyranges(overlaps)
 
     def assign_batch(self, variants: list[Variant]) -> list[FunctionalConsequence]:
-        """Assign consequences to a batch of variants.
+        """Assign consequences to a batch of variants using vectorized join.
+
+        Builds a single PyRanges from all variant positions, joins against
+        the gene model in one operation, then maps consequences back.
 
         Parameters
         ----------
@@ -301,7 +304,99 @@ class PyRangesConsequenceAnnotator:
         list[FunctionalConsequence]
             Consequences in the same order as input variants.
         """
-        return [self.assign(v) for v in variants]
+        if not variants:
+            return []
+
+        if not self._index._loaded or self._index._gr is None:
+            return [FunctionalConsequence.INTERGENIC] * len(variants)
+
+        # Build a DataFrame of all variant positions at once
+        records = []
+        for i, v in enumerate(variants):
+            var_start = v.pos - 1
+            var_end = var_start + max(len(v.ref), len(v.alt))
+            records.append({
+                "Chromosome": v.chrom,
+                "Start": var_start,
+                "End": var_end,
+                "_idx": i,
+                "_ref": v.ref,
+                "_alt": v.alt,
+            })
+
+        query_df = pd.DataFrame(records)
+        query_gr = pr.PyRanges(query_df)
+
+        # Single vectorized join against gene model
+        hits = self._index._gr.join(query_gr)
+        hits_df = hits.df
+
+        # Initialize all as Intergenic
+        results: list[FunctionalConsequence] = [
+            FunctionalConsequence.INTERGENIC
+        ] * len(variants)
+
+        if hits_df.empty:
+            return results
+
+        # Build splice site lookup (vectorized)
+        splice_positions = self._find_splice_positions(query_df)
+
+        # Group hits by variant index, pick most severe consequence
+        severity_rank = {
+            c.value: idx for idx, c in enumerate(CONSEQUENCE_SEVERITY_ORDER)
+        }
+
+        for _, row in hits_df.iterrows():
+            var_idx = int(row["_idx"])
+            feature_type = row.get("Feature", "unknown")
+            ref = row.get("_ref", "")
+            alt = row.get("_alt", "")
+            is_splice = var_idx in splice_positions
+
+            consequence_str = _determine_consequence_pyranges(
+                ref=ref, alt=alt,
+                feature_type=feature_type,
+                is_splice_site=is_splice,
+            )
+
+            new_rank = severity_rank.get(
+                consequence_str, len(CONSEQUENCE_SEVERITY_ORDER)
+            )
+            current_rank = severity_rank.get(
+                results[var_idx].value, len(CONSEQUENCE_SEVERITY_ORDER)
+            )
+
+            if new_rank < current_rank:
+                results[var_idx] = FunctionalConsequence(consequence_str)
+
+        return results
+
+    def _find_splice_positions(
+        self, query_df: pd.DataFrame,
+    ) -> set[int]:
+        """Identify variant indices that overlap splice sites."""
+        splice_positions: set[int] = set()
+        if self._index._exon_gr is None or self._index._exon_gr.df.empty:
+            return splice_positions
+
+        exon_df = self._index._exon_gr.df
+        for _, v_row in query_df.iterrows():
+            chrom = v_row["Chromosome"]
+            chrom_exons = exon_df[exon_df["Chromosome"] == chrom]
+            if chrom_exons.empty:
+                continue
+
+            vs, ve = v_row["Start"], v_row["End"]
+            starts = chrom_exons["Start"].values
+            ends = chrom_exons["End"].values
+
+            donor_hit = ((vs < ends + 2) & (ve > ends - 2)).any()
+            acceptor_hit = ((vs < starts + 2) & (ve > starts - 2)).any()
+            if donor_hit or acceptor_hit:
+                splice_positions.add(v_row["_idx"])
+
+        return splice_positions
 
 
 def _determine_consequence_pyranges(
