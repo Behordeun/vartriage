@@ -64,6 +64,38 @@ pipeline.run()
 
 The output is a JSON file at `candidates.json` with variants ranked by composite pathogenicity score, classified per ACMG/AMP 2015 guidelines.
 
+## CLI quick start
+
+Run the same pipeline from the command line:
+
+```bash
+vartriage --vcf sample.vcf.gz --output candidates.json
+```
+
+That's the minimal invocation — VCF in, JSON out. Without annotation references, you get basic QC and parsing.
+
+With the full set of flags:
+
+```bash
+vartriage \
+  --vcf sample.vcf.gz \
+  --output candidates.json \
+  --output-format json \
+  --gene-annotation gencode.v44.gtf \
+  --gnomad gnomad.v4.sites.tsv \
+  --clinvar clinvar_20240101.tsv \
+  --cadd-scores cadd_scores.tsv \
+  --revel-scores revel_scores.tsv
+```
+
+On success, the CLI prints the output path and exits 0. On failure, it prints the error to stderr and exits 1.
+
+For the full flag reference:
+
+```bash
+vartriage --help
+```
+
 ## What you need
 
 | Item                      | Purpose                           | Where to get it                                                  |

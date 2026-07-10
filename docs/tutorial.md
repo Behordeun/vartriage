@@ -59,7 +59,7 @@ print(f"Report written to: {output_path}")
 
 The pipeline wires stages sequentially:
 
-```
+```text
 VCFParser → QualityFilter → AnnotationEngine → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
 
@@ -114,6 +114,89 @@ print(f"Sources with missing data: {acc.sources}")
 ```
 
 The counts show how many variants lacked gnomAD frequency or ClinVar assertions. A high gnomAD miss count may point to an incomplete reference file for the target regions.
+
+## 6. CLI alternative
+
+The same analysis from the command line:
+
+```bash
+vartriage \
+  --vcf proband_exome.vcf.gz \
+  --output results/candidates.json \
+  --output-format json \
+  --gene-annotation references/gencode.v44.gtf \
+  --gnomad references/gnomad.v4.exomes.tsv \
+  --clinvar references/clinvar_20240101.tsv \
+  --cadd-scores references/cadd_v1.7.tsv \
+  --revel-scores references/revel_v1.3.tsv
+```
+
+Output is identical to the Python API — same JSON structure, same ranking.
+
+## 7. Working with the output
+
+### Load and inspect results
+
+```python
+import json
+from pathlib import Path
+
+results = json.loads(Path("results/candidates.json").read_text())
+print(f"{len(results)} classified variants")
+```
+
+### Filter to actionable variants
+
+```python
+actionable = [
+    v for v in results
+    if v["acmg_classification"] in ("Pathogenic", "Likely_Pathogenic")
+]
+print(f"{len(actionable)} pathogenic/likely pathogenic variants")
+```
+
+### Export top candidates to CSV
+
+```python
+import csv
+
+fields = [
+    "chromosome", "position", "ref_allele", "alt_allele",
+    "functional_consequence", "allele_frequency",
+    "composite_rank", "acmg_classification",
+]
+
+with open("results/top_candidates.csv", "w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(actionable)
+```
+
+## 8. Without annotation (basic QC mode)
+
+You don't always need the full reference stack. If you just want to parse a VCF and run quality filtering — maybe to validate a file before a bigger run — skip the annotation flags entirely:
+
+```bash
+vartriage --vcf sample.vcf.gz --output qc_output.json
+```
+
+Or in Python:
+
+```python
+from pathlib import Path
+from vartriage import Pipeline, PipelineConfig, ReportConfig
+
+config = PipelineConfig(
+    vcf_path=Path("sample.vcf.gz"),
+    output_path=Path("qc_output.json"),
+    report=ReportConfig(output_format="json"),
+)
+
+pipeline = Pipeline(config)
+pipeline.run()
+```
+
+Without annotation references, variants pass through with `Intergenic` consequence and null frequencies. Downstream stages still run — you get ACMG classifications based on available evidence (which will be minimal). Useful for verifying your VCF parses cleanly and checking variant counts before investing in the full annotation step.
 
 ## Using individual stages
 
