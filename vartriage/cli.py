@@ -81,6 +81,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to REVEL score TSV reference file",
     )
     parser.add_argument(
+        "--gene-list",
+        type=Path,
+        default=None,
+        help="Path to a gene list file for gene-based filtering",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {_get_version()}",
@@ -150,6 +156,7 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     """
     from vartriage.models.config import (
         AnnotationConfig,
+        GeneFilterConfig,
         PipelineConfig,
         PrioritizationConfig,
         ReportConfig,
@@ -176,12 +183,19 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
         output_format=args.output_format,
     )
 
+    gene_filter_config: Optional[GeneFilterConfig] = None
+    if args.gene_list is not None:
+        gene_filter_config = GeneFilterConfig(
+            gene_list_path=args.gene_list,
+        )
+
     pipeline_config = PipelineConfig(
         vcf_path=vcf_path,
         output_path=args.output,
         annotation=annotation_config,
         prioritization=prioritization_config,
         report=report_config,
+        gene_filter=gene_filter_config,
     )
 
     pipeline = Pipeline(pipeline_config)
