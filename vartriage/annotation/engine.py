@@ -211,6 +211,11 @@ class AnnotationEngine:
         Uses the consequence annotator's overlap() method per variant
         to find the gene symbol from the first overlapping region.
         Returns None for intergenic variants with no overlap.
+        """Extract gene names from overlap results for a batch.
+
+        Calls overlap() per variant and extracts the gene_name from
+        the first overlapping region. Returns None for intergenic
+        variants with no overlap.
 
         Parameters
         ----------

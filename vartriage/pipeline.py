@@ -230,6 +230,12 @@ class Pipeline:
                 "Gene list file",
             )
 
+        if config.gene_filter is not None:
+            self._check_path(
+                config.gene_filter.gene_list_path,
+                "Gene list file",
+            )
+
     def _passthrough_annotation(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
         """Create AnnotatedVariant wrappers when no annotation config exists.
 
