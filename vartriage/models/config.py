@@ -154,6 +154,19 @@ class MissingDataConfig:
 
 
 @dataclass(frozen=True)
+class GeneFilterConfig:
+    """Configuration for gene-list-based variant filtering.
+
+    Parameters
+    ----------
+    gene_list_path : Path
+        Path to a plain text file containing one gene symbol per line.
+    """
+
+    gene_list_path: Path
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     """Top-level pipeline configuration aggregating all sub-configs.
 
@@ -173,6 +186,9 @@ class PipelineConfig:
         Report generation format settings.
     missing_data : MissingDataConfig
         Missing data handling and warning threshold settings.
+    gene_filter : GeneFilterConfig | None
+        Gene list filtering settings. When None, gene filtering is disabled
+        and the annotated stream passes directly to prioritization.
     """
 
     vcf_path: Path
@@ -182,3 +198,4 @@ class PipelineConfig:
     prioritization: PrioritizationConfig = field(default_factory=PrioritizationConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
     missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
+    gene_filter: GeneFilterConfig | None = field(default=None)

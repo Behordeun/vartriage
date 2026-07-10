@@ -137,6 +137,11 @@ class Pipeline:
             else:
                 annotated = self._passthrough_annotation(filtered)
 
+            if self._config.gene_filter is not None:
+                from vartriage.filter.gene_filter import GeneFilter
+                gene_filter = GeneFilter(self._config.gene_filter)
+                annotated = gene_filter.apply(annotated)
+
             scored = prioritization_engine.prioritize(annotated)
 
             classified = acmg_classifier.classify(scored)
@@ -213,6 +218,12 @@ class Pipeline:
                     f"{pri_config.revel_scores_path}"
                 )
 
+        if config.gene_filter is not None:
+            self._check_path(
+                config.gene_filter.gene_list_path,
+                "Gene list file",
+            )
+
     def _passthrough_annotation(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
         """Create AnnotatedVariant wrappers when no annotation config exists.
 
@@ -243,4 +254,25 @@ class Pipeline:
                 clinvar_assertion=None,
                 frequency_unknown=True,
                 clinvar_unknown=True,
+            )
+
+    @staticmethod
+    def _check_path(path: Path, label: str) -> None:
+        """Verify a file path exists, raising FileNotFoundError if not.
+
+        Parameters
+        ----------
+        path : Path
+            The filesystem path to validate.
+        label : str
+            Human-readable description used in the error message.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the path does not exist.
+        """
+        if not path.exists():
+            raise FileNotFoundError(
+                f"{label} not found: {path}"
             )

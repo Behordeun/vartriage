@@ -211,6 +211,8 @@ class AnnotatedVariant:
         True if variant was absent from gnomAD.
     clinvar_unknown : bool
         True if variant was absent from ClinVar.
+    gene_name : Optional[str]
+        Gene symbol from consequence annotation, or None for intergenic variants.
     """
 
     variant: Variant
@@ -219,6 +221,7 @@ class AnnotatedVariant:
     clinvar_assertion: Optional[ClinVarAssertion] = None
     frequency_unknown: bool = False
     clinvar_unknown: bool = False
+    gene_name: Optional[str] = None
 
 
 @dataclass(frozen=True, slots=True)
