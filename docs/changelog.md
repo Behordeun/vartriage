@@ -2,6 +2,16 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Gene list filtering** (`--gene-list`): restrict analysis to variants in a user-supplied gene panel file. One gene symbol per line, case-insensitive matching. Genes in the list with zero matching variants produce a logged WARNING so you can catch typos or outdated nomenclature.
+- **BED-based region filtering** (`--regions`): target analysis to specific genomic intervals from a BED file.
+- **Multi-sample VCF support** (`--sample`, `--min-gq`): extract a single sample from multi-sample VCFs with optional genotype quality filtering.
+- `gene_name` field on `AnnotatedVariant` populated during consequence annotation.
+- `GeneFilterConfig`, `RegionFilterConfig`, `SampleConfig` configuration dataclasses.
+
 ## [0.2.0] - 2025-07-10
 
 ### Added
