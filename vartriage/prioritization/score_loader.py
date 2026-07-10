@@ -92,6 +92,10 @@ class ScoreLoader:
     def _load_tsv(self, path: Path) -> dict[CoordinateKey, float]:
         """Parse a TSV score file, skipping comments and bad lines.
 
+        Uses pickle-based caching to avoid re-parsing on subsequent
+        runs. Falls through to fresh parsing when cache is absent
+        or invalid.
+
         Parameters
         ----------
         path : Path
@@ -107,6 +111,12 @@ class ScoreLoader:
         ValueError
             If the file doesn't exist or isn't readable.
         """
+        from vartriage._internal.cache import try_load_cache, try_write_cache
+
+        cached = try_load_cache(path)
+        if cached is not None:
+            return cached
+
         self._validate_path(path)
 
         scores: dict[CoordinateKey, float] = {}
@@ -162,6 +172,7 @@ class ScoreLoader:
                 key: CoordinateKey = (chrom, pos, ref, alt)
                 scores[key] = score
 
+        try_write_cache(path, scores)
         return scores
 
     def _validate_path(self, path: Path) -> None:

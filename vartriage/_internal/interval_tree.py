@@ -8,11 +8,15 @@ binary search for efficient overlap queries.
 from __future__ import annotations
 
 import bisect
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from vartriage._internal.cache import try_load_cache, try_write_cache
 from vartriage.io.exceptions import ReferenceFileError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -142,6 +146,9 @@ class SortedArrayIntervalIndex:
         for exon, CDS, and transcript features. Also builds an exon boundary
         index for splice site detection.
 
+        Uses pickle-based caching to skip re-parsing on subsequent loads
+        when the source file has not changed.
+
         Parameters
         ----------
         annotation_path : Path
@@ -154,6 +161,14 @@ class SortedArrayIntervalIndex:
         ReferenceFileError
             If the file cannot be parsed as valid GTF/GFF.
         """
+        cached = try_load_cache(annotation_path)
+        if cached is not None:
+            self._chromosomes = cached["chromosomes"]
+            self._exon_boundaries = cached["exon_boundaries"]
+            self._loaded = True
+            logger.debug("Loaded interval index from cache for %s", annotation_path)
+            return
+
         if not annotation_path.exists():
             raise FileNotFoundError(
                 f"Gene annotation file not found: {annotation_path}"
@@ -170,6 +185,11 @@ class SortedArrayIntervalIndex:
             chrom_idx.finalize()
 
         self._loaded = True
+
+        try_write_cache(annotation_path, {
+            "chromosomes": self._chromosomes,
+            "exon_boundaries": self._exon_boundaries,
+        })
 
     def _parse_gtf(self, path: Path) -> None:
         """Parse GTF/GFF file and populate internal indices."""
