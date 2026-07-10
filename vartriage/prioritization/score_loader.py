@@ -111,11 +111,13 @@ class ScoreLoader:
         ValueError
             If the file doesn't exist or isn't readable.
         """
+        from typing import cast
+
         from vartriage._internal.cache import try_load_cache, try_write_cache
 
         cached = try_load_cache(path)
         if cached is not None:
-            return cached
+            return cast(dict[CoordinateKey, float], cached)
 
         self._validate_path(path)
 

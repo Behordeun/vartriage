@@ -262,18 +262,33 @@ class AnnotationEngine:
     ) -> FrequencyDatabase:
         """Pick the best frequency database available.
 
-        Tries polars first, falls back to the pure-Python dict.
+        Selects backend based on file extension:
+        - .vcf.bgz / .vcf.gz → tabix VCF backend (on-the-fly queries)
+        - .tsv / .tsv.gz → polars if available, otherwise pure-Python dict
 
         Parameters
         ----------
         gnomad_path : Path
-            gnomAD reference TSV.
+            gnomAD reference file (VCF or TSV).
 
         Returns
         -------
         FrequencyDatabase
             Loaded frequency database.
         """
+        gnomad_name = gnomad_path.name
+        if gnomad_name.endswith((".vcf.bgz", ".vcf.gz")):
+            from vartriage.annotation.frequency_tabix import (
+                TabixFrequencyDatabase,
+            )
+
+            logger.info(
+                "Using tabix VCF backend for frequency lookup"
+            )
+            freq_db: FrequencyDatabase = TabixFrequencyDatabase()
+            freq_db.load(gnomad_path)
+            return freq_db
+
         if _polars_available():
             try:
                 from vartriage.annotation.frequency_polars import (
@@ -283,9 +298,9 @@ class AnnotationEngine:
                 logger.info(
                     "Using polars backend for frequency lookup"
                 )
-                freq_db: FrequencyDatabase = PolarsFrequencyDatabase()
-                freq_db.load(gnomad_path)
-                return freq_db
+                polars_db: FrequencyDatabase = PolarsFrequencyDatabase()
+                polars_db.load(gnomad_path)
+                return polars_db
             except Exception as exc:
                 logger.warning(
                     "polars frequency backend failed, falling back to "
