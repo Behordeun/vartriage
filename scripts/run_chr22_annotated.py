@@ -16,7 +16,7 @@ config = PipelineConfig(
     vcf_path=Path("data/giab_chr22.vcf.gz"),
     output_path=Path("data/chr22_annotated.json"),
     annotation=AnnotationConfig(
-        gene_annotation_path=Path("data/references/gencode.v46.annotation.gtf"),
+        gene_annotation_path=Path("data/references/gencode_chr22.gtf"),
         gnomad_path=Path("data/references/gnomad_chr22.tsv"),
         clinvar_path=Path("data/references/clinvar.tsv"),
     ),
