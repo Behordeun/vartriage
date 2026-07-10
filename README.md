@@ -1,8 +1,14 @@
 # vartriage
 
-Variant prioritization pipeline for whole-genome sequencing data. Reads a VCF, applies quality filters, annotates functional consequence and population frequency, computes pathogenicity scores, runs ACMG/AMP evidence classification, and writes a ranked candidate list in JSON, CSV, or PDF.
+Variant prioritization pipeline for whole-genome sequencing data. Takes a VCF, applies quality filters, annotates functional consequence and population frequency, scores pathogenicity via CADD/REVEL, runs ACMG/AMP evidence classification, and outputs a ranked candidate list.
 
-Processes 4M+ variant WGS files under 2GB memory via batched iterators.
+**Benchmarks (GIAB HG002, 4,048,342 variants):**
+
+- Peak RSS: 122 MB
+- Wall time: 156 s (~26K variants/sec)
+- Ti/Tv ratio: 2.10
+
+Streaming architecture — JSON and CSV reports never buffer the full variant set in memory.
 
 ## Install
 
@@ -10,25 +16,39 @@ Processes 4M+ variant WGS files under 2GB memory via batched iterators.
 pip install vartriage
 ```
 
-With faster annotation backends (polars + pyranges):
+Optional extras:
 
 ```bash
-pip install vartriage[accelerated]
+pip install vartriage[accelerated]   # polars + pyranges backends
+pip install vartriage[pdf]           # reportlab PDF reports
+pip install vartriage[all]           # everything
 ```
 
-With PDF report support:
+## CLI
 
 ```bash
-pip install vartriage[pdf]
+vartriage --vcf sample.vcf.gz --output candidates.json
 ```
 
-All optional extras:
+Full options:
 
 ```bash
-pip install vartriage[all]
+vartriage \
+  --vcf sample.vcf.gz \
+  --output report.json \
+  --output-format json \
+  --gene-annotation gencode.v44.gtf \
+  --gnomad gnomad.v4.sites.tsv \
+  --clinvar clinvar_20240101.tsv \
+  --cadd-scores cadd_scores.tsv \
+  --revel-scores revel_scores.tsv
 ```
 
-## Usage
+Run `vartriage --help` for the complete list.
+
+## Python API
+
+Run the whole pipeline:
 
 ```python
 from pathlib import Path
@@ -58,7 +78,7 @@ pipeline = Pipeline(config)
 pipeline.run()
 ```
 
-Individual stages work on their own:
+Or use stages individually:
 
 ```python
 from vartriage import VCFParser, QualityFilter, QualityFilterConfig
@@ -69,227 +89,152 @@ with VCFParser(Path("input.vcf.gz")) as parser:
         print(f"{variant.chrom}:{variant.pos} {variant.ref}>{variant.alt}")
 ```
 
-## Command Line
-
-After installation, the `vartriage` command is available:
-
-```bash
-vartriage --vcf sample.vcf.gz --output candidates.json
-```
-
-With annotation and scoring references:
-
-```bash
-vartriage \
-  --vcf sample.vcf.gz \
-  --output report.json \
-  --output-format json \
-  --gene-annotation gencode.v44.gtf \
-  --gnomad gnomad.v4.sites.tsv \
-  --clinvar clinvar_20240101.tsv \
-  --cadd-scores cadd_scores.tsv \
-  --revel-scores revel_scores.tsv
-```
-
-Run `vartriage --help` for all options.
-
 ## Pipeline stages
 
-```text
-VCFParser > QualityFilter > AnnotationEngine > PrioritizationEngine > ACMGClassifier > ReportGenerator
+```
+VCFParser → QualityFilter → AnnotationEngine → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
 
-### Quality filtering
+**Quality filtering** — Drops variants where FILTER isn't PASS/`.`, QUAL is below threshold (default 20), or QUAL is missing entirely.
 
-Drops variants where:
+**Annotation** — Adds functional consequence (from GTF gene models), population frequency (gnomAD), and ClinVar significance. Multiple-transcript conflicts resolve to the most damaging consequence. Consequence severity: Frameshift > Nonsense > Splice_Site > Missense > In_Frame_Insertion > In_Frame_Deletion > Synonymous > Intergenic.
 
-- `FILTER` is not `PASS` or `.`
-- `QUAL` is below the threshold (default 20)
-- `QUAL` field is missing (emits a warning)
+**Prioritization** — Two phases. First: frequency gate drops variants with AF above the threshold (default 0.01); unknown-frequency variants always pass. Second: composite scoring from normalized CADD Phred and REVEL:
 
-Passing variants keep their original order.
-
-### Annotation
-
-Adds three annotations to each surviving variant:
-
-**Functional consequence:** Looked up against gene models (GTF/GFF). Splice_Site applies within 2bp of an exon-intron boundary. When multiple transcripts disagree, the most damaging consequence wins. Severity ranking (highest first): Frameshift, Nonsense, Splice_Site, Missense, In_Frame_Insertion, In_Frame_Deletion, Synonymous, Intergenic.
-
-**Population frequency:** Matched against gnomAD by (chrom, pos, ref, alt). Variants not found get `frequency_unknown=True` and a `MissingDataWarning`.
-
-**ClinVar assertion:** Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign when available.
-
-### Prioritization
-
-Two phases:
-
-1. Frequency gate: drops variants with AF above the threshold (default 0.01). Variants marked `frequency_unknown` always pass.
-2. Composite scoring: normalizes CADD Phred (divide by 99, cap at 1.0) and REVEL (already 0-1), then computes:
-
-```text
-composite = (REVEL x 0.6) + (CADD_normalized x 0.4)
+```
+composite = (REVEL × 0.6) + (CADD_normalized × 0.4)
 ```
 
-Falls back to the single available score when only one source exists. Output sorted descending by composite rank; variants without scores go last.
+Falls back to the single available score when only one source exists.
 
-### ACMG classification
+**ACMG classification** — Tags evidence per ACMG/AMP 2015 guidelines:
 
-Evidence tagging per ACMG/AMP 2015:
+| Tag | Condition |
+|------|----------------------------------------------|
+| PVS1 | Nonsense or Frameshift |
+| PM2 | gnomAD AF < 0.0001 |
+| PP3 | REVEL > 0.7 |
+| PP5 | ClinVar Pathogenic without conflicting Benign |
 
-| Tag  | Strength    | Condition                                 |
-| ---- | ----------- | ----------------------------------------- |
-| PVS1 | Very Strong | Nonsense or Frameshift                    |
-| PM2  | Moderate    | gnomAD AF < 0.0001                        |
-| PP3  | Supporting  | REVEL > 0.7                               |
-| PP5  | Supporting  | ClinVar Pathogenic, no conflicting Benign |
+Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
 
-Tags combine per standard rules into: Pathogenic, Likely_Pathogenic, or VUS. If a data source is unavailable, the corresponding tag is omitted.
-
-### Report output
-
-Fields in all formats:
-
-| Field                      | Description                 |
-| -------------------------- | --------------------------- |
-| `chromosome`             | Chromosome name             |
-| `position`               | 1-based position            |
-| `ref_allele`             | Reference allele            |
-| `alt_allele`             | Alternate allele            |
-| `functional_consequence` | Most severe consequence     |
-| `allele_frequency`       | gnomAD AF (null if unknown) |
-| `composite_rank`         | Pathogenicity score 0-1     |
-| `clinvar_assertion`      | ClinVar significance        |
-| `acmg_classification`    | Final classification        |
-| `evidence_tags`          | Applied evidence codes      |
-
-Null values: `null` in JSON, empty in CSV, `N/A` in PDF.
+**Report output** — JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
 
 ## Configuration
 
 ### QualityFilterConfig
 
-| Field        | Type  | Default | Range          |
-| ------------ | ----- | ------- | -------------- |
-| `min_qual` | float | 20.0    | 0 to 1,000,000 |
+| Field | Type | Default | Range |
+|---|---|---|---|
+| min_qual | float | 20.0 | 0–1,000,000 |
 
 ### AnnotationConfig
 
-| Field                    | Type | Default  | Notes                  |
-| ------------------------ | ---- | -------- | ---------------------- |
-| `gene_annotation_path` | Path | required | GTF/GFF                |
-| `gnomad_path`          | Path | required | TSV (see format below) |
-| `clinvar_path`         | Path | None     | TSV (see format below) |
-| `batch_size`           | int  | 10,000   | 1,000 to 100,000       |
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| gene_annotation_path | Path | required | GTF/GFF |
+| gnomad_path | Path | required | TSV |
+| clinvar_path | Path | None | TSV |
+| batch_size | int | 10,000 | 1,000–100,000 |
 
 ### PrioritizationConfig
 
-| Field                    | Type  | Default | Range            |
-| ------------------------ | ----- | ------- | ---------------- |
-| `max_allele_frequency` | float | 0.01    | 0.0 to 1.0       |
-| `cadd_scores_path`     | Path  | None    | CADD Phred TSV   |
-| `revel_scores_path`    | Path  | None    | REVEL scores TSV |
-| `batch_size`           | int   | 10,000  | 1,000 to 100,000 |
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| max_allele_frequency | float | 0.01 | 0.0–1.0 |
+| cadd_scores_path | Path | None | CADD Phred TSV |
+| revel_scores_path | Path | None | REVEL TSV |
+| batch_size | int | 10,000 | 1,000–100,000 |
 
 ### ReportConfig
 
-| Field             | Type | Default    | Options                          |
-| ----------------- | ---- | ---------- | -------------------------------- |
-| `output_format` | str  | `"json"` | `"json"`, `"csv"`, `"pdf"` |
-
-### MissingDataConfig
-
-| Field                 | Type | Default | Notes                         |
-| --------------------- | ---- | ------- | ----------------------------- |
-| `warning_threshold` | int  | 1000    | Summary warning when exceeded |
+| Field | Type | Default | Options |
+|---|---|---|---|
+| output_format | str | "json" | "json", "csv", "pdf" |
 
 ## Reference file formats
 
-All reference files are tab-separated with a header row.
+All TSV with a header row. Tab-separated.
 
-**gnomAD:**
+**gnomAD** — columns: `chrom`, `pos`, `ref`, `alt`, `af`. The value `'.'` in the af column is treated as null (gnomAD compatibility).
 
-```tsv
-chrom	pos	ref	alt	af
-chr1	12345	A	G	0.00032
-```
+**ClinVar** — columns: `chrom`, `pos`, `ref`, `alt`, `clinical_significance`. Values: Pathogenic, Likely pathogenic, Uncertain significance, Likely benign, Benign.
 
-**ClinVar:**
-
-```tsv
-chrom	pos	ref	alt	clinical_significance
-chr1	12345	A	G	Pathogenic
-```
-
-Recognized values: `Pathogenic`, `Likely pathogenic`, `Uncertain significance`, `Likely benign`, `Benign`.
-
-**CADD / REVEL:**
-
-```tsv
-chrom	pos	ref	alt	score
-chr1	12345	A	G	28.5
-```
+**CADD / REVEL** — columns: `chrom`, `pos`, `ref`, `alt`, `score`. Lines starting with `#` are skipped.
 
 ## Missing data handling
 
-Variants absent from gnomAD are never dropped. They get `frequency_unknown=True` and pass the frequency filter. Same for ClinVar: no match means `clinvar_unknown=True`.
+Variants absent from gnomAD are never dropped — they get `frequency_unknown=True` and pass the frequency filter. Same for ClinVar: no match means `clinvar_unknown=True`.
 
-A `MissingDataWarning` is emitted per lookup miss. Once the total exceeds `warning_threshold`, a summary fires with the count and contributing sources.
+A `MissingDataWarning` fires per lookup miss. After a run:
 
 ```python
-pipeline.run()
 acc = pipeline.warning_accumulator
 print(f"{acc.total_count} missing data events across {acc.sources}")
 ```
 
+## Warning hierarchy
+
+All warnings inherit from `VarTriageWarning` (a `UserWarning` subclass). Silence everything at once:
+
+```python
+import warnings
+from vartriage import VarTriageWarning
+warnings.filterwarnings("ignore", category=VarTriageWarning)
+```
+
 ## Dependencies
 
-| Package   | Required | Extra             | Purpose                       |
-| --------- | -------- | ----------------- | ----------------------------- |
-| pysam     | yes      | n/a               | VCF streaming (htslib)        |
-| numpy     | yes      | n/a               | Score normalization           |
-| polars    | no       | `[accelerated]` | Batch frequency/ClinVar joins |
-| pyranges  | no       | `[accelerated]` | Interval overlap queries      |
-| reportlab | no       | `[pdf]`         | PDF report generation         |
+| Package | Required | Extra | Purpose |
+|---|---|---|---|
+| pysam >=0.22,<1.0 | yes | — | VCF streaming via htslib |
+| numpy >=1.24,<3.0 | yes | — | Score normalization |
+| polars >=0.20,<2.0 | no | [accelerated] | Batch frequency/ClinVar joins |
+| pyranges >=0.1,<1.0 | no | [accelerated] | Interval overlap queries |
+| reportlab >=4.0,<5.0 | no | [pdf] | PDF report rendering |
 
-Without optional extras, the library uses pure-Python fallbacks (dict-based lookups, bisect-based interval tree). Correct output either way; the accelerated path runs faster on large reference files.
+Without optional extras, the library uses pure-Python fallbacks (dict lookups, bisect-based interval tree). Same output either way; the accelerated path is faster on large reference files.
 
-## Error handling
+## Type checking
 
-Invalid configuration raises `ValueError` or `FileNotFoundError` at construction time, before any variants are processed.
+The package ships a `py.typed` marker (PEP 561). All protocol return types are fully typed — no `Any` in the annotation engine interfaces.
 
-During processing, missing reference data does not crash. The library assigns null values, sets flags, and continues. After a run, inspect `pipeline.warning_accumulator` to see how many lookup misses occurred and which sources were affected.
+```bash
+mypy --strict vartriage/
+```
 
 ## Tests
 
 ```bash
-pytest tests/                        # full suite
-pytest tests/ -m "not slow"          # skip performance benchmarks
-mypy --strict vartriage/  # type checking
+pytest tests/                     # full suite
+pytest tests/ -m "not slow"       # skip benchmarks
 ```
 
-Tests pass. mypy strict, 0 errors.
+## CI
+
+GitHub Actions runs on Python 3.10, 3.11, and 3.12. PyPI publishing uses trusted publisher (no token in secrets).
 
 ## Project layout
 
-```text
+```
 vartriage/
-    pipeline.py           # Top-level orchestrator
-    protocols.py          # Protocol interfaces for swappable backends
-    io/                   # VCF parsing, exceptions
+    cli.py                # CLI entry point
+    pipeline.py           # Orchestrator
+    protocols.py          # Protocol interfaces (IntervalIndex, FrequencyDatabase, etc.)
+    io/                   # VCF parsing
     filter/               # Quality-based exclusion
     annotation/           # Consequence, frequency, ClinVar lookups
-    prioritization/       # AF gating + pathogenicity scoring
-    classification/       # ACMG evidence tagging + combining
-    reporting/            # JSON, CSV, PDF output
+    prioritization/       # AF gating + CADD/REVEL scoring (ScoreLoader)
+    classification/       # ACMG evidence tagging
+    reporting/            # JSON, CSV, PDF — streaming writers
     models/               # Dataclasses, enums, configs, warnings
     _internal/            # Batch utils, interval tree, vectorized ops
+    py.typed              # PEP 561 marker
 ```
 
-## Requirements
+## Contributing
 
-- Python >= 3.10
-- pysam >= 0.22.0
-- numpy >= 1.24.0
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

@@ -45,3 +45,5 @@ test_*.tmp.py
 .qodo
 .kiro
 .vscode
+
+data/

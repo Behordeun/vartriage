@@ -49,6 +49,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Tutorial: tutorial.md
+  - Examples: examples.md
   - Pipeline Stages: pipeline-stages.md
   - Configuration: configuration.md
   - Reference Files: reference-files.md
