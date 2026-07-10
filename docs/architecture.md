@@ -17,9 +17,10 @@ vartriage/
 ├── annotation/
 │   ├── engine.py            # Orchestrator with backend auto-detection
 │   ├── consequence.py       # Pure-Python interval tree consequence lookup
-│   ├── consequence_pyranges.py  # PyRanges backend (optional)
+│   ├── consequence_pyranges.py  # PyRanges backend (vectorized batch join)
 │   ├── frequency.py         # Dict-based gnomAD lookup
 │   ├── frequency_polars.py  # Polars backend (optional)
+│   ├── frequency_tabix.py   # Tabix VCF backend (pysam, zero-memory)
 │   ├── clinvar.py           # Dict-based ClinVar lookup
 │   └── clinvar_polars.py    # Polars backend (optional)
 ├── prioritization/
@@ -41,6 +42,7 @@ vartriage/
 │   └── warnings.py          # MissingDataWarning
 └── _internal/
     ├── batch.py             # Batch iteration utilities
+    ├── cache.py             # Pickle caching with mtime invalidation
     ├── interval_tree.py     # Sorted-array interval tree
     ├── vectorized.py        # NumPy vectorized operations
     └── warning_accumulator.py  # Warning collection + threshold
@@ -91,6 +93,37 @@ class SpliceAIDatabase(Protocol):
 5. Update `AnnotationEngine._annotate_batch` to call the new backend and incorporate results into `AnnotatedVariant`.
 
 6. If the annotation adds a new field, update the `AnnotatedVariant` dataclass in `models/variant.py`.
+
+## Cache layer
+
+`_internal/cache.py` provides transparent pickle caching for expensive reference file parsing. The flow:
+
+1. Caller asks for cached data via `load_cached(source_path, parser_fn, version)`.
+2. Cache checks for a `.vartriage.cache` file adjacent to the source.
+3. If the cache exists, has a matching version stamp, and the source mtime hasn't changed, it deserializes and returns.
+4. Otherwise, it calls `parser_fn`, serializes the result, writes atomically (temp file + `os.rename`), and returns.
+
+Currently cached: GTF interval trees, CADD score dicts, REVEL score dicts.
+
+Cache invalidation triggers:
+- Source file mtime changes (you downloaded a new GENCODE release, etc.)
+- vartriage version changes (internal data structures may have changed)
+- Cache file deleted manually
+
+The atomic write ensures a crash during serialization won't leave a corrupt cache.
+
+## Frequency backend routing
+
+`AnnotationEngine` selects the frequency backend based on the file extension of `gnomad_path`:
+
+| Extension | Backend | Memory profile |
+|---|---|---|
+| `.vcf.bgz`, `.vcf.gz` | `TabixFrequencyDatabase` | Near-zero (queries on the fly) |
+| `.tsv`, `.tsv.gz` | `PolarsFrequencyDatabase` or `DictFrequencyDatabase` | Full dict in RAM |
+
+`TabixFrequencyDatabase` uses pysam's `TabixFile` to query the bgzipped VCF by region. Each batch of variants is looked up individually by `chrom:pos`. This is slower per-query than the dict backend but uses no memory for the reference file, making it practical for full gnomAD (17 GB compressed).
+
+The dict/polars backends remain the better choice when the file fits in RAM and you're annotating large batches.
 
 ## Adding a new evidence tag
 

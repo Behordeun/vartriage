@@ -2,13 +2,15 @@
 
 Variant prioritization pipeline for whole-genome sequencing data. Takes a VCF, applies quality filters, annotates functional consequence and population frequency, scores pathogenicity via CADD/REVEL, runs ACMG/AMP evidence classification, and outputs a ranked candidate list.
 
-**Benchmarks (GIAB HG002, 4,048,342 variants):**
+**Benchmarks:**
 
-- Peak RSS: 122 MB
-- Wall time: 156 s (~26K variants/sec)
-- Ti/Tv ratio: 2.10
+| Workload | Variants | Wall time | Peak RSS | Throughput |
+|---|---|---|---|---|
+| GIAB HG002 (QC only, no annotation) | 4,048,342 | 156 s | 122 MB | ~26K var/sec |
+| chr22 full annotation (GENCODE + 4.8M gnomAD) | 130,141 | 36.3 s | ~2 GB | ~3.6K var/sec |
+| chr22 annotation (100K gnomAD subset) | 130,141 | 19.5 s | 453 MB | ~6.7K var/sec |
 
-Streaming architecture — JSON and CSV reports never buffer the full variant set in memory.
+Streaming architecture, so JSON and CSV reports never buffer the full variant set in memory. Reference files (GTF, CADD, REVEL) are cached after first parse. Subsequent runs load from cache in seconds.
 
 ## Install
 
@@ -95,11 +97,11 @@ with VCFParser(Path("input.vcf.gz")) as parser:
 VCFParser → QualityFilter → AnnotationEngine → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
 
-**Quality filtering** — Drops variants where FILTER isn't PASS/`.`, QUAL is below threshold (default 20), or QUAL is missing entirely.
+**Quality filtering** - Drops variants where FILTER isn't PASS/`.`, QUAL is below threshold (default 20), or QUAL is missing entirely.
 
-**Annotation** — Adds functional consequence (from GTF gene models), population frequency (gnomAD), and ClinVar significance. Multiple-transcript conflicts resolve to the most damaging consequence. Consequence severity: Frameshift > Nonsense > Splice_Site > Missense > In_Frame_Insertion > In_Frame_Deletion > Synonymous > Intergenic.
+**Annotation** - Adds functional consequence (from GTF gene models), population frequency (gnomAD), and ClinVar significance. Multiple-transcript conflicts resolve to the most damaging consequence. Consequence severity: Frameshift > Nonsense > Splice_Site > Missense > In_Frame_Insertion > In_Frame_Deletion > Synonymous > Intergenic.
 
-**Prioritization** — Two phases. First: frequency gate drops variants with AF above the threshold (default 0.01); unknown-frequency variants always pass. Second: composite scoring from normalized CADD Phred and REVEL:
+**Prioritization** - Two phases. First: frequency gate drops variants with AF above the threshold (default 0.01); unknown-frequency variants always pass. Second: composite scoring from normalized CADD Phred and REVEL:
 
 ```
 composite = (REVEL × 0.6) + (CADD_normalized × 0.4)
@@ -107,7 +109,7 @@ composite = (REVEL × 0.6) + (CADD_normalized × 0.4)
 
 Falls back to the single available score when only one source exists.
 
-**ACMG classification** — Tags evidence per ACMG/AMP 2015 guidelines:
+**ACMG classification** - Tags evidence per ACMG/AMP 2015 guidelines:
 
 | Tag | Condition |
 |------|----------------------------------------------|
@@ -118,7 +120,7 @@ Falls back to the single available score when only one source exists.
 
 Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
 
-**Report output** — JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
 
 ## Configuration
 
@@ -133,7 +135,7 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | gene_annotation_path | Path | required | GTF/GFF |
-| gnomad_path | Path | required | TSV |
+| gnomad_path | Path | required | TSV or tabix VCF (.vcf.bgz/.vcf.gz) |
 | clinvar_path | Path | None | TSV |
 | batch_size | int | 10,000 | 1,000–100,000 |
 
@@ -156,15 +158,17 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 
 All TSV with a header row. Tab-separated.
 
-**gnomAD** — columns: `chrom`, `pos`, `ref`, `alt`, `af`. The value `'.'` in the af column is treated as null (gnomAD compatibility).
+**gnomAD (TSV)** - columns: `chrom`, `pos`, `ref`, `alt`, `af`. The value `'.'` in the af column is treated as null (gnomAD compatibility).
 
-**ClinVar** — columns: `chrom`, `pos`, `ref`, `alt`, `clinical_significance`. Values: Pathogenic, Likely pathogenic, Uncertain significance, Likely benign, Benign.
+**gnomAD (tabix VCF)** - bgzipped VCF with a `.tbi` index (`.vcf.bgz` or `.vcf.gz`). When you point `gnomad_path` at a tabix-indexed file, vartriage queries it on the fly with zero memory overhead for the reference. Useful when your gnomAD file is too large to fit in RAM as a dict.
 
-**CADD / REVEL** — columns: `chrom`, `pos`, `ref`, `alt`, `score`. Lines starting with `#` are skipped.
+**ClinVar** - columns: `chrom`, `pos`, `ref`, `alt`, `clinical_significance`. Values: Pathogenic, Likely pathogenic, Uncertain significance, Likely benign, Benign.
+
+**CADD / REVEL** - columns: `chrom`, `pos`, `ref`, `alt`, `score`. Lines starting with `#` are skipped.
 
 ## Missing data handling
 
-Variants absent from gnomAD are never dropped — they get `frequency_unknown=True` and pass the frequency filter. Same for ClinVar: no match means `clinvar_unknown=True`.
+Variants absent from gnomAD are never dropped; they get `frequency_unknown=True` and pass the frequency filter. Same for ClinVar: no match means `clinvar_unknown=True`.
 
 A `MissingDataWarning` fires per lookup miss. After a run:
 
@@ -187,17 +191,25 @@ warnings.filterwarnings("ignore", category=VarTriageWarning)
 
 | Package | Required | Extra | Purpose |
 |---|---|---|---|
-| pysam >=0.22,<1.0 | yes | — | VCF streaming via htslib |
-| numpy >=1.24,<3.0 | yes | — | Score normalization |
+| pysam >=0.22,<1.0 | yes | - | VCF streaming via htslib |
+| numpy >=1.24,<3.0 | yes | - | Score normalization |
 | polars >=0.20,<2.0 | no | [accelerated] | Batch frequency/ClinVar joins |
 | pyranges >=0.1,<1.0 | no | [accelerated] | Interval overlap queries |
 | reportlab >=4.0,<5.0 | no | [pdf] | PDF report rendering |
 
 Without optional extras, the library uses pure-Python fallbacks (dict lookups, bisect-based interval tree). Same output either way; the accelerated path is faster on large reference files.
 
+## Caching
+
+Reference files (GTF gene models, CADD scores, REVEL scores) are parsed once and cached as pickle files adjacent to the source (with a `.vartriage.cache` suffix). On subsequent runs, the cache loads in seconds instead of re-parsing.
+
+Cache invalidation is automatic: if the source file's mtime changes or the vartriage version changes, the cache rebuilds. Writes are atomic (temp file + rename), so a crash mid-write won't corrupt anything.
+
+To force a fresh parse, delete the `.vartriage.cache` file next to your reference.
+
 ## Type checking
 
-The package ships a `py.typed` marker (PEP 561). All protocol return types are fully typed — no `Any` in the annotation engine interfaces.
+The package ships a `py.typed` marker (PEP 561). All protocol return types are fully typed, with no `Any` in the annotation engine interfaces.
 
 ```bash
 mypy --strict vartriage/
@@ -226,9 +238,9 @@ vartriage/
     annotation/           # Consequence, frequency, ClinVar lookups
     prioritization/       # AF gating + CADD/REVEL scoring (ScoreLoader)
     classification/       # ACMG evidence tagging
-    reporting/            # JSON, CSV, PDF — streaming writers
+    reporting/            # JSON, CSV, PDF (streaming writers)
     models/               # Dataclasses, enums, configs, warnings
-    _internal/            # Batch utils, interval tree, vectorized ops
+    _internal/            # Batch utils, interval tree, caching, vectorized ops
     py.typed              # PEP 561 marker
 ```
 

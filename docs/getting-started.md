@@ -64,6 +64,10 @@ pipeline.run()
 
 The output is a JSON file at `candidates.json` with variants ranked by composite pathogenicity score, classified per ACMG/AMP 2015 guidelines.
 
+## Caching
+
+After the first run, reference files (GTF, CADD, REVEL) are cached as pickle files next to the source. Subsequent runs skip parsing and load in seconds. The cache auto-invalidates when the source file changes or you upgrade vartriage.
+
 ## CLI quick start
 
 Run the same pipeline from the command line:
@@ -72,7 +76,7 @@ Run the same pipeline from the command line:
 vartriage --vcf sample.vcf.gz --output candidates.json
 ```
 
-That's the minimal invocation — VCF in, JSON out. Without annotation references, you get basic QC and parsing.
+That's the minimal invocation: VCF in, JSON out. Without annotation references, you get basic QC and parsing.
 
 With the full set of flags:
 
