@@ -107,7 +107,13 @@ class DictFrequencyDatabase:
                         pos = int(row[col_idx["pos"]].strip())
                         ref = row[col_idx["ref"]].strip()
                         alt = row[col_idx["alt"]].strip()
-                        af = float(row[col_idx["af"]].strip())
+                        af_str = row[col_idx["af"]].strip()
+
+                        # '.' or empty means no frequency data — skip
+                        if af_str in (".", ""):
+                            continue
+
+                        af = float(af_str)
                     except (IndexError, ValueError) as exc:
                         raise ReferenceFileError(
                             f"{reference_path}: parse error at "

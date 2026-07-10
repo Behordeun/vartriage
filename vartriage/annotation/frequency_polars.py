@@ -99,6 +99,7 @@ class PolarsFrequencyDatabase:
                 reference_path,
                 separator="\t",
                 has_header=True,
+                null_values=[".", ""],
                 schema_overrides={
                     "chrom": pl.Utf8,
                     "pos": pl.Int64,
