@@ -61,7 +61,7 @@ def frequency_database_scenario(
 ) -> tuple[dict[tuple[str, int, str, str], float], list[tuple[str, int, str, str]]]:
     """Generate a frequency database (as a dict) and query keys.
 
-    Some query keys are in the database, some are not — testing both
+    Some query keys are in the database, some are not, testing both
     the match and no-match paths.
     """
     # Generate entries that exist in the database
@@ -101,7 +101,7 @@ def clinvar_database_scenario(
 ) -> tuple[dict[tuple[str, int, str, str], ClinVarAssertion], list[tuple[str, int, str, str]]]:
     """Generate a ClinVar database (as a dict) and query keys.
 
-    Some keys match, some don't — verifying both paths.
+    Some keys match, some don't. Verifying both paths.
     """
     num_entries = draw(st.integers(min_value=1, max_value=20))
     db_entries: dict[tuple[str, int, str, str], ClinVarAssertion] = {}

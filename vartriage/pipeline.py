@@ -142,7 +142,9 @@ class Pipeline:
             classified = acmg_classifier.classify(scored)
 
             result_path = report_generator.generate(
-                classified, effective_output_path
+                classified,
+                effective_output_path,
+                source_vcf_path=effective_vcf_path,
             )
 
             if annotation_engine is not None:

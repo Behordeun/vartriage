@@ -178,7 +178,7 @@ def test_pm2_assigned_iff_af_below_threshold(variant: ScoredVariant) -> None:
     af = variant.annotated.allele_frequency
 
     if af is None:
-        # Data unavailable — PM2 should be omitted
+        # Data unavailable, PM2 should be omitted
         assert EvidenceTag.PM2 not in classified.evidence_tags, (
             "PM2 should be omitted when allele frequency is unavailable"
         )
