@@ -128,7 +128,8 @@ vartriage \
   --gnomad references/gnomad.v4.exomes.tsv \
   --clinvar references/clinvar_20240101.tsv \
   --cadd-scores references/cadd_v1.7.tsv \
-  --revel-scores references/revel_v1.3.tsv
+  --revel-scores references/revel_v1.3.tsv \
+  --gene-list references/cardiac_panel.txt
 ```
 
 Output is identical to the Python API: same JSON structure, same ranking.
