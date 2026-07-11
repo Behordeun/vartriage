@@ -78,6 +78,7 @@ for vcf in samples/*.vcf.gz; do
     --revel-scores refs/revel_v1.3.tsv \
     --spliceai-scores refs/spliceai_scores.tsv
     --gene-list refs/cardiac_panel.txt
+    --spliceai-scores refs/spliceai_scores.tsv
   echo "Done: $sample"
 done
 ```
