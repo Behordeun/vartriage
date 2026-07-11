@@ -13,6 +13,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 - **Multi-sample VCF support** (`--sample`, `--min-gq`): extract a single sample from multi-sample VCFs with optional genotype quality filtering.
 - `gene_name` field on `AnnotatedVariant` populated during consequence annotation.
 - `GeneFilterConfig`, `RegionFilterConfig`, `SampleConfig` configuration dataclasses.
+- **VCF output format** (`--output-format vcf`): produces an annotated bgzipped VCF (.vcf.gz) with a tabix index (.tbi). Re-reads the source VCF, injects VARTRIAGE_CONSEQUENCE, VARTRIAGE_AF, VARTRIAGE_RANK, VARTRIAGE_ACMG, and VARTRIAGE_TAGS INFO fields for classified variants, and writes all records (matched or not) to output. Directly loadable in IGV and queryable with bcftools.
 
 ## [0.2.0] - 2025-07-10
 
