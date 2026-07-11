@@ -120,7 +120,7 @@ Falls back to the single available score when only one source exists.
 
 Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
 
-**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
 
 ## Configuration
 
@@ -152,7 +152,7 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 
 | Field | Type | Default | Options |
 |---|---|---|---|
-| output_format | str | "json" | "json", "csv", "pdf" |
+| output_format | str | "json" | "json", "csv", "pdf", "vcf" |
 
 ## Reference file formats
 
