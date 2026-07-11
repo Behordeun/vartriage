@@ -1,4 +1,4 @@
-"""Score file loading for CADD and REVEL pathogenicity lookups.
+"""Score file loading for CADD, REVEL, and SpliceAI pathogenicity lookups.
 
 Parses tab-separated score files into dicts keyed by (chrom, pos, ref, alt)
 for O(1) per-variant lookups during batch scoring.
@@ -22,9 +22,9 @@ CoordinateKey = tuple[str, int, str, str]
 
 
 class ScoreLoader:
-    """Loads CADD/REVEL TSV files into coordinate-keyed dicts.
+    """Loads CADD/REVEL/SpliceAI TSV files into coordinate-keyed dicts.
 
-    Both formats share the same column layout so parsing is unified
+    All three formats share the same column layout so parsing is unified
     internally. Batch lookups return scores (or None) by coordinate.
     """
 
@@ -60,6 +60,26 @@ class ScoreLoader:
         -------
         dict[CoordinateKey, float]
             (chrom, pos, ref, alt) → REVEL score.
+
+        Raises
+        ------
+        ValueError
+            If the file doesn't exist or isn't readable.
+        """
+        return self._load_tsv(path)
+
+    def load_spliceai(self, path: Path) -> dict[CoordinateKey, float]:
+        """Parse a SpliceAI TSV into a coordinate→score dict.
+
+        Parameters
+        ----------
+        path : Path
+            Tab-separated SpliceAI score file.
+
+        Returns
+        -------
+        dict[CoordinateKey, float]
+            (chrom, pos, ref, alt) → SpliceAI score.
 
         Raises
         ------

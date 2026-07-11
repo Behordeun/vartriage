@@ -210,13 +210,19 @@ class Pipeline:
                     f"REVEL scores file not found: "
                     f"{pri_config.revel_scores_path}"
                 )
+        if pri_config.spliceai_scores_path is not None:
+            if not pri_config.spliceai_scores_path.exists():
+                raise FileNotFoundError(
+                    f"SpliceAI scores file not found: "
+                    f"{pri_config.spliceai_scores_path}"
+                )
 
     def _passthrough_annotation(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
         """Create AnnotatedVariant wrappers when no annotation config exists.
 
         Used when the pipeline is run without annotation references. Each
         variant gets an Intergenic consequence, null frequency, and null
-        ClinVar assertion — allowing downstream stages to function.
+        ClinVar assertion, allowing downstream stages to function.
 
         Parameters
         ----------

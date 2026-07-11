@@ -28,10 +28,10 @@ class PrioritizationEngine:
 
     Processes an iterator of annotated variants through two stages:
 
-    1. **Frequency filtering** — excludes variants with allele frequency
+    1. **Frequency filtering**: excludes variants with allele frequency
        above the configured maximum threshold (retaining frequency-unknown
        variants).
-    2. **Pathogenicity scoring** — normalizes CADD/REVEL scores, computes
+    2. **Pathogenicity scoring**: normalizes CADD/REVEL scores, computes
        a composite rank, and sorts each batch in descending order by
        composite rank (nulls last).
 
@@ -63,6 +63,7 @@ class PrioritizationEngine:
         self._score_loader = ScoreLoader()
         self._cadd_scores: dict[CoordinateKey, float] = {}
         self._revel_scores: dict[CoordinateKey, float] = {}
+        self._spliceai_scores: dict[CoordinateKey, float] = {}
 
         if config.cadd_scores_path is not None:
             self._cadd_scores = self._score_loader.load_cadd(
@@ -71,6 +72,10 @@ class PrioritizationEngine:
         if config.revel_scores_path is not None:
             self._revel_scores = self._score_loader.load_revel(
                 config.revel_scores_path
+            )
+        if config.spliceai_scores_path is not None:
+            self._spliceai_scores = self._score_loader.load_spliceai(
+                config.spliceai_scores_path
             )
 
     def prioritize(
@@ -157,7 +162,15 @@ class PrioritizationEngine:
             keys, self._revel_scores
         )
 
-        return score_variants(batch, cadd_scores, revel_scores)
+        spliceai_scores = None
+        if self._spliceai_scores:
+            spliceai_scores = self._score_loader.lookup_batch(
+                keys, self._spliceai_scores
+            )
+
+        return score_variants(
+            batch, cadd_scores, revel_scores, spliceai_scores
+        )
 
     def _chunked_fallback(
         self, batch: list[AnnotatedVariant]
