@@ -1,4 +1,4 @@
-"""Report generation — routes output to JSON, CSV, or PDF writers.
+"""Report generation: routes output to JSON, CSV, or PDF writers.
 
 Writes to a temp file first and does an atomic rename on success, so the
 target path never contains partial output if something fails mid-write.

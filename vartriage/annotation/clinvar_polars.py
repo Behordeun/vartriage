@@ -125,7 +125,7 @@ class PolarsClinVarDatabase:
         except Exception as exc:
             raise ReferenceFileError(
                 f"{reference_path}: failed to parse ClinVar reference "
-                f"with polars — {exc}"
+                f"with polars: {exc}"
             ) from exc
 
         # Filter to only rows with recognized significance values
