@@ -91,6 +91,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to a gene list file for gene-based filtering",
     )
     parser.add_argument(
+        "--spliceai-scores",
+        type=Path,
+        default=None,
+        help="Path to SpliceAI score TSV reference file",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {_get_version()}",
