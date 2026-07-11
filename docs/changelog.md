@@ -2,6 +2,12 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **SpliceAI score integration** (`--spliceai-scores`): third pathogenicity predictor alongside CADD and REVEL. Dynamic weight redistribution in the composite formula (0.5/0.3/0.2 when all three present, proportional fallback for any two, single-score identity). PP3 now also fires when SpliceAI > 0.5 on splice-site or missense variants. PVS1 fires for SPLICE_SITE + SpliceAI > 0.8. Fully backward-compatible: existing two-score behavior unchanged when SpliceAI is not configured.
+
 ## [0.2.0] - 2025-07-10
 
 ### Added
