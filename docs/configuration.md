@@ -86,6 +86,23 @@ from vartriage import ReportConfig
 config = ReportConfig(output_format="csv")
 ```
 
+## GeneFilterConfig
+
+Restricts analysis to variants in a user-supplied gene list.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `gene_list_path` | `Path` | required | Plain text file, one gene symbol per line |
+
+```python
+from pathlib import Path
+from vartriage import GeneFilterConfig
+
+config = GeneFilterConfig(gene_list_path=Path("cardiac_panel.txt"))
+```
+
+The gene list file format: one symbol per line, blank lines and lines starting with `#` are skipped, matching is case-insensitive.
+
 ## MissingDataConfig
 
 Controls the missing data warning threshold.
@@ -113,6 +130,7 @@ Top-level configuration aggregating all sub-configs.
 | `prioritization` | `PrioritizationConfig` | default instance | |
 | `report` | `ReportConfig` | default instance | |
 | `missing_data` | `MissingDataConfig` | default instance | |
+| `gene_filter` | `Optional[GeneFilterConfig]` | `None` | None skips gene filtering |
 
 ## Example configurations
 

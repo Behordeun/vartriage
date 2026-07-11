@@ -130,6 +130,7 @@ vartriage \
   --cadd-scores references/cadd_v1.7.tsv \
   --revel-scores references/revel_v1.3.tsv \
   --spliceai-scores references/spliceai_scores.tsv
+  --gene-list references/cardiac_panel.txt
 ```
 
 Output is identical to the Python API: same JSON structure, same ranking.

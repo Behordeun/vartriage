@@ -2,6 +2,31 @@
 
 All reference files are tab-separated with a header row. Column names must match exactly.
 
+## Gene List
+
+Plain text file for gene panel filtering. Not a TSV; just one gene symbol per line.
+
+**Format:**
+
+- One gene symbol per line
+- Blank lines are skipped
+- Lines starting with `#` are treated as comments
+- Leading/trailing whitespace is stripped
+- Matching is case-insensitive (symbols stored as uppercase internally)
+
+**Example:**
+
+```text
+# Cardiac gene panel v2
+MYBPC3
+MYH7
+TNNT2
+LMNA
+SCN5A
+```
+
+**Usage:** Pass via `--gene-list panel.txt` on the CLI or `GeneFilterConfig(gene_list_path=Path("panel.txt"))` in Python.
+
 ## gnomAD
 
 Population allele frequency data. Used by the annotation engine for frequency lookup and by the prioritization engine for the frequency gate.

@@ -3,11 +3,10 @@
 ## Data flow
 
 ```text
-┌──────────┐    ┌───────────────┐    ┌──────────────────┐    ┌──────────────────────┐    ┌────────────────┐    ┌─────────────────┐
-│ VCFParser │───▶│ QualityFilter │───▶│ AnnotationEngine │───▶│ PrioritizationEngine │───▶│ ACMGClassifier │───▶│ ReportGenerator │
-└──────────┘    └───────────────┘    └──────────────────┘    └──────────────────────┘    └────────────────┘    └─────────────────┘
-    Variant          Variant           AnnotatedVariant           ScoredVariant          ClassifiedVariant         JSON/CSV/PDF
+VCFParser → QualityFilter → AnnotationEngine → [GeneFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
+
+Stages in brackets are optional. GeneFilter activates when `--gene-list` is provided.
 
 Each stage consumes an iterator and yields an iterator. Only one batch lives in memory at a time.
 
@@ -87,6 +86,31 @@ Both produce the same results. The accelerated backends run faster on large refe
 - Variant not in ClinVar: `clinvar_assertion=None`, `clinvar_unknown=True`, emits `MissingDataWarning`
 
 **Configuration:** `AnnotationConfig(gene_annotation_path, gnomad_path, clinvar_path=None, batch_size=10_000)`
+
+## Gene Filtering (optional)
+
+**Class:** `GeneFilter`
+
+Restricts the annotated variant stream to only those variants whose gene symbol appears in a user-supplied text file.
+
+**Input:** Iterator of `AnnotatedVariant`.
+
+**Output:** Iterator of `AnnotatedVariant` (subset).
+
+**Behavior:**
+
+- Loads a plain text file at construction: one gene symbol per line, comment lines (`#`) and blank lines skipped
+- Normalizes all symbols to uppercase for case-insensitive matching
+- Yields only variants whose `gene_name` (from annotation) matches a gene in the set
+- Intergenic variants (`gene_name=None`) are silently excluded
+- After the stream is consumed, logs a WARNING listing any panel genes with zero matching variants
+
+**Errors:**
+
+- `FileNotFoundError` if the gene list file does not exist
+- `ValueError` if the file contains zero valid gene symbols
+
+**Configuration:** `GeneFilterConfig(gene_list_path=Path("my_panel.txt"))`
 
 ## Prioritization
 
