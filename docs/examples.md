@@ -25,7 +25,7 @@ results = json.loads(Path("wgs_qc.json").read_text())
 print(f"{len(results)} variants passed QC")
 ```
 
-No annotation means no frequency lookups, no ClinVar hits — just parsing and quality filtering. Gives you variant counts and confirms the file is well-formed.
+No annotation means no frequency lookups, no ClinVar hits. Just parsing and quality filtering. Gives you variant counts and confirms the file is well-formed.
 
 ## Exome panel with strict AF filtering
 
@@ -48,7 +48,7 @@ config = PipelineConfig(
         clinvar_path=Path("refs/clinvar.tsv"),
     ),
     prioritization=PrioritizationConfig(
-        max_allele_frequency=0.001,  # 0.1% — strict rare disease threshold
+        max_allele_frequency=0.001,  # 0.1%, strict rare disease threshold
         cadd_scores_path=Path("refs/cadd_v1.7.tsv"),
         revel_scores_path=Path("refs/revel_v1.3.tsv"),
     ),
@@ -63,7 +63,7 @@ Anything with gnomAD AF > 0.001 gets deprioritized. Combined with CADD and REVEL
 
 ## CLI batch processing
 
-Loop over a directory of VCFs — one output per sample:
+Loop over a directory of VCFs, one output per sample:
 
 ```bash
 for vcf in samples/*.vcf.gz; do
@@ -75,12 +75,13 @@ for vcf in samples/*.vcf.gz; do
     --gnomad refs/gnomad.v4.exomes.tsv \
     --clinvar refs/clinvar.tsv \
     --cadd-scores refs/cadd_v1.7.tsv \
-    --revel-scores refs/revel_v1.3.tsv
+    --revel-scores refs/revel_v1.3.tsv \
+    --spliceai-scores refs/spliceai_scores.tsv
   echo "Done: $sample"
 done
 ```
 
-Each run is independent — safe to parallelize with `xargs` or GNU `parallel` if your machine has the RAM for it.
+Each run is independent. Safe to parallelize with `xargs` or GNU `parallel` if your machine has the RAM for it.
 
 ## Accessing individual stages
 
