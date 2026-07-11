@@ -4,7 +4,7 @@ Serializes a sequence of ClassifiedVariant records into an RFC 4180 compliant
 CSV file with UTF-8 encoding. Each row represents one variant, with absent
 values represented as empty fields.
 
-Supports both Iterator and Sequence inputs — variants are written row by row
+Supports both Iterator and Sequence inputs. Variants are written row by row
 as they are consumed from the iterator.
 """
 

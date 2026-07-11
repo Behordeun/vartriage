@@ -3,9 +3,9 @@
 The pipeline depends only on these protocols, not on concrete library types.
 Each protocol has two implementations:
 
-- Pure-Python fallback (sorted-array intervals, dict lookups, no PDF) —
+- Pure-Python fallback (sorted-array intervals, dict lookups, no PDF):
   works with just pysam + numpy.
-- Optimized backend (pyranges, polars, reportlab) — used when the
+- Optimized backend (pyranges, polars, reportlab): used when the
   optional extras are installed.
 """
 

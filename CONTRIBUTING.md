@@ -87,9 +87,9 @@ ruff check --fix .
 
 Use the following prefixes for your branches:
 
-- `feature/` — new functionality (e.g., `feature/streaming-reports`)
-- `fix/` — bug fixes (e.g., `fix/score-loader-nan-handling`)
-- `docs/` — documentation changes (e.g., `docs/update-api-reference`)
+- `feature/`: new functionality (e.g., `feature/streaming-reports`)
+- `fix/`: bug fixes (e.g., `fix/score-loader-nan-handling`)
+- `docs/`: documentation changes (e.g., `docs/update-api-reference`)
 
 ## Pull Request Process
 

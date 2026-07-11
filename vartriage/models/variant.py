@@ -110,13 +110,13 @@ class EvidenceTag(Enum):
     Attributes
     ----------
     PVS1 : str
-        Very Strong evidence — null variant (nonsense or frameshift).
+        Very Strong evidence: null variant (nonsense or frameshift).
     PM2 : str
-        Moderate evidence — absent from population controls.
+        Moderate evidence: absent from population controls.
     PP3 : str
-        Supporting evidence — computational pathogenicity prediction.
+        Supporting evidence: computational pathogenicity prediction.
     PP5 : str
-        Supporting evidence — reputable clinical source (ClinVar).
+        Supporting evidence: reputable clinical source (ClinVar).
     """
 
     PVS1 = "PVS1"

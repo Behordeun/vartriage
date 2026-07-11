@@ -24,7 +24,7 @@ class TabixFrequencyDatabase:
     """On-the-fly gnomAD frequency lookup via tabix-indexed VCF.
 
     Satisfies the FrequencyDatabase protocol. Queries are resolved
-    per-region using pysam.TabixFile — the entire VCF is never
+    per-region using pysam.TabixFile. The entire VCF is never
     loaded into memory.
 
     Attributes

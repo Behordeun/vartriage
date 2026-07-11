@@ -16,7 +16,7 @@ LIKELY_PATHOGENIC when any of:
 - ≥1 Strong + ≥2 Supporting
 
 Everything else (including empty evidence) → VUS.
-LIKELY_BENIGN and BENIGN are not produced yet — no benign tags are assigned.
+LIKELY_BENIGN and BENIGN are not produced yet. No benign tags are assigned.
 """
 
 from __future__ import annotations

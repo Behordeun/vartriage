@@ -118,7 +118,7 @@ class TestMalformedVCFDetection:
     validates that violations detectable by the parser raise ParseError.
     """
 
-    # pysam tolerates these — it logs a warning but doesn't error out.
+    # pysam tolerates these. It logs a warning but doesn't error out.
     # "invalid_qual" is silently coerced to 0.0 by pysam's htslib layer,
     # so the parser has no way to detect the malformation at runtime.
     PYSAM_TOLERANT_VIOLATIONS = {"malformed_info", "invalid_qual"}

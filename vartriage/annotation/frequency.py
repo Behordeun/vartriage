@@ -109,7 +109,7 @@ class DictFrequencyDatabase:
                         alt = row[col_idx["alt"]].strip()
                         af_str = row[col_idx["af"]].strip()
 
-                        # '.' or empty means no frequency data — skip
+                        # '.' or empty means no frequency data, skip
                         if af_str in (".", ""):
                             continue
 

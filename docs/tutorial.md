@@ -131,7 +131,7 @@ vartriage \
   --revel-scores references/revel_v1.3.tsv
 ```
 
-Output is identical to the Python API — same JSON structure, same ranking.
+Output is identical to the Python API: same JSON structure, same ranking.
 
 ## 7. Working with the output
 
@@ -174,7 +174,7 @@ with open("results/top_candidates.csv", "w", newline="") as f:
 
 ## 8. Without annotation (basic QC mode)
 
-You don't always need the full reference stack. If you just want to parse a VCF and run quality filtering — maybe to validate a file before a bigger run — skip the annotation flags entirely:
+You don't always need the full reference stack. If you just want to parse a VCF and run quality filtering (maybe to validate a file before a bigger run), skip the annotation flags entirely:
 
 ```bash
 vartriage --vcf sample.vcf.gz --output qc_output.json
@@ -196,7 +196,7 @@ pipeline = Pipeline(config)
 pipeline.run()
 ```
 
-Without annotation references, variants pass through with `Intergenic` consequence and null frequencies. Downstream stages still run — you get ACMG classifications based on available evidence (which will be minimal). Useful for verifying your VCF parses cleanly and checking variant counts before investing in the full annotation step.
+Without annotation references, variants pass through with `Intergenic` consequence and null frequencies. Downstream stages still run. You get ACMG classifications based on available evidence (which will be minimal). Useful for verifying your VCF parses cleanly and checking variant counts before investing in the full annotation step.
 
 ## Using individual stages
 

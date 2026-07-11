@@ -124,7 +124,7 @@ def multi_source_scenario(
             )
         )
 
-    # ClinVar has some keys — possibly overlapping with gnomAD
+    # ClinVar has some keys, possibly overlapping with gnomAD
     clinvar_count = draw(
         st.integers(min_value=1, max_value=max(1, len(all_keys) - 1))
     )

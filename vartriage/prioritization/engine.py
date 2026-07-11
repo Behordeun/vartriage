@@ -28,10 +28,10 @@ class PrioritizationEngine:
 
     Processes an iterator of annotated variants through two stages:
 
-    1. **Frequency filtering** — excludes variants with allele frequency
+    1. **Frequency filtering**: excludes variants with allele frequency
        above the configured maximum threshold (retaining frequency-unknown
        variants).
-    2. **Pathogenicity scoring** — normalizes CADD/REVEL scores, computes
+    2. **Pathogenicity scoring**: normalizes CADD/REVEL scores, computes
        a composite rank, and sorts each batch in descending order by
        composite rank (nulls last).
 

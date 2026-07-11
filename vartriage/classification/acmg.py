@@ -220,7 +220,7 @@ class ACMGClassifier:
         if assertion == ClinVarAssertion.PATHOGENIC:
             # In this simplified model, a single ClinVar assertion is stored.
             # If the assertion is Pathogenic, there's no conflicting
-            # Benign/Likely_Benign assertion recorded — PP5 applies.
+            # Benign/Likely_Benign assertion recorded, so PP5 applies.
             # A conflicting assertion would show up as one of the benign
             # categories in the assertion field itself.
             tags.add(EvidenceTag.PP5)
