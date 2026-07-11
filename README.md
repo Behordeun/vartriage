@@ -49,6 +49,7 @@ vartriage \
   --regions target_regions.bed \
   --sample PROBAND_01 \
   --min-gq 20
+  --spliceai-scores spliceai_scores.tsv
 ```
 
 Run `vartriage --help` for the complete list.
@@ -130,6 +131,10 @@ composite = (REVEL × 0.5) + (CADD_normalized × 0.3) + (SpliceAI × 0.2)
 
 ```text
 composite = (REVEL × 0.6) + (CADD_normalized × 0.4)
+**Prioritization** - Two phases. First: frequency gate drops variants with AF above the threshold (default 0.01); unknown-frequency variants always pass. Second: composite scoring from normalized CADD Phred, REVEL, and SpliceAI:
+
+```
+composite = (REVEL × 0.5) + (CADD_normalized × 0.3) + (SpliceAI × 0.2)
 ```
 
 When only two scores are available, weights redistribute proportionally. Single available score is used directly. Falls back to the legacy two-score formula (0.6/0.4) when SpliceAI is not configured.
@@ -148,6 +153,12 @@ When only two scores are available, weights redistribute proportionally. Single 
 | PM2  | gnomAD AF < 0.0001                            |
 | PP3  | REVEL > 0.7                                   |
 | PP5  | ClinVar Pathogenic without conflicting Benign |
+| Tag | Condition |
+|------|----------------------------------------------|
+| PVS1 | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
+| PM2 | gnomAD AF < 0.0001 |
+| PP3 | REVEL > 0.7 or SpliceAI > 0.5 on splice-adjacent |
+| PP5 | ClinVar Pathogenic without conflicting Benign |
 
 Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
 
@@ -186,6 +197,28 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 | cadd_scores_path     | Path  | None    | CADD Phred TSV |
 | revel_scores_path    | Path  | None    | REVEL TSV      |
 | batch_size           | int   | 10,000  | 1,000–100,000  |
+| Field | Type | Default | Range |
+|---|---|---|---|
+| min_qual | float | 20.0 | 0-1,000,000 |
+
+### AnnotationConfig
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| gene_annotation_path | Path | required | GTF/GFF |
+| gnomad_path | Path | required | TSV or tabix VCF (.vcf.bgz/.vcf.gz) |
+| clinvar_path | Path | None | TSV |
+| batch_size | int | 10,000 | 1,000-100,000 |
+
+### PrioritizationConfig
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| max_allele_frequency | float | 0.01 | 0.0-1.0 |
+| cadd_scores_path | Path | None | CADD Phred TSV |
+| revel_scores_path | Path | None | REVEL TSV |
+| spliceai_scores_path | Path | None | SpliceAI TSV |
+| batch_size | int | 10,000 | 1,000-100,000 |
 
 ### ReportConfig
 
