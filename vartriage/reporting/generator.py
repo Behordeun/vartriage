@@ -1,4 +1,4 @@
-"""Report generation — routes output to JSON, CSV, or PDF writers.
+"""Report generation: routes output to JSON, CSV, or PDF writers.
 
 Writes to a temp file first and does an atomic rename on success, so the
 target path never contains partial output if something fails mid-write.
@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import Iterator, Sequence, Union
+from typing import Iterator, Optional, Sequence, Union
 
 from vartriage.models.config import ReportConfig
 from vartriage.models.variant import ClassifiedVariant
@@ -38,13 +38,20 @@ class ReportGenerator:
 
     def generate(
         self,
-        variants: Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]],
+        variants: Union[
+            Iterator[ClassifiedVariant],
+            Sequence[ClassifiedVariant],
+        ],
         output_path: Path,
+        source_vcf_path: Optional[Path] = None,
     ) -> Path:
         """Write classified variants to the configured format.
 
         Writes to a temp file alongside the target, then atomically
         replaces it on success. On failure, cleans up the temp file.
+
+        For VCF format, delegates entirely to ``write_vcf`` which
+        handles its own atomic write and tabix indexing internally.
 
         Parameters
         ----------
@@ -53,6 +60,9 @@ class ReportGenerator:
             JSON/CSV consume iterators incrementally; PDF materializes.
         output_path : Path
             Where the final report lands.
+        source_vcf_path : Path, optional
+            Path to the original input VCF. Required when format
+            is ``"vcf"``; ignored for other formats.
 
         Returns
         -------
@@ -62,12 +72,24 @@ class ReportGenerator:
         Raises
         ------
         IOError
-            On write or encoding failure.
+            On write or encoding failure, or if format is "vcf"
+            and ``source_vcf_path`` is None.
         """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         fmt = self._config.output_format
+
+        if fmt == "vcf":
+            if source_vcf_path is None:
+                raise IOError(
+                    "VCF output format requires source_vcf_path"
+                )
+            from vartriage.reporting.vcf_writer import write_vcf
+
+            materialized = list(variants)
+            write_vcf(materialized, source_vcf_path, output_path)
+            return output_path
 
         tmp_fd = None
         tmp_path: Path | None = None

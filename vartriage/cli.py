@@ -46,7 +46,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-format",
-        choices=["json", "csv", "pdf"],
+        choices=["json", "csv", "pdf", "vcf"],
         default="json",
         help="Output report format (default: json)",
     )
