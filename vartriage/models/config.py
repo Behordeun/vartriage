@@ -133,12 +133,12 @@ class ReportConfig:
 
     Parameters
     ----------
-    output_format : Literal["json", "csv", "pdf"]
+    output_format : Literal["json", "csv", "pdf", "vcf"]
         Desired output format for the final clinical report. Default is
         ``"json"``.
     """
 
-    output_format: Literal["json", "csv", "pdf"] = "json"
+    output_format: Literal["json", "csv", "pdf", "vcf"] = "json"
 
 
 @dataclass(frozen=True)
