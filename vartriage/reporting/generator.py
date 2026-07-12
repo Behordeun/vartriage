@@ -87,6 +87,9 @@ class ReportGenerator:
                 )
             from vartriage.reporting.vcf_writer import write_vcf
 
+            # VCF output materializes all variants into memory for the
+            # lookup dict, unlike JSON/CSV which stream incrementally.
+            # For whole-genome inputs this can reach hundreds of MB.
             materialized = list(variants)
             write_vcf(materialized, source_vcf_path, output_path)
             return output_path
