@@ -14,6 +14,7 @@ from vartriage.models.variant import (
     ClassifiedVariant,
     EvidenceTag,
     FunctionalConsequence,
+    ScoredVariant,
 )
 
 if TYPE_CHECKING:
@@ -180,7 +181,7 @@ class EvidenceNarrativeBuilder:
         return narrative
 
     def _append_score_parts(
-        self, parts: list[str], scored: "ScoredVariant",
+        self, parts: list[str], scored: ScoredVariant,
     ) -> None:
         """Append predictor score sentences to the narrative parts."""
         score_entries: list[str] = []

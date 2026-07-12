@@ -18,7 +18,6 @@ from vartriage.models.config import ClinicalReportConfig
 from vartriage.models.variant import (
     ACMGClassification,
     ClassifiedVariant,
-    EvidenceTag,
 )
 from vartriage.reporting.clinical.audit import AuditTrailWriter
 from vartriage.reporting.clinical.models import (
@@ -159,7 +158,9 @@ class ClinicalReportGenerator:
         the same tier. Variants with None composite_rank sort last
         within their tier.
         """
-        def sort_key(v: ClassifiedVariant) -> tuple:
+        def sort_key(
+            v: ClassifiedVariant,
+        ) -> tuple[int, float]:
             tier = _TIER_ORDER.get(v.classification, 99)
             rank = v.scored.composite_rank
             # Negate rank for descending order. None sorts last.

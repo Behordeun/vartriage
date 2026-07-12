@@ -8,9 +8,19 @@ rendering libraries.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pathlib import Path
 
-from vartriage.reporting.clinical.models import ReportSections
+from vartriage.reporting.clinical.models import (
+    EvidenceCardData,
+    ExecutiveSummaryData,
+    FindingsRow,
+    HeaderData,
+    MethodologyData,
+    ReportSections,
+    SignOffData,
+)
 from vartriage.reporting.clinical.templates import (
     EVIDENCE_CARD_AF_LINE,
     EVIDENCE_CARD_CLINVAR_LINE,
@@ -50,6 +60,9 @@ _EMPTY_FINDINGS_MESSAGE = (
     "No clinically significant variants meeting triage criteria "
     "were identified within the requested panel target areas."
 )
+
+
+_TABLE_GRID = "Table Grid"
 
 
 class ReportTemplateEngine:
@@ -118,7 +131,7 @@ class ReportTemplateEngine:
             If WeasyPrint is not installed.
         """
         try:
-            import weasyprint  # noqa: F401
+            import weasyprint  # type: ignore[import-not-found]  # noqa: F401
         except ImportError as exc:
             raise ImportError(
                 "PDF output requires the 'weasyprint' package. "
@@ -160,9 +173,9 @@ class ReportTemplateEngine:
             If python-docx is not installed.
         """
         try:
-            from docx import Document
-            from docx.shared import Pt
-            from docx.enum.table import WD_TABLE_ALIGNMENT
+            from docx import Document  # type: ignore[import-not-found]
+            from docx.shared import Pt  # type: ignore[import-not-found]
+            from docx.enum.table import WD_TABLE_ALIGNMENT  # type: ignore[import-not-found]
         except ImportError as exc:
             raise ImportError(
                 "DOCX output requires the 'python-docx' package. "
@@ -170,26 +183,39 @@ class ReportTemplateEngine:
             ) from exc
 
         doc = Document()
-        header = sections.header
 
-        # Header section
+        self._docx_add_header(doc, sections.header)
+        self._docx_add_executive_summary(doc, sections.executive_summary)
+        self._docx_add_findings_table(
+            doc, sections.findings_table, WD_TABLE_ALIGNMENT
+        )
+        self._docx_add_evidence_cards(doc, sections.evidence_cards)
+        self._docx_add_limitations(doc, sections.limitations)
+        self._docx_add_methodology(doc, sections.methodology)
+        self._docx_add_sign_off(doc, sections.sign_off)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        doc.save(str(output_path))
+
+        return output_path
+
+    def _docx_add_header(
+        self, doc: Any, header: HeaderData,
+    ) -> None:
+        """Add header section to DOCX document."""
         doc.add_heading("Clinical Variant Report", level=1)
-        doc.add_paragraph(
-            f"Patient ID: {header.patient_id}"
-        )
-        doc.add_paragraph(
-            f"Gene Panel: {header.panel_name}"
-        )
-        doc.add_paragraph(
-            f"Analysis Date: {header.analysis_date}"
-        )
+        doc.add_paragraph(f"Patient ID: {header.patient_id}")
+        doc.add_paragraph(f"Gene Panel: {header.panel_name}")
+        doc.add_paragraph(f"Analysis Date: {header.analysis_date}")
         doc.add_paragraph(
             f"Pipeline Version: {header.pipeline_version}"
         )
 
-        # Executive Summary
+    def _docx_add_executive_summary(
+        self, doc: Any, summary: ExecutiveSummaryData,
+    ) -> None:
+        """Add executive summary section to DOCX document."""
         doc.add_heading("Executive Summary", level=1)
-        summary = sections.executive_summary
         doc.add_paragraph(
             f"Total variants analyzed: "
             f"{summary.total_variants_analyzed}"
@@ -210,46 +236,52 @@ class ReportTemplateEngine:
             f"{summary.vus_count}"
         )
 
-        # Findings Table
+    def _docx_add_findings_table(
+        self,
+        doc: Any,
+        findings_table: list[FindingsRow],
+        wd_table_alignment: Any,
+    ) -> None:
+        """Add findings table section to DOCX document."""
         doc.add_heading("Findings Table", level=1)
-        if sections.findings_table:
-            table = doc.add_table(
-                rows=1, cols=5
-            )
-            table.style = "Table Grid"
-            table.alignment = WD_TABLE_ALIGNMENT.CENTER
-
-            # Set repeat header row for multi-page tables.
-            self._set_repeat_header_row(table)
-
-            hdr_cells = table.rows[0].cells
-            hdr_cells[0].text = "Gene"
-            hdr_cells[1].text = "Consequence"
-            hdr_cells[2].text = "Classification"
-            hdr_cells[3].text = "Composite Rank"
-            hdr_cells[4].text = "Location"
-
-            for row_data in sections.findings_table:
-                row_cells = table.add_row().cells
-                row_cells[0].text = (
-                    row_data.gene_name or "Intergenic"
-                )
-                row_cells[1].text = row_data.consequence
-                row_cells[2].text = row_data.classification
-                row_cells[3].text = (
-                    f"{row_data.composite_rank:.3f}"
-                    if row_data.composite_rank is not None
-                    else "N/A"
-                )
-                row_cells[4].text = (
-                    f"{row_data.chromosome}:{row_data.position}"
-                )
-        else:
+        if not findings_table:
             doc.add_paragraph(_EMPTY_FINDINGS_MESSAGE)
+            return
 
-        # Evidence Cards
+        table = doc.add_table(rows=1, cols=5)
+        table.style = _TABLE_GRID
+        table.alignment = wd_table_alignment.CENTER
+        self._set_repeat_header_row(table)
+
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = "Gene"
+        hdr_cells[1].text = "Consequence"
+        hdr_cells[2].text = "Classification"
+        hdr_cells[3].text = "Composite Rank"
+        hdr_cells[4].text = "Location"
+
+        for row_data in findings_table:
+            row_cells = table.add_row().cells
+            row_cells[0].text = (
+                row_data.gene_name or "Intergenic"
+            )
+            row_cells[1].text = row_data.consequence
+            row_cells[2].text = row_data.classification
+            row_cells[3].text = (
+                f"{row_data.composite_rank:.3f}"
+                if row_data.composite_rank is not None
+                else "N/A"
+            )
+            row_cells[4].text = (
+                f"{row_data.chromosome}:{row_data.position}"
+            )
+
+    def _docx_add_evidence_cards(
+        self, doc: Any, evidence_cards: list[EvidenceCardData],
+    ) -> None:
+        """Add evidence cards section to DOCX document."""
         doc.add_heading("Evidence Cards", level=1)
-        for card in sections.evidence_cards:
+        for card in evidence_cards:
             gene_label = card.gene_name or "Intergenic"
             doc.add_heading(
                 f"{gene_label}: {card.consequence}", level=2
@@ -283,10 +315,13 @@ class ReportTemplateEngine:
 
             doc.add_paragraph(card.narrative)
 
-        # Limitations
+    def _docx_add_limitations(
+        self, doc: Any, limitations: list[str],
+    ) -> None:
+        """Add limitations section to DOCX document."""
         doc.add_heading("Limitations", level=1)
-        if sections.limitations:
-            for limitation in sections.limitations:
+        if limitations:
+            for limitation in limitations:
                 doc.add_paragraph(
                     limitation, style="List Bullet"
                 )
@@ -296,9 +331,11 @@ class ReportTemplateEngine:
                 "during this analysis."
             )
 
-        # Methodology
+    def _docx_add_methodology(
+        self, doc: Any, methodology: MethodologyData,
+    ) -> None:
+        """Add methodology section to DOCX document."""
         doc.add_heading("Methodology", level=1)
-        methodology = sections.methodology
         doc.add_paragraph(
             f"Pipeline Version: {methodology.pipeline_version}"
         )
@@ -310,7 +347,7 @@ class ReportTemplateEngine:
         if methodology.reference_files:
             doc.add_heading("Reference Files", level=2)
             ref_table = doc.add_table(rows=1, cols=2)
-            ref_table.style = "Table Grid"
+            ref_table.style = _TABLE_GRID
             ref_hdr = ref_table.rows[0].cells
             ref_hdr[0].text = "File"
             ref_hdr[1].text = "SHA-256 Checksum"
@@ -326,7 +363,7 @@ class ReportTemplateEngine:
                 "Classification Parameters", level=2
             )
             param_table = doc.add_table(rows=1, cols=2)
-            param_table.style = "Table Grid"
+            param_table.style = _TABLE_GRID
             param_hdr = param_table.rows[0].cells
             param_hdr[0].text = "Parameter"
             param_hdr[1].text = "Value"
@@ -337,9 +374,11 @@ class ReportTemplateEngine:
                 row_cells[0].text = param_name
                 row_cells[1].text = param_value
 
-        # Sign-off
+    def _docx_add_sign_off(
+        self, doc: Any, sign_off: SignOffData,
+    ) -> None:
+        """Add sign-off section to DOCX document."""
         doc.add_heading("Sign-off", level=1)
-        sign_off = sections.sign_off
         doc.add_paragraph(
             f"Reviewer: {sign_off.reviewer_name_placeholder}"
         )
@@ -350,11 +389,6 @@ class ReportTemplateEngine:
             f"Digital Signature: "
             f"{sign_off.digital_signature_placeholder}"
         )
-
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        doc.save(str(output_path))
-
-        return output_path
 
     def _render_header(self, sections: ReportSections) -> str:
         """Render the header section HTML."""
@@ -565,13 +599,13 @@ class ReportTemplateEngine:
         )
 
     @staticmethod
-    def _set_repeat_header_row(table) -> None:
+    def _set_repeat_header_row(table: Any) -> None:
         """Enable 'repeat header row' on a DOCX table.
 
         This makes column headers appear on every page when the
         table spans multiple pages.
         """
-        from docx.oxml.ns import qn
+        from docx.oxml.ns import qn  # type: ignore[import-not-found]
 
         tbl_pr = table.rows[0]._tr
         tr_pr = tbl_pr.get_or_add_trPr()

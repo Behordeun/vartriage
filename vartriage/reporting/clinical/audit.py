@@ -135,7 +135,7 @@ class AuditTrailWriter:
         reference_checksums: dict[str, str],
         pipeline_version: str,
         execution_timestamp: str,
-    ) -> dict:
+    ) -> dict[str, object]:
         """Assemble the run manifest dictionary."""
         return {
             "patient_id": config.patient_id,
@@ -151,9 +151,9 @@ class AuditTrailWriter:
 
     def _build_decision_log(
         self, variants: Sequence[ClassifiedVariant]
-    ) -> list[dict]:
+    ) -> list[dict[str, object]]:
         """Build the per-variant decision log entries."""
-        entries: list[dict] = []
+        entries: list[dict[str, object]] = []
 
         for variant in variants:
             scored = variant.scored

@@ -5,7 +5,12 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional, cast
+
+from vartriage.models.config import (
+    ClinicalReportConfig,
+    InheritanceConfig,
+)
 
 
 def _get_version() -> str:
@@ -271,8 +276,15 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
         spliceai_scores_path=args.spliceai_scores,
     )
 
+    report_fmt = cast(
+        Literal[
+            "json", "csv", "pdf", "vcf",
+            "clinical-pdf", "clinical-html", "clinical-docx",
+        ],
+        output_format,
+    )
     report_config = ReportConfig(
-        output_format=output_format,
+        output_format=report_fmt,
     )
 
     gene_filter_config: Optional[GeneFilterConfig] = None
@@ -320,12 +332,12 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
 
 def _build_clinical_config(
     args: argparse.Namespace, output_format: str,
-) -> Optional["ClinicalReportConfig"]:
+) -> Optional[ClinicalReportConfig]:
     """Build ClinicalReportConfig if clinical format is requested."""
     if not output_format.startswith("clinical-"):
         return None
 
-    from vartriage.models.config import ClinicalReportConfig
+    from vartriage.models.config import ClinicalReportConfig as _CRC
 
     missing_flags: list[str] = []
     if args.patient_id is None:
@@ -339,18 +351,23 @@ def _build_clinical_config(
             file=sys.stderr,
         )
         sys.exit(2)
-    return ClinicalReportConfig(
+
+    clinical_fmt = cast(
+        Literal["clinical-pdf", "clinical-html", "clinical-docx"],
+        output_format,
+    )
+    return _CRC(
         patient_id=args.patient_id,
         panel_name=args.panel_name,
-        output_format=output_format,
+        output_format=clinical_fmt,
     )
 
 
 def _build_inheritance_config(
     args: argparse.Namespace,
-) -> Optional["InheritanceConfig"]:
+) -> Optional[InheritanceConfig]:
     """Build InheritanceConfig from trio arguments."""
-    from vartriage.models.config import InheritanceConfig
+    from vartriage.models.config import InheritanceConfig as _IC
 
     proband: Optional[str] = args.proband
     mother: Optional[str] = args.mother
@@ -381,8 +398,8 @@ def _build_inheritance_config(
 
     patterns = args.inheritance_pattern
     if patterns is None:
-        patterns = list(InheritanceConfig.SUPPORTED_PATTERNS)
-    return InheritanceConfig(
+        patterns = list(_IC.SUPPORTED_PATTERNS)
+    return _IC(
         proband=proband,  # type: ignore[arg-type]
         mother=mother,  # type: ignore[arg-type]
         father=father,  # type: ignore[arg-type]
