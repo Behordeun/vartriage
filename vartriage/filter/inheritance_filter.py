@@ -133,6 +133,11 @@ class InheritanceFilter:
                     )
                     continue
 
+                # Gene boundary flush: assumes variants arrive grouped
+                # by gene (standard for coordinate-sorted VCFs where
+                # same-gene variants are contiguous). Using a single
+                # buffer rather than per-gene dicts keeps memory bounded
+                # for large inputs.
                 if (
                     current_gene is not None
                     and gene != current_gene

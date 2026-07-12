@@ -138,24 +138,9 @@ class Pipeline:
             effective_vcf_path,
             extract_samples=extract_samples,
         ) as parser:
-            stream: Iterator[Variant] = iter(parser)
-
-            if self._config.inheritance is not None:
-                from vartriage.filter.inheritance_filter import (
-                    InheritanceFilter,
-                )
-                inheritance_filter = InheritanceFilter(
-                    self._config.inheritance,
-                    parser.sample_names,
-                )
-                stream = inheritance_filter.apply(stream)
-
-            filtered = quality_filter.apply(stream)
-
-            if annotation_engine is not None:
-                annotated = annotation_engine.annotate(filtered)
-            else:
-                annotated = self._passthrough_annotation(filtered)
+            annotated = self._build_annotated_stream(
+                parser, quality_filter, annotation_engine,
+            )
 
             if self._config.gene_filter is not None:
                 from vartriage.filter.gene_filter import GeneFilter
@@ -190,6 +175,45 @@ class Pipeline:
 
         logger.info("Report written to: %s", result_path)
         return result_path
+
+    def _build_annotated_stream(
+        self,
+        parser: VCFParser,
+        quality_filter: QualityFilter,
+        annotation_engine: Optional[AnnotationEngine],
+    ) -> Iterator["AnnotatedVariant"]:
+        """Build the filtered and annotated variant stream."""
+        stream: Iterator[Variant] = iter(parser)
+
+        if self._config.inheritance is not None:
+            from vartriage.filter.inheritance_filter import (
+                InheritanceFilter,
+            )
+            inheritance_filter = InheritanceFilter(
+                self._config.inheritance,
+                parser.sample_names,
+            )
+            compound_het_active = (
+                "compound_het" in self._config.inheritance.patterns
+            )
+
+            if compound_het_active and annotation_engine is not None:
+                filtered = quality_filter.apply(stream)
+                annotated = annotation_engine.annotate(filtered)
+                variants_with_genes = (
+                    self._variants_with_gene_info(annotated)
+                )
+                inherited = inheritance_filter.apply(
+                    variants_with_genes
+                )
+                return self._passthrough_annotation(inherited)
+
+            stream = inheritance_filter.apply(stream)
+
+        filtered = quality_filter.apply(stream)
+        if annotation_engine is not None:
+            return annotation_engine.annotate(filtered)
+        return self._passthrough_annotation(filtered)
 
     def _validate_config(self, config: PipelineConfig) -> None:
         """Validate all configuration at construction time (fail-fast).
@@ -260,6 +284,41 @@ class Pipeline:
         if pri_config.spliceai_scores_path is not None:
             self._check_path(
                 pri_config.spliceai_scores_path, "SpliceAI scores file"
+            )
+
+    def _variants_with_gene_info(
+        self, annotated: Iterator["AnnotatedVariant"]
+    ) -> Iterator["Variant"]:
+        """Extract Variant objects with gene_name copied into info dict.
+
+        Used when compound_het needs gene grouping from annotation
+        data. Copies gene_name into info["gene"] so the
+        InheritanceFilter can group variants by gene.
+
+        Parameters
+        ----------
+        annotated : Iterator[AnnotatedVariant]
+            Annotated variant stream.
+
+        Yields
+        ------
+        Variant
+            Raw variants with gene info attached.
+        """
+        for av in annotated:
+            v = av.variant
+            new_info = dict(v.info)
+            if av.gene_name is not None:
+                new_info["gene"] = av.gene_name
+            yield Variant(
+                chrom=v.chrom,
+                pos=v.pos,
+                id=v.id,
+                ref=v.ref,
+                alt=v.alt,
+                qual=v.qual,
+                filter_status=v.filter_status,
+                info=new_info,
             )
 
     def _passthrough_annotation(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
