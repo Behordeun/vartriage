@@ -208,8 +208,9 @@ class AnnotationEngine:
     ) -> list[Optional[str]]:
         """Extract gene names for a batch of variants.
 
-        Uses the consequence annotator's batch gene lookup when available,
-        falling back to per-variant overlap queries otherwise.
+        Uses the consequence annotator's overlap() method per variant
+        to find the gene symbol from the first overlapping region.
+        Returns None for intergenic variants with no overlap.
 
         Parameters
         ----------
