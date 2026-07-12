@@ -14,7 +14,7 @@ Case-insensitive matching, warns on unmatched panel genes.
 - CLI --gene-list argument"
   [feature/gene-list-filtering 01e627f] feat: add gene list filtering to pipeline
   6 files changed, 269 insertions(+), 1 deletion(-)
-  create mode 100644 vartriage/filter/gene_filter.p
+  create mode 100644 vartriage/filter/gene_filter.py
 
 # vartriage
 
