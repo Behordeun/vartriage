@@ -194,9 +194,9 @@ class TestWriteVcfUnmatched:
 
 
 class TestWriteVcfMultiAllelic:
-    """Multi-allelic records: only first ALT is matched."""
+    """Multi-allelic records: any ALT allele can match."""
 
-    def test_first_alt_annotated_second_ignored(
+    def test_first_alt_annotated(
         self, tmp_path: Path
     ) -> None:
         cv = _make_classified(chrom="chr1", pos=100, ref="A", alt="T")
@@ -211,6 +211,41 @@ class TestWriteVcfMultiAllelic:
         with pysam.VariantFile(str(output)) as vcf:
             for rec in vcf:
                 assert "VARTRIAGE_ACMG" in rec.info
+
+    def test_second_alt_annotated_when_first_not_in_lookup(
+        self, tmp_path: Path
+    ) -> None:
+        """Multiallelic record matches on the second ALT allele."""
+        cv = _make_classified(chrom="chr1", pos=100, ref="A", alt="C")
+        source = tmp_path / "src.vcf.gz"
+        _create_source_vcf(source, [
+            {"chrom": "chr1", "pos": 100, "ref": "A", "alts": ["T", "C"]},
+        ])
+
+        output = tmp_path / "out.vcf.gz"
+        write_vcf([cv], source, output)
+
+        with pysam.VariantFile(str(output)) as vcf:
+            for rec in vcf:
+                assert "VARTRIAGE_ACMG" in rec.info
+
+    def test_no_match_when_no_alt_in_lookup(
+        self, tmp_path: Path
+    ) -> None:
+        """Multiallelic record with no ALTs in lookup stays unannotated."""
+        cv = _make_classified(chrom="chr1", pos=999, ref="G", alt="A")
+        source = tmp_path / "src.vcf.gz"
+        _create_source_vcf(source, [
+            {"chrom": "chr1", "pos": 100, "ref": "A", "alts": ["T", "C"]},
+        ])
+
+        output = tmp_path / "out.vcf.gz"
+        write_vcf([cv], source, output)
+
+        with pysam.VariantFile(str(output)) as vcf:
+            for rec in vcf:
+                for key in rec.info:
+                    assert not key.startswith("VARTRIAGE_")
 
 
 class TestWriteVcfAtomicity:
