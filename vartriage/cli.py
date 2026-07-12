@@ -99,10 +99,22 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--regions",
+        type=Path,
+        default=None,
+        help="Path to BED file for region-based variant filtering",
+    )
+    parser.add_argument(
         "--sample",
         type=str,
         default=None,
         help="Sample name to extract from multi-sample VCF",
+    )
+    parser.add_argument(
+        "--min-gq",
+        type=int,
+        default=None,
+        help="Minimum genotype quality threshold (0-99). Requires --sample",
     )
     parser.add_argument(
         "--proband",
@@ -203,7 +215,9 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
         GeneFilterConfig,
         PipelineConfig,
         PrioritizationConfig,
+        RegionFilterConfig,
         ReportConfig,
+        SampleConfig,
     )
     from vartriage.pipeline import Pipeline
 
@@ -270,6 +284,26 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
             gene_list_path=args.gene_list,
         )
 
+    region_filter_config: Optional[RegionFilterConfig] = None
+    if args.regions is not None:
+        region_filter_config = RegionFilterConfig(
+            bed_path=args.regions,
+        )
+
+    sample_config: Optional[SampleConfig] = None
+    if args.sample is not None:
+        sample_config = SampleConfig(
+            sample_name=args.sample,
+            min_gq=args.min_gq,
+        )
+
+    if args.min_gq is not None and args.sample is None:
+        print(
+            "Error: --min-gq requires --sample",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     pipeline_config = PipelineConfig(
         vcf_path=vcf_path,
         output_path=args.output,
@@ -278,6 +312,8 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
         report=report_config,
         inheritance=inheritance_config,
         gene_filter=gene_filter_config,
+        region_filter=region_filter_config,
+        sample=sample_config,
     )
 
     pipeline = Pipeline(pipeline_config)

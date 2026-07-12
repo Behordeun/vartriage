@@ -132,6 +132,7 @@ class Pipeline:
 
         extract_samples = (
             self._config.inheritance is not None
+            or self._config.sample is not None
         )
 
         with VCFParser(
@@ -185,6 +186,7 @@ class Pipeline:
         """Build the filtered and annotated variant stream."""
         stream: Iterator[Variant] = iter(parser)
 
+        # Sample extraction or inheritance (mutually exclusive)
         if self._config.inheritance is not None:
             from vartriage.filter.inheritance_filter import (
                 InheritanceFilter,
@@ -222,6 +224,21 @@ class Pipeline:
                 )
             else:
                 stream = inheritance_filter.apply(stream)
+        elif self._config.sample is not None:
+            from vartriage.filter.sample_extractor import (
+                SampleExtractor,
+            )
+            sample_extractor = SampleExtractor(
+                self._config.sample,
+                parser.sample_names,
+            )
+            stream = sample_extractor.apply(stream)
+
+        # Region filter (optional, runs before quality filter)
+        if self._config.region_filter is not None:
+            from vartriage.filter.region_filter import RegionFilter
+            region_filter = RegionFilter(self._config.region_filter)
+            stream = region_filter.apply(stream)
 
         filtered = quality_filter.apply(stream)
         if annotation_engine is not None:
@@ -257,17 +274,23 @@ class Pipeline:
                 "Gene list file",
             )
 
-        if config.inheritance is not None:
-            if (
-                "compound_het" in config.inheritance.patterns
-                and config.annotation is None
-            ):
-                raise ValueError(
-                    "compound_het pattern requires annotation "
-                    "configuration (gene annotation reference). "
-                    "Either provide --gene-annotation and --gnomad, "
-                    "or remove compound_het from the patterns list."
-                )
+        if config.region_filter is not None:
+            self._check_path(
+                config.region_filter.bed_path,
+                "BED file",
+            )
+
+        if (
+            config.inheritance is not None
+            and "compound_het" in config.inheritance.patterns
+            and config.annotation is None
+        ):
+            raise ValueError(
+                "compound_het pattern requires annotation "
+                "configuration (gene annotation reference). "
+                "Either provide --gene-annotation and --gnomad, "
+                "or remove compound_het from the patterns list."
+            )
 
     def _validate_annotation_config(
         self, ann_config: "AnnotationConfig",

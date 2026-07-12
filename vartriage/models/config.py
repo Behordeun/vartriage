@@ -218,6 +218,48 @@ class InheritanceConfig:
 
 
 @dataclass(frozen=True)
+class RegionFilterConfig:
+    """Configuration for BED-based region filtering.
+
+    Parameters
+    ----------
+    bed_path : Path
+        Path to a BED file defining target genomic intervals.
+    """
+
+    bed_path: Path
+
+
+@dataclass(frozen=True)
+class SampleConfig:
+    """Configuration for sample extraction from multi-sample VCFs.
+
+    Parameters
+    ----------
+    sample_name : str
+        Name of the sample to extract from the VCF.
+    min_gq : int | None
+        Minimum genotype quality threshold. Variants with GQ below
+        this value are excluded. Must be in range [0, 99].
+        Defaults to None (no GQ filtering).
+
+    Raises
+    ------
+    ValueError
+        If min_gq is not None and outside range [0, 99].
+    """
+
+    sample_name: str
+    min_gq: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.min_gq is not None and not (0 <= self.min_gq <= 99):
+            raise ValueError(
+                f"min_gq must be between 0 and 99, got {self.min_gq}"
+            )
+
+
+@dataclass(frozen=True)
 class GeneFilterConfig:
     """Configuration for gene-list-based variant filtering.
 
@@ -263,4 +305,6 @@ class PipelineConfig:
     report: ReportConfig = field(default_factory=ReportConfig)
     missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
     gene_filter: GeneFilterConfig | None = field(default=None)
+    region_filter: RegionFilterConfig | None = field(default=None)
+    sample: SampleConfig | None = field(default=None)
     inheritance: "InheritanceConfig | None" = field(default=None)
