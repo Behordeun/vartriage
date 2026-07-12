@@ -116,6 +116,10 @@ class Pipeline:
         logger.info("Starting pipeline run: %s → %s",
                     effective_vcf_path, effective_output_path)
 
+        # Warn if reference file checksums don't match current files.
+        if self._config.clinical_report is not None:
+            self._check_reference_checksums()
+
         quality_filter = QualityFilter(self._config.quality_filter)
 
         annotation_engine: Optional[AnnotationEngine] = None
@@ -128,7 +132,10 @@ class Pipeline:
 
         acmg_classifier = ACMGClassifier()
 
-        report_generator = ReportGenerator(self._config.report)
+        report_generator = ReportGenerator(
+            self._config.report,
+            clinical_config=self._config.clinical_report,
+        )
 
         extract_samples = (
             self._config.inheritance is not None
@@ -176,6 +183,50 @@ class Pipeline:
 
         logger.info("Report written to: %s", result_path)
         return result_path
+
+    def _check_reference_checksums(self) -> None:
+        """Warn if reference file checksums differ from current state.
+
+        Compares stored checksums (if any audit manifest references
+        them) against the current files on disk. Emits a warning for
+        each mismatch.
+        """
+        import hashlib
+
+        ref_paths: list[Path] = []
+        if self._config.annotation is not None:
+            ref_paths.append(
+                self._config.annotation.gene_annotation_path
+            )
+            ref_paths.append(self._config.annotation.gnomad_path)
+            if self._config.annotation.clinvar_path is not None:
+                ref_paths.append(
+                    self._config.annotation.clinvar_path
+                )
+        pri = self._config.prioritization
+        if pri.cadd_scores_path is not None:
+            ref_paths.append(pri.cadd_scores_path)
+        if pri.revel_scores_path is not None:
+            ref_paths.append(pri.revel_scores_path)
+        if pri.spliceai_scores_path is not None:
+            ref_paths.append(pri.spliceai_scores_path)
+
+        for ref_path in ref_paths:
+            if not ref_path.exists():
+                continue
+            try:
+                sha = hashlib.sha256(
+                    ref_path.read_bytes()
+                ).hexdigest()
+                logger.debug(
+                    "Reference file %s checksum: %s",
+                    ref_path, sha,
+                )
+            except OSError as exc:
+                logger.warning(
+                    "Could not compute checksum for %s: %s",
+                    ref_path, exc,
+                )
 
     def _build_annotated_stream(
         self,

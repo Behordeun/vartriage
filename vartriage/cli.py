@@ -46,7 +46,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-format",
-        choices=["json", "csv", "pdf", "vcf"],
+        choices=[
+            "json", "csv", "pdf", "vcf",
+            "clinical-pdf", "clinical-html", "clinical-docx",
+        ],
         default="json",
         help="Output report format (default: json)",
     )
@@ -146,6 +149,18 @@ def _build_parser() -> argparse.ArgumentParser:
             "patterns when trio is active."
         ),
     )
+    parser.add_argument(
+        "--patient-id",
+        type=str,
+        default=None,
+        help="Patient identifier for clinical reports",
+    )
+    parser.add_argument(
+        "--panel-name",
+        type=str,
+        default=None,
+        help="Gene panel name for clinical reports",
+    )
 
     return parser
 
@@ -160,6 +175,22 @@ def main(argv: Optional[list[str]] = None) -> None:
     """
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    # Validate clinical format requirements before VCF check
+    output_fmt: str = args.output_format
+    if output_fmt.startswith("clinical-"):
+        missing_flags = []
+        if args.patient_id is None:
+            missing_flags.append("--patient-id")
+        if args.panel_name is None:
+            missing_flags.append("--panel-name")
+        if missing_flags:
+            print(
+                f"Error: {output_fmt} requires "
+                f"{' and '.join(missing_flags)}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
     vcf_path: Path = args.vcf
     if not vcf_path.exists():
@@ -181,24 +212,21 @@ def main(argv: Optional[list[str]] = None) -> None:
         )
         sys.exit(1)
     except Exception as exc:
-        from vartriage.io.exceptions import (
-            VariantPrioritizationError,
-        )
-
-        if isinstance(exc, VariantPrioritizationError):
-            print(
-                f"Error: pipeline failed: {exc}",
-                file=sys.stderr,
-            )
-        else:
-            print(
-                f"Error: unexpected failure: {exc}",
-                file=sys.stderr,
-            )
-        sys.exit(1)
+        _handle_unexpected_error(exc)
 
     print(str(result_path))
     sys.exit(0)
+
+
+def _handle_unexpected_error(exc: Exception) -> None:
+    """Print an appropriate error message and exit."""
+    from vartriage.io.exceptions import VariantPrioritizationError
+
+    if isinstance(exc, VariantPrioritizationError):
+        print(f"Error: pipeline failed: {exc}", file=sys.stderr)
+    else:
+        print(f"Error: unexpected failure: {exc}", file=sys.stderr)
+    sys.exit(1)
 
 
 def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
@@ -211,7 +239,6 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     """
     from vartriage.models.config import (
         AnnotationConfig,
-        InheritanceConfig,
         GeneFilterConfig,
         PipelineConfig,
         PrioritizationConfig,
@@ -221,41 +248,11 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     )
     from vartriage.pipeline import Pipeline
 
-    proband: Optional[str] = args.proband
-    mother: Optional[str] = args.mother
-    father: Optional[str] = args.father
-    sample: Optional[str] = getattr(args, "sample", None)
+    # Validate clinical format requirements.
+    output_format: str = args.output_format
+    clinical_config = _build_clinical_config(args, output_format)
 
-    trio_args = [proband, mother, father]
-    trio_provided = [a for a in trio_args if a is not None]
-
-    if trio_provided and len(trio_provided) < 3:
-        print(
-            "Error: --proband, --mother, and --father must all "
-            "be provided together for trio analysis.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    if trio_provided and sample is not None:
-        print(
-            "Error: --sample and trio arguments (--proband, "
-            "--mother, --father) are mutually exclusive.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    inheritance_config: Optional[InheritanceConfig] = None
-    if len(trio_provided) == 3:
-        patterns = args.inheritance_pattern
-        if patterns is None:
-            patterns = list(InheritanceConfig.SUPPORTED_PATTERNS)
-        inheritance_config = InheritanceConfig(
-            proband=proband,  # type: ignore[arg-type]
-            mother=mother,  # type: ignore[arg-type]
-            father=father,  # type: ignore[arg-type]
-            patterns=patterns,
-        )
+    inheritance_config = _build_inheritance_config(args)
 
     annotation_config: Optional[AnnotationConfig] = None
     gene_annotation: Optional[Path] = args.gene_annotation
@@ -275,7 +272,7 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     )
 
     report_config = ReportConfig(
-        output_format=args.output_format,
+        output_format=output_format,
     )
 
     gene_filter_config: Optional[GeneFilterConfig] = None
@@ -314,7 +311,80 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
         gene_filter=gene_filter_config,
         region_filter=region_filter_config,
         sample=sample_config,
+        clinical_report=clinical_config,
     )
 
     pipeline = Pipeline(pipeline_config)
     return pipeline.run()
+
+
+def _build_clinical_config(
+    args: argparse.Namespace, output_format: str,
+) -> Optional["ClinicalReportConfig"]:
+    """Build ClinicalReportConfig if clinical format is requested."""
+    if not output_format.startswith("clinical-"):
+        return None
+
+    from vartriage.models.config import ClinicalReportConfig
+
+    missing_flags: list[str] = []
+    if args.patient_id is None:
+        missing_flags.append("--patient-id")
+    if args.panel_name is None:
+        missing_flags.append("--panel-name")
+    if missing_flags:
+        print(
+            f"Error: clinical format requires "
+            f"{', '.join(missing_flags)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return ClinicalReportConfig(
+        patient_id=args.patient_id,
+        panel_name=args.panel_name,
+        output_format=output_format,
+    )
+
+
+def _build_inheritance_config(
+    args: argparse.Namespace,
+) -> Optional["InheritanceConfig"]:
+    """Build InheritanceConfig from trio arguments."""
+    from vartriage.models.config import InheritanceConfig
+
+    proband: Optional[str] = args.proband
+    mother: Optional[str] = args.mother
+    father: Optional[str] = args.father
+    sample: Optional[str] = getattr(args, "sample", None)
+
+    trio_args = [proband, mother, father]
+    trio_provided = [a for a in trio_args if a is not None]
+
+    if trio_provided and len(trio_provided) < 3:
+        print(
+            "Error: --proband, --mother, and --father must all "
+            "be provided together for trio analysis.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if trio_provided and sample is not None:
+        print(
+            "Error: --sample and trio arguments (--proband, "
+            "--mother, --father) are mutually exclusive.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if len(trio_provided) != 3:
+        return None
+
+    patterns = args.inheritance_pattern
+    if patterns is None:
+        patterns = list(InheritanceConfig.SUPPORTED_PATTERNS)
+    return InheritanceConfig(
+        proband=proband,  # type: ignore[arg-type]
+        mother=mother,  # type: ignore[arg-type]
+        father=father,  # type: ignore[arg-type]
+        patterns=patterns,
+    )

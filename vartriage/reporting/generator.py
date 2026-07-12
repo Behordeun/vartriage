@@ -14,27 +14,40 @@ import tempfile
 from pathlib import Path
 from typing import Iterator, Optional, Sequence, Union
 
-from vartriage.models.config import ReportConfig
+from vartriage.models.config import (
+    ClinicalReportConfig,
+    ReportConfig,
+)
 from vartriage.models.variant import ClassifiedVariant
 from vartriage.reporting.csv_writer import write_csv
 from vartriage.reporting.json_writer import write_json
 
 
 class ReportGenerator:
-    """Writes clinical reports in JSON, CSV, or PDF.
+    """Writes clinical reports in JSON, CSV, PDF, or clinical formats.
 
     Uses a temp file + atomic rename so the output path is never left
     in a half-written state. JSON and CSV stream from iterators without
-    buffering; PDF materializes all variants for pagination.
+    buffering; PDF materializes all variants for pagination. Clinical
+    formats (clinical-pdf, clinical-html, clinical-docx) delegate to
+    the ClinicalReportGenerator.
 
     Parameters
     ----------
     config : ReportConfig
         Settings including the desired output format.
+    clinical_config : ClinicalReportConfig, optional
+        Configuration for clinical report generation. Required when
+        the output format starts with "clinical-".
     """
 
-    def __init__(self, config: ReportConfig) -> None:
+    def __init__(
+        self,
+        config: ReportConfig,
+        clinical_config: Optional[ClinicalReportConfig] = None,
+    ) -> None:
         self._config = config
+        self._clinical_config = clinical_config
 
     def generate(
         self,
@@ -79,6 +92,11 @@ class ReportGenerator:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         fmt = self._config.output_format
+
+        if fmt.startswith("clinical-"):
+            return self._generate_clinical(
+                variants, output_path
+            )
 
         if fmt == "vcf":
             if source_vcf_path is None:
@@ -178,3 +196,48 @@ class ReportGenerator:
 
         renderer_fallback = PDFFallbackRenderer()
         return renderer_fallback.render(list(variants), output_path)
+
+    def _generate_clinical(
+        self,
+        variants: Union[
+            Iterator[ClassifiedVariant],
+            Sequence[ClassifiedVariant],
+        ],
+        output_path: Path,
+    ) -> Path:
+        """Delegate to ClinicalReportGenerator for clinical formats.
+
+        Parameters
+        ----------
+        variants : Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]]
+            Classified variants to include in the report.
+        output_path : Path
+            Where the final report lands.
+
+        Returns
+        -------
+        Path
+            The written report path.
+
+        Raises
+        ------
+        IOError
+            If clinical_config was not provided.
+        """
+        if self._clinical_config is None:
+            raise IOError(
+                "Clinical format requires a "
+                "ClinicalReportConfig to be provided"
+            )
+
+        from vartriage.reporting.clinical.generator import (
+            ClinicalReportGenerator,
+        )
+
+        from vartriage import __version__
+
+        clinical_gen = ClinicalReportGenerator(
+            config=self._clinical_config,
+            pipeline_version=__version__,
+        )
+        return clinical_gen.generate(variants, output_path)

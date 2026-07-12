@@ -133,12 +133,16 @@ class ReportConfig:
 
     Parameters
     ----------
-    output_format : Literal["json", "csv", "pdf", "vcf"]
-        Desired output format for the final clinical report. Default is
-        ``"json"``.
+    output_format : str
+        Desired output format for the final report. Accepts "json",
+        "csv", "pdf", "vcf", "clinical-pdf", "clinical-html", or
+        "clinical-docx". Default is ``"json"``.
     """
 
-    output_format: Literal["json", "csv", "pdf", "vcf"] = "json"
+    output_format: Literal[
+        "json", "csv", "pdf", "vcf",
+        "clinical-pdf", "clinical-html", "clinical-docx",
+    ] = "json"
 
 
 @dataclass(frozen=True)
@@ -273,6 +277,47 @@ class GeneFilterConfig:
 
 
 @dataclass(frozen=True)
+class ClinicalReportConfig:
+    """Configuration for clinical report generation.
+
+    Parameters
+    ----------
+    patient_id : str
+        Patient identifier (required, non-empty).
+    panel_name : str
+        Gene panel name (required, non-empty).
+    output_format : Literal[
+        "clinical-pdf", "clinical-html", "clinical-docx"
+    ]
+        Target output format for the clinical report.
+    report_template : str
+        Report template name. Default is "standard".
+
+    Raises
+    ------
+    ValueError
+        If patient_id or panel_name is empty or whitespace-only.
+    """
+
+    patient_id: str
+    panel_name: str
+    output_format: Literal[
+        "clinical-pdf", "clinical-html", "clinical-docx"
+    ]
+    report_template: str = "standard"
+
+    def __post_init__(self) -> None:
+        if not self.patient_id or not self.patient_id.strip():
+            raise ValueError(
+                "patient_id is required and must be non-empty"
+            )
+        if not self.panel_name or not self.panel_name.strip():
+            raise ValueError(
+                "panel_name is required and must be non-empty"
+            )
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     """Top-level pipeline configuration aggregating all sub-configs.
 
@@ -308,3 +353,6 @@ class PipelineConfig:
     region_filter: RegionFilterConfig | None = field(default=None)
     sample: SampleConfig | None = field(default=None)
     inheritance: "InheritanceConfig | None" = field(default=None)
+    clinical_report: "ClinicalReportConfig | None" = field(
+        default=None
+    )
