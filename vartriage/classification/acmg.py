@@ -28,6 +28,15 @@ _PM2_AF_THRESHOLD: float = 0.0001
 
 _PP3_REVEL_THRESHOLD: float = 0.7
 
+_PP3_SPLICEAI_THRESHOLD: float = 0.5
+
+_PVS1_SPLICEAI_THRESHOLD: float = 0.8
+
+_PP3_SPLICE_ADJACENT: frozenset[FunctionalConsequence] = frozenset({
+    FunctionalConsequence.SPLICE_SITE,
+    FunctionalConsequence.MISSENSE,
+})
+
 _PP5_CONFLICTING_ASSERTIONS: frozenset[ClinVarAssertion] = frozenset({
     ClinVarAssertion.BENIGN,
     ClinVarAssertion.LIKELY_BENIGN,
@@ -104,7 +113,7 @@ class ACMGClassifier:
         tags: set[EvidenceTag] = set()
         missing_sources: set[str] = set()
 
-        self._evaluate_pvs1(variant, tags)
+        self._evaluate_pvs1(variant, tags, missing_sources)
         self._evaluate_pm2(variant, tags, missing_sources)
         self._evaluate_pp3(variant, tags, missing_sources)
         self._evaluate_pp5(variant, tags, missing_sources)
@@ -112,9 +121,17 @@ class ACMGClassifier:
         return tags, missing_sources
 
     def _evaluate_pvs1(
-        self, variant: ScoredVariant, tags: set[EvidenceTag]
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
     ) -> None:
-        """Assign PVS1 if the variant consequence is Nonsense or Frameshift.
+        """Assign PVS1 for null variants or splice-site variants with high SpliceAI.
+
+        PVS1 is assigned unconditionally for NONSENSE or FRAMESHIFT variants.
+        For SPLICE_SITE variants, PVS1 is assigned only when SpliceAI > 0.8.
+        If SpliceAI data is unavailable for a SPLICE_SITE variant, it is
+        recorded as a missing source.
 
         Parameters
         ----------
@@ -122,10 +139,22 @@ class ACMGClassifier:
             The variant to evaluate.
         tags : set[EvidenceTag]
             Accumulator for assigned tags (mutated in place).
+        missing_sources : set[str]
+            Accumulator for missing data sources (mutated in place).
         """
         consequence = variant.annotated.consequence
+
         if consequence in _PVS1_CONSEQUENCES:
             tags.add(EvidenceTag.PVS1)
+            return
+
+        if consequence == FunctionalConsequence.SPLICE_SITE:
+            spliceai = variant.spliceai_score
+            if spliceai is None:
+                missing_sources.add("SpliceAI")
+                return
+            if spliceai > _PVS1_SPLICEAI_THRESHOLD:
+                tags.add(EvidenceTag.PVS1)
 
     def _evaluate_pm2(
         self,
@@ -164,10 +193,11 @@ class ACMGClassifier:
         tags: set[EvidenceTag],
         missing_sources: set[str],
     ) -> None:
-        """Assign PP3 if REVEL score exceeds 0.7.
+        """Assign PP3 based on REVEL or SpliceAI computational evidence.
 
-        If REVEL score is unavailable, PP3 is omitted and REVEL is recorded
-        as a missing data source.
+        PP3 is assigned when REVEL > 0.7, or when SpliceAI > 0.5 on a
+        splice-adjacent variant (SPLICE_SITE or MISSENSE consequence).
+        When neither predictor is available, both are recorded as missing.
 
         Parameters
         ----------
@@ -179,13 +209,30 @@ class ACMGClassifier:
             Accumulator for missing data sources (mutated in place).
         """
         revel = variant.revel_score
+        spliceai = variant.spliceai_score
+        consequence = variant.annotated.consequence
 
-        if revel is None:
+        revel_available = revel is not None
+        spliceai_available = spliceai is not None
+
+        if not revel_available and not spliceai_available:
             missing_sources.add("REVEL")
+            missing_sources.add("SpliceAI")
             return
 
-        if revel > _PP3_REVEL_THRESHOLD:
+        if revel is not None and revel > _PP3_REVEL_THRESHOLD:
             tags.add(EvidenceTag.PP3)
+            return
+
+        splice_adjacent = consequence in _PP3_SPLICE_ADJACENT
+        if spliceai is not None and spliceai > _PP3_SPLICEAI_THRESHOLD and splice_adjacent:
+            tags.add(EvidenceTag.PP3)
+            return
+
+        if not revel_available:
+            missing_sources.add("REVEL")
+        if not spliceai_available:
+            missing_sources.add("SpliceAI")
 
     def _evaluate_pp5(
         self,

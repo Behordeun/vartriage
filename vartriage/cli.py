@@ -81,6 +81,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to REVEL score TSV reference file",
     )
     parser.add_argument(
+        "--spliceai-scores",
+        type=Path,
+        default=None,
+        help="Path to SpliceAI score TSV reference file",
+    )
+    parser.add_argument(
         "--gene-list",
         type=Path,
         default=None,
@@ -177,6 +183,7 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     prioritization_config = PrioritizationConfig(
         cadd_scores_path=args.cadd_scores,
         revel_scores_path=args.revel_scores,
+        spliceai_scores_path=args.spliceai_scores,
     )
 
     report_config = ReportConfig(

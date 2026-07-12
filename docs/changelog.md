@@ -6,6 +6,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 
 ### Added
 
+- **SpliceAI score integration** (`--spliceai-scores`): third pathogenicity predictor alongside CADD and REVEL. Dynamic weight redistribution in the composite formula (0.5/0.3/0.2 when all three present, proportional fallback for any two, single-score identity). PP3 now also fires when SpliceAI > 0.5 on splice-site or missense variants. PVS1 fires for SPLICE_SITE + SpliceAI > 0.8. Fully backward-compatible: existing two-score behavior unchanged when SpliceAI is not configured.
 - **VCF output format** (`--output-format vcf`): produces an annotated bgzipped VCF (.vcf.gz) with a tabix index (.tbi). Re-reads the source VCF, injects VARTRIAGE_CONSEQUENCE, VARTRIAGE_AF, VARTRIAGE_RANK, VARTRIAGE_ACMG, and VARTRIAGE_TAGS INFO fields for classified variants, and writes all records (matched or not) to output. Directly loadable in IGV and queryable with bcftools.
 - **Gene list filtering** (`--gene-list`): restrict analysis to variants in a user-supplied gene panel file. One gene symbol per line, case-insensitive matching. Genes in the list with zero matching variants produce a logged WARNING so you can catch typos or outdated nomenclature.
 - **BED-based region filtering** (`--regions`): target analysis to specific genomic intervals from a BED file.
@@ -13,6 +14,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 - `gene_name` field on `AnnotatedVariant` populated during consequence annotation.
 - `GeneFilterConfig`, `RegionFilterConfig`, `SampleConfig` configuration dataclasses.
 - **VCF output format** (`--output-format vcf`): produces an annotated bgzipped VCF (.vcf.gz) with a tabix index (.tbi). Re-reads the source VCF, injects VARTRIAGE_CONSEQUENCE, VARTRIAGE_AF, VARTRIAGE_RANK, VARTRIAGE_ACMG, and VARTRIAGE_TAGS INFO fields for classified variants, and writes all records (matched or not) to output. Directly loadable in IGV and queryable with bcftools.
+- **SpliceAI score integration** (`--spliceai-scores`): third pathogenicity predictor alongside CADD and REVEL. Dynamic weight redistribution in the composite formula (0.5/0.3/0.2 when all three present, proportional fallback for any two, single-score identity). PP3 now also fires when SpliceAI > 0.5 on splice-site or missense variants. PVS1 fires for SPLICE_SITE + SpliceAI > 0.8. Fully backward-compatible: existing two-score behavior unchanged when SpliceAI is not configured.
 
 ## [0.2.0] - 2025-07-10
 

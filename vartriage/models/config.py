@@ -93,6 +93,9 @@ class PrioritizationConfig:
     revel_scores_path : Optional[Path]
         Path to a REVEL score reference file. When None, REVEL scores are not
         incorporated into composite ranking.
+    spliceai_scores_path : Optional[Path]
+        Path to a SpliceAI score TSV reference file. When None, SpliceAI
+        scores are not incorporated into composite ranking.
     batch_size : int
         Number of variants processed per batch during vectorized score
         normalization. Must be in the range [1_000, 100_000]. Default is
@@ -109,6 +112,7 @@ class PrioritizationConfig:
     max_allele_frequency: float = 0.01
     cadd_scores_path: Optional[Path] = None
     revel_scores_path: Optional[Path] = None
+    spliceai_scores_path: Optional[Path] = None
     batch_size: int = 10_000
 
     def __post_init__(self) -> None:

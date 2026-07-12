@@ -238,14 +238,20 @@ class ScoredVariant:
         CADD normalized to 0.0-1.0 scale.
     revel_score : Optional[float]
         REVEL score (0.0-1.0).
+    spliceai_score : Optional[float]
+        SpliceAI delta score (0.0-1.0) predicting splice-disrupting
+        effects. None when SpliceAI is not configured or the variant
+        has no lookup match.
     composite_rank : Optional[float]
-        Weighted composite: (REVEL * 0.6) + (CADD_normalized * 0.4).
+        Weighted composite rank derived from available scores using
+        dynamic proportional weight redistribution.
     """
 
     annotated: AnnotatedVariant
     cadd_phred: Optional[float] = None
     cadd_normalized: Optional[float] = None
     revel_score: Optional[float] = None
+    spliceai_score: Optional[float] = None
     composite_rank: Optional[float] = None
 
 

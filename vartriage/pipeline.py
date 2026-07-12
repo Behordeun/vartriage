@@ -22,6 +22,7 @@ from vartriage.io.vcf_parser import VCFParser
 from vartriage.models.config import (
     AnnotationConfig,
     PipelineConfig,
+    PrioritizationConfig,
 )
 from vartriage.models.variant import (
     AnnotatedVariant,
@@ -184,44 +185,44 @@ class Pipeline:
             If any required reference file does not exist.
         """
         if config.annotation is not None:
-            ann_config: AnnotationConfig = config.annotation
-            if not ann_config.gene_annotation_path.exists():
-                raise FileNotFoundError(
-                    f"Gene annotation file not found: "
-                    f"{ann_config.gene_annotation_path}"
-                )
-            if not ann_config.gnomad_path.exists():
-                raise FileNotFoundError(
-                    f"gnomAD reference file not found: "
-                    f"{ann_config.gnomad_path}"
-                )
-            if (
-                ann_config.clinvar_path is not None
-                and not ann_config.clinvar_path.exists()
-            ):
-                raise FileNotFoundError(
-                    f"ClinVar reference file not found: "
-                    f"{ann_config.clinvar_path}"
-                )
+            self._validate_annotation_config(config.annotation)
 
-        pri_config = config.prioritization
-        if pri_config.cadd_scores_path is not None:
-            if not pri_config.cadd_scores_path.exists():
-                raise FileNotFoundError(
-                    f"CADD scores file not found: "
-                    f"{pri_config.cadd_scores_path}"
-                )
-        if pri_config.revel_scores_path is not None:
-            if not pri_config.revel_scores_path.exists():
-                raise FileNotFoundError(
-                    f"REVEL scores file not found: "
-                    f"{pri_config.revel_scores_path}"
-                )
+        self._validate_prioritization_config(config.prioritization)
 
         if config.gene_filter is not None:
             self._check_path(
                 config.gene_filter.gene_list_path,
                 "Gene list file",
+            )
+
+    def _validate_annotation_config(
+        self, ann_config: "AnnotationConfig",
+    ) -> None:
+        """Validate annotation reference file paths exist."""
+        self._check_path(
+            ann_config.gene_annotation_path, "Gene annotation file"
+        )
+        self._check_path(ann_config.gnomad_path, "gnomAD reference file")
+        if ann_config.clinvar_path is not None:
+            self._check_path(
+                ann_config.clinvar_path, "ClinVar reference file"
+            )
+
+    def _validate_prioritization_config(
+        self, pri_config: PrioritizationConfig,
+    ) -> None:
+        """Validate prioritization score file paths exist."""
+        if pri_config.cadd_scores_path is not None:
+            self._check_path(
+                pri_config.cadd_scores_path, "CADD scores file"
+            )
+        if pri_config.revel_scores_path is not None:
+            self._check_path(
+                pri_config.revel_scores_path, "REVEL scores file"
+            )
+        if pri_config.spliceai_scores_path is not None:
+            self._check_path(
+                pri_config.spliceai_scores_path, "SpliceAI scores file"
             )
 
     def _passthrough_annotation(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
