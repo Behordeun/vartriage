@@ -113,6 +113,34 @@ class TestGeneListLoading:
 class TestGeneFilterInclusion:
     """Filter correctly includes matching variants."""
 
+    def test_apply_reusable_across_multiple_calls(
+        self, tmp_path: Path
+    ) -> None:
+        """apply() resets state on each call, no leakage between streams."""
+        gene_file = _write_gene_file(tmp_path, "GENE1\nGENE2\n")
+        config = GeneFilterConfig(gene_list_path=gene_file)
+        gf = GeneFilter(config)
+
+        # First stream: only GENE1 matches
+        stream1 = [
+            _make_variant(gene_name="GENE1"),
+            _make_variant(gene_name="OTHER"),
+        ]
+        result1 = list(gf.apply(iter(stream1)))
+        assert len(result1) == 1
+        assert result1[0].gene_name == "GENE1"
+        assert gf.unmatched_genes == frozenset({"GENE2"})
+
+        # Second stream: only GENE2 matches, state resets
+        stream2 = [
+            _make_variant(gene_name="GENE2"),
+            _make_variant(gene_name="NOPE"),
+        ]
+        result2 = list(gf.apply(iter(stream2)))
+        assert len(result2) == 1
+        assert result2[0].gene_name == "GENE2"
+        assert gf.unmatched_genes == frozenset({"GENE1"})
+
     def test_variant_with_matching_gene_passes(
         self, tmp_path: Path
     ) -> None:
