@@ -225,7 +225,10 @@ class AnnotationEngine:
         """
         # If the annotator exposes a batch gene lookup, use it
         if hasattr(self._consequence_annotator, "gene_names_batch"):
-            return self._consequence_annotator.gene_names_batch(batch)
+            result: list[Optional[str]] = (
+                self._consequence_annotator.gene_names_batch(batch)
+            )
+            return result
 
         # Fallback: per-variant overlap queries
         gene_names: list[Optional[str]] = []
