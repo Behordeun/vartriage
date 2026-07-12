@@ -153,8 +153,10 @@ def write_vcf(
     by (chrom, pos, ref, alt), injects INFO fields for matches, and
     writes all records to a bgzipped output with a tabix index.
 
-    Uses an atomic write pattern: writes to a temp file first, then
-    renames to the target path before generating the tabix index.
+    Both the VCF and its .tbi index are written atomically: the tabix
+    index is built against the temp file first, then both files are
+    moved into their final locations. If any step fails, both temp
+    files are cleaned up so no partial output remains on disk.
 
     Parameters
     ----------
@@ -177,6 +179,7 @@ def write_vcf(
     """
     lookup = _build_lookup(variants)
     tmp_path = output_path.with_suffix(".vcf.gz.tmp")
+    tmp_tbi_path = Path(str(tmp_path) + ".tbi")
 
     try:
         with pysam.VariantFile(str(source_vcf_path), "r") as src:
@@ -186,10 +189,29 @@ def write_vcf(
                 str(tmp_path), "wz", header=new_header
             ) as out:
                 for record in src:
-                    # pysam stubs type translate() as None incorrectly
-                    new_rec: pysam.VariantRecord = record.translate(  # type: ignore[func-returns-value,assignment]  # noqa: E501
-                        out.header
+                    # Build a new record in the output header context
+                    new_rec = out.new_record(
+                        contig=record.chrom,
+                        start=record.start,
+                        stop=record.stop,
+                        alleles=record.alleles,
+                        id=record.id,
+                        qual=record.qual,
+                        filter=record.filter,
                     )
+
+                    # Copy existing INFO fields
+                    for info_key in record.info:
+                        new_rec.info[info_key] = record.info[info_key]
+
+                    # Copy FORMAT/sample data
+                    for sample in record.samples:
+                        for fmt_key in record.samples[sample]:
+                            new_rec.samples[sample][fmt_key] = (
+                                record.samples[sample][fmt_key]
+                            )
+
+                    # Inject VARTRIAGE_* fields for matched variants
                     alts = record.alts
                     if alts and alts[0] is not None and record.ref is not None:
                         key: LookupKey = (
@@ -203,12 +225,18 @@ def write_vcf(
 
                     out.write(new_rec)
 
+        # Build tabix index against temp file before moving anything.
+        pysam.tabix_index(str(tmp_path), preset="vcf", force=True)
+
+        # Atomically move both VCF and .tbi into their final locations.
+        final_tbi_path = Path(str(output_path) + ".tbi")
         os.replace(str(tmp_path), str(output_path))
-        pysam.tabix_index(str(output_path), preset="vcf", force=True)
+        os.replace(str(tmp_tbi_path), str(final_tbi_path))
 
     except Exception as exc:
-        if tmp_path.exists():
-            tmp_path.unlink()
+        for p in (tmp_path, tmp_tbi_path):
+            if p.exists():
+                p.unlink()
         raise IOError(
             f"Failed to write VCF output: {exc}"
         ) from exc
