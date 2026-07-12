@@ -8,7 +8,6 @@ interpolation. No LLM or generative AI is invoked.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
 
 from vartriage.models.variant import (
     ClassifiedVariant,
@@ -16,9 +15,6 @@ from vartriage.models.variant import (
     FunctionalConsequence,
     ScoredVariant,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 # Template constants for narrative construction.
