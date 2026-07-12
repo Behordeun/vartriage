@@ -97,7 +97,7 @@ with VCFParser(Path("input.vcf.gz")) as parser:
 
 ## Pipeline stages
 
-```
+```text
 VCFParser → [SampleExtractor] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
 
@@ -115,7 +115,7 @@ Stages in brackets are optional and activate based on config.
 
 **Prioritization** - Two phases. First: frequency gate drops variants with AF above the threshold (default 0.01); unknown-frequency variants always pass. Second: composite scoring from normalized CADD Phred and REVEL:
 
-```
+```text
 composite = (REVEL × 0.6) + (CADD_normalized × 0.4)
 ```
 
@@ -132,7 +132,7 @@ Falls back to the single available score when only one source exists.
 
 Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
 
-**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
 
 ## Configuration
 
@@ -140,7 +140,7 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 
 | Field    | Type  | Default | Range        |
 | -------- | ----- | ------- | ------------ |
-| min_qual | float | 20.0    | 0–1,000,000 |
+| min_qual | float | 20.0    | 0–1,000,000  |
 
 ### AnnotationConfig
 
@@ -149,22 +149,22 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 | gene_annotation_path | Path | required | GTF/GFF                             |
 | gnomad_path          | Path | required | TSV or tabix VCF (.vcf.bgz/.vcf.gz) |
 | clinvar_path         | Path | None     | TSV                                 |
-| batch_size           | int  | 10,000   | 1,000–100,000                      |
+| batch_size           | int  | 10,000   | 1,000–100,000                       |
 
 ### PrioritizationConfig
 
 | Field                | Type  | Default | Notes          |
 | -------------------- | ----- | ------- | -------------- |
-| max_allele_frequency | float | 0.01    | 0.0–1.0       |
+| max_allele_frequency | float | 0.01    | 0.0–1.0        |
 | cadd_scores_path     | Path  | None    | CADD Phred TSV |
 | revel_scores_path    | Path  | None    | REVEL TSV      |
-| batch_size           | int   | 10,000  | 1,000–100,000 |
+| batch_size           | int   | 10,000  | 1,000–100,000  |
 
 ### ReportConfig
 
-| Field         | Type | Default | Options              |
-| ------------- | ---- | ------- | -------------------- |
-| output_format | str  | "json"  | "json", "csv", "pdf" |
+| Field | Type | Default | Options |
+| --- | --- | --- | --- |
+| output_format | str | "json" | "json", "csv", "pdf", "vcf" |
 
 ### GeneFilterConfig
 
@@ -191,7 +191,7 @@ All TSV with a header row. Tab-separated.
 
 **Gene list** - Plain text file, one gene symbol per line. Comment lines starting with `#` are ignored. Blank lines are skipped. Symbols are matched case-insensitively.
 
-```
+```text
 # Cardiac panel v2
 BRCA1
 BRCA2
@@ -269,7 +269,7 @@ GitHub Actions runs on Python 3.10, 3.11, and 3.12. PyPI publishing uses trusted
 
 ## Project layout
 
-```
+```text
 vartriage/
     cli.py                # CLI entry point
     pipeline.py           # Orchestrator

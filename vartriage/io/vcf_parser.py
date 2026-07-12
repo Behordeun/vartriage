@@ -19,7 +19,7 @@ from vartriage.models.variant import Variant
 class VCFParser:
     """Stream Variant records from a VCF or compressed VCF file.
 
-    Uses pysam's VariantFile for memory-efficient streaming — records
+    Uses pysam's VariantFile for memory-efficient streaming. Records
     are yielded one at a time without loading the entire file into memory.
 
     Parameters

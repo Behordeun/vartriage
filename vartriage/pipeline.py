@@ -147,7 +147,9 @@ class Pipeline:
             classified = acmg_classifier.classify(scored)
 
             result_path = report_generator.generate(
-                classified, effective_output_path
+                classified,
+                effective_output_path,
+                source_vcf_path=effective_vcf_path,
             )
 
             if annotation_engine is not None:
@@ -227,7 +229,7 @@ class Pipeline:
 
         Used when the pipeline is run without annotation references. Each
         variant gets an Intergenic consequence, null frequency, and null
-        ClinVar assertion — allowing downstream stages to function.
+        ClinVar assertion, allowing downstream stages to function.
 
         Parameters
         ----------

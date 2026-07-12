@@ -2,7 +2,7 @@
 
 Pure-Python ClinVarDatabase implementation using an in-memory dictionary
 keyed on (chrom, pos, ref, alt) tuples. Works without any optional
-dependencies — only the Python standard library plus core package models.
+dependencies. Uses only the Python standard library plus core package models.
 
 The reference file format is TSV with columns:
     chrom, pos, ref, alt, clinical_significance
@@ -86,7 +86,7 @@ class DictClinVarDatabase:
             raise
         except Exception as exc:
             raise ReferenceFileError(
-                f"{reference_path}: failed to parse ClinVar reference — "
+                f"{reference_path}: failed to parse ClinVar reference: "
                 f"{exc}"
             ) from exc
 
@@ -167,7 +167,7 @@ class DictClinVarDatabase:
                 assertion = _SIGNIFICANCE_MAP.get(significance_str)
                 if assertion is None:
                     # Skip unrecognized significance values rather than
-                    # failing the entire load — ClinVar has many non-
+                    # failing the entire load. ClinVar has many non-
                     # standard categories we don't map.
                     continue
 

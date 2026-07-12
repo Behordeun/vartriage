@@ -25,7 +25,7 @@ class QualityFilter:
     2. The QUAL score must be present and at least ``min_qual``.
 
     Variants that fail either check are silently dropped from the output
-    stream, except when QUAL is missing — in that case a
+    stream, except when QUAL is missing. In that case a
     ``MissingDataWarning`` is emitted via Python's ``warnings`` module before
     the variant is excluded.
 

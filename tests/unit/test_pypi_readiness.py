@@ -161,7 +161,7 @@ class TestScoreLoaderRoundTrip:
     def test_load_cadd_round_trip(
         self, data: dict[CoordinateKey, float]
     ) -> None:
-        """Write a TSV then load_cadd — each key maps to its original score."""
+        """Write a TSV then load_cadd. Each key maps to its original score."""
         loader = ScoreLoader()
 
         with tempfile.TemporaryDirectory() as tmpdir:
