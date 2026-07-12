@@ -213,9 +213,9 @@ class AnnotationEngine:
         Returns None for intergenic variants with no overlap.
         """Extract gene names from overlap results for a batch.
 
-        Calls overlap() per variant and extracts the gene_name from
-        the first overlapping region. Returns None for intergenic
-        variants with no overlap.
+        Uses the consequence annotator's overlap() method per variant
+        to find the gene symbol from the first overlapping region.
+        Returns None for intergenic variants with no overlap.
 
         Parameters
         ----------
@@ -234,6 +234,7 @@ class AnnotationEngine:
                 self._consequence_annotator.gene_names_batch(batch)
             )
             return result
+            return self._consequence_annotator.gene_names_batch(batch)
 
         # Fallback: per-variant overlap queries
         gene_names: list[Optional[str]] = []
