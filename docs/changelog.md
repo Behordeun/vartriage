@@ -2,6 +2,12 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Trio-based inheritance pattern classification** (`--proband`, `--mother`, `--father`): classifies variants into Mendelian inheritance patterns (de novo, dominant, recessive, compound heterozygous, X-linked) based on family genotypes. Multi-label: a single variant can carry multiple patterns when criteria overlap. Compound het uses gene-aware buffering to detect trans inheritance. Replaces SampleExtractor when trio mode is active. Mutually exclusive with `--sample`.
+
 ## [0.2.0] - 2025-07-10
 
 ### Added

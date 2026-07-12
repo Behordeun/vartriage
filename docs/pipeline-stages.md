@@ -53,6 +53,36 @@ Variants with missing QUAL emit a `MissingDataWarning` before being dropped.
 
 **Configuration:** `QualityFilterConfig(min_qual=20.0)`
 
+## Inheritance Pattern Classification (optional)
+
+**Class:** `InheritanceFilter`
+
+When a proband-mother-father trio is configured, replaces SampleExtractor and classifies each variant into Mendelian inheritance patterns based on family genotypes.
+
+**Input:** Iterator of `Variant` (with `_pysam_samples` in info dict).
+
+**Output:** Iterator of `Variant` (with `inheritance_pattern`, `sample_gt`, `sample_name` in info dict).
+
+**Patterns classified:**
+
+| Pattern | Condition |
+|---------|-----------|
+| de_novo | Proband has alt, both parents hom-ref |
+| dominant | Proband het, exactly one parent het |
+| recessive | Proband hom-alt, both parents het |
+| compound_het | Two+ het variants in same gene from different parents (trans) |
+| x_linked | ChrX variant, proband has alt, mother is het carrier |
+
+A single variant can carry multiple labels when it satisfies more than one rule. Variants where the proband is hom-ref or has missing genotype are skipped.
+
+Compound het requires gene annotation, so the pipeline positions InheritanceFilter after AnnotationEngine when compound_het is in the patterns list.
+
+**Configuration:** `InheritanceConfig(proband="CHILD", mother="MOM", father="DAD")`
+
+**CLI:** `--proband CHILD --mother MOM --father DAD [--inheritance-pattern de_novo ...]`
+
+Mutually exclusive with `--sample`.
+
 ## Annotation
 
 **Class:** `AnnotationEngine`
