@@ -78,13 +78,15 @@ Output format selection.
 
 | Field | Type | Default | Options |
 | ------- | ------ | --------- | --------- |
-| `output_format` | `Literal["json", "csv", "pdf", "vcf"]` | `"json"` | `"json"`, `"csv"`, `"pdf"`, `"vcf"` |
+| `output_format` | `Literal[...]` | `"json"` | `"json"`, `"csv"`, `"pdf"`, `"vcf"`, `"clinical-html"`, `"clinical-pdf"`, `"clinical-docx"` |
 
 ```python
 from vartriage import ReportConfig
 
 config = ReportConfig(output_format="csv")
 ```
+
+When the format is `clinical-html`, `clinical-pdf`, or `clinical-docx`, the pipeline constructs a `ClinicalReportConfig` instead and delegates to the clinical report generator. See the ClinicalReportConfig section below.
 
 ## InheritanceConfig
 
@@ -113,6 +115,45 @@ config = InheritanceConfig(
 ```
 
 Raises `ValueError` if sample names are empty, patterns list is empty, or any pattern is not in the supported set.
+
+## ClinicalReportConfig
+
+Configuration for structured clinical report generation. Required when `--output-format` is `clinical-html`, `clinical-pdf`, or `clinical-docx`.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `patient_id` | `str` | required | Patient identifier (non-empty) |
+| `panel_name` | `str` | required | Gene panel name (non-empty) |
+| `output_format` | `Literal` | required | `"clinical-pdf"`, `"clinical-html"`, or `"clinical-docx"` |
+| `report_template` | `str` | `"standard"` | Report template name |
+
+```python
+from vartriage.models.config import ClinicalReportConfig
+
+config = ClinicalReportConfig(
+    patient_id="PAT-2025-001",
+    panel_name="Cardiac Panel v3",
+    output_format="clinical-html",
+)
+
+# With custom template
+config = ClinicalReportConfig(
+    patient_id="PAT-2025-002",
+    panel_name="Hereditary Cancer Panel",
+    output_format="clinical-pdf",
+    report_template="standard",
+)
+```
+
+Raises `ValueError` at construction if `patient_id` or `panel_name` is empty or whitespace-only.
+
+The clinical report produces:
+
+- Self-contained HTML (no external resources, no JavaScript)
+- PDF via WeasyPrint (install with `pip install weasyprint`)
+- DOCX via python-docx (install with `pip install python-docx`)
+
+A JSON audit trail sidecar (`.audit.json`) is written alongside every clinical report. It contains the run manifest (config, reference checksums, timestamps) and a per-variant decision log.
 ## GeneFilterConfig
 
 Restricts analysis to variants in a user-supplied gene list.
@@ -221,3 +262,36 @@ with VCFParser(Path("input.vcf.gz")) as parser:
     for annotated in engine.annotate(qf.apply(iter(parser))):
         print(annotated.consequence, annotated.allele_frequency)
 ```
+
+### Clinical report output
+
+For sign-off-ready clinical reporting with audit trail:
+
+```python
+from vartriage.models.config import ClinicalReportConfig
+
+config = PipelineConfig(
+    vcf_path=Path("patient.vcf.gz"),
+    output_path=Path("clinical_report.html"),
+    quality_filter=QualityFilterConfig(min_qual=50.0),
+    annotation=AnnotationConfig(
+        gene_annotation_path=Path("gencode.v44.gtf"),
+        gnomad_path=Path("gnomad.v4.sites.tsv"),
+        clinvar_path=Path("clinvar.tsv"),
+    ),
+    prioritization=PrioritizationConfig(
+        max_allele_frequency=0.0001,
+        cadd_scores_path=Path("cadd.tsv"),
+        revel_scores_path=Path("revel.tsv"),
+        spliceai_scores_path=Path("spliceai.tsv"),
+    ),
+    report=ReportConfig(output_format="clinical-html"),
+    clinical_report=ClinicalReportConfig(
+        patient_id="PAT-2025-001",
+        panel_name="Cardiac Panel v3",
+        output_format="clinical-html",
+    ),
+)
+```
+
+This writes `clinical_report.html` (self-contained, viewable offline) and `clinical_report.html.audit.json` (machine-parseable decision log).

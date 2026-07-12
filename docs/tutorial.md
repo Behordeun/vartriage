@@ -213,3 +213,138 @@ with VCFParser(Path("input.vcf.gz")) as parser:
     passing = list(qf.apply(iter(parser)))
     print(f"{len(passing)} variants passed quality filter")
 ```
+
+## 9. Generate a clinical report
+
+When you need a structured, sign-off-ready document for clinical review, use the clinical report output format. This produces a report with per-variant evidence narratives, ACMG criteria explanations, and a JSON audit trail.
+
+### CLI
+
+```bash
+vartriage \
+  --vcf proband_exome.vcf.gz \
+  --output results/clinical_report.html \
+  --output-format clinical-html \
+  --patient-id PAT-2025-001 \
+  --panel-name "Cardiac Panel v3" \
+  --gene-annotation references/gencode.v44.gtf \
+  --gnomad references/gnomad.v4.exomes.tsv \
+  --clinvar references/clinvar_20240101.tsv \
+  --cadd-scores references/cadd_v1.7.tsv \
+  --revel-scores references/revel_v1.3.tsv \
+  --spliceai-scores references/spliceai_scores.tsv \
+  --gene-list references/cardiac_panel.txt
+```
+
+This produces two files:
+
+- `results/clinical_report.html`: self-contained HTML report viewable in any browser without network access
+- `results/clinical_report.html.audit.json`: machine-parseable audit trail with run manifest and decision log
+
+### Python API
+
+```python
+from pathlib import Path
+from vartriage import (
+    Pipeline, PipelineConfig, AnnotationConfig,
+    PrioritizationConfig, QualityFilterConfig, ReportConfig,
+)
+from vartriage.models.config import ClinicalReportConfig
+
+config = PipelineConfig(
+    vcf_path=Path("proband_exome.vcf.gz"),
+    output_path=Path("results/clinical_report.html"),
+    quality_filter=QualityFilterConfig(min_qual=30.0),
+    annotation=AnnotationConfig(
+        gene_annotation_path=Path("references/gencode.v44.gtf"),
+        gnomad_path=Path("references/gnomad.v4.exomes.tsv"),
+        clinvar_path=Path("references/clinvar_20240101.tsv"),
+    ),
+    prioritization=PrioritizationConfig(
+        max_allele_frequency=0.001,
+        cadd_scores_path=Path("references/cadd_v1.7.tsv"),
+        revel_scores_path=Path("references/revel_v1.3.tsv"),
+        spliceai_scores_path=Path("references/spliceai_scores.tsv"),
+    ),
+    report=ReportConfig(output_format="clinical-html"),
+    clinical_report=ClinicalReportConfig(
+        patient_id="PAT-2025-001",
+        panel_name="Cardiac Panel v3",
+        output_format="clinical-html",
+    ),
+)
+
+pipeline = Pipeline(config)
+pipeline.run()
+```
+
+### PDF output
+
+For a printable PDF, change the format and install weasyprint:
+
+```bash
+pip install weasyprint
+
+vartriage \
+  --vcf proband_exome.vcf.gz \
+  --output results/clinical_report.pdf \
+  --output-format clinical-pdf \
+  --patient-id PAT-2025-001 \
+  --panel-name "Cardiac Panel v3" \
+  --gene-annotation references/gencode.v44.gtf \
+  --gnomad references/gnomad.v4.exomes.tsv \
+  --clinvar references/clinvar_20240101.tsv \
+  --cadd-scores references/cadd_v1.7.tsv \
+  --revel-scores references/revel_v1.3.tsv \
+  --spliceai-scores references/spliceai_scores.tsv \
+  --gene-list references/cardiac_panel.txt
+```
+
+### DOCX output
+
+For a Word document compatible with institutional templates:
+
+```bash
+pip install python-docx
+
+vartriage \
+  --vcf proband_exome.vcf.gz \
+  --output results/clinical_report.docx \
+  --output-format clinical-docx \
+  --patient-id PAT-2025-001 \
+  --panel-name "Cardiac Panel v3" \
+  --gene-annotation references/gencode.v44.gtf \
+  --gnomad references/gnomad.v4.exomes.tsv \
+  --clinvar references/clinvar_20240101.tsv \
+  --cadd-scores references/cadd_v1.7.tsv \
+  --revel-scores references/revel_v1.3.tsv \
+  --spliceai-scores references/spliceai_scores.tsv \
+  --gene-list references/cardiac_panel.txt
+```
+
+### Inspecting the audit trail
+
+The `.audit.json` sidecar captures everything needed to reproduce the analysis:
+
+```python
+import json
+from pathlib import Path
+
+audit = json.loads(
+    Path("results/clinical_report.html.audit.json").read_text()
+)
+
+# Run manifest: config, references, timestamps
+manifest = audit["run_manifest"]
+print(f"Patient: {manifest['patient_id']}")
+print(f"Pipeline version: {manifest['pipeline_version']}")
+print(f"Execution: {manifest['execution_timestamp']}")
+
+# Decision log: one entry per classified variant
+for entry in audit["decision_log"]:
+    print(
+        f"  {entry['gene_name']} {entry['chromosome']}:{entry['position']} "
+        f"-> {entry['classification']} "
+        f"(tags: {entry['evidence_tags_assigned']})"
+    )
+```

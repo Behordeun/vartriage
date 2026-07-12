@@ -201,7 +201,7 @@ When a required data source is unavailable for a criterion, that tag is omitted 
 
 **Class:** `ReportGenerator`
 
-Serializes classified variants to JSON, CSV, or PDF.
+Serializes classified variants to JSON, CSV, PDF, or clinical report formats.
 
 **Input:** Sequence of `ClassifiedVariant` + output path.
 
@@ -213,7 +213,58 @@ Serializes classified variants to JSON, CSV, or PDF.
 - **CSV:** One row per variant, header row included
 - **PDF:** Formatted clinical report (requires `reportlab` or uses fallback renderer)
 - **VCF:** Bgzipped VCF with tabix index, injecting VARTRIAGE_* INFO fields for classified variants
+- **Clinical HTML/PDF/DOCX:** Structured clinical reports with evidence narratives (see below)
 
 **Atomicity:** Writes to a temp file first, then performs an atomic rename. If the write fails, no partial output exists at the target path.
 
 **Configuration:** `ReportConfig(output_format="json")`
+
+## Clinical Report Generation
+
+**Class:** `ClinicalReportGenerator`
+
+Produces structured, sign-off-ready clinical variant reports from ClassifiedVariant data. Activated when `--output-format` is `clinical-html`, `clinical-pdf`, or `clinical-docx`.
+
+**Input:** Iterator of `ClassifiedVariant` + `ClinicalReportConfig` + output path.
+
+**Output:** Clinical report file + `.audit.json` sidecar.
+
+**Report sections (in order):**
+
+1. **Header:** patient ID, panel name, analysis date (ISO 8601), pipeline version.
+2. **Executive Summary:** total variants analyzed, count per classification tier (Pathogenic, Likely_Pathogenic, VUS).
+3. **Findings Table:** variants ranked by tier (Pathogenic first), then by composite rank descending within tier.
+4. **Evidence Cards:** one per variant. Each card contains gene name, consequence, population frequency, predictor scores, ClinVar data, inheritance pattern, and ACMG criteria with plain-language explanations.
+5. **Limitations:** lists any data sources that were unavailable during classification.
+6. **Methodology:** pipeline version, reference file paths, classification parameters, analysis timestamp.
+7. **Sign-off:** placeholder fields for reviewer name, review date, and digital signature.
+
+**Evidence narratives:**
+
+The `EvidenceNarrativeBuilder` transforms raw ClassifiedVariant fields into human-readable text using hardcoded string templates. No LLM or generative AI is invoked. Each narrative includes:
+
+- Gene name and protein consequence
+- Allele frequency with denominator context (e.g., "0.000008 (1 in 125,000)")
+- Predictor scores with scale context (e.g., "REVEL: 0.95 (scale 0-1, threshold 0.7)")
+- ACMG evidence tags with one-sentence explanations of why each tag fired
+- Inheritance pattern when available
+- Notes on missing data sources
+
+**Audit trail:**
+
+A `.audit.json` sidecar is written alongside the report. Contains:
+
+- Run manifest: all config parameters, reference file paths with SHA-256 checksums, pipeline version, execution timestamp, Python version, platform
+- Decision log: one entry per variant with evidence tags assigned, tags skipped (with reasons), intermediate scores, and final classification
+
+**Output formats:**
+
+- `clinical-html`: Self-contained HTML with inlined CSS. No external stylesheets, no JavaScript. Viewable offline in any browser.
+- `clinical-pdf`: Renders the HTML to PDF via WeasyPrint. Raises `ImportError` if weasyprint is not installed. Text remains selectable.
+- `clinical-docx`: Word document via python-docx. Uses Heading 1, Heading 2, Normal, and Table Grid styles. Raises `ImportError` if python-docx is not installed.
+
+**Empty variant handling:**
+
+When zero variants pass triage, the report includes all sections with zero counts and a statement: "No clinically significant variants meeting triage criteria were identified within the requested panel target areas."
+
+**Configuration:** `ClinicalReportConfig(patient_id="...", panel_name="...", output_format="clinical-html")`
