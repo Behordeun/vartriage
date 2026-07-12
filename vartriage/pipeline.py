@@ -198,17 +198,30 @@ class Pipeline:
             )
 
             if compound_het_active and annotation_engine is not None:
+                # Annotate first so gene info is available for
+                # compound_het grouping
                 filtered = quality_filter.apply(stream)
-                annotated = annotation_engine.annotate(filtered)
-                variants_with_genes = (
-                    self._variants_with_gene_info(annotated)
+                annotated_iter = annotation_engine.annotate(filtered)
+                # Buffer annotated variants so we can pass raw
+                # Variants (with gene in info) to InheritanceFilter,
+                # then re-associate the annotation data afterward
+                annotated_list = list(annotated_iter)
+                variants_with_genes = list(
+                    self._variants_with_gene_info(
+                        iter(annotated_list)
+                    )
                 )
-                inherited = inheritance_filter.apply(
-                    variants_with_genes
+                inherited_variants = list(
+                    inheritance_filter.apply(iter(variants_with_genes))
                 )
-                return self._passthrough_annotation(inherited)
-
-            stream = inheritance_filter.apply(stream)
+                # Re-attach annotation data to inherited variants
+                return iter(
+                    self._reattach_annotations(
+                        inherited_variants, annotated_list
+                    )
+                )
+            else:
+                stream = inheritance_filter.apply(stream)
 
         filtered = quality_filter.apply(stream)
         if annotation_engine is not None:
@@ -285,6 +298,69 @@ class Pipeline:
             self._check_path(
                 pri_config.spliceai_scores_path, "SpliceAI scores file"
             )
+
+    def _reattach_annotations(
+        self,
+        inherited_variants: list[Variant],
+        annotated_list: list["AnnotatedVariant"],
+    ) -> list["AnnotatedVariant"]:
+        """Re-attach annotation data to variants after inheritance filtering.
+
+        Builds a coordinate lookup from the original annotated variants
+        and matches each inherited variant back to its annotation.
+        Variants that pass inheritance filtering but have no annotation
+        match get INTERGENIC/null as fallback.
+
+        Parameters
+        ----------
+        inherited_variants : list[Variant]
+            Variants that passed inheritance filtering (with
+            inheritance_pattern in info).
+        annotated_list : list[AnnotatedVariant]
+            Original annotated variants before inheritance filtering.
+
+        Returns
+        -------
+        list[AnnotatedVariant]
+            Annotated variants with inheritance metadata preserved
+            in the underlying variant's info dict.
+        """
+        from vartriage.models.variant import (
+            AnnotatedVariant,
+            FunctionalConsequence,
+        )
+
+        # Build lookup by (chrom, pos, ref, alt)
+        ann_lookup: dict[tuple[str, int, str, str], "AnnotatedVariant"] = {}
+        for av in annotated_list:
+            key = (av.variant.chrom, av.variant.pos,
+                   av.variant.ref, av.variant.alt)
+            ann_lookup[key] = av
+
+        results: list["AnnotatedVariant"] = []
+        for v in inherited_variants:
+            key = (v.chrom, v.pos, v.ref, v.alt)
+            original = ann_lookup.get(key)
+            if original is not None:
+                # Preserve original annotation, attach inheritance
+                # info by replacing the variant's info dict
+                results.append(AnnotatedVariant(
+                    variant=v,
+                    consequence=original.consequence,
+                    allele_frequency=original.allele_frequency,
+                    clinvar_assertion=original.clinvar_assertion,
+                    frequency_unknown=original.frequency_unknown,
+                    clinvar_unknown=original.clinvar_unknown,
+                    gene_name=original.gene_name,
+                ))
+            else:
+                results.append(AnnotatedVariant(
+                    variant=v,
+                    consequence=FunctionalConsequence.INTERGENIC,
+                    frequency_unknown=True,
+                    clinvar_unknown=True,
+                ))
+        return results
 
     def _variants_with_gene_info(
         self, annotated: Iterator["AnnotatedVariant"]
