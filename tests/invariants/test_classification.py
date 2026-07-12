@@ -358,7 +358,7 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
     spliceai_available = spliceai is not None
 
     if not revel_available and not spliceai_available:
-        # Both unavailable — both recorded
+        # Both unavailable, both recorded
         expected_missing.add("REVEL")
         expected_missing.add("SpliceAI")
     elif revel_available and revel > 0.7:
@@ -375,7 +375,7 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
         # SpliceAI triggered PP3, no missing sources from PP3
         pass
     else:
-        # Neither triggered — record whichever is unavailable
+        # Neither triggered, record whichever is unavailable
         if not revel_available:
             expected_missing.add("REVEL")
         if not spliceai_available:
