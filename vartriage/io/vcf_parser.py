@@ -27,6 +27,11 @@ class VCFParser:
     file_path : Path
         Path to a .vcf or .vcf.gz file. Compressed files require
         a corresponding .tbi tabix index.
+    extract_samples : bool
+        When True, per-sample genotype data is included in each
+        Variant's info dict under the ``_pysam_samples`` key. This
+        is required for trio-based inheritance filtering. Default
+        is False.
 
     Raises
     ------
@@ -42,14 +47,30 @@ class VCFParser:
     ...         print(variant.chrom, variant.pos)
     """
 
-    def __init__(self, file_path: Path) -> None:
+    def __init__(
+        self, file_path: Path, extract_samples: bool = False
+    ) -> None:
         self._file_path = Path(file_path)
         self._vcf: Optional[pysam.VariantFile] = None
         self._closed: bool = False
+        self._extract_samples = extract_samples
 
         self._validate_file_exists()
         self._check_tabix_index()
         self._open_and_validate_header()
+
+    @property
+    def sample_names(self) -> list[str]:
+        """Return sample names from the VCF header.
+
+        Returns
+        -------
+        list[str]
+            Sample names in header order.
+        """
+        if self._vcf is None:
+            return []
+        return list(self._vcf.header.samples)
 
     def _validate_file_exists(self) -> None:
         """Check the VCF file exists and is readable."""
@@ -282,6 +303,9 @@ class VCFParser:
     ) -> dict[str, Any]:
         """Extract INFO field key-value pairs from a record.
 
+        When ``extract_samples`` is enabled, per-sample genotype data
+        is included under the ``_pysam_samples`` key.
+
         Parameters
         ----------
         record : pysam.VariantRecord
@@ -305,7 +329,46 @@ class VCFParser:
         except (AttributeError, TypeError):
             pass
 
+        if self._extract_samples:
+            info["_pysam_samples"] = (
+                self._extract_sample_data(record)
+            )
+
         return info
+
+    def _extract_sample_data(
+        self, record: pysam.VariantRecord
+    ) -> dict[str, dict[str, Any]]:
+        """Extract per-sample genotype fields from a record.
+
+        Pulls GT and GQ from each sample in the record and
+        returns a dict keyed by sample name.
+
+        Parameters
+        ----------
+        record : pysam.VariantRecord
+            The variant record.
+
+        Returns
+        -------
+        dict[str, dict[str, Any]]
+            Mapping of sample name to genotype data.
+        """
+        samples: dict[str, dict[str, Any]] = {}
+        try:
+            for sample_name in record.samples:
+                sample = record.samples[sample_name]
+                entry: dict[str, Any] = {}
+                gt = sample.get("GT")
+                if gt is not None:
+                    entry["GT"] = gt
+                gq = sample.get("GQ")
+                if gq is not None:
+                    entry["GQ"] = gq
+                samples[sample_name] = entry
+        except (AttributeError, TypeError, KeyError):
+            pass
+        return samples
 
     def close(self) -> None:
         """Close the underlying file handle.

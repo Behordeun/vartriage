@@ -86,6 +86,43 @@ def _build_parser() -> argparse.ArgumentParser:
         version=f"%(prog)s {_get_version()}",
     )
 
+    parser.add_argument(
+        "--sample",
+        type=str,
+        default=None,
+        help="Sample name to extract from multi-sample VCF",
+    )
+    parser.add_argument(
+        "--proband",
+        type=str,
+        default=None,
+        help="Proband sample name for trio inheritance analysis",
+    )
+    parser.add_argument(
+        "--mother",
+        type=str,
+        default=None,
+        help="Mother sample name for trio inheritance analysis",
+    )
+    parser.add_argument(
+        "--father",
+        type=str,
+        default=None,
+        help="Father sample name for trio inheritance analysis",
+    )
+    parser.add_argument(
+        "--inheritance-pattern",
+        type=str,
+        action="append",
+        default=None,
+        help=(
+            "Inheritance pattern to evaluate (may be specified "
+            "multiple times). Supported: de_novo, dominant, "
+            "recessive, compound_het, x_linked. Defaults to all "
+            "patterns when trio is active."
+        ),
+    )
+
     return parser
 
 
@@ -150,11 +187,48 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     """
     from vartriage.models.config import (
         AnnotationConfig,
+        InheritanceConfig,
         PipelineConfig,
         PrioritizationConfig,
         ReportConfig,
     )
     from vartriage.pipeline import Pipeline
+
+    proband: Optional[str] = args.proband
+    mother: Optional[str] = args.mother
+    father: Optional[str] = args.father
+    sample: Optional[str] = getattr(args, "sample", None)
+
+    trio_args = [proband, mother, father]
+    trio_provided = [a for a in trio_args if a is not None]
+
+    if trio_provided and len(trio_provided) < 3:
+        print(
+            "Error: --proband, --mother, and --father must all "
+            "be provided together for trio analysis.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if trio_provided and sample is not None:
+        print(
+            "Error: --sample and trio arguments (--proband, "
+            "--mother, --father) are mutually exclusive.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    inheritance_config: Optional[InheritanceConfig] = None
+    if len(trio_provided) == 3:
+        patterns = args.inheritance_pattern
+        if patterns is None:
+            patterns = list(InheritanceConfig.SUPPORTED_PATTERNS)
+        inheritance_config = InheritanceConfig(
+            proband=proband,  # type: ignore[arg-type]
+            mother=mother,  # type: ignore[arg-type]
+            father=father,  # type: ignore[arg-type]
+            patterns=patterns,
+        )
 
     annotation_config: Optional[AnnotationConfig] = None
     gene_annotation: Optional[Path] = args.gene_annotation
@@ -182,6 +256,7 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
         annotation=annotation_config,
         prioritization=prioritization_config,
         report=report_config,
+        inheritance=inheritance_config,
     )
 
     pipeline = Pipeline(pipeline_config)

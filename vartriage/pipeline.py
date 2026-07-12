@@ -17,6 +17,7 @@ from vartriage._internal.warning_accumulator import (
 )
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
+from vartriage.filter.inheritance_filter import InheritanceFilter
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
 from vartriage.models.config import (
@@ -82,8 +83,9 @@ class Pipeline:
 
         Wires stages sequentially: VCFParser → QualityFilter →
         AnnotationEngine → PrioritizationEngine → ACMGClassifier →
-        ReportGenerator. Processes data in batches to maintain peak RSS
-        below 2GB for whole-genome scale files (4M+ variants).
+        ReportGenerator. When trio inheritance mode is active,
+        InheritanceFilter replaces SampleExtractor and is positioned
+        after annotation when compound_het is active.
 
         Parameters
         ----------
@@ -129,15 +131,54 @@ class Pipeline:
 
         report_generator = ReportGenerator(self._config.report)
 
-        with VCFParser(effective_vcf_path) as parser:
-            filtered = quality_filter.apply(iter(parser))
+        inheritance_config = self._config.inheritance
+        extract_samples = inheritance_config is not None
 
-            if annotation_engine is not None:
-                annotated = annotation_engine.annotate(filtered)
+        with VCFParser(
+            effective_vcf_path,
+            extract_samples=extract_samples,
+        ) as parser:
+            if inheritance_config is not None:
+                compound_het_active = (
+                    "compound_het" in inheritance_config.patterns
+                )
+                inheritance_filter = InheritanceFilter(
+                    inheritance_config,
+                    parser.sample_names,
+                )
+
+                if compound_het_active and annotation_engine is not None:
+                    filtered = quality_filter.apply(iter(parser))
+                    annotated = annotation_engine.annotate(filtered)
+                    inherited = inheritance_filter.apply(annotated)
+                    annotated_stream = self._passthrough_annotated(
+                        inherited
+                    )
+                else:
+                    inherited = inheritance_filter.apply(iter(parser))
+                    filtered = quality_filter.apply(inherited)
+
+                    if annotation_engine is not None:
+                        annotated_stream = (
+                            annotation_engine.annotate(filtered)
+                        )
+                    else:
+                        annotated_stream = (
+                            self._passthrough_annotation(filtered)
+                        )
             else:
-                annotated = self._passthrough_annotation(filtered)
+                filtered = quality_filter.apply(iter(parser))
 
-            scored = prioritization_engine.prioritize(annotated)
+                if annotation_engine is not None:
+                    annotated_stream = (
+                        annotation_engine.annotate(filtered)
+                    )
+                else:
+                    annotated_stream = (
+                        self._passthrough_annotation(filtered)
+                    )
+
+            scored = prioritization_engine.prioritize(annotated_stream)
 
             classified = acmg_classifier.classify(scored)
 
@@ -172,10 +213,22 @@ class Pipeline:
         Raises
         ------
         ValueError
-            If any parameter is out of range.
+            If any parameter is out of range or dependency is unmet.
         FileNotFoundError
             If any required reference file does not exist.
         """
+        if config.inheritance is not None:
+            if (
+                "compound_het" in config.inheritance.patterns
+                and config.annotation is None
+            ):
+                raise ValueError(
+                    "compound_het pattern requires annotation "
+                    "configuration (gene annotation reference). "
+                    "Either provide --gene-annotation and --gnomad, "
+                    "or remove compound_het from the patterns list."
+                )
+
         if config.annotation is not None:
             ann_config: AnnotationConfig = config.annotation
             if not ann_config.gene_annotation_path.exists():
@@ -216,7 +269,7 @@ class Pipeline:
 
         Used when the pipeline is run without annotation references. Each
         variant gets an Intergenic consequence, null frequency, and null
-        ClinVar assertion — allowing downstream stages to function.
+        ClinVar assertion, allowing downstream stages to function.
 
         Parameters
         ----------
@@ -227,6 +280,39 @@ class Pipeline:
         ------
         AnnotatedVariant
             Minimally annotated variant records.
+        """
+        from vartriage.models.variant import (
+            AnnotatedVariant,
+            FunctionalConsequence,
+        )
+
+        for variant in variants:
+            yield AnnotatedVariant(
+                variant=variant,
+                consequence=FunctionalConsequence.INTERGENIC,
+                allele_frequency=None,
+                clinvar_assertion=None,
+                frequency_unknown=True,
+                clinvar_unknown=True,
+            )
+
+    def _passthrough_annotated(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
+        """Wrap already-processed variants as AnnotatedVariant.
+
+        Used in the compound_het flow where InheritanceFilter runs
+        after AnnotationEngine. The variants have already been
+        annotated but need to be wrapped for downstream stages.
+
+        Parameters
+        ----------
+        variants : Iterator[Variant]
+            Variants that have passed through annotation and
+            inheritance filtering.
+
+        Yields
+        ------
+        AnnotatedVariant
+            Minimally wrapped variant records.
         """
         from vartriage.models.variant import (
             AnnotatedVariant,
