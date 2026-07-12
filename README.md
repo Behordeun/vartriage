@@ -1,6 +1,17 @@
 # vartriage
 
-Variant prioritization pipeline for whole-genome sequencing data. Takes a VCF, applies quality filters, annotates functional consequence and population frequency, scores pathogenicity via CADD/REVEL/SpliceAI, runs ACMG/AMP evidence classification, and outputs a ranked candidate list.
+Clinical variant triage for gene panels. One pip install, one command: VCF in, ACMG-classified report out. No Java, no Perl, no Spark cluster.
+
+vartriage is the open-source Python library for turning panel sequencing VCFs into auditable, sign-off-ready clinical reports. It handles the full chain: quality filtering, consequence annotation, population frequency lookup, multi-predictor pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP evidence classification, trio inheritance analysis, and structured report generation. Every decision is traceable. Every run is reproducible from its config alone.
+
+**Why vartriage instead of VEP + slivar + custom scripts?**
+
+- Single tool, single install: `pip install vartriage[all]`
+- Streaming architecture: processes 4M+ variant WGS files under 2GB RAM
+- Trio-aware: de novo, dominant, recessive, compound het, X-linked in one pass
+- Three pathogenicity predictors with dynamic weight redistribution
+- Outputs directly to IGV-loadable bgzipped VCF with triage annotations
+- Typed Python API with Protocol-based backends (swap in your own annotators)
 
 **Benchmarks:**
 
