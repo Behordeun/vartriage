@@ -365,7 +365,7 @@ class VCFParser:
                 gq = sample.get("GQ")
                 if gq is not None:
                     entry["GQ"] = gq
-                samples[sample_name] = entry
+                samples[str(sample_name)] = entry
         except (AttributeError, TypeError, KeyError):
             pass
         return samples
