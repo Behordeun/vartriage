@@ -110,13 +110,13 @@ class EvidenceTag(Enum):
     Attributes
     ----------
     PVS1 : str
-        Very Strong evidence — null variant (nonsense or frameshift).
+        Very Strong evidence: null variant (nonsense or frameshift).
     PM2 : str
-        Moderate evidence — absent from population controls.
+        Moderate evidence: absent from population controls.
     PP3 : str
-        Supporting evidence — computational pathogenicity prediction.
+        Supporting evidence: computational pathogenicity prediction.
     PP5 : str
-        Supporting evidence — reputable clinical source (ClinVar).
+        Supporting evidence: reputable clinical source (ClinVar).
     """
 
     PVS1 = "PVS1"
@@ -211,6 +211,8 @@ class AnnotatedVariant:
         True if variant was absent from gnomAD.
     clinvar_unknown : bool
         True if variant was absent from ClinVar.
+    gene_name : Optional[str]
+        Gene symbol from consequence annotation, or None for intergenic variants.
     """
 
     variant: Variant
@@ -219,6 +221,7 @@ class AnnotatedVariant:
     clinvar_assertion: Optional[ClinVarAssertion] = None
     frequency_unknown: bool = False
     clinvar_unknown: bool = False
+    gene_name: Optional[str] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,14 +238,20 @@ class ScoredVariant:
         CADD normalized to 0.0-1.0 scale.
     revel_score : Optional[float]
         REVEL score (0.0-1.0).
+    spliceai_score : Optional[float]
+        SpliceAI delta score (0.0-1.0) predicting splice-disrupting
+        effects. None when SpliceAI is not configured or the variant
+        has no lookup match.
     composite_rank : Optional[float]
-        Weighted composite: (REVEL * 0.6) + (CADD_normalized * 0.4).
+        Weighted composite rank derived from available scores using
+        dynamic proportional weight redistribution.
     """
 
     annotated: AnnotatedVariant
     cadd_phred: Optional[float] = None
     cadd_normalized: Optional[float] = None
     revel_score: Optional[float] = None
+    spliceai_score: Optional[float] = None
     composite_rank: Optional[float] = None
 
 

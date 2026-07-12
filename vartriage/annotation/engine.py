@@ -137,6 +137,9 @@ class AnnotationEngine:
         # Consequence assignment
         consequences = self._consequence_annotator.assign_batch(batch)
 
+        # Gene name extraction via overlap queries
+        gene_names = self._extract_gene_names(batch)
+
         # Frequency lookup
         variant_keys = [
             (v.chrom, v.pos, v.ref, v.alt) for v in batch
@@ -146,7 +149,9 @@ class AnnotationEngine:
         # ClinVar lookup
         clinvar_assertions: list[Optional[ClinVarAssertion]] = []
         if self._clinvar_db is not None:
-            clinvar_assertions = self._clinvar_db.lookup_batch(variant_keys)
+            clinvar_assertions = (
+                self._clinvar_db.lookup_batch(variant_keys)
+            )
         else:
             clinvar_assertions = [None] * len(batch)
 
@@ -192,10 +197,55 @@ class AnnotationEngine:
                     clinvar_assertion=clinvar,
                     frequency_unknown=frequency_unknown,
                     clinvar_unknown=clinvar_unknown,
+                    gene_name=gene_names[i],
                 )
             )
 
         return results
+
+    def _extract_gene_names(
+        self, batch: list[Variant]
+    ) -> list[Optional[str]]:
+        """Extract gene names for a batch of variants.
+
+        Uses the consequence annotator's overlap() method per variant
+        to find the gene symbol from the first overlapping region.
+        Returns None for intergenic variants with no overlap.
+
+        Parameters
+        ----------
+        batch : list[Variant]
+            Variants to look up gene names for.
+
+        Returns
+        -------
+        list[Optional[str]]
+            Gene names positionally matched to the batch. None when
+            no overlap is found (intergenic variants).
+        """
+        # If the annotator exposes a batch gene lookup, use it
+        if hasattr(self._consequence_annotator, "gene_names_batch"):
+            result: list[Optional[str]] = (
+                self._consequence_annotator.gene_names_batch(batch)
+            )
+            return result
+
+        # Fallback: per-variant overlap queries
+        gene_names: list[Optional[str]] = []
+        for variant in batch:
+            overlaps = self._consequence_annotator.overlap(
+                chrom=variant.chrom,
+                pos=variant.pos,
+                ref=variant.ref,
+                alt=variant.alt,
+            )
+            if overlaps:
+                gene_names.append(
+                    overlaps[0].get("gene_name")
+                )
+            else:
+                gene_names.append(None)
+        return gene_names
 
     def _validate_paths(self, config: AnnotationConfig) -> None:
         """Fail fast if any required reference file is missing."""

@@ -7,7 +7,7 @@ All configuration classes are frozen dataclasses. They validate parameters at co
 Controls which variants pass the quality gate.
 
 | Field | Type | Default | Valid range |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `min_qual` | `float` | `20.0` | 0 to 1,000,000 |
 
 ```python
@@ -25,7 +25,7 @@ config = QualityFilterConfig(min_qual=50.0)
 Paths to reference data and batch size for the annotation engine.
 
 | Field | Type | Default | Valid range / notes |
-|-------|------|---------|-------------------|
+| ------- | ------ | --------- | --------- | ------------------- |
 | `gene_annotation_path` | `Path` | required | GTF or GFF file |
 | `gnomad_path` | `Path` | required | gnomAD TSV |
 | `clinvar_path` | `Optional[Path]` | `None` | ClinVar TSV, or None to skip |
@@ -48,10 +48,11 @@ config = AnnotationConfig(
 Controls frequency filtering and pathogenicity scoring.
 
 | Field | Type | Default | Valid range |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `max_allele_frequency` | `float` | `0.01` | 0.0 to 1.0 |
 | `cadd_scores_path` | `Optional[Path]` | `None` | CADD Phred TSV |
 | `revel_scores_path` | `Optional[Path]` | `None` | REVEL scores TSV |
+| `spliceai_scores_path` | `Optional[Path]` | `None` | SpliceAI scores TSV |
 | `batch_size` | `int` | `10_000` | 1,000 to 100,000 |
 
 ```python
@@ -62,6 +63,7 @@ config = PrioritizationConfig(
     max_allele_frequency=0.0001,
     cadd_scores_path=Path("cadd_v1.7.tsv"),
     revel_scores_path=Path("revel_v1.3.tsv"),
+    spliceai_scores_path=Path("spliceai_scores.tsv"),
 )
 
 # Research: relaxed frequency, no score files
@@ -75,8 +77,8 @@ config = PrioritizationConfig(
 Output format selection.
 
 | Field | Type | Default | Options |
-|-------|------|---------|---------|
-| `output_format` | `Literal["json", "csv", "pdf"]` | `"json"` | `"json"`, `"csv"`, `"pdf"` |
+| ------- | ------ | --------- | --------- |
+| `output_format` | `Literal["json", "csv", "pdf", "vcf"]` | `"json"` | `"json"`, `"csv"`, `"pdf"`, `"vcf"` |
 
 ```python
 from vartriage import ReportConfig
@@ -111,13 +113,29 @@ config = InheritanceConfig(
 ```
 
 Raises `ValueError` if sample names are empty, patterns list is empty, or any pattern is not in the supported set.
+## GeneFilterConfig
+
+Restricts analysis to variants in a user-supplied gene list.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `gene_list_path` | `Path` | required | Plain text file, one gene symbol per line |
+
+```python
+from pathlib import Path
+from vartriage import GeneFilterConfig
+
+config = GeneFilterConfig(gene_list_path=Path("cardiac_panel.txt"))
+```
+
+The gene list file format: one symbol per line, blank lines and lines starting with `#` are skipped, matching is case-insensitive.
 
 ## MissingDataConfig
 
 Controls the missing data warning threshold.
 
 | Field | Type | Default | Notes |
-|-------|------|---------|-------|
+| ------- | ------ | --------- | ------- |
 | `warning_threshold` | `int` | `1000` | Summary warning fires when exceeded |
 
 ```python
@@ -131,7 +149,7 @@ config = MissingDataConfig(warning_threshold=500)
 Top-level configuration aggregating all sub-configs.
 
 | Field | Type | Default | Notes |
-|-------|------|---------|-------|
+| ------- | ------ | --------- | ------- |
 | `vcf_path` | `Path` | required | `.vcf` or `.vcf.gz` |
 | `output_path` | `Path` | required | Output report path |
 | `quality_filter` | `QualityFilterConfig` | default instance | |
@@ -140,6 +158,7 @@ Top-level configuration aggregating all sub-configs.
 | `report` | `ReportConfig` | default instance | |
 | `missing_data` | `MissingDataConfig` | default instance | |
 | `inheritance` | `Optional[InheritanceConfig]` | `None` | None skips trio analysis |
+| `gene_filter` | `Optional[GeneFilterConfig]` | `None` | None skips gene filtering |
 
 ## Example configurations
 

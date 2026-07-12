@@ -4,7 +4,7 @@ Provides a shared cache infrastructure for serializing parsed reference
 data (GTF interval trees, score dictionaries) to disk. Uses mtime-based
 invalidation and version stamping to detect stale or incompatible caches.
 
-All public functions handle errors gracefully — cache failures never
+All public functions handle errors gracefully. Cache failures never
 propagate exceptions to callers.
 """
 

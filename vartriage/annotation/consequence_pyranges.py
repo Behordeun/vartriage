@@ -288,6 +288,70 @@ class PyRangesConsequenceAnnotator:
 
         return _most_severe_consequence_pyranges(overlaps)
 
+    def gene_names_batch(
+        self, variants: list[Variant]
+    ) -> list[Optional[str]]:
+        """Extract gene names for a batch using a single vectorized join.
+
+        Parameters
+        ----------
+        variants : list[Variant]
+            Variants to look up gene names for.
+
+        Returns
+        -------
+        list[Optional[str]]
+            Gene names positionally matched to the batch.
+        """
+        if not variants:
+            return []
+
+        if not self._index._loaded or self._index._gr is None:
+            return [None] * len(variants)
+
+        records = []
+        for i, v in enumerate(variants):
+            var_start = v.pos - 1
+            var_end = var_start + max(len(v.ref), len(v.alt))
+            records.append({
+                "Chromosome": v.chrom,
+                "Start": var_start,
+                "End": var_end,
+                "_idx": i,
+            })
+
+        query_df = pd.DataFrame(records)
+        query_gr = pr.PyRanges(query_df)
+
+        hits = self._index._gr.join(query_gr)
+        hits_df = hits.df
+
+        gene_names: list[Optional[str]] = [None] * len(variants)
+
+        if hits_df.empty:
+            return gene_names
+
+        # Pick the first hit per variant index
+        gene_col = None
+        for col in ("gene_name", "Gene", "gene_id"):
+            if col in hits_df.columns:
+                gene_col = col
+                break
+
+        if gene_col is None:
+            return gene_names
+
+        seen: set[int] = set()
+        for _, row in hits_df.iterrows():
+            var_idx = int(row["_idx"])
+            if var_idx not in seen:
+                seen.add(var_idx)
+                val = row[gene_col]
+                if pd.notna(val):
+                    gene_names[var_idx] = str(val)
+
+        return gene_names
+
     def assign_batch(self, variants: list[Variant]) -> list[FunctionalConsequence]:
         """Assign consequences to a batch of variants using vectorized join.
 

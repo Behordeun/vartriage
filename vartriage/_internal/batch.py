@@ -23,7 +23,7 @@ _MIN_CHUNK_SIZE: int = 500_000
 def batched(iterable: Iterable[T], batch_size: int) -> Iterator[list[T]]:
     """Yield successive lists of at most ``batch_size`` items from an iterable.
 
-    Consumes the iterable lazily — only materializes one batch at a time.
+    Consumes the iterable lazily; only materializes one batch at a time.
     Yields nothing for an empty iterable. The final batch may contain fewer
     than ``batch_size`` items.
 

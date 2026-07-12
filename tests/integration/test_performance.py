@@ -144,7 +144,7 @@ def _build_classified_variants(count: int) -> list[ClassifiedVariant]:
 
 
 @pytest.mark.slow
-@pytest.mark.skip(reason="requires 4M+ variant file generation — run manually")
+@pytest.mark.skip(reason="requires 4M+ variant file generation. Run manually")
 class TestMemoryBounds:
     """Verify pipeline RSS stays below 2GB on large datasets."""
 

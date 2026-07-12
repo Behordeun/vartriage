@@ -35,7 +35,7 @@ class PDFFallbackRenderer:
         Returns
         -------
         Path
-            Never returns — always raises.
+            Never returns. Always raises.
 
         Raises
         ------

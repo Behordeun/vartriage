@@ -75,7 +75,10 @@ for vcf in samples/*.vcf.gz; do
     --gnomad refs/gnomad.v4.exomes.tsv \
     --clinvar refs/clinvar.tsv \
     --cadd-scores refs/cadd_v1.7.tsv \
-    --revel-scores refs/revel_v1.3.tsv
+    --revel-scores refs/revel_v1.3.tsv \
+    --spliceai-scores refs/spliceai_scores.tsv
+    --gene-list refs/cardiac_panel.txt
+    --spliceai-scores refs/spliceai_scores.tsv
   echo "Done: $sample"
 done
 ```

@@ -2,6 +2,31 @@
 
 All reference files are tab-separated with a header row. Column names must match exactly.
 
+## Gene List
+
+Plain text file for gene panel filtering. Not a TSV; just one gene symbol per line.
+
+**Format:**
+
+- One gene symbol per line
+- Blank lines are skipped
+- Lines starting with `#` are treated as comments
+- Leading/trailing whitespace is stripped
+- Matching is case-insensitive (symbols stored as uppercase internally)
+
+**Example:**
+
+```text
+# Cardiac gene panel v2
+MYBPC3
+MYH7
+TNNT2
+LMNA
+SCN5A
+```
+
+**Usage:** Pass via `--gene-list panel.txt` on the CLI or `GeneFilterConfig(gene_list_path=Path("panel.txt"))` in Python.
+
 ## gnomAD
 
 Population allele frequency data. Used by the annotation engine for frequency lookup and by the prioritization engine for the frequency gate.
@@ -9,7 +34,7 @@ Population allele frequency data. Used by the annotation engine for frequency lo
 **Required columns:**
 
 | Column | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `chrom` | str | Chromosome name (e.g., "chr1" or "1") |
 | `pos` | int | 1-based genomic position |
 | `ref` | str | Reference allele |
@@ -19,10 +44,10 @@ Population allele frequency data. Used by the annotation engine for frequency lo
 **Example:**
 
 ```tsv
-chrom	pos	ref	alt	af
-chr1	12345	A	G	0.00032
-chr1	54321	CT	C	0.15
-chr2	99999	G	T	0.0
+chrom    pos      ref    alt    af
+chr1     12345    A      G      0.00032
+chr1     54321    CT     C      0.15
+chr2     99999    G      T      0.0
 ```
 
 **Where to download:**
@@ -45,7 +70,7 @@ Clinical significance assertions. Used during annotation and ACMG classification
 **Required columns:**
 
 | Column | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `chrom` | str | Chromosome name |
 | `pos` | int | 1-based genomic position |
 | `ref` | str | Reference allele |
@@ -63,10 +88,10 @@ Clinical significance assertions. Used during annotation and ACMG classification
 **Example:**
 
 ```tsv
-chrom	pos	ref	alt	clinical_significance
-chr1	12345	A	G	Pathogenic
-chr7	117559590	ATCT	A	Likely pathogenic
-chr17	7674220	G	A	Uncertain significance
+chrom    pos          ref     alt    clinical_significance
+chr1     12345        A       G      Pathogenic
+chr7     117559590    ATCT    A      Likely pathogenic
+chr17    7674220      G       A      Uncertain significance
 ```
 
 **Where to download:**
@@ -89,7 +114,7 @@ Combined Annotation Dependent Depletion scores. Phred-scaled scores where higher
 **Required columns:**
 
 | Column | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `chrom` | str | Chromosome name |
 | `pos` | int | 1-based genomic position |
 | `ref` | str | Reference allele |
@@ -99,10 +124,10 @@ Combined Annotation Dependent Depletion scores. Phred-scaled scores where higher
 **Example:**
 
 ```tsv
-chrom	pos	ref	alt	score
-chr1	12345	A	G	28.5
-chr1	54321	C	T	15.2
-chr2	99999	G	A	35.0
+chrom    pos      ref    alt    score
+chr1     12345    A      G      28.5
+chr1     54321    C      T      15.2
+chr2     99999    G      A      35.0
 ```
 
 **Where to download:**
@@ -122,7 +147,7 @@ Rare Exome Variant Ensemble Learner. An ensemble score for missense variants.
 **Required columns:**
 
 | Column | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `chrom` | str | Chromosome name |
 | `pos` | int | 1-based genomic position |
 | `ref` | str | Reference allele |
@@ -132,10 +157,10 @@ Rare Exome Variant Ensemble Learner. An ensemble score for missense variants.
 **Example:**
 
 ```tsv
-chrom	pos	ref	alt	score
-chr1	12345	A	G	0.85
-chr1	54321	C	T	0.12
-chr7	117559590	A	G	0.95
+chrom    pos          ref    alt    score
+chr1     12345        A      G      0.85
+chr1     54321        C      T      0.12
+chr7     117559590    A      G      0.95
 ```
 
 **Where to download:**
@@ -147,6 +172,40 @@ chr7	117559590	A	G	0.95
 - Score > 0.7: likely pathogenic (PP3 threshold used by this library)
 - Score < 0.15: likely benign
 - REVEL is already normalized to 0-1, no additional scaling applied
+
+## SpliceAI
+
+Deep-learning splicing impact predictions. Scores represent the maximum delta score across all splice-altering events (acceptor gain/loss, donor gain/loss).
+
+**Required columns:**
+
+| Column | Type | Description |
+| -------- | ------ | ------------- |
+| `chrom` | str | Chromosome name |
+| `pos` | int | 1-based genomic position |
+| `ref` | str | Reference allele |
+| `alt` | str | Alternate allele |
+| `score` | float | SpliceAI max delta score (0.0 to 1.0) |
+
+**Example:**
+
+```tsv
+chrom    pos          ref    alt    score
+chr1     12345        A      G      0.85
+chr1     54321        C      T      0.02
+chr7     117559590    A      G      0.15
+```
+
+**Where to download:**
+
+[SpliceAI pre-computed scores](https://basespace.illumina.com/s/otSPW8hnhaZR) from Illumina. Extract the max delta score from the VCF INFO field and reformat to the TSV layout above.
+
+**Interpretation:**
+
+- Score > 0.8: high splicing impact (triggers PVS1 for splice-site variants)
+- Score > 0.5: moderate splicing impact (triggers PP3 for splice-adjacent variants)
+- Score > 0.2: suggests possible splicing effect
+- Scores outside [0.0, 1.0] are rejected with a warning and treated as unavailable
 
 ## Chromosome naming
 

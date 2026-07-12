@@ -1,16 +1,16 @@
 # vartriage
 
-Variant prioritization pipeline for whole-genome sequencing data. Takes a VCF, applies quality filters, annotates functional consequence and population frequency, scores pathogenicity via CADD/REVEL, runs ACMG/AMP evidence classification, and outputs a ranked candidate list.
+Variant prioritization pipeline for whole-genome sequencing data. Takes a VCF, applies quality filters, annotates functional consequence and population frequency, scores pathogenicity via CADD/REVEL/SpliceAI, runs ACMG/AMP evidence classification, and outputs a ranked candidate list.
 
 **Benchmarks:**
 
 | Workload | Variants | Wall time | Peak RSS | Throughput |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | GIAB HG002 (QC only, no annotation) | 4,048,342 | 156 s | 122 MB | ~26K var/sec |
 | chr22 full annotation (GENCODE + 4.8M gnomAD) | 130,141 | 36.3 s | ~2 GB | ~3.6K var/sec |
 | chr22 annotation (100K gnomAD subset) | 130,141 | 19.5 s | 453 MB | ~6.7K var/sec |
 
-Streaming architecture, so JSON and CSV reports never buffer the full variant set in memory. Reference files (GTF, CADD, REVEL) are cached after first parse. Subsequent runs load from cache in seconds.
+Streaming architecture, so JSON and CSV reports never buffer the full variant set in memory. Reference files (GTF, CADD, REVEL, SpliceAI) are cached after first parse. Subsequent runs load from cache in seconds.
 
 ## Install
 
@@ -43,7 +43,12 @@ vartriage \
   --gnomad gnomad.v4.sites.tsv \
   --clinvar clinvar_20240101.tsv \
   --cadd-scores cadd_scores.tsv \
-  --revel-scores revel_scores.tsv
+  --revel-scores revel_scores.tsv \
+  --spliceai-scores spliceai_scores.tsv \
+  --gene-list my_panel.txt \
+  --regions target_regions.bed \
+  --sample PROBAND_01 \
+  --min-gq 20
 ```
 
 Run `vartriage --help` for the complete list.
@@ -93,70 +98,108 @@ with VCFParser(Path("input.vcf.gz")) as parser:
 
 ## Pipeline stages
 
+```text
+VCFParser → [SampleExtractor] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
-VCFParser → QualityFilter → AnnotationEngine → PrioritizationEngine → ACMGClassifier → ReportGenerator
-```
+
+Stages in brackets are optional and activate based on config.
+
+**Sample extraction** (`--sample`) - Pulls a single sample from multi-sample VCFs. Only variants where the named sample carries an alternate allele are kept. Optional `--min-gq` threshold drops low-confidence genotype calls.
+
+**Region filtering** (`--regions`) - Restricts to variants overlapping intervals in a BED file. Useful for gene panel target regions.
 
 **Quality filtering** - Drops variants where FILTER isn't PASS/`.`, QUAL is below threshold (default 20), or QUAL is missing entirely.
 
 **Annotation** - Adds functional consequence (from GTF gene models), population frequency (gnomAD), and ClinVar significance. Multiple-transcript conflicts resolve to the most damaging consequence. Consequence severity: Frameshift > Nonsense > Splice_Site > Missense > In_Frame_Insertion > In_Frame_Deletion > Synonymous > Intergenic.
 
-**Prioritization** - Two phases. First: frequency gate drops variants with AF above the threshold (default 0.01); unknown-frequency variants always pass. Second: composite scoring from normalized CADD Phred and REVEL:
+**Gene filtering** (`--gene-list`) - After annotation, restricts to variants in genes from a user-supplied text file. Case-insensitive matching. Logs a warning for any panel genes with zero hits (catches typos).
 
-```
-composite = (REVEL × 0.6) + (CADD_normalized × 0.4)
+**Prioritization** - Two phases. First: frequency gate drops variants with AF above the threshold (default 0.01); unknown-frequency variants always pass. Second: composite scoring from normalized CADD Phred, REVEL, and SpliceAI:
+
+```text
+composite = (REVEL × 0.5) + (CADD_normalized × 0.3) + (SpliceAI × 0.2)
 ```
 
-Falls back to the single available score when only one source exists.
+When only two scores are available, weights redistribute proportionally. Single available score is used directly. Falls back to the legacy two-score formula (0.6/0.4) when SpliceAI is not configured.
 
 **ACMG classification** - Tags evidence per ACMG/AMP 2015 guidelines:
 
 | Tag | Condition |
-|------|----------------------------------------------|
-| PVS1 | Nonsense or Frameshift |
+| ------ | ---------------------------------------------- |
+| PVS1 | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
 | PM2 | gnomAD AF < 0.0001 |
-| PP3 | REVEL > 0.7 |
+| PP3 | REVEL > 0.7 or SpliceAI > 0.5 on splice-adjacent |
 | PP5 | ClinVar Pathogenic without conflicting Benign |
 
 Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
 
-**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
 
 ## Configuration
 
 ### QualityFilterConfig
 
 | Field | Type | Default | Range |
-|---|---|---|---|
-| min_qual | float | 20.0 | 0–1,000,000 |
+| --- | --- | --- | --- |
+| min_qual | float | 20.0 | 0-1,000,000 |
 
 ### AnnotationConfig
 
 | Field | Type | Default | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | gene_annotation_path | Path | required | GTF/GFF |
 | gnomad_path | Path | required | TSV or tabix VCF (.vcf.bgz/.vcf.gz) |
 | clinvar_path | Path | None | TSV |
-| batch_size | int | 10,000 | 1,000–100,000 |
+| batch_size | int | 10,000 | 1,000-100,000 |
 
 ### PrioritizationConfig
 
 | Field | Type | Default | Notes |
-|---|---|---|---|
-| max_allele_frequency | float | 0.01 | 0.0–1.0 |
+| --- | --- | --- | --- |
+| max_allele_frequency | float | 0.01 | 0.0-1.0 |
 | cadd_scores_path | Path | None | CADD Phred TSV |
 | revel_scores_path | Path | None | REVEL TSV |
-| batch_size | int | 10,000 | 1,000–100,000 |
+| spliceai_scores_path | Path | None | SpliceAI TSV |
+| batch_size | int | 10,000 | 1,000-100,000 |
 
 ### ReportConfig
 
 | Field | Type | Default | Options |
-|---|---|---|---|
-| output_format | str | "json" | "json", "csv", "pdf" |
+| --- | --- | --- | --- |
+| output_format | str | "json" | "json", "csv", "pdf", "vcf" |
+
+### GeneFilterConfig
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| gene_list_path | Path | required | Plain text, one gene symbol per line |
+
+### RegionFilterConfig
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| bed_path | Path | required | BED file with target intervals |
+
+### SampleConfig
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| sample_name | str | required | Sample name from VCF header |
+| min_gq | int | None | Genotype quality threshold (0-99) |
 
 ## Reference file formats
 
 All TSV with a header row. Tab-separated.
+
+**Gene list** - Plain text file, one gene symbol per line. Comment lines starting with `#` are ignored. Blank lines are skipped. Symbols are matched case-insensitively.
+
+```text
+# Cardiac panel v2
+BRCA1
+BRCA2
+TP53
+MLH1
+```
 
 **gnomAD (TSV)** - columns: `chrom`, `pos`, `ref`, `alt`, `af`. The value `'.'` in the af column is treated as null (gnomAD compatibility).
 
@@ -164,7 +207,7 @@ All TSV with a header row. Tab-separated.
 
 **ClinVar** - columns: `chrom`, `pos`, `ref`, `alt`, `clinical_significance`. Values: Pathogenic, Likely pathogenic, Uncertain significance, Likely benign, Benign.
 
-**CADD / REVEL** - columns: `chrom`, `pos`, `ref`, `alt`, `score`. Lines starting with `#` are skipped.
+**CADD / REVEL / SpliceAI** - columns: `chrom`, `pos`, `ref`, `alt`, `score`. Lines starting with `#` are skipped. All three use the same TSV format.
 
 ## Missing data handling
 
@@ -190,7 +233,7 @@ warnings.filterwarnings("ignore", category=VarTriageWarning)
 ## Dependencies
 
 | Package | Required | Extra | Purpose |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | pysam >=0.22,<1.0 | yes | - | VCF streaming via htslib |
 | numpy >=1.24,<3.0 | yes | - | Score normalization |
 | polars >=0.20,<2.0 | no | [accelerated] | Batch frequency/ClinVar joins |
@@ -201,7 +244,7 @@ Without optional extras, the library uses pure-Python fallbacks (dict lookups, b
 
 ## Caching
 
-Reference files (GTF gene models, CADD scores, REVEL scores) are parsed once and cached as pickle files adjacent to the source (with a `.vartriage.cache` suffix). On subsequent runs, the cache loads in seconds instead of re-parsing.
+Reference files (GTF gene models, CADD scores, REVEL scores, SpliceAI scores) are parsed once and cached as pickle files adjacent to the source (with a `.vartriage.cache` suffix). On subsequent runs, the cache loads in seconds instead of re-parsing.
 
 Cache invalidation is automatic: if the source file's mtime changes or the vartriage version changes, the cache rebuilds. Writes are atomic (temp file + rename), so a crash mid-write won't corrupt anything.
 
@@ -228,17 +271,17 @@ GitHub Actions runs on Python 3.10, 3.11, and 3.12. PyPI publishing uses trusted
 
 ## Project layout
 
-```
+```text
 vartriage/
     cli.py                # CLI entry point
     pipeline.py           # Orchestrator
     protocols.py          # Protocol interfaces (IntervalIndex, FrequencyDatabase, etc.)
     io/                   # VCF parsing
-    filter/               # Quality-based exclusion
+    filter/               # Quality, region, sample, and gene filtering
     annotation/           # Consequence, frequency, ClinVar lookups
-    prioritization/       # AF gating + CADD/REVEL scoring (ScoreLoader)
+    prioritization/       # AF gating + CADD/REVEL/SpliceAI scoring (ScoreLoader)
     classification/       # ACMG evidence tagging
-    reporting/            # JSON, CSV, PDF (streaming writers)
+    reporting/            # JSON, CSV, PDF, VCF (streaming writers)
     models/               # Dataclasses, enums, configs, warnings
     _internal/            # Batch utils, interval tree, caching, vectorized ops
     py.typed              # PEP 561 marker

@@ -46,7 +46,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-format",
-        choices=["json", "csv", "pdf"],
+        choices=["json", "csv", "pdf", "vcf"],
         default="json",
         help="Output report format (default: json)",
     )
@@ -79,6 +79,18 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Path to REVEL score TSV reference file",
+    )
+    parser.add_argument(
+        "--spliceai-scores",
+        type=Path,
+        default=None,
+        help="Path to SpliceAI score TSV reference file",
+    )
+    parser.add_argument(
+        "--gene-list",
+        type=Path,
+        default=None,
+        help="Path to a gene list file for gene-based filtering",
     )
     parser.add_argument(
         "--version",
@@ -188,6 +200,7 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     from vartriage.models.config import (
         AnnotationConfig,
         InheritanceConfig,
+        GeneFilterConfig,
         PipelineConfig,
         PrioritizationConfig,
         ReportConfig,
@@ -244,11 +257,18 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     prioritization_config = PrioritizationConfig(
         cadd_scores_path=args.cadd_scores,
         revel_scores_path=args.revel_scores,
+        spliceai_scores_path=args.spliceai_scores,
     )
 
     report_config = ReportConfig(
         output_format=args.output_format,
     )
+
+    gene_filter_config: Optional[GeneFilterConfig] = None
+    if args.gene_list is not None:
+        gene_filter_config = GeneFilterConfig(
+            gene_list_path=args.gene_list,
+        )
 
     pipeline_config = PipelineConfig(
         vcf_path=vcf_path,
@@ -257,6 +277,7 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
         prioritization=prioritization_config,
         report=report_config,
         inheritance=inheritance_config,
+        gene_filter=gene_filter_config,
     )
 
     pipeline = Pipeline(pipeline_config)

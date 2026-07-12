@@ -17,12 +17,12 @@ from vartriage._internal.warning_accumulator import (
 )
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
-from vartriage.filter.inheritance_filter import InheritanceFilter
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
 from vartriage.models.config import (
     AnnotationConfig,
     PipelineConfig,
+    PrioritizationConfig,
 )
 from vartriage.models.variant import (
     AnnotatedVariant,
@@ -83,9 +83,8 @@ class Pipeline:
 
         Wires stages sequentially: VCFParser → QualityFilter →
         AnnotationEngine → PrioritizationEngine → ACMGClassifier →
-        ReportGenerator. When trio inheritance mode is active,
-        InheritanceFilter replaces SampleExtractor and is positioned
-        after annotation when compound_het is active.
+        ReportGenerator. Processes data in batches to maintain peak RSS
+        below 2GB for whole-genome scale files (4M+ variants).
 
         Parameters
         ----------
@@ -131,60 +130,53 @@ class Pipeline:
 
         report_generator = ReportGenerator(self._config.report)
 
-        inheritance_config = self._config.inheritance
-        extract_samples = inheritance_config is not None
+        extract_samples = (
+            self._config.inheritance is not None
+        )
 
         with VCFParser(
             effective_vcf_path,
             extract_samples=extract_samples,
         ) as parser:
-            if inheritance_config is not None:
-                compound_het_active = (
-                    "compound_het" in inheritance_config.patterns
+            stream: Iterator[Variant] = iter(parser)
+
+            if self._config.inheritance is not None:
+                from vartriage.filter.inheritance_filter import (
+                    InheritanceFilter,
                 )
                 inheritance_filter = InheritanceFilter(
-                    inheritance_config,
+                    self._config.inheritance,
                     parser.sample_names,
                 )
+                stream = inheritance_filter.apply(stream)
 
-                if compound_het_active and annotation_engine is not None:
-                    filtered = quality_filter.apply(iter(parser))
-                    annotated = annotation_engine.annotate(filtered)
-                    inherited = inheritance_filter.apply(annotated)
-                    annotated_stream = self._passthrough_annotated(
-                        inherited
-                    )
-                else:
-                    inherited = inheritance_filter.apply(iter(parser))
-                    filtered = quality_filter.apply(inherited)
+            filtered = quality_filter.apply(stream)
 
-                    if annotation_engine is not None:
-                        annotated_stream = (
-                            annotation_engine.annotate(filtered)
-                        )
-                    else:
-                        annotated_stream = (
-                            self._passthrough_annotation(filtered)
-                        )
+            if annotation_engine is not None:
+                annotated = annotation_engine.annotate(filtered)
             else:
-                filtered = quality_filter.apply(iter(parser))
+                annotated = self._passthrough_annotation(filtered)
 
-                if annotation_engine is not None:
-                    annotated_stream = (
-                        annotation_engine.annotate(filtered)
-                    )
-                else:
-                    annotated_stream = (
-                        self._passthrough_annotation(filtered)
-                    )
+            if self._config.gene_filter is not None:
+                from vartriage.filter.gene_filter import GeneFilter
+                gene_filter = GeneFilter(self._config.gene_filter)
+                annotated = gene_filter.apply(annotated)
 
-            scored = prioritization_engine.prioritize(annotated_stream)
+            scored = prioritization_engine.prioritize(annotated)
 
             classified = acmg_classifier.classify(scored)
 
-            result_path = report_generator.generate(
-                classified, effective_output_path
-            )
+            if self._config.report.output_format == "vcf":
+                result_path = report_generator.generate(
+                    classified,
+                    effective_output_path,
+                    effective_vcf_path,
+                )
+            else:
+                result_path = report_generator.generate(
+                    classified,
+                    effective_output_path,
+                )
 
             if annotation_engine is not None:
                 self._warning_accumulator.add_batch(
@@ -213,10 +205,21 @@ class Pipeline:
         Raises
         ------
         ValueError
-            If any parameter is out of range or dependency is unmet.
+            If any parameter is out of range.
         FileNotFoundError
             If any required reference file does not exist.
         """
+        if config.annotation is not None:
+            self._validate_annotation_config(config.annotation)
+
+        self._validate_prioritization_config(config.prioritization)
+
+        if config.gene_filter is not None:
+            self._check_path(
+                config.gene_filter.gene_list_path,
+                "Gene list file",
+            )
+
         if config.inheritance is not None:
             if (
                 "compound_het" in config.inheritance.patterns
@@ -229,40 +232,35 @@ class Pipeline:
                     "or remove compound_het from the patterns list."
                 )
 
-        if config.annotation is not None:
-            ann_config: AnnotationConfig = config.annotation
-            if not ann_config.gene_annotation_path.exists():
-                raise FileNotFoundError(
-                    f"Gene annotation file not found: "
-                    f"{ann_config.gene_annotation_path}"
-                )
-            if not ann_config.gnomad_path.exists():
-                raise FileNotFoundError(
-                    f"gnomAD reference file not found: "
-                    f"{ann_config.gnomad_path}"
-                )
-            if (
-                ann_config.clinvar_path is not None
-                and not ann_config.clinvar_path.exists()
-            ):
-                raise FileNotFoundError(
-                    f"ClinVar reference file not found: "
-                    f"{ann_config.clinvar_path}"
-                )
+    def _validate_annotation_config(
+        self, ann_config: "AnnotationConfig",
+    ) -> None:
+        """Validate annotation reference file paths exist."""
+        self._check_path(
+            ann_config.gene_annotation_path, "Gene annotation file"
+        )
+        self._check_path(ann_config.gnomad_path, "gnomAD reference file")
+        if ann_config.clinvar_path is not None:
+            self._check_path(
+                ann_config.clinvar_path, "ClinVar reference file"
+            )
 
-        pri_config = config.prioritization
+    def _validate_prioritization_config(
+        self, pri_config: PrioritizationConfig,
+    ) -> None:
+        """Validate prioritization score file paths exist."""
         if pri_config.cadd_scores_path is not None:
-            if not pri_config.cadd_scores_path.exists():
-                raise FileNotFoundError(
-                    f"CADD scores file not found: "
-                    f"{pri_config.cadd_scores_path}"
-                )
+            self._check_path(
+                pri_config.cadd_scores_path, "CADD scores file"
+            )
         if pri_config.revel_scores_path is not None:
-            if not pri_config.revel_scores_path.exists():
-                raise FileNotFoundError(
-                    f"REVEL scores file not found: "
-                    f"{pri_config.revel_scores_path}"
-                )
+            self._check_path(
+                pri_config.revel_scores_path, "REVEL scores file"
+            )
+        if pri_config.spliceai_scores_path is not None:
+            self._check_path(
+                pri_config.spliceai_scores_path, "SpliceAI scores file"
+            )
 
     def _passthrough_annotation(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
         """Create AnnotatedVariant wrappers when no annotation config exists.
@@ -296,35 +294,23 @@ class Pipeline:
                 clinvar_unknown=True,
             )
 
-    def _passthrough_annotated(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
-        """Wrap already-processed variants as AnnotatedVariant.
-
-        Used in the compound_het flow where InheritanceFilter runs
-        after AnnotationEngine. The variants have already been
-        annotated but need to be wrapped for downstream stages.
+    @staticmethod
+    def _check_path(path: Path, label: str) -> None:
+        """Verify a file path exists, raising FileNotFoundError if not.
 
         Parameters
         ----------
-        variants : Iterator[Variant]
-            Variants that have passed through annotation and
-            inheritance filtering.
+        path : Path
+            The filesystem path to validate.
+        label : str
+            Human-readable description used in the error message.
 
-        Yields
+        Raises
         ------
-        AnnotatedVariant
-            Minimally wrapped variant records.
+        FileNotFoundError
+            If the path does not exist.
         """
-        from vartriage.models.variant import (
-            AnnotatedVariant,
-            FunctionalConsequence,
-        )
-
-        for variant in variants:
-            yield AnnotatedVariant(
-                variant=variant,
-                consequence=FunctionalConsequence.INTERGENIC,
-                allele_frequency=None,
-                clinvar_assertion=None,
-                frequency_unknown=True,
-                clinvar_unknown=True,
+        if not path.exists():
+            raise FileNotFoundError(
+                f"{label} not found: {path}"
             )

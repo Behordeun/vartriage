@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Literal, Optional
+from typing import Literal, Optional
 
 
 @dataclass(frozen=True)
@@ -93,6 +93,9 @@ class PrioritizationConfig:
     revel_scores_path : Optional[Path]
         Path to a REVEL score reference file. When None, REVEL scores are not
         incorporated into composite ranking.
+    spliceai_scores_path : Optional[Path]
+        Path to a SpliceAI score TSV reference file. When None, SpliceAI
+        scores are not incorporated into composite ranking.
     batch_size : int
         Number of variants processed per batch during vectorized score
         normalization. Must be in the range [1_000, 100_000]. Default is
@@ -109,6 +112,7 @@ class PrioritizationConfig:
     max_allele_frequency: float = 0.01
     cadd_scores_path: Optional[Path] = None
     revel_scores_path: Optional[Path] = None
+    spliceai_scores_path: Optional[Path] = None
     batch_size: int = 10_000
 
     def __post_init__(self) -> None:
@@ -129,12 +133,12 @@ class ReportConfig:
 
     Parameters
     ----------
-    output_format : Literal["json", "csv", "pdf"]
+    output_format : Literal["json", "csv", "pdf", "vcf"]
         Desired output format for the final clinical report. Default is
         ``"json"``.
     """
 
-    output_format: Literal["json", "csv", "pdf"] = "json"
+    output_format: Literal["json", "csv", "pdf", "vcf"] = "json"
 
 
 @dataclass(frozen=True)
@@ -160,20 +164,19 @@ class InheritanceConfig:
     Parameters
     ----------
     proband : str
-        Sample name of the proband (individual under investigation).
+        Proband sample name.
     mother : str
-        Sample name of the mother.
+        Mother sample name.
     father : str
-        Sample name of the father.
+        Father sample name.
     patterns : list[str]
-        Inheritance patterns to evaluate. Defaults to all supported patterns:
-        de_novo, dominant, recessive, compound_het, x_linked.
+        Inheritance patterns to evaluate. Defaults to all supported.
 
     Raises
     ------
     ValueError
-        If any sample name is empty, patterns list is empty, or any pattern
-        is not in the supported set.
+        If any sample name is empty, patterns list is empty, or any
+        pattern is not in the supported set.
     """
 
     proband: str
@@ -181,42 +184,50 @@ class InheritanceConfig:
     father: str
     patterns: list[str] = field(
         default_factory=lambda: [
-            "de_novo",
-            "dominant",
-            "recessive",
-            "compound_het",
-            "x_linked",
+            "de_novo", "dominant", "recessive",
+            "compound_het", "x_linked",
         ]
     )
 
-    SUPPORTED_PATTERNS: ClassVar[frozenset[str]] = frozenset(
-        {
-            "de_novo",
-            "dominant",
-            "recessive",
-            "compound_het",
-            "x_linked",
-        }
+    SUPPORTED_PATTERNS: frozenset[str] = field(
+        default=frozenset({
+            "de_novo", "dominant", "recessive",
+            "compound_het", "x_linked",
+        }),
+        init=False,
+        repr=False,
     )
 
     def __post_init__(self) -> None:
         if not self.proband:
-            raise ValueError("proband sample name is required and cannot be empty")
+            raise ValueError("proband sample name is required")
         if not self.mother:
-            raise ValueError("mother sample name is required and cannot be empty")
+            raise ValueError("mother sample name is required")
         if not self.father:
-            raise ValueError("father sample name is required and cannot be empty")
+            raise ValueError("father sample name is required")
         if not self.patterns:
             raise ValueError(
-                "at least one inheritance pattern is required; "
-                f"supported patterns are: {sorted(self.SUPPORTED_PATTERNS)}"
+                "at least one inheritance pattern is required"
             )
-        invalid = [p for p in self.patterns if p not in self.SUPPORTED_PATTERNS]
-        if invalid:
-            raise ValueError(
-                f"invalid inheritance pattern(s): {invalid}; "
-                f"supported patterns are: {sorted(self.SUPPORTED_PATTERNS)}"
-            )
+        for pattern in self.patterns:
+            if pattern not in self.SUPPORTED_PATTERNS:
+                raise ValueError(
+                    f"unsupported pattern '{pattern}'. "
+                    f"Valid: {sorted(self.SUPPORTED_PATTERNS)}"
+                )
+
+
+@dataclass(frozen=True)
+class GeneFilterConfig:
+    """Configuration for gene-list-based variant filtering.
+
+    Parameters
+    ----------
+    gene_list_path : Path
+        Path to a plain text file containing one gene symbol per line.
+    """
+
+    gene_list_path: Path
 
 
 @dataclass(frozen=True)
@@ -239,9 +250,9 @@ class PipelineConfig:
         Report generation format settings.
     missing_data : MissingDataConfig
         Missing data handling and warning threshold settings.
-    inheritance : InheritanceConfig | None
-        Trio inheritance pattern classification settings. When None (default),
-        the pipeline uses standard SampleExtractor behavior.
+    gene_filter : GeneFilterConfig | None
+        Gene list filtering settings. When None, gene filtering is disabled
+        and the annotated stream passes directly to prioritization.
     """
 
     vcf_path: Path
@@ -251,4 +262,5 @@ class PipelineConfig:
     prioritization: PrioritizationConfig = field(default_factory=PrioritizationConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
     missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
-    inheritance: InheritanceConfig | None = field(default=None)
+    gene_filter: GeneFilterConfig | None = field(default=None)
+    inheritance: "InheritanceConfig | None" = field(default=None)

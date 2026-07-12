@@ -103,6 +103,15 @@ def scored_variant_for_classification(draw: st.DrawFn) -> ScoredVariant:
     )
     cadd_normalized = min(cadd_phred / 99.0, 1.0) if cadd_phred is not None else None
 
+    # SpliceAI score: None (missing) or a value in [0, 1]
+    spliceai_available = draw(st.booleans())
+    if spliceai_available:
+        spliceai_score = draw(
+            st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
+        )
+    else:
+        spliceai_score = None
+
     composite_rank = None
     if revel_score is not None and cadd_normalized is not None:
         composite_rank = (revel_score * 0.6) + (cadd_normalized * 0.4)
@@ -116,6 +125,7 @@ def scored_variant_for_classification(draw: st.DrawFn) -> ScoredVariant:
         cadd_phred=cadd_phred,
         cadd_normalized=cadd_normalized,
         revel_score=revel_score,
+        spliceai_score=spliceai_score,
         composite_rank=composite_rank,
     )
 
@@ -124,20 +134,36 @@ def scored_variant_for_classification(draw: st.DrawFn) -> ScoredVariant:
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
 def test_pvs1_assigned_iff_nonsense_or_frameshift(variant: ScoredVariant) -> None:
-    """PVS1 is assigned exactly when consequence is Nonsense or Frameshift.
+    """PVS1 is assigned for Nonsense/Frameshift or SPLICE_SITE with SpliceAI > 0.8.
     """
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
 
     consequence = variant.annotated.consequence
-    if consequence in (FunctionalConsequence.NONSENSE, FunctionalConsequence.FRAMESHIFT):
+    spliceai = variant.spliceai_score
+
+    pvs1_expected = (
+        consequence in (
+            FunctionalConsequence.NONSENSE,
+            FunctionalConsequence.FRAMESHIFT,
+        )
+        or (
+            consequence == FunctionalConsequence.SPLICE_SITE
+            and spliceai is not None
+            and spliceai > 0.8
+        )
+    )
+
+    if pvs1_expected:
         assert EvidenceTag.PVS1 in classified.evidence_tags, (
-            f"PVS1 should be assigned for {consequence.value}"
+            f"PVS1 should be assigned for {consequence.value} "
+            f"(spliceai={spliceai})"
         )
     else:
         assert EvidenceTag.PVS1 not in classified.evidence_tags, (
-            f"PVS1 should NOT be assigned for {consequence.value}"
+            f"PVS1 should NOT be assigned for {consequence.value} "
+            f"(spliceai={spliceai})"
         )
 
 @given(variant=scored_variant_for_classification())
@@ -152,7 +178,7 @@ def test_pm2_assigned_iff_af_below_threshold(variant: ScoredVariant) -> None:
     af = variant.annotated.allele_frequency
 
     if af is None:
-        # Data unavailable — PM2 should be omitted
+        # Data unavailable, PM2 should be omitted
         assert EvidenceTag.PM2 not in classified.evidence_tags, (
             "PM2 should be omitted when allele frequency is unavailable"
         )
@@ -170,30 +196,52 @@ def test_pm2_assigned_iff_af_below_threshold(variant: ScoredVariant) -> None:
 
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
-def test_pp3_assigned_iff_revel_above_threshold(variant: ScoredVariant) -> None:
-    """PP3 is assigned when REVEL > 0.7; omitted when REVEL is None (missing).
+def test_pp3_assigned_iff_revel_or_spliceai_triggers(
+    variant: ScoredVariant,
+) -> None:
+    """PP3 assigned when REVEL > 0.7, or SpliceAI > 0.5 on splice-adjacent.
     """
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
 
     revel = variant.revel_score
+    spliceai = variant.spliceai_score
+    consequence = variant.annotated.consequence
 
-    if revel is None:
-        assert EvidenceTag.PP3 not in classified.evidence_tags, (
-            "PP3 should be omitted when REVEL score is unavailable"
-        )
-        assert "REVEL" in classified.missing_data_sources, (
-            "REVEL should be listed as missing when revel_score is None"
-        )
-    elif revel > 0.7:
+    revel_available = revel is not None
+    spliceai_available = spliceai is not None
+
+    splice_adjacent = consequence in (
+        FunctionalConsequence.SPLICE_SITE,
+        FunctionalConsequence.MISSENSE,
+    )
+
+    # PP3 cannot fire if neither predictor is available
+    if not revel_available and not spliceai_available:
+        assert EvidenceTag.PP3 not in classified.evidence_tags
+        return
+
+    # REVEL path triggers PP3
+    if revel_available and revel > 0.7:
         assert EvidenceTag.PP3 in classified.evidence_tags, (
             f"PP3 should be assigned for REVEL={revel} > 0.7"
         )
-    else:
-        assert EvidenceTag.PP3 not in classified.evidence_tags, (
-            f"PP3 should NOT be assigned for REVEL={revel} <= 0.7"
+        return
+
+    # SpliceAI path triggers PP3 on splice-adjacent
+    if spliceai_available and spliceai > 0.5 and splice_adjacent:
+        assert EvidenceTag.PP3 in classified.evidence_tags, (
+            f"PP3 should be assigned for SpliceAI={spliceai} > 0.5 "
+            f"on {consequence.value}"
         )
+        return
+
+    # Neither trigger met
+    assert EvidenceTag.PP3 not in classified.evidence_tags, (
+        f"PP3 should NOT be assigned: REVEL={revel}, "
+        f"SpliceAI={spliceai}, consequence={consequence.value}"
+    )
 
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
@@ -235,10 +283,19 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
 
     expected_tags: set[EvidenceTag] = set()
 
-    # PVS1: consequence in {Nonsense, Frameshift}
-    if variant.annotated.consequence in (
+    consequence = variant.annotated.consequence
+    spliceai = variant.spliceai_score
+
+    # PVS1: consequence in {Nonsense, Frameshift} OR SPLICE_SITE + SpliceAI > 0.8
+    if consequence in (
         FunctionalConsequence.NONSENSE,
         FunctionalConsequence.FRAMESHIFT,
+    ):
+        expected_tags.add(EvidenceTag.PVS1)
+    elif (
+        consequence == FunctionalConsequence.SPLICE_SITE
+        and spliceai is not None
+        and spliceai > 0.8
     ):
         expected_tags.add(EvidenceTag.PVS1)
 
@@ -247,10 +304,23 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     if af is not None and af < 0.0001:
         expected_tags.add(EvidenceTag.PM2)
 
-    # PP3: REVEL > 0.7 (skip if REVEL is None)
+    # PP3: REVEL > 0.7 OR SpliceAI > 0.5 on splice-adjacent
     revel = variant.revel_score
-    if revel is not None and revel > 0.7:
-        expected_tags.add(EvidenceTag.PP3)
+    revel_available = revel is not None
+    spliceai_available = spliceai is not None
+
+    if revel_available or spliceai_available:
+        if revel_available and revel > 0.7:
+            expected_tags.add(EvidenceTag.PP3)
+        elif (
+            spliceai_available
+            and spliceai > 0.5
+            and consequence in (
+                FunctionalConsequence.SPLICE_SITE,
+                FunctionalConsequence.MISSENSE,
+            )
+        ):
+            expected_tags.add(EvidenceTag.PP3)
 
     # PP5: ClinVar == Pathogenic (skip if assertion is None)
     assertion = variant.annotated.clinvar_assertion
@@ -272,12 +342,53 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
 
     expected_missing: set[str] = set()
 
+    # gnomAD missing when AF is None
     if variant.annotated.allele_frequency is None:
         expected_missing.add("gnomAD")
-    if variant.revel_score is None:
-        expected_missing.add("REVEL")
+
+    # ClinVar missing when assertion is None
     if variant.annotated.clinvar_assertion is None:
         expected_missing.add("ClinVar")
+
+    # PP3 missing source tracking
+    revel = variant.revel_score
+    spliceai = variant.spliceai_score
+    consequence = variant.annotated.consequence
+    revel_available = revel is not None
+    spliceai_available = spliceai is not None
+
+    if not revel_available and not spliceai_available:
+        # Both unavailable, both recorded
+        expected_missing.add("REVEL")
+        expected_missing.add("SpliceAI")
+    elif revel_available and revel > 0.7:
+        # REVEL triggered PP3, no missing sources from PP3
+        pass
+    elif (
+        spliceai_available
+        and spliceai > 0.5
+        and consequence in (
+            FunctionalConsequence.SPLICE_SITE,
+            FunctionalConsequence.MISSENSE,
+        )
+    ):
+        # SpliceAI triggered PP3, no missing sources from PP3
+        pass
+    else:
+        # Neither triggered, record whichever is unavailable
+        if not revel_available:
+            expected_missing.add("REVEL")
+        if not spliceai_available:
+            expected_missing.add("SpliceAI")
+
+    # PVS1 missing source tracking for SPLICE_SITE
+    if consequence == FunctionalConsequence.SPLICE_SITE:
+        if consequence not in (
+            FunctionalConsequence.NONSENSE,
+            FunctionalConsequence.FRAMESHIFT,
+        ):
+            if spliceai is None:
+                expected_missing.add("SpliceAI")
 
     assert classified.missing_data_sources == frozenset(expected_missing), (
         f"Expected missing sources {expected_missing}, "

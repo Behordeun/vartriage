@@ -3,11 +3,10 @@
 ## Data flow
 
 ```text
-┌──────────┐    ┌───────────────┐    ┌──────────────────┐    ┌──────────────────────┐    ┌────────────────┐    ┌─────────────────┐
-│ VCFParser │───▶│ QualityFilter │───▶│ AnnotationEngine │───▶│ PrioritizationEngine │───▶│ ACMGClassifier │───▶│ ReportGenerator │
-└──────────┘    └───────────────┘    └──────────────────┘    └──────────────────────┘    └────────────────┘    └─────────────────┘
-    Variant          Variant           AnnotatedVariant           ScoredVariant          ClassifiedVariant         JSON/CSV/PDF
+VCFParser → QualityFilter → AnnotationEngine → [GeneFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
+
+Stages in brackets are optional. GeneFilter activates when `--gene-list` is provided.
 
 Each stage consumes an iterator and yields an iterator. Only one batch lives in memory at a time.
 
@@ -96,7 +95,7 @@ Enriches each variant with three annotations, processed in configurable batches 
 **Annotations added:**
 
 | Annotation | Source | Lookup method |
-|------------|--------|---------------|
+| ------------ | -------- | --------------- |
 | Functional consequence | GTF/GFF gene models | Coordinate overlap |
 | Population frequency | gnomAD | Exact match (chrom, pos, ref, alt) |
 | ClinVar assertion | ClinVar | Exact match (chrom, pos, ref, alt) |
@@ -118,6 +117,31 @@ Both produce the same results. The accelerated backends run faster on large refe
 
 **Configuration:** `AnnotationConfig(gene_annotation_path, gnomad_path, clinvar_path=None, batch_size=10_000)`
 
+## Gene Filtering (optional)
+
+**Class:** `GeneFilter`
+
+Restricts the annotated variant stream to only those variants whose gene symbol appears in a user-supplied text file.
+
+**Input:** Iterator of `AnnotatedVariant`.
+
+**Output:** Iterator of `AnnotatedVariant` (subset).
+
+**Behavior:**
+
+- Loads a plain text file at construction: one gene symbol per line, comment lines (`#`) and blank lines skipped
+- Normalizes all symbols to uppercase for case-insensitive matching
+- Yields only variants whose `gene_name` (from annotation) matches a gene in the set
+- Intergenic variants (`gene_name=None`) are silently excluded
+- After the stream is consumed, logs a WARNING listing any panel genes with zero matching variants
+
+**Errors:**
+
+- `FileNotFoundError` if the gene list file does not exist
+- `ValueError` if the file contains zero valid gene symbols
+
+**Configuration:** `GeneFilterConfig(gene_list_path=Path("my_panel.txt"))`
+
 ## Prioritization
 
 **Class:** `PrioritizationEngine`
@@ -132,15 +156,17 @@ Filters by allele frequency and computes composite pathogenicity scores.
 
 1. **Frequency gate:** Drops variants with `allele_frequency > max_allele_frequency` (default 0.01). Variants marked `frequency_unknown` always pass.
 
-2. **Composite scoring:** Normalizes and combines CADD + REVEL scores:
+2. **Composite scoring:** Normalizes and combines CADD + REVEL + SpliceAI scores:
    - CADD normalized: `min(cadd_phred / 99.0, 1.0)`
-   - Composite: `(REVEL * 0.6) + (CADD_normalized * 0.4)`
-   - Falls back to the single available score when only one source exists
+   - Three scores present: `(REVEL * 0.5) + (CADD_normalized * 0.3) + (SpliceAI * 0.2)`
+   - Two scores present: weights redistribute proportionally among available scores
+   - Single score present: used as-is
+   - Falls back to legacy 0.6/0.4 formula when SpliceAI is not configured
    - Variants without any scores get `composite_rank=None` and sort last
 
 **Memory safety:** On `MemoryError`, automatically retries with smaller chunk sizes (capped at 500,000 per chunk).
 
-**Configuration:** `PrioritizationConfig(max_allele_frequency=0.01, cadd_scores_path=None, revel_scores_path=None, batch_size=10_000)`
+**Configuration:** `PrioritizationConfig(max_allele_frequency=0.01, cadd_scores_path=None, revel_scores_path=None, spliceai_scores_path=None, batch_size=10_000)`
 
 ## ACMG Classification
 
@@ -155,10 +181,10 @@ Assigns ACMG/AMP 2015 evidence tags and determines final classification.
 **Evidence criteria evaluated:**
 
 | Tag | Strength | Condition |
-|-----|----------|-----------|
-| PVS1 | Very Strong | Consequence is Nonsense or Frameshift |
+| ----- | ---------- | ----------- |
+| PVS1 | Very Strong | Consequence is Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
 | PM2 | Moderate | gnomAD AF < 0.0001 |
-| PP3 | Supporting | REVEL score > 0.7 |
+| PP3 | Supporting | REVEL score > 0.7, or SpliceAI > 0.5 on splice-adjacent variant |
 | PP5 | Supporting | ClinVar Pathogenic, no conflicting Benign/Likely_Benign |
 
 **Combining rules:**
@@ -186,6 +212,7 @@ Serializes classified variants to JSON, CSV, or PDF.
 - **JSON:** Array of variant objects with all fields
 - **CSV:** One row per variant, header row included
 - **PDF:** Formatted clinical report (requires `reportlab` or uses fallback renderer)
+- **VCF:** Bgzipped VCF with tabix index, injecting VARTRIAGE_* INFO fields for classified variants
 
 **Atomicity:** Writes to a temp file first, then performs an atomic rename. If the write fails, no partial output exists at the target path.
 

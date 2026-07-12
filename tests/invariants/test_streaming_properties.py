@@ -107,7 +107,7 @@ class CountingIterator:
 def test_json_streaming_bounded_buffer(
     variants: list[ClassifiedVariant],
 ) -> None:
-    """JSON writer pulls variants one at a time — no bulk buffering."""
+    """JSON writer pulls variants one at a time, no bulk buffering."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "report.json"
         counter = CountingIterator(variants)
@@ -124,7 +124,7 @@ def test_json_streaming_bounded_buffer(
 def test_csv_streaming_bounded_buffer(
     variants: list[ClassifiedVariant],
 ) -> None:
-    """CSV writer pulls variants one at a time — no bulk buffering."""
+    """CSV writer pulls variants one at a time, no bulk buffering."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "report.csv"
         counter = CountingIterator(variants)
@@ -340,7 +340,7 @@ def test_malformed_line_resilience(
 
     for key, score in result.items():
         assert key in expected, (
-            f"Unexpected key {key} in result — not from a valid line"
+            f"Unexpected key {key} in result, not from a valid line"
         )
         assert score == expected[key], (
             f"Score mismatch for {key}: got {score}, expected {expected[key]}"
@@ -348,5 +348,5 @@ def test_malformed_line_resilience(
 
     for key in expected:
         assert key in result, (
-            f"Expected key {key} missing from result — valid line was skipped"
+            f"Expected key {key} missing from result. Valid line was skipped"
         )

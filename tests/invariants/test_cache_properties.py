@@ -433,7 +433,7 @@ def test_tsv_extension_does_not_route_to_tabix(filename: str) -> None:
 def test_routing_is_mutually_exclusive_for_known_extensions(
     filename: str,
 ) -> None:
-    """Tabix and TSV routing are mutually exclusive — a filename
+    """Tabix and TSV routing are mutually exclusive. A filename
     cannot match both routing conditions.
     """
     is_tabix = _routes_to_tabix(filename)

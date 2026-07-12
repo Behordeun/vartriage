@@ -1,8 +1,9 @@
 """Pathogenicity score normalization and composite ranking.
 
-This module normalizes CADD Phred and REVEL scores to a common 0.0-1.0
-scale, computes a weighted composite pathogenicity rank, and sorts
-variants in descending order by that rank with nulls placed last.
+This module normalizes CADD Phred, REVEL, and SpliceAI scores to a
+common 0.0-1.0 scale, computes a weighted composite pathogenicity rank,
+and sorts variants in descending order by that rank with nulls placed
+last.
 
 Numpy vectorized operations are used for batch normalization when
 processing 1,000+ variants to avoid iterative Python loops.
@@ -24,6 +25,10 @@ from vartriage.models.warnings import MissingDataWarning
 REVEL_WEIGHT: float = 0.6
 CADD_WEIGHT: float = 0.4
 CADD_MAX_PHRED: float = 99.0
+
+REVEL_WEIGHT_3: float = 0.5
+CADD_WEIGHT_3: float = 0.3
+SPLICEAI_WEIGHT_3: float = 0.2
 
 
 class ScoreValidationWarning(VarTriageWarning):
@@ -116,15 +121,58 @@ def validate_revel_scores(
     return result
 
 
+def validate_spliceai_scores(
+    scores: Sequence[Optional[float]],
+) -> list[Optional[float]]:
+    """Validate SpliceAI scores are within the 0.0-1.0 range.
+
+    Parameters
+    ----------
+    scores : Sequence[Optional[float]]
+        SpliceAI scores. None entries represent missing data.
+
+    Returns
+    -------
+    list[Optional[float]]
+        Validated scores. Out-of-range scores are rejected (returned as
+        None) and trigger a ScoreValidationWarning. None inputs remain None.
+    """
+    n = len(scores)
+    if n == 0:
+        return []
+
+    result: list[Optional[float]] = [None] * n
+
+    for i, score in enumerate(scores):
+        if score is None:
+            continue
+        if score < 0.0 or score > 1.0:
+            warnings.warn(
+                f"SpliceAI score ({score}) at index {i} outside valid range "
+                f"[0.0, 1.0]; excluding from composite calculation.",
+                ScoreValidationWarning,
+                stacklevel=2,
+            )
+            continue
+        result[i] = score
+
+    return result
+
+
 def compute_composite_ranks(
     cadd_normalized: Sequence[Optional[float]],
     revel_scores: Sequence[Optional[float]],
+    spliceai_scores: Optional[Sequence[Optional[float]]] = None,
 ) -> list[Optional[float]]:
     """Compute composite pathogenicity ranks from normalized scores.
 
-    Uses the formula: (REVEL * 0.6) + (CADD_normalized * 0.4) when both
-    are available. Falls back to the single available score when only one
-    is present. Returns None when neither score is available.
+    When ``spliceai_scores`` is None (SpliceAI not configured), the legacy
+    two-score formula is used: REVEL * 0.6 + CADD * 0.4 when both are
+    present, with single-score fallback otherwise.
+
+    When ``spliceai_scores`` is provided as a sequence, dynamic proportional
+    weight redistribution is applied based on the base 3-score weights
+    (REVEL 0.5, CADD 0.3, SpliceAI 0.2).
 
     Parameters
     ----------
@@ -132,6 +180,9 @@ def compute_composite_ranks(
         Normalized CADD scores (0.0-1.0 scale).
     revel_scores : Sequence[Optional[float]]
         Validated REVEL scores (0.0-1.0 scale).
+    spliceai_scores : Optional[Sequence[Optional[float]]]
+        Validated SpliceAI scores (0.0-1.0 scale). None means SpliceAI
+        is not configured and the legacy formula should be used.
 
     Returns
     -------
@@ -150,8 +201,29 @@ def compute_composite_ranks(
             f"CADD has {n}, REVEL has {len(revel_scores)}"
         )
 
+    if spliceai_scores is not None and n != len(spliceai_scores):
+        raise ValueError(
+            f"Score sequences must have equal length: "
+            f"CADD has {n}, SpliceAI has {len(spliceai_scores)}"
+        )
+
     if n == 0:
         return []
+
+    # Legacy path: SpliceAI not configured, use original 0.6/0.4 formula
+    if spliceai_scores is None:
+        return _compute_legacy_ranks(cadd_normalized, revel_scores)
+
+    # 3-score path: dynamic proportional weight redistribution
+    return _compute_three_score_ranks(cadd_normalized, revel_scores, spliceai_scores)
+
+
+def _compute_legacy_ranks(
+    cadd_normalized: Sequence[Optional[float]],
+    revel_scores: Sequence[Optional[float]],
+) -> list[Optional[float]]:
+    """Legacy two-score composite rank using REVEL*0.6 + CADD*0.4."""
+    n = len(cadd_normalized)
 
     cadd_arr = np.array(
         [c if c is not None else np.nan for c in cadd_normalized],
@@ -183,16 +255,84 @@ def compute_composite_ranks(
     return result
 
 
+def _compute_three_score_ranks(
+    cadd_normalized: Sequence[Optional[float]],
+    revel_scores: Sequence[Optional[float]],
+    spliceai_scores: Sequence[Optional[float]],
+) -> list[Optional[float]]:
+    """Three-score composite rank with dynamic proportional weight redistribution.
+
+    Base weights: REVEL=0.5, CADD=0.3, SpliceAI=0.2.
+    When one or more scores are missing for a variant, the available scores'
+    base weights are rescaled to sum to 1.0.
+    """
+    n = len(cadd_normalized)
+
+    result: list[Optional[float]] = []
+
+    for i in range(n):
+        revel = revel_scores[i]
+        cadd = cadd_normalized[i]
+        splice = spliceai_scores[i]
+
+        has_revel = revel is not None
+        has_cadd = cadd is not None
+        has_splice = splice is not None
+
+        available_count = sum([has_revel, has_cadd, has_splice])
+
+        if available_count == 0:
+            result.append(None)
+        elif available_count == 1:
+            # Single score: use it directly (weight = 1.0)
+            if has_revel:
+                result.append(revel)
+            elif has_cadd:
+                result.append(cadd)
+            else:
+                result.append(splice)
+        elif available_count == 3:
+            # All three: base weights
+            rank = (
+                revel * REVEL_WEIGHT_3  # type: ignore[operator]
+                + cadd * CADD_WEIGHT_3  # type: ignore[operator]
+                + splice * SPLICEAI_WEIGHT_3  # type: ignore[operator]
+            )
+            result.append(float(rank))
+        else:
+            # Two scores: proportional redistribution
+            weight_sum = 0.0
+            rank = 0.0
+            if has_revel:
+                weight_sum += REVEL_WEIGHT_3
+            if has_cadd:
+                weight_sum += CADD_WEIGHT_3
+            if has_splice:
+                weight_sum += SPLICEAI_WEIGHT_3
+
+            if has_revel:
+                rank += revel * (REVEL_WEIGHT_3 / weight_sum)  # type: ignore[operator]
+            if has_cadd:
+                rank += cadd * (CADD_WEIGHT_3 / weight_sum)  # type: ignore[operator]
+            if has_splice:
+                rank += splice * (SPLICEAI_WEIGHT_3 / weight_sum)  # type: ignore[operator]
+
+            result.append(float(rank))
+
+    return result
+
+
 def score_variants(
     variants: Sequence[AnnotatedVariant],
     cadd_scores: Sequence[Optional[float]],
     revel_scores: Sequence[Optional[float]],
+    spliceai_scores: Optional[Sequence[Optional[float]]] = None,
 ) -> list[ScoredVariant]:
     """Score a batch of annotated variants and sort by composite rank.
 
-    Normalizes CADD Phred scores, validates REVEL scores, computes composite
-    pathogenicity ranks, and sorts the result in descending order by
-    composite_rank with null-ranked variants placed last.
+    Normalizes CADD Phred scores, validates REVEL and SpliceAI scores,
+    computes composite pathogenicity ranks, and sorts the result in
+    descending order by composite_rank with null-ranked variants placed last.
 
     Emits MissingDataWarning for variants with no pathogenicity scores.
 
@@ -204,6 +344,9 @@ def score_variants(
         Raw CADD Phred scores aligned with the variants sequence.
     revel_scores : Sequence[Optional[float]]
         Raw REVEL scores aligned with the variants sequence.
+    spliceai_scores : Optional[Sequence[Optional[float]]]
+        Raw SpliceAI scores aligned with the variants sequence. None
+        means SpliceAI is not configured (legacy mode).
 
     Returns
     -------
@@ -223,12 +366,25 @@ def score_variants(
             f"revel_scores={len(revel_scores)}"
         )
 
+    if spliceai_scores is not None and n != len(spliceai_scores):
+        raise ValueError(
+            f"All input sequences must have equal length. "
+            f"variants={n}, spliceai_scores={len(spliceai_scores)}"
+        )
+
     if n == 0:
         return []
 
     cadd_normalized = normalize_cadd_scores(cadd_scores)
     revel_validated = validate_revel_scores(revel_scores)
-    composites = compute_composite_ranks(cadd_normalized, revel_validated)
+
+    spliceai_validated: Optional[list[Optional[float]]] = None
+    if spliceai_scores is not None:
+        spliceai_validated = validate_spliceai_scores(spliceai_scores)
+
+    composites = compute_composite_ranks(
+        cadd_normalized, revel_validated, spliceai_validated
+    )
 
     missing_data_warnings: list[MissingDataWarning] = []
     scored: list[ScoredVariant] = []
@@ -236,6 +392,10 @@ def score_variants(
     for i, variant in enumerate(variants):
         raw_cadd = cadd_scores[i] if cadd_normalized[i] is not None else None
         composite = composites[i]
+
+        splice_score: Optional[float] = None
+        if spliceai_validated is not None:
+            splice_score = spliceai_validated[i]
 
         if composite is None:
             warning = MissingDataWarning(
@@ -253,6 +413,7 @@ def score_variants(
             cadd_phred=raw_cadd,
             cadd_normalized=cadd_normalized[i],
             revel_score=revel_validated[i],
+            spliceai_score=splice_score,
             composite_rank=composite,
         )
         scored.append(scored_variant)
