@@ -12,12 +12,8 @@ import pytest
 from vartriage.filter.region_filter import RegionFilter
 from vartriage.filter.sample_extractor import SampleExtractor
 from vartriage.io.exceptions import ParseError
-from vartriage.models.config import (
-    RegionFilterConfig,
-    SampleConfig,
-)
+from vartriage.models.config import RegionFilterConfig, SampleConfig
 from vartriage.models.variant import Variant
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,9 +40,7 @@ def _make_variant(
 
 def _write_bed(content: str) -> Path:
     """Write content to a temp BED file, return path."""
-    f = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".bed", delete=False
-    )
+    f = tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False)
     f.write(content)
     f.close()
     return Path(f.name)
@@ -194,11 +188,7 @@ class TestRegionFilterBEDLoading:
 
     def test_track_and_browser_lines_skipped(self) -> None:
         """Track and browser header lines are skipped."""
-        content = (
-            "browser position chr1:1-1000\n"
-            "track name=test\n"
-            "chr1\t50\t150\n"
-        )
+        content = "browser position chr1:1-1000\n" "track name=test\n" "chr1\t50\t150\n"
         bed_path = _write_bed(content)
         try:
             config = RegionFilterConfig(bed_path=bed_path)
@@ -360,20 +350,30 @@ class TestCLIParsing:
 
     def test_regions_parsed(self) -> None:
         """--regions parsed as Path."""
-        args = self._parse_args([
-            "--vcf", "input.vcf",
-            "--output", "out.json",
-            "--regions", "/path/to/regions.bed",
-        ])
+        args = self._parse_args(
+            [
+                "--vcf",
+                "input.vcf",
+                "--output",
+                "out.json",
+                "--regions",
+                "/path/to/regions.bed",
+            ]
+        )
         assert args.regions == Path("/path/to/regions.bed")
 
     def test_sample_parsed(self) -> None:
         """--sample parsed as string."""
-        args = self._parse_args([
-            "--vcf", "input.vcf",
-            "--output", "out.json",
-            "--sample", "NA12878",
-        ])
+        args = self._parse_args(
+            [
+                "--vcf",
+                "input.vcf",
+                "--output",
+                "out.json",
+                "--sample",
+                "NA12878",
+            ]
+        )
         assert args.sample == "NA12878"
 
     def test_min_gq_without_sample_prints_error(
@@ -382,11 +382,16 @@ class TestCLIParsing:
         """--min-gq without --sample triggers error exit."""
         import sys
 
-        args = self._parse_args([
-            "--vcf", "input.vcf",
-            "--output", "out.json",
-            "--min-gq", "30",
-        ])
+        args = self._parse_args(
+            [
+                "--vcf",
+                "input.vcf",
+                "--output",
+                "out.json",
+                "--min-gq",
+                "30",
+            ]
+        )
         assert args.min_gq == 30
         assert args.sample is None
 
@@ -395,9 +400,7 @@ class TestCLIParsing:
         with pytest.raises(SystemExit) as exc_info:
             from vartriage.cli import _run_pipeline
 
-            with tempfile.NamedTemporaryFile(
-                suffix=".vcf", delete=False
-            ) as f:
+            with tempfile.NamedTemporaryFile(suffix=".vcf", delete=False) as f:
                 f.write(b"##fileformat=VCFv4.2\n")
                 vcf_path = Path(f.name)
 
@@ -408,28 +411,35 @@ class TestCLIParsing:
 
         assert exc_info.value.code == 2
         captured = capsys.readouterr()
-        assert (
-            "min-gq" in captured.err.lower()
-            or "sample" in captured.err.lower()
-        )
+        assert "min-gq" in captured.err.lower() or "sample" in captured.err.lower()
 
     def test_all_absent_produces_none(self) -> None:
         """No --regions/--sample/--min-gq means all None."""
-        args = self._parse_args([
-            "--vcf", "input.vcf",
-            "--output", "out.json",
-        ])
+        args = self._parse_args(
+            [
+                "--vcf",
+                "input.vcf",
+                "--output",
+                "out.json",
+            ]
+        )
         assert args.regions is None
         assert args.sample is None
         assert args.min_gq is None
 
     def test_min_gq_parsed_as_int(self) -> None:
         """--min-gq parsed as integer."""
-        args = self._parse_args([
-            "--vcf", "input.vcf",
-            "--output", "out.json",
-            "--sample", "S1",
-            "--min-gq", "25",
-        ])
+        args = self._parse_args(
+            [
+                "--vcf",
+                "input.vcf",
+                "--output",
+                "out.json",
+                "--sample",
+                "S1",
+                "--min-gq",
+                "25",
+            ]
+        )
         assert args.min_gq == 25
         assert isinstance(args.min_gq, int)

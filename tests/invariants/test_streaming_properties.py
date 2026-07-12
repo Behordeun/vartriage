@@ -16,24 +16,16 @@ from unittest.mock import patch
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from tests.generators.variants import evidence_tag_set, scored_variant
+from vartriage.models.config import ReportConfig
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 from vartriage.prioritization.score_loader import ScoreLoader
 from vartriage.reporting.csv_writer import write_csv
-from vartriage.reporting.json_writer import write_json
 from vartriage.reporting.generator import ReportGenerator
-from vartriage.models.config import ReportConfig
-
-from tests.generators.variants import scored_variant, evidence_tag_set
-
+from vartriage.reporting.json_writer import write_json
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -66,9 +58,7 @@ def classified_variant_list(
     draw: st.DrawFn, min_size: int = 1, max_size: int = 30
 ) -> list[ClassifiedVariant]:
     """Build a list of ClassifiedVariants."""
-    return draw(
-        st.lists(classified_variant(), min_size=min_size, max_size=max_size)
-    )
+    return draw(st.lists(classified_variant(), min_size=min_size, max_size=max_size))
 
 
 # ---------------------------------------------------------------------------
@@ -113,9 +103,9 @@ def test_json_streaming_bounded_buffer(
         counter = CountingIterator(variants)
         write_json(counter, output_path)
 
-        assert counter.consumed_count == len(variants), (
-            f"Expected {len(variants)} consumed, got {counter.consumed_count}"
-        )
+        assert counter.consumed_count == len(
+            variants
+        ), f"Expected {len(variants)} consumed, got {counter.consumed_count}"
         assert output_path.exists()
 
 
@@ -130,9 +120,9 @@ def test_csv_streaming_bounded_buffer(
         counter = CountingIterator(variants)
         write_csv(counter, output_path)
 
-        assert counter.consumed_count == len(variants), (
-            f"Expected {len(variants)} consumed, got {counter.consumed_count}"
-        )
+        assert counter.consumed_count == len(
+            variants
+        ), f"Expected {len(variants)} consumed, got {counter.consumed_count}"
         assert output_path.exists()
 
 
@@ -156,9 +146,7 @@ class FailingIterator:
         if self._index >= len(self._items):
             raise StopIteration
         if self._index == self._fail_at:
-            raise IOError(
-                f"Simulated write error at item {self._fail_at}"
-            )
+            raise IOError(f"Simulated write error at item {self._fail_at}")
         item = self._items[self._index]
         self._index += 1
         return item
@@ -279,21 +267,19 @@ def malformed_tsv_line(draw: st.DrawFn) -> str:
         pos = draw(st.integers(min_value=1, max_value=250_000_000))
         ref = draw(st.sampled_from(NUCLEOTIDES))
         alt = draw(st.sampled_from(NUCLEOTIDES))
-        bad_score = draw(
-            st.text(min_size=1, max_size=8, alphabet="abcxyz!@#")
-        )
+        bad_score = draw(st.text(min_size=1, max_size=8, alphabet="abcxyz!@#"))
         return f"{chrom}\t{pos}\t{ref}\t{alt}\t{bad_score}"
     else:
         chrom = draw(st.sampled_from(CHROMOSOMES))
-        bad_pos = draw(
-            st.text(min_size=1, max_size=8, alphabet="abcxyz!@#")
-        )
+        bad_pos = draw(st.text(min_size=1, max_size=8, alphabet="abcxyz!@#"))
         ref = draw(st.sampled_from(NUCLEOTIDES))
         alt = draw(st.sampled_from(NUCLEOTIDES))
         score = draw(
             st.floats(
-                min_value=0.0, max_value=99.0,
-                allow_nan=False, allow_infinity=False,
+                min_value=0.0,
+                max_value=99.0,
+                allow_nan=False,
+                allow_infinity=False,
             )
         )
         return f"{chrom}\t{bad_pos}\t{ref}\t{alt}\t{score}"
@@ -339,14 +325,12 @@ def test_malformed_line_resilience(
     )
 
     for key, score in result.items():
-        assert key in expected, (
-            f"Unexpected key {key} in result, not from a valid line"
-        )
-        assert score == expected[key], (
-            f"Score mismatch for {key}: got {score}, expected {expected[key]}"
-        )
+        assert key in expected, f"Unexpected key {key} in result, not from a valid line"
+        assert (
+            score == expected[key]
+        ), f"Score mismatch for {key}: got {score}, expected {expected[key]}"
 
     for key in expected:
-        assert key in result, (
-            f"Expected key {key} missing from result. Valid line was skipped"
-        )
+        assert (
+            key in result
+        ), f"Expected key {key} missing from result. Valid line was skipped"

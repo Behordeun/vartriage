@@ -10,35 +10,23 @@ import tempfile
 import warnings as python_warnings
 from pathlib import Path
 
-from hypothesis import given, settings, assume
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
-from vartriage.annotation.frequency import DictFrequencyDatabase
+from tests.generators.variants import chromosome, genomic_position, snv_allele
+from vartriage._internal.warning_accumulator import (MissingDataSummaryWarning,
+                                                     WarningAccumulator)
 from vartriage.annotation.clinvar import DictClinVarDatabase
 from vartriage.annotation.engine import AnnotationEngine
-from vartriage._internal.warning_accumulator import (
-    MissingDataSummaryWarning,
-    WarningAccumulator,
-)
-from vartriage.models.config import (
-    AnnotationConfig,
-    MissingDataConfig,
-)
-from vartriage.models.variant import (
-    ClinVarAssertion,
-    Variant,
-)
+from vartriage.annotation.frequency import DictFrequencyDatabase
+from vartriage.models.config import AnnotationConfig, MissingDataConfig
+from vartriage.models.variant import ClinVarAssertion, Variant
 from vartriage.models.warnings import MissingDataWarning
-
-from tests.generators.variants import (
-    chromosome,
-    genomic_position,
-    snv_allele,
-)
 
 # ---------------------------------------------------------------------------
 # Strategies
 # ---------------------------------------------------------------------------
+
 
 @st.composite
 def variant_key(draw: st.DrawFn) -> tuple[str, int, str, str]:
@@ -48,6 +36,7 @@ def variant_key(draw: st.DrawFn) -> tuple[str, int, str, str]:
     ref = draw(snv_allele())
     alt = draw(snv_allele())
     return (chrom, pos, ref, alt)
+
 
 @st.composite
 def missing_data_scenario(
@@ -86,6 +75,7 @@ def missing_data_scenario(
     assume(len(absent_keys) >= 1)
     return db_entries, absent_keys
 
+
 @st.composite
 def multi_source_scenario(
     draw: st.DrawFn,
@@ -109,9 +99,7 @@ def multi_source_scenario(
     assume(len(all_keys) >= 2)
 
     # gnomAD has some keys but not all
-    gnomad_count = draw(
-        st.integers(min_value=1, max_value=max(1, len(all_keys) - 1))
-    )
+    gnomad_count = draw(st.integers(min_value=1, max_value=max(1, len(all_keys) - 1)))
     gnomad_keys = all_keys[:gnomad_count]
     gnomad_db: dict[tuple[str, int, str, str], float] = {}
     for key in gnomad_keys:
@@ -125,19 +113,17 @@ def multi_source_scenario(
         )
 
     # ClinVar has some keys, possibly overlapping with gnomAD
-    clinvar_count = draw(
-        st.integers(min_value=1, max_value=max(1, len(all_keys) - 1))
-    )
+    clinvar_count = draw(st.integers(min_value=1, max_value=max(1, len(all_keys) - 1)))
     clinvar_keys = all_keys[-clinvar_count:]
     clinvar_db: dict[tuple[str, int, str, str], ClinVarAssertion] = {}
     for key in clinvar_keys:
-        clinvar_db[key] = draw(
-            st.sampled_from(list(ClinVarAssertion))
-        )
+        clinvar_db[key] = draw(st.sampled_from(list(ClinVarAssertion)))
 
     return gnomad_db, clinvar_db, all_keys
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(scenario=missing_data_scenario())
 @settings(max_examples=100)
@@ -155,9 +141,7 @@ def test_missing_data_warning_has_all_required_fields(
     """
     db_entries, absent_keys = scenario
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
         f.write("chrom\tpos\tref\talt\taf\n")
         for (chrom, pos, ref, alt), freq in db_entries.items():
             f.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{freq}\n")
@@ -171,8 +155,7 @@ def test_missing_data_warning_has_all_required_fields(
         db.lookup_batch(absent_keys)
 
         assert len(db.warnings) == len(absent_keys), (
-            f"Expected {len(absent_keys)} warnings, "
-            f"got {len(db.warnings)}"
+            f"Expected {len(absent_keys)} warnings, " f"got {len(db.warnings)}"
         )
 
         for warning, key in zip(db.warnings, absent_keys):
@@ -184,23 +167,24 @@ def test_missing_data_warning_has_all_required_fields(
             assert warning.source is not None and warning.source != ""
 
             # Fields must match the queried variant
-            assert warning.chrom == key[0], (
-                f"Warning chrom={warning.chrom} != queried {key[0]}"
-            )
-            assert warning.pos == key[1], (
-                f"Warning pos={warning.pos} != queried {key[1]}"
-            )
-            assert warning.ref == key[2], (
-                f"Warning ref={warning.ref} != queried {key[2]}"
-            )
-            assert warning.alt == key[3], (
-                f"Warning alt={warning.alt} != queried {key[3]}"
-            )
-            assert warning.source == "gnomAD", (
-                f"Warning source={warning.source}, expected 'gnomAD'"
-            )
+            assert (
+                warning.chrom == key[0]
+            ), f"Warning chrom={warning.chrom} != queried {key[0]}"
+            assert (
+                warning.pos == key[1]
+            ), f"Warning pos={warning.pos} != queried {key[1]}"
+            assert (
+                warning.ref == key[2]
+            ), f"Warning ref={warning.ref} != queried {key[2]}"
+            assert (
+                warning.alt == key[3]
+            ), f"Warning alt={warning.alt} != queried {key[3]}"
+            assert (
+                warning.source == "gnomAD"
+            ), f"Warning source={warning.source}, expected 'gnomAD'"
     finally:
         tmp_path.unlink(missing_ok=True)
+
 
 @given(scenario=missing_data_scenario())
 @settings(max_examples=100)
@@ -219,16 +203,12 @@ def test_missing_data_warning_from_annotation_engine(
     db_entries, absent_keys = scenario
 
     # Build a minimal GTF file for the annotation engine
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".gtf", delete=False
-    ) as gtf_f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False) as gtf_f:
         gtf_f.write("# GTF file\n")
         gtf_path = Path(gtf_f.name)
 
     # Build gnomAD TSV
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    ) as gnomad_f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as gnomad_f:
         gnomad_f.write("chrom\tpos\tref\talt\taf\n")
         for (chrom, pos, ref, alt), freq in db_entries.items():
             gnomad_f.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{freq}\n")
@@ -262,9 +242,7 @@ def test_missing_data_warning_from_annotation_engine(
         list(engine.annotate(iter(variants)))
 
         # Each absent variant should have produced a gnomAD warning
-        gnomad_warnings = [
-            w for w in engine.warnings if w.source == "gnomAD"
-        ]
+        gnomad_warnings = [w for w in engine.warnings if w.source == "gnomAD"]
         assert len(gnomad_warnings) == len(absent_keys)
 
         for warning in gnomad_warnings:
@@ -277,7 +255,9 @@ def test_missing_data_warning_from_annotation_engine(
         gtf_path.unlink(missing_ok=True)
         gnomad_path.unlink(missing_ok=True)
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(
     threshold=st.integers(min_value=1, max_value=20),
@@ -320,9 +300,7 @@ def test_summary_warning_emitted_when_threshold_exceeded(
         assert accumulator.summary_emitted is True
 
         # A summary warning should have been emitted via Python warnings
-        summary_warnings = [
-            w for w in caught if issubclass(w.category, UserWarning)
-        ]
+        summary_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
         assert len(summary_warnings) >= 1
 
         summary = accumulator.build_summary()
@@ -332,6 +310,7 @@ def test_summary_warning_emitted_when_threshold_exceeded(
     else:
         assert accumulator.threshold_exceeded is False
         assert accumulator.summary_emitted is False
+
 
 @given(
     threshold=st.integers(min_value=1, max_value=10),
@@ -376,6 +355,7 @@ def test_summary_warning_contains_total_count_and_sources(
     assert "gnomAD" in summary.sources
     assert "ClinVar" in summary.sources
 
+
 @given(
     threshold=st.integers(min_value=5, max_value=50),
     num_warnings=st.integers(min_value=1, max_value=4),
@@ -385,8 +365,7 @@ def test_no_summary_when_below_threshold(
     threshold: int,
     num_warnings: int,
 ) -> None:
-    """No summary warning when count is at or below the threshold.
-    """
+    """No summary warning when count is at or below the threshold."""
     assume(num_warnings <= threshold)
 
     config = MissingDataConfig(warning_threshold=threshold)
@@ -411,12 +390,12 @@ def test_no_summary_when_below_threshold(
     assert accumulator.threshold_exceeded is False
     assert accumulator.summary_emitted is False
 
-    summary_warnings = [
-        w for w in caught if issubclass(w.category, UserWarning)
-    ]
+    summary_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
     assert len(summary_warnings) == 0
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(scenario=multi_source_scenario())
 @settings(max_examples=100)
@@ -437,14 +416,10 @@ def test_partial_multi_source_uses_available_frequency(
     gnomad_db, clinvar_db, all_keys = scenario
 
     # Build gnomAD TSV
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    ) as gnomad_f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as gnomad_f:
         gnomad_f.write("chrom\tpos\tref\talt\taf\n")
         for (chrom, pos, ref, alt), freq in gnomad_db.items():
-            gnomad_f.write(
-                f"{chrom}\t{pos}\t{ref}\t{alt}\t{freq}\n"
-            )
+            gnomad_f.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{freq}\n")
         gnomad_path = Path(gnomad_f.name)
 
     # Build ClinVar TSV
@@ -459,20 +434,14 @@ def test_partial_multi_source_uses_available_frequency(
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".tsv", delete=False
     ) as clinvar_f:
-        clinvar_f.write(
-            "chrom\tpos\tref\talt\tclinical_significance\n"
-        )
+        clinvar_f.write("chrom\tpos\tref\talt\tclinical_significance\n")
         for (chrom, pos, ref, alt), assertion in clinvar_db.items():
             sig_str = assertion_to_str[assertion]
-            clinvar_f.write(
-                f"{chrom}\t{pos}\t{ref}\t{alt}\t{sig_str}\n"
-            )
+            clinvar_f.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{sig_str}\n")
         clinvar_path = Path(clinvar_f.name)
 
     # Build minimal GTF
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".gtf", delete=False
-    ) as gtf_f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False) as gtf_f:
         gtf_f.write("# GTF file\n")
         gtf_path = Path(gtf_f.name)
 
@@ -506,38 +475,28 @@ def test_partial_multi_source_uses_available_frequency(
         for i, key in enumerate(all_keys):
             result = results[i]
             if key in gnomad_db:
-                assert result.allele_frequency is not None, (
-                    f"Key {key} is in gnomAD but got None frequency"
-                )
-                assert abs(
-                    result.allele_frequency - gnomad_db[key]
-                ) < 1e-7
+                assert (
+                    result.allele_frequency is not None
+                ), f"Key {key} is in gnomAD but got None frequency"
+                assert abs(result.allele_frequency - gnomad_db[key]) < 1e-7
                 assert result.frequency_unknown is False
             else:
                 assert result.allele_frequency is None
                 assert result.frequency_unknown is True
 
         # Verify: warnings only emitted for sources that returned no data
-        gnomad_warnings = [
-            w for w in engine.warnings if w.source == "gnomAD"
-        ]
-        clinvar_warnings = [
-            w for w in engine.warnings if w.source == "ClinVar"
-        ]
+        gnomad_warnings = [w for w in engine.warnings if w.source == "gnomAD"]
+        clinvar_warnings = [w for w in engine.warnings if w.source == "ClinVar"]
 
         # gnomAD warnings: only for keys NOT in gnomad_db
-        expected_gnomad_misses = [
-            k for k in all_keys if k not in gnomad_db
-        ]
+        expected_gnomad_misses = [k for k in all_keys if k not in gnomad_db]
         assert len(gnomad_warnings) == len(expected_gnomad_misses), (
             f"Expected {len(expected_gnomad_misses)} gnomAD warnings, "
             f"got {len(gnomad_warnings)}"
         )
 
         # ClinVar warnings: only for keys NOT in clinvar_db
-        expected_clinvar_misses = [
-            k for k in all_keys if k not in clinvar_db
-        ]
+        expected_clinvar_misses = [k for k in all_keys if k not in clinvar_db]
         assert len(clinvar_warnings) == len(expected_clinvar_misses), (
             f"Expected {len(expected_clinvar_misses)} ClinVar warnings, "
             f"got {len(clinvar_warnings)}"
@@ -546,20 +505,21 @@ def test_partial_multi_source_uses_available_frequency(
         # Every gnomAD warning matches an absent key
         for warning in gnomad_warnings:
             w_key = (warning.chrom, warning.pos, warning.ref, warning.alt)
-            assert w_key not in gnomad_db, (
-                f"Got gnomAD warning for key {w_key} that IS in the DB"
-            )
+            assert (
+                w_key not in gnomad_db
+            ), f"Got gnomAD warning for key {w_key} that IS in the DB"
 
         # Every ClinVar warning matches an absent key
         for warning in clinvar_warnings:
             w_key = (warning.chrom, warning.pos, warning.ref, warning.alt)
-            assert w_key not in clinvar_db, (
-                f"Got ClinVar warning for key {w_key} that IS in the DB"
-            )
+            assert (
+                w_key not in clinvar_db
+            ), f"Got ClinVar warning for key {w_key} that IS in the DB"
     finally:
         gnomad_path.unlink(missing_ok=True)
         clinvar_path.unlink(missing_ok=True)
         gtf_path.unlink(missing_ok=True)
+
 
 @given(scenario=multi_source_scenario())
 @settings(max_examples=100)
@@ -579,14 +539,10 @@ def test_partial_resolution_no_warning_for_present_sources(
     gnomad_db, clinvar_db, all_keys = scenario
 
     # Build gnomAD TSV
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    ) as gnomad_f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as gnomad_f:
         gnomad_f.write("chrom\tpos\tref\talt\taf\n")
         for (chrom, pos, ref, alt), freq in gnomad_db.items():
-            gnomad_f.write(
-                f"{chrom}\t{pos}\t{ref}\t{alt}\t{freq}\n"
-            )
+            gnomad_f.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{freq}\n")
         gnomad_path = Path(gnomad_f.name)
 
     # Build ClinVar TSV
@@ -601,20 +557,14 @@ def test_partial_resolution_no_warning_for_present_sources(
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".tsv", delete=False
     ) as clinvar_f:
-        clinvar_f.write(
-            "chrom\tpos\tref\talt\tclinical_significance\n"
-        )
+        clinvar_f.write("chrom\tpos\tref\talt\tclinical_significance\n")
         for (chrom, pos, ref, alt), assertion in clinvar_db.items():
             sig_str = assertion_to_str[assertion]
-            clinvar_f.write(
-                f"{chrom}\t{pos}\t{ref}\t{alt}\t{sig_str}\n"
-            )
+            clinvar_f.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{sig_str}\n")
         clinvar_path = Path(clinvar_f.name)
 
     # Build minimal GTF
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".gtf", delete=False
-    ) as gtf_f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False) as gtf_f:
         gtf_f.write("# GTF file\n")
         gtf_path = Path(gtf_f.name)
 
@@ -649,23 +599,21 @@ def test_partial_resolution_no_warning_for_present_sources(
                 gnomad_warnings_for_key = [
                     w
                     for w in engine.warnings
-                    if w.source == "gnomAD"
-                    and (w.chrom, w.pos, w.ref, w.alt) == key
+                    if w.source == "gnomAD" and (w.chrom, w.pos, w.ref, w.alt) == key
                 ]
-                assert len(gnomad_warnings_for_key) == 0, (
-                    f"Unexpected gnomAD warning for present key {key}"
-                )
+                assert (
+                    len(gnomad_warnings_for_key) == 0
+                ), f"Unexpected gnomAD warning for present key {key}"
 
             if key in clinvar_db:
                 clinvar_warnings_for_key = [
                     w
                     for w in engine.warnings
-                    if w.source == "ClinVar"
-                    and (w.chrom, w.pos, w.ref, w.alt) == key
+                    if w.source == "ClinVar" and (w.chrom, w.pos, w.ref, w.alt) == key
                 ]
-                assert len(clinvar_warnings_for_key) == 0, (
-                    f"Unexpected ClinVar warning for present key {key}"
-                )
+                assert (
+                    len(clinvar_warnings_for_key) == 0
+                ), f"Unexpected ClinVar warning for present key {key}"
     finally:
         gnomad_path.unlink(missing_ok=True)
         clinvar_path.unlink(missing_ok=True)

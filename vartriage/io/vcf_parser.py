@@ -47,9 +47,7 @@ class VCFParser:
     ...         print(variant.chrom, variant.pos)
     """
 
-    def __init__(
-        self, file_path: Path, extract_samples: bool = False
-    ) -> None:
+    def __init__(self, file_path: Path, extract_samples: bool = False) -> None:
         self._file_path = Path(file_path)
         self._vcf: Optional[pysam.VariantFile] = None
         self._closed: bool = False
@@ -75,13 +73,9 @@ class VCFParser:
     def _validate_file_exists(self) -> None:
         """Check the VCF file exists and is readable."""
         if not self._file_path.exists():
-            raise FileNotFoundError(
-                f"VCF file not found: {self._file_path}"
-            )
+            raise FileNotFoundError(f"VCF file not found: {self._file_path}")
         if not self._file_path.is_file():
-            raise FileNotFoundError(
-                f"Path is not a file: {self._file_path}"
-            )
+            raise FileNotFoundError(f"Path is not a file: {self._file_path}")
 
     def _check_tabix_index(self) -> None:
         """For .vcf.gz files, verify a .tbi tabix index exists."""
@@ -266,9 +260,7 @@ class VCFParser:
             info=info,
         )
 
-    def _extract_filter(
-        self, record: pysam.VariantRecord, line_number: int
-    ) -> str:
+    def _extract_filter(self, record: pysam.VariantRecord, line_number: int) -> str:
         """Extract the FILTER field value from a record.
 
         Parameters
@@ -330,9 +322,7 @@ class VCFParser:
             pass
 
         if self._extract_samples:
-            info["_pysam_samples"] = (
-                self._extract_sample_data(record)
-            )
+            info["_pysam_samples"] = self._extract_sample_data(record)
 
         return info
 

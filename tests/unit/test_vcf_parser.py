@@ -12,7 +12,6 @@ from vartriage.io.exceptions import ParseError
 from vartriage.io.vcf_parser import VCFParser
 from vartriage.models.variant import Variant
 
-
 MINIMAL_VCF_CONTENT = """\
 ##fileformat=VCFv4.2
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">

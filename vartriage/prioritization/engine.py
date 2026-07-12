@@ -66,13 +66,9 @@ class PrioritizationEngine:
         self._spliceai_scores: dict[CoordinateKey, float] = {}
 
         if config.cadd_scores_path is not None:
-            self._cadd_scores = self._score_loader.load_cadd(
-                config.cadd_scores_path
-            )
+            self._cadd_scores = self._score_loader.load_cadd(config.cadd_scores_path)
         if config.revel_scores_path is not None:
-            self._revel_scores = self._score_loader.load_revel(
-                config.revel_scores_path
-            )
+            self._revel_scores = self._score_loader.load_revel(config.revel_scores_path)
         if config.spliceai_scores_path is not None:
             self._spliceai_scores = self._score_loader.load_spliceai(
                 config.spliceai_scores_path
@@ -132,9 +128,7 @@ class PrioritizationEngine:
 
             yield from scored
 
-    def _score_batch(
-        self, batch: list[AnnotatedVariant]
-    ) -> list[ScoredVariant]:
+    def _score_batch(self, batch: list[AnnotatedVariant]) -> list[ScoredVariant]:
         """Score a single batch of variants.
 
         Extracts coordinate keys from each variant and performs lookups
@@ -155,12 +149,8 @@ class PrioritizationEngine:
             (v.variant.chrom, v.variant.pos, v.variant.ref, v.variant.alt)
             for v in batch
         ]
-        cadd_scores = self._score_loader.lookup_batch(
-            keys, self._cadd_scores
-        )
-        revel_scores = self._score_loader.lookup_batch(
-            keys, self._revel_scores
-        )
+        cadd_scores = self._score_loader.lookup_batch(keys, self._cadd_scores)
+        revel_scores = self._score_loader.lookup_batch(keys, self._revel_scores)
 
         spliceai_scores = None
         if self._spliceai_scores:
@@ -168,13 +158,9 @@ class PrioritizationEngine:
                 keys, self._spliceai_scores
             )
 
-        return score_variants(
-            batch, cadd_scores, revel_scores, spliceai_scores
-        )
+        return score_variants(batch, cadd_scores, revel_scores, spliceai_scores)
 
-    def _chunked_fallback(
-        self, batch: list[AnnotatedVariant]
-    ) -> list[ScoredVariant]:
+    def _chunked_fallback(self, batch: list[AnnotatedVariant]) -> list[ScoredVariant]:
         """Process a batch in smaller chunks after a MemoryError.
 
         Splits the batch into chunks of at most ``_MAX_CHUNK_SIZE``

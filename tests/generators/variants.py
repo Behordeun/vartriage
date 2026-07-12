@@ -10,21 +10,12 @@ from __future__ import annotations
 from hypothesis import strategies as st
 from hypothesis.strategies import SearchStrategy
 
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    ClassifiedVariant,
-    EvidenceTag,
-    FunctionalConsequence,
-    ClinVarAssertion,
-    ACMGClassification,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 
-
-CHROMOSOMES: list[str] = [
-    f"chr{i}" for i in range(1, 23)
-] + ["chrX", "chrY", "chrM"]
+CHROMOSOMES: list[str] = [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY", "chrM"]
 
 NUCLEOTIDES: list[str] = ["A", "C", "G", "T"]
 

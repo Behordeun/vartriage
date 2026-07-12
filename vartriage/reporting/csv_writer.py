@@ -16,7 +16,6 @@ from typing import Iterator, Sequence, Union
 
 from vartriage.models.variant import ClassifiedVariant
 
-
 CSV_FIELDS: list[str] = [
     "chromosome",
     "position",
@@ -69,9 +68,7 @@ def _variant_to_row(variant: ClassifiedVariant) -> list[str]:
     base = annotated.variant
 
     consequence_value = (
-        annotated.consequence.value
-        if annotated.consequence is not None
-        else None
+        annotated.consequence.value if annotated.consequence is not None else None
     )
     clinvar_value = (
         annotated.clinvar_assertion.value
@@ -79,9 +76,7 @@ def _variant_to_row(variant: ClassifiedVariant) -> list[str]:
         else None
     )
     classification_value = (
-        variant.classification.value
-        if variant.classification is not None
-        else None
+        variant.classification.value if variant.classification is not None else None
     )
 
     evidence_tags_value: str | None

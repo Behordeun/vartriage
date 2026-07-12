@@ -62,14 +62,10 @@ class DictFrequencyDatabase:
             unparseable values).
         """
         if not reference_path.exists():
-            raise ReferenceFileError(
-                f"{reference_path}: file not found"
-            )
+            raise ReferenceFileError(f"{reference_path}: file not found")
 
         if not reference_path.is_file():
-            raise ReferenceFileError(
-                f"{reference_path}: not a regular file"
-            )
+            raise ReferenceFileError(f"{reference_path}: not a regular file")
 
         try:
             with open(reference_path, "r", newline="") as fh:
@@ -77,9 +73,7 @@ class DictFrequencyDatabase:
                 header = next(reader, None)
 
                 if header is None:
-                    raise ReferenceFileError(
-                        f"{reference_path}: file is empty"
-                    )
+                    raise ReferenceFileError(f"{reference_path}: file is empty")
 
                 expected_columns = {"chrom", "pos", "ref", "alt", "af"}
                 header_lower = [col.lower().strip() for col in header]
@@ -91,15 +85,10 @@ class DictFrequencyDatabase:
                         f"{sorted(missing)}"
                     )
 
-                col_idx = {
-                    name: header_lower.index(name)
-                    for name in expected_columns
-                }
+                col_idx = {name: header_lower.index(name) for name in expected_columns}
 
                 for line_num, row in enumerate(reader, start=2):
-                    if not row or all(
-                        field.strip() == "" for field in row
-                    ):
+                    if not row or all(field.strip() == "" for field in row):
                         continue
 
                     try:

@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from vartriage._internal.batch import (
-    _MIN_CHUNK_SIZE,
-    batched,
-    process_with_memory_fallback,
-)
+from vartriage._internal.batch import (_MIN_CHUNK_SIZE, batched,
+                                       process_with_memory_fallback)
 
 
 class TestBatched:
@@ -57,9 +54,7 @@ class TestProcessWithMemoryFallback:
 
     def test_no_memory_error_processes_normally(self) -> None:
         items = [1, 2, 3, 4, 5]
-        result = process_with_memory_fallback(
-            items, lambda xs: [x * 2 for x in xs]
-        )
+        result = process_with_memory_fallback(items, lambda xs: [x * 2 for x in xs])
         assert result == [2, 4, 6, 8, 10]
 
     def test_memory_error_triggers_chunked_fallback(self) -> None:
@@ -72,9 +67,7 @@ class TestProcessWithMemoryFallback:
             return [x * 10 for x in xs]
 
         items = list(range(10))
-        result = process_with_memory_fallback(
-            items, processor, initial_chunk_size=5
-        )
+        result = process_with_memory_fallback(items, processor, initial_chunk_size=5)
         assert sorted(result) == [x * 10 for x in range(10)]
 
     def test_empty_items(self) -> None:
@@ -96,9 +89,7 @@ class TestProcessWithMemoryFallback:
 
         items = list(range(12))
         # initial_chunk_size=8, fails (>4), halves to max(3, 4)=4, succeeds
-        result = process_with_memory_fallback(
-            items, processor, initial_chunk_size=8
-        )
+        result = process_with_memory_fallback(items, processor, initial_chunk_size=8)
         assert sorted(result) == [x + 1 for x in range(12)]
 
     def test_reraises_at_minimum_chunk_size(
@@ -113,6 +104,4 @@ class TestProcessWithMemoryFallback:
 
         items = list(range(10))
         with pytest.raises(MemoryError, match="cannot allocate"):
-            process_with_memory_fallback(
-                items, always_oom, initial_chunk_size=3
-            )
+            process_with_memory_fallback(items, always_oom, initial_chunk_size=3)

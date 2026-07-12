@@ -56,9 +56,7 @@ class InheritanceFilter:
         self._father = config.father
         self._patterns = config.patterns
 
-    def apply(
-        self, variants: Iterator[Variant]
-    ) -> Iterator[Variant]:
+    def apply(self, variants: Iterator[Variant]) -> Iterator[Variant]:
         """Classify variants by inheritance pattern and yield results.
 
         Evaluates non-compound patterns per-variant in a streaming
@@ -77,27 +75,19 @@ class InheritanceFilter:
             sample_name, and optionally sample_gq in info.
         """
         compound_het_active = "compound_het" in self._patterns
-        gene_buffer: list[
-            tuple[Variant, str, str, str, list[str]]
-        ] = []
+        gene_buffer: list[tuple[Variant, str, str, str, list[str]]] = []
         current_gene: str | None = None
 
         for variant in variants:
-            proband_gt = self._extract_genotype(
-                variant, self._proband
-            )
+            proband_gt = self._extract_genotype(variant, self._proband)
             if proband_gt is None or proband_gt == "./.":
                 continue
 
             if not self._has_alt_allele(proband_gt):
                 continue
 
-            mother_gt = self._extract_genotype(
-                variant, self._mother
-            )
-            father_gt = self._extract_genotype(
-                variant, self._father
-            )
+            mother_gt = self._extract_genotype(variant, self._mother)
+            father_gt = self._extract_genotype(variant, self._father)
             if mother_gt is None:
                 mother_gt = "./."
             if father_gt is None:
@@ -105,32 +95,22 @@ class InheritanceFilter:
 
             patterns: list[str] = []
             if "de_novo" in self._patterns:
-                if self._classify_de_novo(
-                    proband_gt, mother_gt, father_gt
-                ):
+                if self._classify_de_novo(proband_gt, mother_gt, father_gt):
                     patterns.append("de_novo")
             if "dominant" in self._patterns:
-                if self._classify_dominant(
-                    proband_gt, mother_gt, father_gt
-                ):
+                if self._classify_dominant(proband_gt, mother_gt, father_gt):
                     patterns.append("dominant")
             if "recessive" in self._patterns:
-                if self._classify_recessive(
-                    proband_gt, mother_gt, father_gt
-                ):
+                if self._classify_recessive(proband_gt, mother_gt, father_gt):
                     patterns.append("recessive")
             if "x_linked" in self._patterns:
-                if self._classify_x_linked(
-                    proband_gt, mother_gt, variant.chrom
-                ):
+                if self._classify_x_linked(proband_gt, mother_gt, variant.chrom):
                     patterns.append("x_linked")
 
             if compound_het_active:
                 gene = variant.info.get("gene")
                 if gene is None:
-                    yield self._build_output(
-                        variant, proband_gt, patterns
-                    )
+                    yield self._build_output(variant, proband_gt, patterns)
                     continue
 
                 # Gene boundary flush: assumes variants arrive grouped
@@ -138,13 +118,8 @@ class InheritanceFilter:
                 # same-gene variants are contiguous). Using a single
                 # buffer rather than per-gene dicts keeps memory bounded
                 # for large inputs.
-                if (
-                    current_gene is not None
-                    and gene != current_gene
-                ):
-                    yield from self._flush_gene_buffer(
-                        gene_buffer
-                    )
+                if current_gene is not None and gene != current_gene:
+                    yield from self._flush_gene_buffer(gene_buffer)
                     gene_buffer = []
 
                 current_gene = gene
@@ -158,16 +133,12 @@ class InheritanceFilter:
                     )
                 )
             else:
-                yield self._build_output(
-                    variant, proband_gt, patterns
-                )
+                yield self._build_output(variant, proband_gt, patterns)
 
         if compound_het_active and gene_buffer:
             yield from self._flush_gene_buffer(gene_buffer)
 
-    def _extract_genotype(
-        self, variant: Variant, sample_name: str
-    ) -> str | None:
+    def _extract_genotype(self, variant: Variant, sample_name: str) -> str | None:
         """Pull GT from _pysam_samples and format as VCF string.
 
         Parameters
@@ -348,9 +319,7 @@ class InheritanceFilter:
         mother_het = self._is_het(mother_gt)
         father_het = self._is_het(father_gt)
 
-        return (mother_het and not father_het) or (
-            father_het and not mother_het
-        )
+        return (mother_het and not father_het) or (father_het and not mother_het)
 
     def _classify_recessive(
         self,
@@ -412,9 +381,7 @@ class InheritanceFilter:
             Indices of variants in trans pairs.
         """
         het_indices = [
-            i
-            for i, (_, gt, _, _, _) in enumerate(buffer)
-            if self._is_het(gt)
+            i for i, (_, gt, _, _, _) in enumerate(buffer) if self._is_het(gt)
         ]
 
         if len(het_indices) < 2:
@@ -425,13 +392,9 @@ class InheritanceFilter:
 
         for i in het_indices:
             _, _, mother_gt, father_gt, _ = buffer[i]
-            if self._has_alt_allele(
-                mother_gt
-            ) and self._is_hom_ref(father_gt):
+            if self._has_alt_allele(mother_gt) and self._is_hom_ref(father_gt):
                 maternal_indices.append(i)
-            if self._has_alt_allele(
-                father_gt
-            ) and self._is_hom_ref(mother_gt):
+            if self._has_alt_allele(father_gt) and self._is_hom_ref(mother_gt):
                 paternal_indices.append(i)
 
         if maternal_indices and paternal_indices:

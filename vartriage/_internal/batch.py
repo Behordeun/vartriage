@@ -109,15 +109,14 @@ def process_with_memory_fallback(
 
     start = 0
     while start < len(items):
-        chunk = items[start:start + chunk_size]
+        chunk = items[start : start + chunk_size]
         try:
             results.extend(processor(chunk))
             start += chunk_size
         except MemoryError:
             if chunk_size <= _MIN_CHUNK_SIZE:
                 logger.error(
-                    "MemoryError persists at minimum chunk size (%d). "
-                    "Re-raising.",
+                    "MemoryError persists at minimum chunk size (%d). " "Re-raising.",
                     _MIN_CHUNK_SIZE,
                 )
                 raise

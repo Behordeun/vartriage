@@ -18,13 +18,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vartriage._internal.cache import (
-    CacheEnvelope,
-    cache_path_for,
-    try_load_cache,
-    try_write_cache,
-)
-
+from vartriage._internal.cache import (CacheEnvelope, cache_path_for,
+                                       try_load_cache, try_write_cache)
 
 # ---------------------------------------------------------------------------
 # Task 7.1: Property test for cache path computation (Property 1)
@@ -39,10 +34,20 @@ path_segments = st.text(
     max_size=40,
 )
 
-file_extensions = st.sampled_from([
-    ".gtf", ".gtf.gz", ".tsv", ".tsv.gz", ".vcf.bgz", ".vcf.gz",
-    ".bed", ".txt", ".cache", "",
-])
+file_extensions = st.sampled_from(
+    [
+        ".gtf",
+        ".gtf.gz",
+        ".tsv",
+        ".tsv.gz",
+        ".vcf.bgz",
+        ".vcf.gz",
+        ".bed",
+        ".txt",
+        ".cache",
+        "",
+    ]
+)
 
 
 @st.composite
@@ -218,9 +223,7 @@ class TestCorruptedCacheFile:
 class TestVersionMismatchInvalidatesCache:
     """Version mismatch in envelope invalidates cache, returns None."""
 
-    def test_vartriage_version_mismatch_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_vartriage_version_mismatch_returns_none(self, tmp_path: Path) -> None:
         source = tmp_path / "data.tsv"
         source.write_text("content", encoding="utf-8")
 
@@ -239,9 +242,7 @@ class TestVersionMismatchInvalidatesCache:
         assert result is None
         assert not cache_file.exists()
 
-    def test_python_version_mismatch_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_python_version_mismatch_returns_none(self, tmp_path: Path) -> None:
         from vartriage import __version__ as vt_version
 
         source = tmp_path / "data.tsv"
@@ -297,9 +298,7 @@ class TestPermissionErrorOnRead:
 class TestTabixMissingIndex:
     """Missing .tbi index raises ReferenceFileError with descriptive message."""
 
-    def test_missing_tbi_raises_reference_file_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_tbi_raises_reference_file_error(self, tmp_path: Path) -> None:
         from vartriage.annotation.frequency_tabix import TabixFrequencyDatabase
         from vartriage.io.exceptions import ReferenceFileError
 
@@ -379,7 +378,9 @@ class TestTabixMalformedAFField:
         mock_tabix.fetch.return_value = iter([record])
         db._tabix = mock_tabix
 
-        with caplog.at_level(logging.WARNING, logger="vartriage.annotation.frequency_tabix"):
+        with caplog.at_level(
+            logging.WARNING, logger="vartriage.annotation.frequency_tabix"
+        ):
             results = db.lookup_batch([("chr1", 100, "A", "G")])
 
         assert results == [None]

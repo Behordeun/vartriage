@@ -51,9 +51,7 @@ class TabixFrequencyDatabase:
             If the file or its .tbi index is missing/unreadable.
         """
         if not reference_path.exists():
-            raise ReferenceFileError(
-                f"{reference_path}: file not found"
-            )
+            raise ReferenceFileError(f"{reference_path}: file not found")
 
         index_path = Path(str(reference_path) + ".tbi")
         if not index_path.exists():
@@ -118,9 +116,7 @@ class TabixFrequencyDatabase:
             return None
 
         try:
-            records = self._tabix.fetch(
-                chrom, pos - 1, pos
-            )
+            records = self._tabix.fetch(chrom, pos - 1, pos)
         except ValueError:
             # Chromosome not in the tabix index
             return None
@@ -178,8 +174,7 @@ class TabixFrequencyDatabase:
 
         if alt_index >= len(af_values):
             logger.warning(
-                "AF field has fewer values than ALT alleles "
-                "in record: %s",
+                "AF field has fewer values than ALT alleles " "in record: %s",
                 record_line[:100],
             )
             return None

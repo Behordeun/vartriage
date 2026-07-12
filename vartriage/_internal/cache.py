@@ -104,15 +104,11 @@ def try_load_cache(source_path: Path) -> Optional[Any]:
         with open(cp, "rb") as f:
             envelope: CacheEnvelope = pickle.load(f)  # noqa: S301
     except (OSError, PermissionError) as exc:
-        logger.warning(
-            "Cannot read cache file %s: %s", cp, exc
-        )
+        logger.warning("Cannot read cache file %s: %s", cp, exc)
         _delete_cache(cp)
         return None
     except (pickle.UnpicklingError, Exception) as exc:
-        logger.warning(
-            "Failed to deserialize cache %s: %s", cp, exc
-        )
+        logger.warning("Failed to deserialize cache %s: %s", cp, exc)
         _delete_cache(cp)
         return None
 
@@ -150,9 +146,7 @@ def try_load_cache(source_path: Path) -> Optional[Any]:
     try:
         current_mtime = source_path.stat().st_mtime
     except OSError as exc:
-        logger.warning(
-            "Cannot stat source file %s: %s", source_path, exc
-        )
+        logger.warning("Cannot stat source file %s: %s", source_path, exc)
         return None
 
     if envelope.source_mtime != current_mtime:
@@ -219,9 +213,7 @@ def try_write_cache(source_path: Path, data: Any) -> None:
         os.replace(tmp_path, cp)
         logger.debug("Cache written for %s", source_path)
     except (OSError, pickle.PicklingError) as exc:
-        logger.warning(
-            "Failed to write cache for %s: %s", source_path, exc
-        )
+        logger.warning("Failed to write cache for %s: %s", source_path, exc)
         if tmp_fd is not None:
             try:
                 tmp_fd.close()

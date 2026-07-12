@@ -11,15 +11,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 from vartriage.io.exceptions import ReferenceFileError
-from vartriage.models.variant import (
-    CONSEQUENCE_SEVERITY_ORDER,
-    FunctionalConsequence,
-    Variant,
-)
+from vartriage.models.variant import (CONSEQUENCE_SEVERITY_ORDER,
+                                      FunctionalConsequence, Variant)
 
 try:
-    import pyranges as pr
     import pandas as pd
+    import pyranges as pr
 
     PYRANGES_AVAILABLE = True
 except ImportError:
@@ -123,11 +120,13 @@ class PyRangesIntervalIndex:
         var_start = pos - 1
         var_end = var_start + max(len(ref), len(alt))
 
-        query_df = pd.DataFrame({
-            "Chromosome": [chrom],
-            "Start": [var_start],
-            "End": [var_end],
-        })
+        query_df = pd.DataFrame(
+            {
+                "Chromosome": [chrom],
+                "Start": [var_start],
+                "End": [var_end],
+            }
+        )
         query_gr = pr.PyRanges(query_df)
 
         hits = self._gr.join(query_gr)
@@ -149,13 +148,15 @@ class PyRangesIntervalIndex:
                 is_splice_site=is_splice,
             )
 
-            results.append({
-                "gene_name": gene_name,
-                "feature_type": feature_type,
-                "transcript_id": transcript_id,
-                "consequence": consequence,
-                "is_splice_site": is_splice,
-            })
+            results.append(
+                {
+                    "gene_name": gene_name,
+                    "feature_type": feature_type,
+                    "transcript_id": transcript_id,
+                    "consequence": consequence,
+                    "is_splice_site": is_splice,
+                }
+            )
 
         return results
 
@@ -240,9 +241,7 @@ class PyRangesConsequenceAnnotator:
         """
         self._index.load(annotation_path)
 
-    def overlap(
-        self, chrom: str, pos: int, ref: str, alt: str
-    ) -> list[dict[str, Any]]:
+    def overlap(self, chrom: str, pos: int, ref: str, alt: str) -> list[dict[str, Any]]:
         """Return overlapping gene regions for a variant coordinate.
 
         Parameters
@@ -288,9 +287,7 @@ class PyRangesConsequenceAnnotator:
 
         return _most_severe_consequence_pyranges(overlaps)
 
-    def gene_names_batch(
-        self, variants: list[Variant]
-    ) -> list[Optional[str]]:
+    def gene_names_batch(self, variants: list[Variant]) -> list[Optional[str]]:
         """Extract gene names for a batch using a single vectorized join.
 
         Parameters
@@ -313,12 +310,14 @@ class PyRangesConsequenceAnnotator:
         for i, v in enumerate(variants):
             var_start = v.pos - 1
             var_end = var_start + max(len(v.ref), len(v.alt))
-            records.append({
-                "Chromosome": v.chrom,
-                "Start": var_start,
-                "End": var_end,
-                "_idx": i,
-            })
+            records.append(
+                {
+                    "Chromosome": v.chrom,
+                    "Start": var_start,
+                    "End": var_end,
+                    "_idx": i,
+                }
+            )
 
         query_df = pd.DataFrame(records)
         query_gr = pr.PyRanges(query_df)
@@ -379,14 +378,16 @@ class PyRangesConsequenceAnnotator:
         for i, v in enumerate(variants):
             var_start = v.pos - 1
             var_end = var_start + max(len(v.ref), len(v.alt))
-            records.append({
-                "Chromosome": v.chrom,
-                "Start": var_start,
-                "End": var_end,
-                "_idx": i,
-                "_ref": v.ref,
-                "_alt": v.alt,
-            })
+            records.append(
+                {
+                    "Chromosome": v.chrom,
+                    "Start": var_start,
+                    "End": var_end,
+                    "_idx": i,
+                    "_ref": v.ref,
+                    "_alt": v.alt,
+                }
+            )
 
         query_df = pd.DataFrame(records)
         query_gr = pr.PyRanges(query_df)
@@ -396,9 +397,9 @@ class PyRangesConsequenceAnnotator:
         hits_df = hits.df
 
         # Initialize all as Intergenic
-        results: list[FunctionalConsequence] = [
-            FunctionalConsequence.INTERGENIC
-        ] * len(variants)
+        results: list[FunctionalConsequence] = [FunctionalConsequence.INTERGENIC] * len(
+            variants
+        )
 
         if hits_df.empty:
             return results
@@ -419,7 +420,8 @@ class PyRangesConsequenceAnnotator:
             is_splice = var_idx in splice_positions
 
             consequence_str = _determine_consequence_pyranges(
-                ref=ref, alt=alt,
+                ref=ref,
+                alt=alt,
                 feature_type=feature_type,
                 is_splice_site=is_splice,
             )
@@ -437,7 +439,8 @@ class PyRangesConsequenceAnnotator:
         return results
 
     def _find_splice_positions(
-        self, query_df: pd.DataFrame,
+        self,
+        query_df: pd.DataFrame,
     ) -> set[int]:
         """Identify variant indices that overlap splice sites."""
         splice_positions: set[int] = set()
@@ -538,7 +541,9 @@ def _most_severe_consequence_pyranges(
     best_rank = severity_rank[best_consequence.value]
 
     for overlap in overlaps:
-        consequence_str = overlap.get("consequence", FunctionalConsequence.INTERGENIC.value)
+        consequence_str = overlap.get(
+            "consequence", FunctionalConsequence.INTERGENIC.value
+        )
         rank = severity_rank.get(consequence_str, len(CONSEQUENCE_SEVERITY_ORDER))
         if rank < best_rank:
             best_rank = rank

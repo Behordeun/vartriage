@@ -3,11 +3,8 @@
 import pytest
 
 from vartriage.models.config import PrioritizationConfig
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    FunctionalConsequence,
-    Variant,
-)
+from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
+                                      Variant)
 from vartriage.prioritization.frequency_filter import FrequencyFilter
 
 
@@ -74,18 +71,14 @@ class TestFrequencyFilterUnknown:
 
     def test_retains_frequency_unknown_variant_regardless_of_af(self) -> None:
         ff = FrequencyFilter(PrioritizationConfig(max_allele_frequency=0.01))
-        variant = _make_annotated(
-            allele_frequency=None, frequency_unknown=True
-        )
+        variant = _make_annotated(allele_frequency=None, frequency_unknown=True)
         result = list(ff.apply(iter([variant])))
         assert result == [variant]
 
     def test_retains_frequency_unknown_even_with_high_af(self) -> None:
         """Edge case: frequency_unknown=True should bypass even if AF is set high."""
         ff = FrequencyFilter(PrioritizationConfig(max_allele_frequency=0.01))
-        variant = _make_annotated(
-            allele_frequency=0.5, frequency_unknown=True
-        )
+        variant = _make_annotated(allele_frequency=0.5, frequency_unknown=True)
         result = list(ff.apply(iter([variant])))
         assert result == [variant]
 
@@ -117,7 +110,9 @@ class TestFrequencyFilterOrdering:
         variants = [
             _make_annotated(chrom="chr1", pos=1, allele_frequency=0.001),
             _make_annotated(chrom="chr2", pos=2, allele_frequency=0.5),
-            _make_annotated(chrom="chr3", pos=3, frequency_unknown=True, allele_frequency=None),
+            _make_annotated(
+                chrom="chr3", pos=3, frequency_unknown=True, allele_frequency=None
+            ),
             _make_annotated(chrom="chr4", pos=4, allele_frequency=0.002),
         ]
         result = list(ff.apply(iter(variants)))

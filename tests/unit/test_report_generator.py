@@ -9,16 +9,10 @@ from pathlib import Path
 import pytest
 
 from vartriage.models.config import ReportConfig
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 from vartriage.reporting.generator import ReportGenerator
 
 
@@ -145,9 +139,7 @@ class TestReportGeneratorCSV:
 class TestReportGeneratorPDF:
     """Tests for PDF output format routing."""
 
-    def test_generates_pdf_when_reportlab_available(
-        self, tmp_path: Path
-    ) -> None:
+    def test_generates_pdf_when_reportlab_available(self, tmp_path: Path) -> None:
         pytest.importorskip("reportlab")
         config = ReportConfig(output_format="pdf")
         gen = ReportGenerator(config)

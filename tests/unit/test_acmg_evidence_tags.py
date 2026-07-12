@@ -3,15 +3,10 @@
 from __future__ import annotations
 
 from vartriage.classification.acmg import ACMGClassifier
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClinVarAssertion, EvidenceTag,
+                                      FunctionalConsequence, ScoredVariant,
+                                      Variant)
 
 
 def _make_scored_variant(
@@ -180,9 +175,7 @@ class TestPP5Assignment:
         assert EvidenceTag.PP5 not in results[0].evidence_tags
 
     def test_does_not_assign_pp5_for_likely_pathogenic(self) -> None:
-        sv = _make_scored_variant(
-            clinvar_assertion=ClinVarAssertion.LIKELY_PATHOGENIC
-        )
+        sv = _make_scored_variant(clinvar_assertion=ClinVarAssertion.LIKELY_PATHOGENIC)
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert EvidenceTag.PP5 not in results[0].evidence_tags

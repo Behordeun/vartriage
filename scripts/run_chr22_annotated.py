@@ -1,14 +1,12 @@
 """Run full annotated pipeline on chr22 with timing and memory tracking."""
 
-import time
 import resource
+import time
 import warnings
 from pathlib import Path
 
-from vartriage import (
-    Pipeline, PipelineConfig, AnnotationConfig,
-    PrioritizationConfig, ReportConfig,
-)
+from vartriage import (AnnotationConfig, Pipeline, PipelineConfig,
+                       PrioritizationConfig, ReportConfig)
 
 warnings.filterwarnings("ignore")
 

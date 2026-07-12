@@ -202,8 +202,6 @@ class ScoreLoader:
         if not path.exists():
             raise ValueError(f"Score file not found: {path}")
         if not path.is_file():
-            raise ValueError(
-                f"Score file path is not a regular file: {path}"
-            )
+            raise ValueError(f"Score file path is not a regular file: {path}")
         if not os.access(path, os.R_OK):
             raise ValueError(f"Score file not readable: {path}")

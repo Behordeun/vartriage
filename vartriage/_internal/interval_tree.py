@@ -73,7 +73,9 @@ class _ChromIndex:
         """Sort intervals by start position for binary search."""
         if self._sorted:
             return
-        indices = sorted(range(len(self.starts)), key=lambda i: (self.starts[i], self.ends[i]))
+        indices = sorted(
+            range(len(self.starts)), key=lambda i: (self.starts[i], self.ends[i])
+        )
         self.starts = [self.starts[i] for i in indices]
         self.ends = [self.ends[i] for i in indices]
         self.intervals = [self.intervals[i] for i in indices]
@@ -186,10 +188,13 @@ class SortedArrayIntervalIndex:
 
         self._loaded = True
 
-        try_write_cache(annotation_path, {
-            "chromosomes": self._chromosomes,
-            "exon_boundaries": self._exon_boundaries,
-        })
+        try_write_cache(
+            annotation_path,
+            {
+                "chromosomes": self._chromosomes,
+                "exon_boundaries": self._exon_boundaries,
+            },
+        )
 
     def _parse_gtf(self, path: Path) -> None:
         """Parse GTF/GFF file and populate internal indices."""
@@ -225,14 +230,10 @@ class SortedArrayIntervalIndex:
         attributes = _parse_attributes(parts[8])
 
         gene_name = (
-            attributes.get("gene_name")
-            or attributes.get("gene_id")
-            or "unknown"
+            attributes.get("gene_name") or attributes.get("gene_id") or "unknown"
         )
         transcript_id = (
-            attributes.get("transcript_id")
-            or attributes.get("transcript_name")
-            or ""
+            attributes.get("transcript_id") or attributes.get("transcript_name") or ""
         )
 
         if feature_type in ("exon", "CDS", "transcript", "gene"):
@@ -304,13 +305,15 @@ class SortedArrayIntervalIndex:
                 feature_type=interval.feature_type,
                 is_splice_site=is_splice,
             )
-            results.append({
-                "gene_name": interval.gene_name,
-                "feature_type": interval.feature_type,
-                "transcript_id": interval.transcript_id,
-                "consequence": consequence,
-                "is_splice_site": is_splice,
-            })
+            results.append(
+                {
+                    "gene_name": interval.gene_name,
+                    "feature_type": interval.feature_type,
+                    "transcript_id": interval.transcript_id,
+                    "consequence": consequence,
+                    "is_splice_site": is_splice,
+                }
+            )
 
         return results
 
@@ -482,5 +485,6 @@ def _get_open_func(path: Path) -> Callable[..., Any]:
     """
     if path.suffix == ".gz" or str(path).endswith(".gz"):
         import gzip
+
         return gzip.open
     return open

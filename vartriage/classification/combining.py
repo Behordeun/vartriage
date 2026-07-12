@@ -21,12 +21,9 @@ LIKELY_BENIGN and BENIGN are not produced yet. No benign tags are assigned.
 
 from __future__ import annotations
 
-from vartriage.models.variant import (
-    ACMGClassification,
-    EvidenceStrength,
-    EvidenceTag,
-    EVIDENCE_STRENGTH_MAP,
-)
+from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
+                                      ACMGClassification, EvidenceStrength,
+                                      EvidenceTag)
 
 
 def combine_evidence(tags: frozenset[EvidenceTag]) -> ACMGClassification:

@@ -15,10 +15,7 @@ from pathlib import Path
 from typing import Sequence
 
 from vartriage.models.config import ClinicalReportConfig
-from vartriage.models.variant import (
-    ClassifiedVariant,
-    EvidenceTag,
-)
+from vartriage.models.variant import ClassifiedVariant, EvidenceTag
 
 
 class AuditTrailWriter:
@@ -89,8 +86,7 @@ class AuditTrailWriter:
             )
         except OSError as exc:
             raise IOError(
-                f"Failed to write audit sidecar at "
-                f"{sidecar_path}: {exc}"
+                f"Failed to write audit sidecar at " f"{sidecar_path}: {exc}"
             ) from exc
 
         return sidecar_path
@@ -123,8 +119,7 @@ class AuditTrailWriter:
                     sha256.update(chunk)
         except OSError as exc:
             raise IOError(
-                f"Failed to read file for checksum at "
-                f"{path}: {exc}"
+                f"Failed to read file for checksum at " f"{path}: {exc}"
             ) from exc
 
         return f"sha256:{sha256.hexdigest()}"
@@ -186,9 +181,7 @@ class AuditTrailWriter:
 
         return entries
 
-    def _compute_skipped_tags(
-        self, variant: ClassifiedVariant
-    ) -> dict[str, list[str]]:
+    def _compute_skipped_tags(self, variant: ClassifiedVariant) -> dict[str, list[str]]:
         """Determine which tags were skipped due to missing data.
 
         Maps tag values to the list of missing source names that

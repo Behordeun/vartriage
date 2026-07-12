@@ -35,9 +35,7 @@ class RegionFilter:
         self._starts: dict[str, list[int]] = {}
         self._load_bed(config.bed_path)
 
-    def apply(
-        self, variants: Iterator[Variant]
-    ) -> Iterator[Variant]:
+    def apply(self, variants: Iterator[Variant]) -> Iterator[Variant]:
         """Yield variants overlapping at least one BED interval.
 
         Parameters
@@ -116,9 +114,7 @@ class RegionFilter:
             Any data line is malformed.
         """
         if not bed_path.exists():
-            raise FileNotFoundError(
-                f"BED file not found: {bed_path}"
-            )
+            raise FileNotFoundError(f"BED file not found: {bed_path}")
 
         with open(bed_path, "r") as fh:
             for line_num, raw_line in enumerate(fh, start=1):
@@ -126,9 +122,7 @@ class RegionFilter:
                 if self._is_skippable_line(line):
                     continue
 
-                chrom, start, end = self._parse_bed_line(
-                    line, line_num
-                )
+                chrom, start, end = self._parse_bed_line(line, line_num)
                 if chrom not in self._intervals:
                     self._intervals[chrom] = []
                 self._intervals[chrom].append((start, end))
@@ -136,22 +130,17 @@ class RegionFilter:
         # Sort intervals by (start, end) for binary search
         for chrom in self._intervals:
             self._intervals[chrom].sort()
-            self._starts[chrom] = [
-                iv[0] for iv in self._intervals[chrom]
-            ]
+            self._starts[chrom] = [iv[0] for iv in self._intervals[chrom]]
 
     @staticmethod
     def _is_skippable_line(line: str) -> bool:
         """Return True if the line should be skipped during BED parsing."""
-        return (
-            not line
-            or line.startswith("#")
-            or line.startswith(("browser", "track"))
-        )
+        return not line or line.startswith("#") or line.startswith(("browser", "track"))
 
     @staticmethod
     def _parse_bed_line(
-        line: str, line_num: int,
+        line: str,
+        line_num: int,
     ) -> tuple[str, int, int]:
         """Parse a single BED data line into (chrom, start, end)."""
         fields = line.split("\t")
@@ -183,8 +172,7 @@ class RegionFilter:
             raise ParseError(
                 line_number=line_num,
                 detail=(
-                    "Coordinates must be non-negative, "
-                    f"got start={start}, end={end}"
+                    "Coordinates must be non-negative, " f"got start={start}, end={end}"
                 ),
             )
 
@@ -192,8 +180,7 @@ class RegionFilter:
             raise ParseError(
                 line_number=line_num,
                 detail=(
-                    "Start must be less than end, "
-                    f"got start={start}, end={end}"
+                    "Start must be less than end, " f"got start={start}, end={end}"
                 ),
             )
 

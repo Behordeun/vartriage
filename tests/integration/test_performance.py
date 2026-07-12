@@ -21,21 +21,12 @@ import pytest
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (
-    AnnotationConfig,
-    QualityFilterConfig,
-    ReportConfig,
-)
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.config import (AnnotationConfig, QualityFilterConfig,
+                                     ReportConfig)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 from vartriage.reporting.generator import ReportGenerator
 
 
@@ -67,14 +58,14 @@ def _write_synthetic_vcf(path: Path, num_variants: int) -> None:
 def _write_minimal_gtf(path: Path) -> None:
     """Write a minimal GTF with a single gene for annotation testing."""
     lines = [
-        '##format: gtf',
-        'chr1\thavana\tgene\t1\t100000\t.\t+\t.\t'
+        "##format: gtf",
+        "chr1\thavana\tgene\t1\t100000\t.\t+\t.\t"
         'gene_id "TEST1"; gene_name "TEST1";',
-        'chr1\thavana\ttranscript\t1\t100000\t.\t+\t.\t'
+        "chr1\thavana\ttranscript\t1\t100000\t.\t+\t.\t"
         'gene_id "TEST1"; transcript_id "TEST1.1"; gene_name "TEST1";',
-        'chr1\thavana\texon\t1\t100000\t.\t+\t.\t'
+        "chr1\thavana\texon\t1\t100000\t.\t+\t.\t"
         'gene_id "TEST1"; transcript_id "TEST1.1"; gene_name "TEST1";',
-        'chr1\thavana\tCDS\t100\t99900\t.\t+\t0\t'
+        "chr1\thavana\tCDS\t100\t99900\t.\t+\t0\t"
         'gene_id "TEST1"; transcript_id "TEST1.1"; gene_name "TEST1";',
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -198,9 +189,7 @@ class TestAnnotationPerformance:
     VARIANT_COUNT = 10_000
     TIME_LIMIT_SECONDS = 30
 
-    def test_annotation_completes_within_30_seconds(
-        self, tmp_path: Path
-    ) -> None:
+    def test_annotation_completes_within_30_seconds(self, tmp_path: Path) -> None:
         """Annotating 10K variants against a small reference finishes in < 30s.
 
         Generates a synthetic VCF with 10K variants, builds minimal

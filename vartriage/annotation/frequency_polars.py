@@ -85,14 +85,10 @@ class PolarsFrequencyDatabase:
             unparseable values).
         """
         if not reference_path.exists():
-            raise ReferenceFileError(
-                f"{reference_path}: file not found"
-            )
+            raise ReferenceFileError(f"{reference_path}: file not found")
 
         if not reference_path.is_file():
-            raise ReferenceFileError(
-                f"{reference_path}: not a regular file"
-            )
+            raise ReferenceFileError(f"{reference_path}: not a regular file")
 
         try:
             df = pl.read_csv(
@@ -110,8 +106,7 @@ class PolarsFrequencyDatabase:
             )
         except Exception as exc:
             raise ReferenceFileError(
-                f"{reference_path}: failed to parse with polars: "
-                f"{exc}"
+                f"{reference_path}: failed to parse with polars: " f"{exc}"
             ) from exc
 
         column_names = {col.lower() for col in df.columns}
@@ -120,19 +115,14 @@ class PolarsFrequencyDatabase:
         if not expected_columns.issubset(column_names):
             missing = expected_columns - column_names
             raise ReferenceFileError(
-                f"{reference_path}: missing required columns: "
-                f"{sorted(missing)}"
+                f"{reference_path}: missing required columns: " f"{sorted(missing)}"
             )
 
         # Normalize column names to lowercase
-        df = df.rename(
-            {col: col.lower() for col in df.columns}
-        )
+        df = df.rename({col: col.lower() for col in df.columns})
 
         # Select only the columns we need and store as LazyFrame
-        self._lazy_frame = df.select(
-            ["chrom", "pos", "ref", "alt", "af"]
-        ).lazy()
+        self._lazy_frame = df.select(["chrom", "pos", "ref", "alt", "af"]).lazy()
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
@@ -154,9 +144,7 @@ class PolarsFrequencyDatabase:
             variants not found in the reference database.
         """
         if self._lazy_frame is None:
-            raise ReferenceFileError(
-                "No reference data loaded. Call load() first."
-            )
+            raise ReferenceFileError("No reference data loaded. Call load() first.")
 
         if not variants:
             return []

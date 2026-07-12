@@ -12,22 +12,14 @@ import logging
 from pathlib import Path
 from typing import Iterator, Optional
 
-from vartriage._internal.warning_accumulator import (
-    WarningAccumulator,
-)
+from vartriage._internal.warning_accumulator import WarningAccumulator
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (
-    AnnotationConfig,
-    PipelineConfig,
-    PrioritizationConfig,
-)
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    Variant,
-)
+from vartriage.models.config import (AnnotationConfig, PipelineConfig,
+                                     PrioritizationConfig)
+from vartriage.models.variant import AnnotatedVariant, Variant
 from vartriage.prioritization.engine import PrioritizationEngine
 from vartriage.reporting.generator import ReportGenerator
 
@@ -113,8 +105,9 @@ class Pipeline:
 
         self._warning_accumulator.reset()
 
-        logger.info("Starting pipeline run: %s → %s",
-                    effective_vcf_path, effective_output_path)
+        logger.info(
+            "Starting pipeline run: %s → %s", effective_vcf_path, effective_output_path
+        )
 
         # Warn if reference file checksums don't match current files.
         if self._config.clinical_report is not None:
@@ -126,20 +119,22 @@ class Pipeline:
         if self._config.annotation is not None:
             annotation_engine = AnnotationEngine(self._config.annotation)
 
-        prioritization_engine = PrioritizationEngine(
-            self._config.prioritization
-        )
+        prioritization_engine = PrioritizationEngine(self._config.prioritization)
 
         acmg_classifier = ACMGClassifier()
 
         report_generator = ReportGenerator(
             self._config.report,
             clinical_config=self._config.clinical_report,
+            reference_checksums=(
+                self._compute_reference_checksums()
+                if self._config.clinical_report is not None
+                else None
+            ),
         )
 
         extract_samples = (
-            self._config.inheritance is not None
-            or self._config.sample is not None
+            self._config.inheritance is not None or self._config.sample is not None
         )
 
         with VCFParser(
@@ -147,11 +142,14 @@ class Pipeline:
             extract_samples=extract_samples,
         ) as parser:
             annotated = self._build_annotated_stream(
-                parser, quality_filter, annotation_engine,
+                parser,
+                quality_filter,
+                annotation_engine,
             )
 
             if self._config.gene_filter is not None:
                 from vartriage.filter.gene_filter import GeneFilter
+
                 gene_filter = GeneFilter(self._config.gene_filter)
                 annotated = gene_filter.apply(annotated)
 
@@ -172,9 +170,7 @@ class Pipeline:
                 )
 
             if annotation_engine is not None:
-                self._warning_accumulator.add_batch(
-                    annotation_engine.warnings
-                )
+                self._warning_accumulator.add_batch(annotation_engine.warnings)
 
         logger.info(
             "Pipeline completed. Missing data warnings: %d",
@@ -185,24 +181,48 @@ class Pipeline:
         return result_path
 
     def _check_reference_checksums(self) -> None:
-        """Warn if reference file checksums differ from current state.
+        """Log reference file checksums using AuditTrailWriter.
 
-        Compares stored checksums (if any audit manifest references
-        them) against the current files on disk. Emits a warning for
-        each mismatch.
+        Delegates SHA-256 computation to
+        ``AuditTrailWriter.compute_file_checksum`` so there is a
+        single checksum implementation across the codebase.
         """
-        import hashlib
+        from vartriage.reporting.clinical.audit import AuditTrailWriter
 
+        audit_writer = AuditTrailWriter()
+
+        for ref_path in self._collect_reference_paths():
+            if not ref_path.exists():
+                continue
+            try:
+                checksum = audit_writer.compute_file_checksum(ref_path)
+                logger.debug(
+                    "Reference file %s checksum: %s",
+                    ref_path,
+                    checksum,
+                )
+            except IOError as exc:
+                logger.warning(
+                    "Could not compute checksum for %s: %s",
+                    ref_path,
+                    exc,
+                )
+
+    def _collect_reference_paths(self) -> list[Path]:
+        """Collect all configured reference file paths.
+
+        Returns
+        -------
+        list[Path]
+            Paths to annotation and prioritization reference files
+            that are configured (non-None).
+        """
         ref_paths: list[Path] = []
         if self._config.annotation is not None:
-            ref_paths.append(
-                self._config.annotation.gene_annotation_path
-            )
+            ref_paths.append(self._config.annotation.gene_annotation_path)
             ref_paths.append(self._config.annotation.gnomad_path)
             if self._config.annotation.clinvar_path is not None:
-                ref_paths.append(
-                    self._config.annotation.clinvar_path
-                )
+                ref_paths.append(self._config.annotation.clinvar_path)
         pri = self._config.prioritization
         if pri.cadd_scores_path is not None:
             ref_paths.append(pri.cadd_scores_path)
@@ -210,23 +230,38 @@ class Pipeline:
             ref_paths.append(pri.revel_scores_path)
         if pri.spliceai_scores_path is not None:
             ref_paths.append(pri.spliceai_scores_path)
+        return ref_paths
 
-        for ref_path in ref_paths:
+    def _compute_reference_checksums(self) -> dict[str, str]:
+        """Compute SHA-256 checksums for all reference files.
+
+        Uses ``AuditTrailWriter.compute_file_checksum`` as the
+        single checksum implementation. Files that do not exist or
+        cannot be read are skipped with a warning.
+
+        Returns
+        -------
+        dict[str, str]
+            Mapping of file path strings to SHA-256 hex digests.
+        """
+        from vartriage.reporting.clinical.audit import AuditTrailWriter
+
+        audit_writer = AuditTrailWriter()
+        checksums: dict[str, str] = {}
+
+        for ref_path in self._collect_reference_paths():
             if not ref_path.exists():
                 continue
             try:
-                sha = hashlib.sha256(
-                    ref_path.read_bytes()
-                ).hexdigest()
-                logger.debug(
-                    "Reference file %s checksum: %s",
-                    ref_path, sha,
-                )
-            except OSError as exc:
+                checksums[str(ref_path)] = audit_writer.compute_file_checksum(ref_path)
+            except IOError as exc:
                 logger.warning(
                     "Could not compute checksum for %s: %s",
-                    ref_path, exc,
+                    ref_path,
+                    exc,
                 )
+
+        return checksums
 
     def _build_annotated_stream(
         self,
@@ -239,16 +274,13 @@ class Pipeline:
 
         # Sample extraction or inheritance (mutually exclusive)
         if self._config.inheritance is not None:
-            from vartriage.filter.inheritance_filter import (
-                InheritanceFilter,
-            )
+            from vartriage.filter.inheritance_filter import InheritanceFilter
+
             inheritance_filter = InheritanceFilter(
                 self._config.inheritance,
                 parser.sample_names,
             )
-            compound_het_active = (
-                "compound_het" in self._config.inheritance.patterns
-            )
+            compound_het_active = "compound_het" in self._config.inheritance.patterns
 
             if compound_het_active and annotation_engine is not None:
                 # Annotate first so gene info is available for
@@ -260,25 +292,20 @@ class Pipeline:
                 # then re-associate the annotation data afterward
                 annotated_list = list(annotated_iter)
                 variants_with_genes = list(
-                    self._variants_with_gene_info(
-                        iter(annotated_list)
-                    )
+                    self._variants_with_gene_info(iter(annotated_list))
                 )
                 inherited_variants = list(
                     inheritance_filter.apply(iter(variants_with_genes))
                 )
                 # Re-attach annotation data to inherited variants
                 return iter(
-                    self._reattach_annotations(
-                        inherited_variants, annotated_list
-                    )
+                    self._reattach_annotations(inherited_variants, annotated_list)
                 )
             else:
                 stream = inheritance_filter.apply(stream)
         elif self._config.sample is not None:
-            from vartriage.filter.sample_extractor import (
-                SampleExtractor,
-            )
+            from vartriage.filter.sample_extractor import SampleExtractor
+
             sample_extractor = SampleExtractor(
                 self._config.sample,
                 parser.sample_names,
@@ -288,6 +315,7 @@ class Pipeline:
         # Region filter (optional, runs before quality filter)
         if self._config.region_filter is not None:
             from vartriage.filter.region_filter import RegionFilter
+
             region_filter = RegionFilter(self._config.region_filter)
             stream = region_filter.apply(stream)
 
@@ -344,34 +372,26 @@ class Pipeline:
             )
 
     def _validate_annotation_config(
-        self, ann_config: "AnnotationConfig",
+        self,
+        ann_config: "AnnotationConfig",
     ) -> None:
         """Validate annotation reference file paths exist."""
-        self._check_path(
-            ann_config.gene_annotation_path, "Gene annotation file"
-        )
+        self._check_path(ann_config.gene_annotation_path, "Gene annotation file")
         self._check_path(ann_config.gnomad_path, "gnomAD reference file")
         if ann_config.clinvar_path is not None:
-            self._check_path(
-                ann_config.clinvar_path, "ClinVar reference file"
-            )
+            self._check_path(ann_config.clinvar_path, "ClinVar reference file")
 
     def _validate_prioritization_config(
-        self, pri_config: PrioritizationConfig,
+        self,
+        pri_config: PrioritizationConfig,
     ) -> None:
         """Validate prioritization score file paths exist."""
         if pri_config.cadd_scores_path is not None:
-            self._check_path(
-                pri_config.cadd_scores_path, "CADD scores file"
-            )
+            self._check_path(pri_config.cadd_scores_path, "CADD scores file")
         if pri_config.revel_scores_path is not None:
-            self._check_path(
-                pri_config.revel_scores_path, "REVEL scores file"
-            )
+            self._check_path(pri_config.revel_scores_path, "REVEL scores file")
         if pri_config.spliceai_scores_path is not None:
-            self._check_path(
-                pri_config.spliceai_scores_path, "SpliceAI scores file"
-            )
+            self._check_path(pri_config.spliceai_scores_path, "SpliceAI scores file")
 
     def _reattach_annotations(
         self,
@@ -399,16 +419,13 @@ class Pipeline:
             Annotated variants with inheritance metadata preserved
             in the underlying variant's info dict.
         """
-        from vartriage.models.variant import (
-            AnnotatedVariant,
-            FunctionalConsequence,
-        )
+        from vartriage.models.variant import (AnnotatedVariant,
+                                              FunctionalConsequence)
 
         # Build lookup by (chrom, pos, ref, alt)
         ann_lookup: dict[tuple[str, int, str, str], "AnnotatedVariant"] = {}
         for av in annotated_list:
-            key = (av.variant.chrom, av.variant.pos,
-                   av.variant.ref, av.variant.alt)
+            key = (av.variant.chrom, av.variant.pos, av.variant.ref, av.variant.alt)
             ann_lookup[key] = av
 
         results: list["AnnotatedVariant"] = []
@@ -418,22 +435,26 @@ class Pipeline:
             if original is not None:
                 # Preserve original annotation, attach inheritance
                 # info by replacing the variant's info dict
-                results.append(AnnotatedVariant(
-                    variant=v,
-                    consequence=original.consequence,
-                    allele_frequency=original.allele_frequency,
-                    clinvar_assertion=original.clinvar_assertion,
-                    frequency_unknown=original.frequency_unknown,
-                    clinvar_unknown=original.clinvar_unknown,
-                    gene_name=original.gene_name,
-                ))
+                results.append(
+                    AnnotatedVariant(
+                        variant=v,
+                        consequence=original.consequence,
+                        allele_frequency=original.allele_frequency,
+                        clinvar_assertion=original.clinvar_assertion,
+                        frequency_unknown=original.frequency_unknown,
+                        clinvar_unknown=original.clinvar_unknown,
+                        gene_name=original.gene_name,
+                    )
+                )
             else:
-                results.append(AnnotatedVariant(
-                    variant=v,
-                    consequence=FunctionalConsequence.INTERGENIC,
-                    frequency_unknown=True,
-                    clinvar_unknown=True,
-                ))
+                results.append(
+                    AnnotatedVariant(
+                        variant=v,
+                        consequence=FunctionalConsequence.INTERGENIC,
+                        frequency_unknown=True,
+                        clinvar_unknown=True,
+                    )
+                )
         return results
 
     def _variants_with_gene_info(
@@ -471,7 +492,9 @@ class Pipeline:
                 info=new_info,
             )
 
-    def _passthrough_annotation(self, variants: Iterator["Variant"]) -> Iterator["AnnotatedVariant"]:
+    def _passthrough_annotation(
+        self, variants: Iterator["Variant"]
+    ) -> Iterator["AnnotatedVariant"]:
         """Create AnnotatedVariant wrappers when no annotation config exists.
 
         Used when the pipeline is run without annotation references. Each
@@ -488,10 +511,8 @@ class Pipeline:
         AnnotatedVariant
             Minimally annotated variant records.
         """
-        from vartriage.models.variant import (
-            AnnotatedVariant,
-            FunctionalConsequence,
-        )
+        from vartriage.models.variant import (AnnotatedVariant,
+                                              FunctionalConsequence)
 
         for variant in variants:
             yield AnnotatedVariant(
@@ -520,6 +541,4 @@ class Pipeline:
             If the path does not exist.
         """
         if not path.exists():
-            raise FileNotFoundError(
-                f"{label} not found: {path}"
-            )
+            raise FileNotFoundError(f"{label} not found: {path}")

@@ -9,13 +9,8 @@ from __future__ import annotations
 from hypothesis import strategies as st
 from hypothesis.strategies import SearchStrategy
 
-from tests.generators.variants import (
-    CHROMOSOMES,
-    FILTER_FAIL_VALUES,
-    FILTER_PASS_VALUES,
-    NUCLEOTIDES,
-)
-
+from tests.generators.variants import (CHROMOSOMES, FILTER_FAIL_VALUES,
+                                       FILTER_PASS_VALUES, NUCLEOTIDES)
 
 VCF_FILEFORMAT_LINE = "##fileformat=VCFv4.2"
 

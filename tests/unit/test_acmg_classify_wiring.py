@@ -7,15 +7,10 @@ with ACMG/AMP 2015 combining rules to produce the correct final classification.
 from __future__ import annotations
 
 from vartriage.classification.acmg import ACMGClassifier
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClinVarAssertion, EvidenceTag,
+                                      FunctionalConsequence, ScoredVariant,
+                                      Variant)
 
 
 def _make_scored_variant(

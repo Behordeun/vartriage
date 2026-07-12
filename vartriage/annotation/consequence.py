@@ -12,11 +12,8 @@ from typing import Any
 
 from vartriage._internal.interval_tree import SortedArrayIntervalIndex
 from vartriage.io.exceptions import ReferenceFileError
-from vartriage.models.variant import (
-    CONSEQUENCE_SEVERITY_ORDER,
-    FunctionalConsequence,
-    Variant,
-)
+from vartriage.models.variant import (CONSEQUENCE_SEVERITY_ORDER,
+                                      FunctionalConsequence, Variant)
 
 
 class ConsequenceAnnotator:
@@ -59,9 +56,7 @@ class ConsequenceAnnotator:
         """
         self._index.load(annotation_path)
 
-    def overlap(
-        self, chrom: str, pos: int, ref: str, alt: str
-    ) -> list[dict[str, Any]]:
+    def overlap(self, chrom: str, pos: int, ref: str, alt: str) -> list[dict[str, Any]]:
         """Return overlapping gene regions for a variant coordinate.
 
         Parameters
@@ -152,7 +147,9 @@ def _most_severe_consequence(
     best_rank = severity_rank[best_consequence.value]
 
     for overlap in overlaps:
-        consequence_str = overlap.get("consequence", FunctionalConsequence.INTERGENIC.value)
+        consequence_str = overlap.get(
+            "consequence", FunctionalConsequence.INTERGENIC.value
+        )
         rank = severity_rank.get(consequence_str, len(CONSEQUENCE_SEVERITY_ORDER))
         if rank < best_rank:
             best_rank = rank

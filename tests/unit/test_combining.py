@@ -5,10 +5,7 @@ from __future__ import annotations
 import pytest
 
 from vartriage.classification.combining import combine_evidence
-from vartriage.models.variant import (
-    ACMGClassification,
-    EvidenceTag,
-)
+from vartriage.models.variant import ACMGClassification, EvidenceTag
 
 
 class TestCombineEvidenceVUS:

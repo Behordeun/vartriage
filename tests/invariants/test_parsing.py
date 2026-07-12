@@ -7,9 +7,10 @@ from pathlib import Path
 
 from hypothesis import given, settings
 
-from tests.generators.vcf import valid_vcf_content, malformed_vcf_content
+from tests.generators.vcf import malformed_vcf_content, valid_vcf_content
 from vartriage.io.exceptions import ParseError
 from vartriage.io.vcf_parser import VCFParser
+
 
 def _parse_data_line(line: str) -> dict:
     """Parse a raw VCF data line into a dict of expected field values.
@@ -39,6 +40,7 @@ def _parse_data_line(line: str) -> dict:
         "filter_status": filter_status,
     }
 
+
 class TestVCFParsingRoundTrip:
     """VCF Parsing Round-Trip.
 
@@ -51,14 +53,9 @@ class TestVCFParsingRoundTrip:
     def test_parsed_variants_match_source_data(self, content: str) -> None:
         """Parsed Variant fields match the corresponding VCF data line values."""
         lines = content.strip().split("\n")
-        data_lines = [
-            line for line in lines
-            if line and not line.startswith("#")
-        ]
+        data_lines = [line for line in lines if line and not line.startswith("#")]
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".vcf", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".vcf", delete=False) as f:
             f.write(content)
             tmp_path = Path(f.name)
 
@@ -66,40 +63,38 @@ class TestVCFParsingRoundTrip:
             with VCFParser(tmp_path) as parser:
                 variants = list(parser)
 
-            assert len(variants) == len(data_lines), (
-                f"Expected {len(data_lines)} variants, got {len(variants)}"
-            )
+            assert len(variants) == len(
+                data_lines
+            ), f"Expected {len(data_lines)} variants, got {len(variants)}"
 
             for variant, raw_line in zip(variants, data_lines):
                 expected = _parse_data_line(raw_line)
 
-                assert variant.chrom == expected["chrom"], (
-                    f"CHROM mismatch: {variant.chrom!r} != {expected['chrom']!r}"
-                )
-                assert variant.pos == expected["pos"], (
-                    f"POS mismatch: {variant.pos} != {expected['pos']}"
-                )
-                assert variant.id == expected["id"], (
-                    f"ID mismatch: {variant.id!r} != {expected['id']!r}"
-                )
-                assert variant.ref == expected["ref"], (
-                    f"REF mismatch: {variant.ref!r} != {expected['ref']!r}"
-                )
-                assert variant.alt == expected["alt"], (
-                    f"ALT mismatch: {variant.alt!r} != {expected['alt']!r}"
-                )
+                assert (
+                    variant.chrom == expected["chrom"]
+                ), f"CHROM mismatch: {variant.chrom!r} != {expected['chrom']!r}"
+                assert (
+                    variant.pos == expected["pos"]
+                ), f"POS mismatch: {variant.pos} != {expected['pos']}"
+                assert (
+                    variant.id == expected["id"]
+                ), f"ID mismatch: {variant.id!r} != {expected['id']!r}"
+                assert (
+                    variant.ref == expected["ref"]
+                ), f"REF mismatch: {variant.ref!r} != {expected['ref']!r}"
+                assert (
+                    variant.alt == expected["alt"]
+                ), f"ALT mismatch: {variant.alt!r} != {expected['alt']!r}"
 
                 if expected["qual"] is None:
-                    assert variant.qual is None, (
-                        f"QUAL should be None, got {variant.qual}"
-                    )
+                    assert (
+                        variant.qual is None
+                    ), f"QUAL should be None, got {variant.qual}"
                 else:
-                    assert variant.qual is not None, (
-                        "QUAL should not be None"
-                    )
-                    assert abs(variant.qual - expected["qual"]) < 0.01, (
-                        f"QUAL mismatch: {variant.qual} != {expected['qual']}"
-                    )
+                    assert variant.qual is not None, "QUAL should not be None"
+                    assert (
+                        abs(variant.qual - expected["qual"]) < 0.01
+                    ), f"QUAL mismatch: {variant.qual} != {expected['qual']}"
 
                 assert variant.filter_status == expected["filter_status"], (
                     f"FILTER mismatch: {variant.filter_status!r} != "
@@ -107,6 +102,7 @@ class TestVCFParsingRoundTrip:
                 )
         finally:
             tmp_path.unlink(missing_ok=True)
+
 
 class TestMalformedVCFDetection:
     """Malformed VCF Detection.
@@ -125,15 +121,11 @@ class TestMalformedVCFDetection:
 
     @settings(max_examples=100, deadline=None)
     @given(data=malformed_vcf_content())
-    def test_malformed_vcf_raises_parse_error(
-        self, data: tuple[str, str]
-    ) -> None:
+    def test_malformed_vcf_raises_parse_error(self, data: tuple[str, str]) -> None:
         """Malformed VCF content triggers a ParseError with line info."""
         content, violation_type = data
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".vcf", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".vcf", delete=False) as f:
             f.write(content)
             tmp_path = Path(f.name)
 
@@ -145,12 +137,10 @@ class TestMalformedVCFDetection:
                         pass
             except ParseError as exc:
                 parse_error_raised = True
-                assert exc.line_number >= 1, (
-                    f"ParseError line_number should be >= 1, got {exc.line_number}"
-                )
-                assert exc.detail, (
-                    "ParseError detail should not be empty"
-                )
+                assert (
+                    exc.line_number >= 1
+                ), f"ParseError line_number should be >= 1, got {exc.line_number}"
+                assert exc.detail, "ParseError detail should not be empty"
 
             if violation_type not in self.PYSAM_TOLERANT_VIOLATIONS:
                 assert parse_error_raised, (

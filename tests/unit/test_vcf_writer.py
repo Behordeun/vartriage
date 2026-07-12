@@ -9,20 +9,12 @@ from typing import Optional
 import pysam
 import pytest
 
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
-from vartriage.reporting.vcf_writer import (
-    _build_lookup,
-    _inject_info_fields,
-    write_vcf,
-)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, EvidenceTag,
+                                      FunctionalConsequence, ScoredVariant,
+                                      Variant)
+from vartriage.reporting.vcf_writer import (_build_lookup, _inject_info_fields,
+                                            write_vcf)
 
 
 def _make_classified(
@@ -38,8 +30,13 @@ def _make_classified(
 ) -> ClassifiedVariant:
     """Build a ClassifiedVariant for testing."""
     variant = Variant(
-        chrom=chrom, pos=pos, id=None,
-        ref=ref, alt=alt, qual=30.0, filter_status="PASS",
+        chrom=chrom,
+        pos=pos,
+        id=None,
+        ref=ref,
+        alt=alt,
+        qual=30.0,
+        filter_status="PASS",
     )
     annotated = AnnotatedVariant(
         variant=variant,
@@ -67,14 +64,9 @@ def _create_source_vcf(path: Path, records: list[dict]) -> None:
         chroms.add(rec["chrom"])
 
     for chrom in sorted(chroms):
-        header.add_line(
-            f"##contig=<ID={chrom},length=1000000>"
-        )
+        header.add_line(f"##contig=<ID={chrom},length=1000000>")
 
-    header.add_line(
-        '##FORMAT=<ID=GT,Number=1,Type=String,'
-        'Description="Genotype">'
-    )
+    header.add_line("##FORMAT=<ID=GT,Number=1,Type=String," 'Description="Genotype">')
 
     with pysam.VariantFile(str(path), "wz", header=header) as out:
         for rec in records:
@@ -104,11 +96,17 @@ class TestBuildLookup:
 
     def test_duplicate_keys_last_wins(self) -> None:
         first = _make_classified(
-            chrom="chr2", pos=300, ref="C", alt="G",
+            chrom="chr2",
+            pos=300,
+            ref="C",
+            alt="G",
             classification=ACMGClassification.VUS,
         )
         second = _make_classified(
-            chrom="chr2", pos=300, ref="C", alt="G",
+            chrom="chr2",
+            pos=300,
+            ref="C",
+            alt="G",
             classification=ACMGClassification.PATHOGENIC,
         )
         lookup = _build_lookup([first, second])
@@ -125,9 +123,12 @@ class TestInjectInfoFields:
             evidence_tags=frozenset(),
         )
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)
@@ -140,18 +141,19 @@ class TestInjectInfoFields:
                 assert "VARTRIAGE_RANK" not in rec.info
                 assert "VARTRIAGE_TAGS" not in rec.info
 
-    def test_optional_fields_present_when_non_null(
-        self, tmp_path: Path
-    ) -> None:
+    def test_optional_fields_present_when_non_null(self, tmp_path: Path) -> None:
         cv = _make_classified(
             allele_frequency=0.005,
             composite_rank=0.9,
             evidence_tags=frozenset({EvidenceTag.PVS1, EvidenceTag.PM2}),
         )
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)
@@ -168,15 +170,16 @@ class TestInjectInfoFields:
 class TestWriteVcfUnmatched:
     """Unmatched records pass through without VARTRIAGE_* fields."""
 
-    def test_unmatched_variant_has_no_vartriage_fields(
-        self, tmp_path: Path
-    ) -> None:
+    def test_unmatched_variant_has_no_vartriage_fields(self, tmp_path: Path) -> None:
         cv = _make_classified(chrom="chr1", pos=100, ref="A", alt="T")
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
-            {"chrom": "chr1", "pos": 200, "ref": "G", "alt": "C"},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
+                {"chrom": "chr1", "pos": 200, "ref": "G", "alt": "C"},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)
@@ -196,14 +199,15 @@ class TestWriteVcfUnmatched:
 class TestWriteVcfMultiAllelic:
     """Multi-allelic records: any ALT allele can match."""
 
-    def test_first_alt_annotated(
-        self, tmp_path: Path
-    ) -> None:
+    def test_first_alt_annotated(self, tmp_path: Path) -> None:
         cv = _make_classified(chrom="chr1", pos=100, ref="A", alt="T")
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alts": ["T", "C"]},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alts": ["T", "C"]},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)
@@ -218,9 +222,12 @@ class TestWriteVcfMultiAllelic:
         """Multiallelic record matches on the second ALT allele."""
         cv = _make_classified(chrom="chr1", pos=100, ref="A", alt="C")
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alts": ["T", "C"]},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alts": ["T", "C"]},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)
@@ -229,15 +236,16 @@ class TestWriteVcfMultiAllelic:
             for rec in vcf:
                 assert "VARTRIAGE_ACMG" in rec.info
 
-    def test_no_match_when_no_alt_in_lookup(
-        self, tmp_path: Path
-    ) -> None:
+    def test_no_match_when_no_alt_in_lookup(self, tmp_path: Path) -> None:
         """Multiallelic record with no ALTs in lookup stays unannotated."""
         cv = _make_classified(chrom="chr1", pos=999, ref="G", alt="A")
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alts": ["T", "C"]},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alts": ["T", "C"]},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)
@@ -254,9 +262,12 @@ class TestWriteVcfAtomicity:
     def test_output_and_index_both_exist(self, tmp_path: Path) -> None:
         cv = _make_classified()
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)
@@ -264,14 +275,15 @@ class TestWriteVcfAtomicity:
         assert output.exists()
         assert Path(str(output) + ".tbi").exists()
 
-    def test_no_temp_files_remain_on_success(
-        self, tmp_path: Path
-    ) -> None:
+    def test_no_temp_files_remain_on_success(self, tmp_path: Path) -> None:
         cv = _make_classified()
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)
@@ -286,11 +298,14 @@ class TestWriteVcfRecordCount:
     def test_all_records_preserved(self, tmp_path: Path) -> None:
         cv = _make_classified(chrom="chr1", pos=100, ref="A", alt="T")
         source = tmp_path / "src.vcf.gz"
-        _create_source_vcf(source, [
-            {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
-            {"chrom": "chr1", "pos": 200, "ref": "G", "alt": "C"},
-            {"chrom": "chr1", "pos": 300, "ref": "T", "alt": "A"},
-        ])
+        _create_source_vcf(
+            source,
+            [
+                {"chrom": "chr1", "pos": 100, "ref": "A", "alt": "T"},
+                {"chrom": "chr1", "pos": 200, "ref": "G", "alt": "C"},
+                {"chrom": "chr1", "pos": 300, "ref": "T", "alt": "A"},
+            ],
+        )
 
         output = tmp_path / "out.vcf.gz"
         write_vcf([cv], source, output)

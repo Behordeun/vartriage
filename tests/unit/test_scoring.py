@@ -6,22 +6,15 @@ import warnings
 
 import pytest
 
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
-from vartriage.prioritization.scoring import (
-    CADD_WEIGHT,
-    REVEL_WEIGHT,
-    ScoreValidationWarning,
-    compute_composite_ranks,
-    normalize_cadd_scores,
-    score_variants,
-    sort_by_composite_rank,
-    validate_revel_scores,
-)
+from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
+                                      ScoredVariant, Variant)
+from vartriage.prioritization.scoring import (CADD_WEIGHT, REVEL_WEIGHT,
+                                              ScoreValidationWarning,
+                                              compute_composite_ranks,
+                                              normalize_cadd_scores,
+                                              score_variants,
+                                              sort_by_composite_rank,
+                                              validate_revel_scores)
 
 
 def _make_annotated_variant(

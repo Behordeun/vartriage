@@ -15,39 +15,30 @@ from unittest.mock import patch
 
 import pytest
 
+
 def _has_reportlab() -> bool:
     try:
         import reportlab  # noqa: F401
+
         return True
     except ImportError:
         return False
 
+
+from vartriage.classification.acmg import ACMGClassifier
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.exceptions import ParseError
 from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (
-    AnnotationConfig,
-    PrioritizationConfig,
-    QualityFilterConfig,
-    ReportConfig,
-)
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.config import (AnnotationConfig, PrioritizationConfig,
+                                     QualityFilterConfig, ReportConfig)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 from vartriage.prioritization.frequency_filter import FrequencyFilter
-from vartriage.prioritization.scoring import (
-    normalize_cadd_scores,
-    score_variants,
-    validate_revel_scores,
-)
-from vartriage.classification.acmg import ACMGClassifier
+from vartriage.prioritization.scoring import (normalize_cadd_scores,
+                                              score_variants,
+                                              validate_revel_scores)
 from vartriage.reporting.generator import ReportGenerator
 
 
@@ -274,12 +265,12 @@ class TestEmptyInputHandling:
 
     def test_annotation_engine_empty_input(self, tmp_path: Path) -> None:
         """AnnotationEngine.annotate yields nothing on empty input."""
-        from unittest.mock import MagicMock, patch as mock_patch
+        from unittest.mock import MagicMock
+        from unittest.mock import patch as mock_patch
+
         from vartriage.annotation.engine import AnnotationEngine
 
-        with mock_patch.object(
-            AnnotationEngine, "__init__", lambda self, config: None
-        ):
+        with mock_patch.object(AnnotationEngine, "__init__", lambda self, config: None):
             engine = AnnotationEngine.__new__(AnnotationEngine)
             engine._config = AnnotationConfig(
                 gene_annotation_path=tmp_path / "fake.gtf",
@@ -302,6 +293,7 @@ class TestEmptyInputHandling:
         assert result == output
         assert output.exists()
         import json
+
         data = json.loads(output.read_text())
         assert data == []
 
@@ -343,9 +335,7 @@ class TestParseErrorContent:
         assert err.line_number == 42
 
     def test_parse_error_has_detail_attribute(self) -> None:
-        err = ParseError(
-            line_number=7, detail="Missing mandatory QUAL column"
-        )
+        err = ParseError(line_number=7, detail="Missing mandatory QUAL column")
         assert err.detail == "Missing mandatory QUAL column"
 
     def test_parse_error_has_field_attribute_when_set(self) -> None:
@@ -369,9 +359,7 @@ class TestParseErrorContent:
         assert "Bad data" in str(err)
 
     def test_parse_error_str_includes_field_when_present(self) -> None:
-        err = ParseError(
-            line_number=12, field="QUAL", detail="Non-numeric"
-        )
+        err = ParseError(line_number=12, field="QUAL", detail="Non-numeric")
         assert "QUAL" in str(err)
 
     def test_missing_fileformat_raises_with_appropriate_detail(
@@ -443,17 +431,13 @@ class TestValueErrorContent:
 class TestFileNotFoundErrorContent:
     """FileNotFoundError includes the file path."""
 
-    def test_vcf_parser_file_not_found_includes_path(
-        self, tmp_path: Path
-    ) -> None:
+    def test_vcf_parser_file_not_found_includes_path(self, tmp_path: Path) -> None:
         fake_path = tmp_path / "nonexistent.vcf"
         with pytest.raises(FileNotFoundError) as exc_info:
             VCFParser(fake_path)
         assert str(fake_path) in str(exc_info.value)
 
-    def test_vcf_parser_missing_tbi_includes_index_path(
-        self, tmp_path: Path
-    ) -> None:
+    def test_vcf_parser_missing_tbi_includes_index_path(self, tmp_path: Path) -> None:
         gz_path = tmp_path / "test.vcf.gz"
         gz_path.write_bytes(b"fake")
         expected_tbi = str(gz_path) + ".tbi"
@@ -470,9 +454,7 @@ class TestFileNotFoundErrorContent:
 class TestReportGeneratorIOErrors:
     """ReportGenerator raises IOError on write failure without partial output."""
 
-    def test_raises_ioerror_on_unwritable_directory(
-        self, tmp_path: Path
-    ) -> None:
+    def test_raises_ioerror_on_unwritable_directory(self, tmp_path: Path) -> None:
         """When parent directory is not writable, should raise IOError."""
         config = ReportConfig(output_format="json")
         gen = ReportGenerator(config)

@@ -11,18 +11,16 @@ from __future__ import annotations
 from typing import Iterator
 
 from vartriage.classification.combining import combine_evidence
-from vartriage.models.variant import (
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-)
+from vartriage.models.variant import (ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant)
 
-_PVS1_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset({
-    FunctionalConsequence.NONSENSE,
-    FunctionalConsequence.FRAMESHIFT,
-})
+_PVS1_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset(
+    {
+        FunctionalConsequence.NONSENSE,
+        FunctionalConsequence.FRAMESHIFT,
+    }
+)
 
 _PM2_AF_THRESHOLD: float = 0.0001
 
@@ -32,15 +30,19 @@ _PP3_SPLICEAI_THRESHOLD: float = 0.5
 
 _PVS1_SPLICEAI_THRESHOLD: float = 0.8
 
-_PP3_SPLICE_ADJACENT: frozenset[FunctionalConsequence] = frozenset({
-    FunctionalConsequence.SPLICE_SITE,
-    FunctionalConsequence.MISSENSE,
-})
+_PP3_SPLICE_ADJACENT: frozenset[FunctionalConsequence] = frozenset(
+    {
+        FunctionalConsequence.SPLICE_SITE,
+        FunctionalConsequence.MISSENSE,
+    }
+)
 
-_PP5_CONFLICTING_ASSERTIONS: frozenset[ClinVarAssertion] = frozenset({
-    ClinVarAssertion.BENIGN,
-    ClinVarAssertion.LIKELY_BENIGN,
-})
+_PP5_CONFLICTING_ASSERTIONS: frozenset[ClinVarAssertion] = frozenset(
+    {
+        ClinVarAssertion.BENIGN,
+        ClinVarAssertion.LIKELY_BENIGN,
+    }
+)
 
 
 class ACMGClassifier:
@@ -95,9 +97,7 @@ class ACMGClassifier:
                 missing_data_sources=frozenset(missing_sources),
             )
 
-    def _assign_tags(
-        self, variant: ScoredVariant
-    ) -> tuple[set[EvidenceTag], set[str]]:
+    def _assign_tags(self, variant: ScoredVariant) -> tuple[set[EvidenceTag], set[str]]:
         """Evaluate all evidence criteria for a single variant.
 
         Parameters
@@ -225,7 +225,11 @@ class ACMGClassifier:
             return
 
         splice_adjacent = consequence in _PP3_SPLICE_ADJACENT
-        if spliceai is not None and spliceai > _PP3_SPLICEAI_THRESHOLD and splice_adjacent:
+        if (
+            spliceai is not None
+            and spliceai > _PP3_SPLICEAI_THRESHOLD
+            and splice_adjacent
+        ):
             tags.add(EvidenceTag.PP3)
             return
 

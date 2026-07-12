@@ -16,16 +16,10 @@ from pathlib import Path
 
 import pytest
 
-from vartriage.models.config import (
-    AnnotationConfig,
-    MissingDataConfig,
-    PipelineConfig,
-    PrioritizationConfig,
-    QualityFilterConfig,
-    ReportConfig,
-)
+from vartriage.models.config import (AnnotationConfig, MissingDataConfig,
+                                     PipelineConfig, PrioritizationConfig,
+                                     QualityFilterConfig, ReportConfig)
 from vartriage.pipeline import Pipeline
-
 
 _VCF_HEADER = """\
 ##fileformat=VCFv4.2
@@ -63,14 +57,13 @@ def _write_gtf(tmp_dir: Path) -> Path:
     """Write a minimal GTF with one gene covering chr1:50-1500."""
     gtf_path = tmp_dir / "genes.gtf"
     lines = [
-        '##format: gtf',
-        'chr1\thavana\tgene\t50\t1500\t.\t+\t.\t'
-        'gene_id "BRCA1"; gene_name "BRCA1";',
-        'chr1\thavana\ttranscript\t50\t1500\t.\t+\t.\t'
+        "##format: gtf",
+        "chr1\thavana\tgene\t50\t1500\t.\t+\t.\t" 'gene_id "BRCA1"; gene_name "BRCA1";',
+        "chr1\thavana\ttranscript\t50\t1500\t.\t+\t.\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
-        'chr1\thavana\texon\t50\t1500\t.\t+\t.\t'
+        "chr1\thavana\texon\t50\t1500\t.\t+\t.\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
-        'chr1\thavana\tCDS\t100\t1200\t.\t+\t0\t'
+        "chr1\thavana\tCDS\t100\t1200\t.\t+\t0\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
     ]
     gtf_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -204,9 +197,7 @@ class TestPipelineConstruction:
 class TestPipelineRun:
     """Test Pipeline.run() execution."""
 
-    def test_run_produces_json_output(
-        self, pipeline_files: dict[str, Path]
-    ) -> None:
+    def test_run_produces_json_output(self, pipeline_files: dict[str, Path]) -> None:
         """Pipeline run with annotation produces valid JSON output."""
         config = PipelineConfig(
             vcf_path=pipeline_files["vcf_path"],
@@ -274,9 +265,7 @@ class TestPipelineRun:
         assert result_path == alt_output
         assert result_path.exists()
 
-    def test_run_csv_output(
-        self, pipeline_files: dict[str, Path]
-    ) -> None:
+    def test_run_csv_output(self, pipeline_files: dict[str, Path]) -> None:
         """Pipeline produces valid CSV output."""
         output_path = pipeline_files["output_path"].parent / "report.csv"
         config = PipelineConfig(
