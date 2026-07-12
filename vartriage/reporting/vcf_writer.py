@@ -211,17 +211,26 @@ def write_vcf(
                                 record.samples[sample][fmt_key]
                             )
 
-                    # Inject VARTRIAGE_* fields for matched variants
+                    # Inject VARTRIAGE_* fields for matched variants.
+                    # Check all ALT alleles since source VCF may have
+                    # multiallelic lines that were split during pipeline
+                    # processing.
                     alts = record.alts
-                    if alts and alts[0] is not None and record.ref is not None:
-                        key: LookupKey = (
-                            record.chrom,
-                            record.pos,
-                            str(record.ref),
-                            str(alts[0]),
-                        )
-                        if key in lookup:
-                            _inject_info_fields(new_rec, lookup[key])
+                    if alts and record.ref is not None:
+                        for alt_allele in alts:
+                            if alt_allele is None:
+                                continue
+                            key: LookupKey = (
+                                record.chrom,
+                                record.pos,
+                                str(record.ref),
+                                str(alt_allele),
+                            )
+                            if key in lookup:
+                                _inject_info_fields(
+                                    new_rec, lookup[key]
+                                )
+                                break  # one annotation per record
 
                     out.write(new_rec)
 
