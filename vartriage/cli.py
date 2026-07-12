@@ -7,10 +7,7 @@ import sys
 from pathlib import Path
 from typing import Literal, Optional, cast
 
-from vartriage.models.config import (
-    ClinicalReportConfig,
-    InheritanceConfig,
-)
+from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
 
 
 def _get_version() -> str:
@@ -52,8 +49,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-format",
         choices=[
-            "json", "csv", "pdf", "vcf",
-            "clinical-pdf", "clinical-html", "clinical-docx",
+            "json",
+            "csv",
+            "pdf",
+            "vcf",
+            "clinical-pdf",
+            "clinical-html",
+            "clinical-docx",
         ],
         default="json",
         help="Output report format (default: json)",
@@ -181,21 +183,11 @@ def main(argv: Optional[list[str]] = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    # Validate clinical format requirements before VCF check
+    # Validate clinical format requirements before VCF check.
+    # _build_clinical_config is the single source of truth for
+    # this validation and will sys.exit(2) on missing flags.
     output_fmt: str = args.output_format
-    if output_fmt.startswith("clinical-"):
-        missing_flags = []
-        if args.patient_id is None:
-            missing_flags.append("--patient-id")
-        if args.panel_name is None:
-            missing_flags.append("--panel-name")
-        if missing_flags:
-            print(
-                f"Error: {output_fmt} requires "
-                f"{' and '.join(missing_flags)}",
-                file=sys.stderr,
-            )
-            sys.exit(2)
+    clinical_config = _build_clinical_config(args, output_fmt)
 
     vcf_path: Path = args.vcf
     if not vcf_path.exists():
@@ -206,7 +198,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         sys.exit(1)
 
     try:
-        result_path = _run_pipeline(args, vcf_path)
+        result_path = _run_pipeline(args, vcf_path, clinical_config)
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -234,7 +226,11 @@ def _handle_unexpected_error(exc: Exception) -> None:
     sys.exit(1)
 
 
-def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
+def _run_pipeline(
+    args: argparse.Namespace,
+    vcf_path: Path,
+    clinical_config: Optional[ClinicalReportConfig] = None,
+) -> Path:
     """Assemble pipeline config from parsed args and run it.
 
     Returns
@@ -242,20 +238,13 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
     Path
         Path to the generated report.
     """
-    from vartriage.models.config import (
-        AnnotationConfig,
-        GeneFilterConfig,
-        PipelineConfig,
-        PrioritizationConfig,
-        RegionFilterConfig,
-        ReportConfig,
-        SampleConfig,
-    )
+    from vartriage.models.config import (AnnotationConfig, GeneFilterConfig,
+                                         PipelineConfig, PrioritizationConfig,
+                                         RegionFilterConfig, ReportConfig,
+                                         SampleConfig)
     from vartriage.pipeline import Pipeline
 
-    # Validate clinical format requirements.
     output_format: str = args.output_format
-    clinical_config = _build_clinical_config(args, output_format)
 
     inheritance_config = _build_inheritance_config(args)
 
@@ -278,8 +267,13 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
 
     report_fmt = cast(
         Literal[
-            "json", "csv", "pdf", "vcf",
-            "clinical-pdf", "clinical-html", "clinical-docx",
+            "json",
+            "csv",
+            "pdf",
+            "vcf",
+            "clinical-pdf",
+            "clinical-html",
+            "clinical-docx",
         ],
         output_format,
     )
@@ -331,7 +325,8 @@ def _run_pipeline(args: argparse.Namespace, vcf_path: Path) -> Path:
 
 
 def _build_clinical_config(
-    args: argparse.Namespace, output_format: str,
+    args: argparse.Namespace,
+    output_format: str,
 ) -> Optional[ClinicalReportConfig]:
     """Build ClinicalReportConfig if clinical format is requested."""
     if not output_format.startswith("clinical-"):
@@ -346,8 +341,7 @@ def _build_clinical_config(
         missing_flags.append("--panel-name")
     if missing_flags:
         print(
-            f"Error: clinical format requires "
-            f"{', '.join(missing_flags)}",
+            f"Error: clinical format requires " f"{', '.join(missing_flags)}",
             file=sys.stderr,
         )
         sys.exit(2)

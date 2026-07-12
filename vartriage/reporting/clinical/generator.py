@@ -15,27 +15,15 @@ from pathlib import Path
 from typing import Iterator, Sequence, Union
 
 from vartriage.models.config import ClinicalReportConfig
-from vartriage.models.variant import (
-    ACMGClassification,
-    ClassifiedVariant,
-)
+from vartriage.models.variant import ACMGClassification, ClassifiedVariant
 from vartriage.reporting.clinical.audit import AuditTrailWriter
-from vartriage.reporting.clinical.models import (
-    EvidenceCardData,
-    ExecutiveSummaryData,
-    FindingsRow,
-    HeaderData,
-    MethodologyData,
-    ReportSections,
-    SignOffData,
-)
-from vartriage.reporting.clinical.narrative import (
-    EvidenceNarrativeBuilder,
-)
-from vartriage.reporting.clinical.template_engine import (
-    ReportTemplateEngine,
-)
-
+from vartriage.reporting.clinical.models import (EvidenceCardData,
+                                                 ExecutiveSummaryData,
+                                                 FindingsRow, HeaderData,
+                                                 MethodologyData,
+                                                 ReportSections, SignOffData)
+from vartriage.reporting.clinical.narrative import EvidenceNarrativeBuilder
+from vartriage.reporting.clinical.template_engine import ReportTemplateEngine
 
 # Tier ordering for findings table sort. Lower value = higher priority.
 _TIER_ORDER: dict[ACMGClassification, int] = {
@@ -74,8 +62,7 @@ class ClinicalReportGenerator:
         self._config = config
         self._pipeline_version = pipeline_version
         self._reference_checksums = (
-            reference_checksums if reference_checksums is not None
-            else {}
+            reference_checksums if reference_checksums is not None else {}
         )
         self._narrative_builder = EvidenceNarrativeBuilder()
         self._template_engine = ReportTemplateEngine()
@@ -116,7 +103,7 @@ class ClinicalReportGenerator:
             If a required rendering backend (WeasyPrint or
             python-docx) is not installed.
         """
-        output_path = Path(output_path)
+        output_path = Path(output_path).resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Materialize the variant iterator for random access.
@@ -129,9 +116,7 @@ class ClinicalReportGenerator:
         timestamp = datetime.now(timezone.utc).isoformat()
 
         # Assemble all report sections.
-        sections = self._assemble_sections(
-            sorted_variants, timestamp
-        )
+        sections = self._assemble_sections(sorted_variants, timestamp)
 
         # Render and write atomically.
         self._render_atomic(sections, output_path)
@@ -158,15 +143,14 @@ class ClinicalReportGenerator:
         the same tier. Variants with None composite_rank sort last
         within their tier.
         """
+
         def sort_key(
             v: ClassifiedVariant,
         ) -> tuple[int, float]:
             tier = _TIER_ORDER.get(v.classification, 99)
             rank = v.scored.composite_rank
             # Negate rank for descending order. None sorts last.
-            rank_key = (
-                -rank if rank is not None else float("inf")
-            )
+            rank_key = -rank if rank is not None else float("inf")
             return (tier, rank_key)
 
         return sorted(variants, key=sort_key)
@@ -178,9 +162,7 @@ class ClinicalReportGenerator:
     ) -> ReportSections:
         """Build all report section data from sorted variants."""
         header = self._build_header(timestamp)
-        executive_summary = self._build_executive_summary(
-            variants
-        )
+        executive_summary = self._build_executive_summary(variants)
         findings_table = self._build_findings_table(variants)
         evidence_cards = self._build_evidence_cards(variants)
         limitations = self._collect_limitations(variants)
@@ -215,18 +197,14 @@ class ClinicalReportGenerator:
         passed = total
 
         pathogenic = sum(
-            1 for v in variants
-            if v.classification == ACMGClassification.PATHOGENIC
+            1 for v in variants if v.classification == ACMGClassification.PATHOGENIC
         )
         likely_pathogenic = sum(
-            1 for v in variants
-            if v.classification
-            == ACMGClassification.LIKELY_PATHOGENIC
+            1
+            for v in variants
+            if v.classification == ACMGClassification.LIKELY_PATHOGENIC
         )
-        vus = sum(
-            1 for v in variants
-            if v.classification == ACMGClassification.VUS
-        )
+        vus = sum(1 for v in variants if v.classification == ACMGClassification.VUS)
 
         return ExecutiveSummaryData(
             total_variants_analyzed=total,
@@ -268,11 +246,8 @@ class ClinicalReportGenerator:
             # Format allele frequency if available.
             af_formatted = None
             if annotated.allele_frequency is not None:
-                af_formatted = (
-                    self._narrative_builder
-                    .format_allele_frequency(
-                        annotated.allele_frequency
-                    )
+                af_formatted = self._narrative_builder.format_allele_frequency(
+                    annotated.allele_frequency
                 )
 
             # Format predictor scores.
@@ -284,8 +259,7 @@ class ClinicalReportGenerator:
             ]:
                 if value is not None:
                     scores_formatted.append(
-                        self._narrative_builder
-                        .format_predictor_score(name, value)
+                        self._narrative_builder.format_predictor_score(name, value)
                     )
 
             # ClinVar assertion.
@@ -294,24 +268,17 @@ class ClinicalReportGenerator:
                 clinvar = annotated.clinvar_assertion.value
 
             # Inheritance pattern from variant info.
-            inheritance = (
-                annotated.variant.info.get("inheritance_pattern")
-            )
+            inheritance = annotated.variant.info.get("inheritance_pattern")
 
             # Evidence tags with explanations.
             tags_explained: list[str] = []
-            for tag in sorted(
-                v.evidence_tags, key=lambda t: t.value
-            ):
+            for tag in sorted(v.evidence_tags, key=lambda t: t.value):
                 tags_explained.append(
-                    self._narrative_builder
-                    .format_evidence_tag(tag, v)
+                    self._narrative_builder.format_evidence_tag(tag, v)
                 )
 
             # Full narrative text.
-            narrative = (
-                self._narrative_builder.build_narrative(v)
-            )
+            narrative = self._narrative_builder.build_narrative(v)
 
             cards.append(
                 EvidenceCardData(
@@ -321,18 +288,14 @@ class ClinicalReportGenerator:
                     predictor_scores_formatted=scores_formatted,
                     clinvar_assertion=clinvar,
                     inheritance_pattern=inheritance,
-                    evidence_tags_with_explanations=(
-                        tags_explained
-                    ),
+                    evidence_tags_with_explanations=(tags_explained),
                     narrative=narrative,
                 )
             )
 
         return cards
 
-    def _collect_limitations(
-        self, variants: list[ClassifiedVariant]
-    ) -> list[str]:
+    def _collect_limitations(self, variants: list[ClassifiedVariant]) -> list[str]:
         """Collect all missing data source names for limitations."""
         all_sources: set[str] = set()
         for v in variants:
@@ -347,9 +310,7 @@ class ClinicalReportGenerator:
             )
         return limitations
 
-    def _build_methodology(
-        self, timestamp: str
-    ) -> MethodologyData:
+    def _build_methodology(self, timestamp: str) -> MethodologyData:
         """Build the methodology section from config metadata."""
         params: dict[str, str] = {
             "report_template": self._config.report_template,
@@ -363,9 +324,7 @@ class ClinicalReportGenerator:
             analysis_timestamp=timestamp,
         )
 
-    def _render_atomic(
-        self, sections: ReportSections, output_path: Path
-    ) -> None:
+    def _render_atomic(self, sections: ReportSections, output_path: Path) -> None:
         """Render the report to a temp file, then atomically rename.
 
         This ensures the target path never holds partial output.
@@ -385,24 +344,14 @@ class ClinicalReportGenerator:
             tmp_path = Path(tmp_name)
 
             if fmt == "clinical-html":
-                html_content = (
-                    self._template_engine.render_html(sections)
-                )
-                tmp_path.write_text(
-                    html_content, encoding="utf-8"
-                )
+                html_content = self._template_engine.render_html(sections)
+                tmp_path.write_text(html_content, encoding="utf-8")
             elif fmt == "clinical-pdf":
-                self._template_engine.render_pdf(
-                    sections, tmp_path
-                )
+                self._template_engine.render_pdf(sections, tmp_path)
             elif fmt == "clinical-docx":
-                self._template_engine.render_docx(
-                    sections, tmp_path
-                )
+                self._template_engine.render_docx(sections, tmp_path)
             else:
-                raise IOError(
-                    f"Unsupported clinical format: {fmt}"
-                )
+                raise IOError(f"Unsupported clinical format: {fmt}")
 
             os.replace(str(tmp_path), str(output_path))
             tmp_path = None
@@ -410,9 +359,7 @@ class ClinicalReportGenerator:
         except (IOError, ImportError):
             raise
         except Exception as exc:
-            raise IOError(
-                f"Failed to generate clinical report: {exc}"
-            ) from exc
+            raise IOError(f"Failed to generate clinical report: {exc}") from exc
         finally:
             if tmp_path is not None:
                 try:

@@ -9,19 +9,12 @@ from __future__ import annotations
 
 import math
 
-from vartriage.models.variant import (
-    ClassifiedVariant,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-)
-
+from vartriage.models.variant import (ClassifiedVariant, EvidenceTag,
+                                      FunctionalConsequence, ScoredVariant)
 
 # Template constants for narrative construction.
 _GENE_CONSEQUENCE_TEMPLATE = "{gene}: {consequence} at {chrom}:{pos} ({ref}>{alt})."
-_INTERGENIC_CONSEQUENCE_TEMPLATE = (
-    "Intergenic variant at {chrom}:{pos} ({ref}>{alt})."
-)
+_INTERGENIC_CONSEQUENCE_TEMPLATE = "Intergenic variant at {chrom}:{pos} ({ref}>{alt})."
 _AF_TEMPLATE = "Population frequency: {af_formatted} in gnomAD."
 _AF_MISSING_NOTE = "Population frequency data not available from gnomAD."
 _CLINVAR_TEMPLATE = "ClinVar: {assertion}."
@@ -67,22 +60,24 @@ class EvidenceNarrativeBuilder:
     No LLM or generative AI is invoked.
     """
 
-    BANNED_VOCABULARY: frozenset[str] = frozenset({
-        "leverage",
-        "comprehensive",
-        "robust",
-        "seamlessly",
-        "furthermore",
-        "utilize",
-        "facilitate",
-        "delve",
-        "foster",
-        "crucial",
-        "it is important to note",
-        "notably",
-        "moreover",
-        "additionally",
-    })
+    BANNED_VOCABULARY: frozenset[str] = frozenset(
+        {
+            "leverage",
+            "comprehensive",
+            "robust",
+            "seamlessly",
+            "furthermore",
+            "utilize",
+            "facilitate",
+            "delve",
+            "foster",
+            "crucial",
+            "it is important to note",
+            "notably",
+            "moreover",
+            "additionally",
+        }
+    )
 
     EM_DASH = "\u2014"
 
@@ -139,9 +134,7 @@ class EvidenceNarrativeBuilder:
         # ClinVar assertion.
         if annotated.clinvar_assertion is not None:
             parts.append(
-                _CLINVAR_TEMPLATE.format(
-                    assertion=annotated.clinvar_assertion.value
-                )
+                _CLINVAR_TEMPLATE.format(assertion=annotated.clinvar_assertion.value)
             )
         else:
             parts.append(_CLINVAR_MISSING_NOTE)
@@ -149,26 +142,20 @@ class EvidenceNarrativeBuilder:
         # Inheritance pattern from variant info dict.
         inheritance = raw_variant.info.get("inheritance_pattern")
         if inheritance is not None:
-            parts.append(
-                _INHERITANCE_TEMPLATE.format(pattern=inheritance)
-            )
+            parts.append(_INHERITANCE_TEMPLATE.format(pattern=inheritance))
 
         # Evidence tags with explanations.
         if variant.evidence_tags:
             tag_explanations: list[str] = []
             for tag in sorted(variant.evidence_tags, key=lambda t: t.value):
-                tag_explanations.append(
-                    self.format_evidence_tag(tag, variant)
-                )
+                tag_explanations.append(self.format_evidence_tag(tag, variant))
             parts.append(
                 _ACMG_CRITERIA_HEADER + " " + ", ".join(tag_explanations) + "."
             )
 
         # Final classification.
         parts.append(
-            _CLASSIFICATION_TEMPLATE.format(
-                classification=variant.classification.value
-            )
+            _CLASSIFICATION_TEMPLATE.format(classification=variant.classification.value)
         )
 
         narrative = " ".join(parts)
@@ -177,7 +164,9 @@ class EvidenceNarrativeBuilder:
         return narrative
 
     def _append_score_parts(
-        self, parts: list[str], scored: ScoredVariant,
+        self,
+        parts: list[str],
+        scored: ScoredVariant,
     ) -> None:
         """Append predictor score sentences to the narrative parts."""
         score_entries: list[str] = []
@@ -189,20 +178,16 @@ class EvidenceNarrativeBuilder:
             ("SpliceAI", scored.spliceai_score),
         ]:
             if value is not None:
-                score_entries.append(
-                    self.format_predictor_score(name, value)
-                )
+                score_entries.append(self.format_predictor_score(name, value))
                 has_score = True
             elif name != "SpliceAI":
-                score_entries.append(
-                    _DATA_GAP_TEMPLATE.format(source=name)
-                )
+                score_entries.append(_DATA_GAP_TEMPLATE.format(source=name))
 
         if has_score:
             parts.append(
-                "Computational evidence: " + ", ".join(
-                    e for e in score_entries if "not available" not in e
-                ) + "."
+                "Computational evidence: "
+                + ", ".join(e for e in score_entries if "not available" not in e)
+                + "."
             )
         for entry in score_entries:
             if "not available" in entry:
@@ -227,19 +212,22 @@ class EvidenceNarrativeBuilder:
         if af >= 1.0:
             return "1.0 (1 in 1)"
 
-        denominator = round(1.0 / af)
+        # Clamp to a safe minimum to guard against floating-point
+        # values extremely close to zero that survived the <= 0
+        # check (e.g. subnormal floats).
+        safe_af = max(af, 1e-300)
+
+        denominator = round(1.0 / safe_af)
         denominator_str = f"{denominator:,}"
 
         # Format the AF value: use enough decimal places to show
         # at least 2 significant figures.
-        sig_digits = max(2, -int(math.floor(math.log10(af))) + 1)
+        sig_digits = max(2, -int(math.floor(math.log10(safe_af))) + 1)
         af_str = f"{af:.{sig_digits}f}"
 
         return f"{af_str} (1 in {denominator_str})"
 
-    def format_predictor_score(
-        self, score_name: str, value: float
-    ) -> str:
+    def format_predictor_score(self, score_name: str, value: float) -> str:
         """Format a predictor score with its standard scale context.
 
         Parameters
@@ -264,9 +252,7 @@ class EvidenceNarrativeBuilder:
             return f"{score_name} {value_str} ({context})"
         return f"{score_name} {value_str}"
 
-    def format_evidence_tag(
-        self, tag: EvidenceTag, variant: ClassifiedVariant
-    ) -> str:
+    def format_evidence_tag(self, tag: EvidenceTag, variant: ClassifiedVariant) -> str:
         """Format one evidence tag with a plain-language explanation.
 
         Parameters
@@ -290,9 +276,7 @@ class EvidenceNarrativeBuilder:
             consequence, consequence.value.lower()
         )
 
-        explanation = explanation_template.format(
-            consequence_detail=consequence_detail
-        )
+        explanation = explanation_template.format(consequence_detail=consequence_detail)
         return f"{tag.value} ({explanation})"
 
     def _validate_output(self, text: str) -> None:
@@ -308,12 +292,12 @@ class EvidenceNarrativeBuilder:
         AssertionError
             If banned content is found in the narrative.
         """
-        assert self.EM_DASH not in text, (
-            f"Narrative contains em dash (U+2014): {text!r}"
-        )
+        assert (
+            self.EM_DASH not in text
+        ), f"Narrative contains em dash (U+2014): {text!r}"
 
         text_lower = text.lower()
         for word in self.BANNED_VOCABULARY:
-            assert word not in text_lower, (
-                f"Narrative contains banned vocabulary '{word}': {text!r}"
-            )
+            assert (
+                word not in text_lower
+            ), f"Narrative contains banned vocabulary '{word}': {text!r}"
