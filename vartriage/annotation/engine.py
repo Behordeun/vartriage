@@ -206,11 +206,11 @@ class AnnotationEngine:
     def _extract_gene_names(
         self, batch: list[Variant]
     ) -> list[Optional[str]]:
-        """Extract gene names from overlap results for a batch.
+        """Extract gene names for a batch of variants.
 
-        Calls overlap() per variant and extracts the gene_name from
-        the first overlapping region. Returns None for intergenic
-        variants with no overlap.
+        Uses the consequence annotator's overlap() method per variant
+        to find the gene symbol from the first overlapping region.
+        Returns None for intergenic variants with no overlap.
 
         Parameters
         ----------
@@ -223,6 +223,11 @@ class AnnotationEngine:
             Gene names positionally matched to the batch. None when
             no overlap is found (intergenic variants).
         """
+        # If the annotator exposes a batch gene lookup, use it
+        if hasattr(self._consequence_annotator, "gene_names_batch"):
+            return self._consequence_annotator.gene_names_batch(batch)
+
+        # Fallback: per-variant overlap queries
         gene_names: list[Optional[str]] = []
         for variant in batch:
             overlaps = self._consequence_annotator.overlap(

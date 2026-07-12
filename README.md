@@ -1,21 +1,3 @@
-n
-
- '*.md' | grep "—" | head -5
-(vartriage) muhammad@muhammad-2:~$ cd /Users/muhammad/Documents/DevProjects/personal_projects/Bioinformatics_Libraries/vartriage && git commit -m "feat: add gene list filtering to pipeline
-
-Add GeneFilter stage between annotation and prioritization.
-Restricts variant stream to genes in a user-supplied text file.
-Case-insensitive matching, warns on unmatched panel genes.
-
-- gene_name field on AnnotatedVariant
-- GeneFilterConfig + PipelineConfig.gene_filter
-- GeneFilter class with streaming apply()
-- Pipeline wiring and config validation
-- CLI --gene-list argument"
-  [feature/gene-list-filtering 01e627f] feat: add gene list filtering to pipeline
-  6 files changed, 269 insertions(+), 1 deletion(-)
-  create mode 100644 vartriage/filter/gene_filter.py
-
 # vartriage
 
 Variant prioritization pipeline for whole-genome sequencing data. Takes a VCF, applies quality filters, annotates functional consequence and population frequency, scores pathogenicity via CADD/REVEL, runs ACMG/AMP evidence classification, and outputs a ranked candidate list.
