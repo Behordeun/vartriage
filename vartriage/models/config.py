@@ -158,6 +158,66 @@ class MissingDataConfig:
 
 
 @dataclass(frozen=True)
+class InheritanceConfig:
+    """Configuration for trio-based inheritance pattern classification.
+
+    Parameters
+    ----------
+    proband : str
+        Proband sample name.
+    mother : str
+        Mother sample name.
+    father : str
+        Father sample name.
+    patterns : list[str]
+        Inheritance patterns to evaluate. Defaults to all supported.
+
+    Raises
+    ------
+    ValueError
+        If any sample name is empty, patterns list is empty, or any
+        pattern is not in the supported set.
+    """
+
+    proband: str
+    mother: str
+    father: str
+    patterns: list[str] = field(
+        default_factory=lambda: [
+            "de_novo", "dominant", "recessive",
+            "compound_het", "x_linked",
+        ]
+    )
+
+    SUPPORTED_PATTERNS: frozenset[str] = field(
+        default=frozenset({
+            "de_novo", "dominant", "recessive",
+            "compound_het", "x_linked",
+        }),
+        init=False,
+        repr=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not self.proband:
+            raise ValueError("proband sample name is required")
+        if not self.mother:
+            raise ValueError("mother sample name is required")
+        if not self.father:
+            raise ValueError("father sample name is required")
+        if not self.patterns:
+            raise ValueError(
+                "at least one inheritance pattern is required"
+            )
+        for pattern in self.patterns:
+            if pattern not in self.SUPPORTED_PATTERNS:
+                raise ValueError(
+                    f"unsupported pattern '{pattern}'. "
+                    f"Valid: {sorted(self.SUPPORTED_PATTERNS)}"
+                )
+
+
+@dataclass(frozen=True)
 class GeneFilterConfig:
     """Configuration for gene-list-based variant filtering.
 
@@ -203,3 +263,4 @@ class PipelineConfig:
     report: ReportConfig = field(default_factory=ReportConfig)
     missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
     gene_filter: GeneFilterConfig | None = field(default=None)
+    inheritance: "InheritanceConfig | None" = field(default=None)

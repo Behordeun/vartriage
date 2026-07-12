@@ -86,6 +86,33 @@ from vartriage import ReportConfig
 config = ReportConfig(output_format="csv")
 ```
 
+## InheritanceConfig
+
+Trio-based inheritance pattern classification settings.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `proband` | `str` | required | Proband sample name |
+| `mother` | `str` | required | Mother sample name |
+| `father` | `str` | required | Father sample name |
+| `patterns` | `list[str]` | all five | Patterns to evaluate |
+
+Supported patterns: `de_novo`, `dominant`, `recessive`, `compound_het`, `x_linked`.
+
+```python
+from vartriage import InheritanceConfig
+
+# All patterns (default)
+config = InheritanceConfig(proband="CHILD", mother="MOM", father="DAD")
+
+# Only de novo and recessive
+config = InheritanceConfig(
+    proband="CHILD", mother="MOM", father="DAD",
+    patterns=["de_novo", "recessive"],
+)
+```
+
+Raises `ValueError` if sample names are empty, patterns list is empty, or any pattern is not in the supported set.
 ## GeneFilterConfig
 
 Restricts analysis to variants in a user-supplied gene list.
@@ -130,6 +157,7 @@ Top-level configuration aggregating all sub-configs.
 | `prioritization` | `PrioritizationConfig` | default instance | |
 | `report` | `ReportConfig` | default instance | |
 | `missing_data` | `MissingDataConfig` | default instance | |
+| `inheritance` | `Optional[InheritanceConfig]` | `None` | None skips trio analysis |
 | `gene_filter` | `Optional[GeneFilterConfig]` | `None` | None skips gene filtering |
 
 ## Example configurations
