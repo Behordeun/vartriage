@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional
+from typing import ClassVar, Literal, Optional
 
 
 @dataclass(frozen=True)
@@ -154,6 +154,72 @@ class MissingDataConfig:
 
 
 @dataclass(frozen=True)
+class InheritanceConfig:
+    """Configuration for trio-based inheritance pattern classification.
+
+    Parameters
+    ----------
+    proband : str
+        Sample name of the proband (individual under investigation).
+    mother : str
+        Sample name of the mother.
+    father : str
+        Sample name of the father.
+    patterns : list[str]
+        Inheritance patterns to evaluate. Defaults to all supported patterns:
+        de_novo, dominant, recessive, compound_het, x_linked.
+
+    Raises
+    ------
+    ValueError
+        If any sample name is empty, patterns list is empty, or any pattern
+        is not in the supported set.
+    """
+
+    proband: str
+    mother: str
+    father: str
+    patterns: list[str] = field(
+        default_factory=lambda: [
+            "de_novo",
+            "dominant",
+            "recessive",
+            "compound_het",
+            "x_linked",
+        ]
+    )
+
+    SUPPORTED_PATTERNS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "de_novo",
+            "dominant",
+            "recessive",
+            "compound_het",
+            "x_linked",
+        }
+    )
+
+    def __post_init__(self) -> None:
+        if not self.proband:
+            raise ValueError("proband sample name is required and cannot be empty")
+        if not self.mother:
+            raise ValueError("mother sample name is required and cannot be empty")
+        if not self.father:
+            raise ValueError("father sample name is required and cannot be empty")
+        if not self.patterns:
+            raise ValueError(
+                "at least one inheritance pattern is required; "
+                f"supported patterns are: {sorted(self.SUPPORTED_PATTERNS)}"
+            )
+        invalid = [p for p in self.patterns if p not in self.SUPPORTED_PATTERNS]
+        if invalid:
+            raise ValueError(
+                f"invalid inheritance pattern(s): {invalid}; "
+                f"supported patterns are: {sorted(self.SUPPORTED_PATTERNS)}"
+            )
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     """Top-level pipeline configuration aggregating all sub-configs.
 
@@ -173,6 +239,9 @@ class PipelineConfig:
         Report generation format settings.
     missing_data : MissingDataConfig
         Missing data handling and warning threshold settings.
+    inheritance : InheritanceConfig | None
+        Trio inheritance pattern classification settings. When None (default),
+        the pipeline uses standard SampleExtractor behavior.
     """
 
     vcf_path: Path
@@ -182,3 +251,4 @@ class PipelineConfig:
     prioritization: PrioritizationConfig = field(default_factory=PrioritizationConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
     missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
+    inheritance: InheritanceConfig | None = field(default=None)
