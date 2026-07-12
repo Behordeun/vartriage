@@ -220,12 +220,12 @@ class ACMGClassifier:
             missing_sources.add("SpliceAI")
             return
 
-        if revel_available and revel > _PP3_REVEL_THRESHOLD:
+        if revel is not None and revel > _PP3_REVEL_THRESHOLD:
             tags.add(EvidenceTag.PP3)
             return
 
         splice_adjacent = consequence in _PP3_SPLICE_ADJACENT
-        if spliceai_available and spliceai > _PP3_SPLICEAI_THRESHOLD and splice_adjacent:
+        if spliceai is not None and spliceai > _PP3_SPLICEAI_THRESHOLD and splice_adjacent:
             tags.add(EvidenceTag.PP3)
             return
 
