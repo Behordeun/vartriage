@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import sys
 from pathlib import Path
@@ -84,6 +85,8 @@ class AuditTrailWriter:
                 json.dumps(audit_data, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
+            # Restrict permissions: audit trail contains PHI (patient_id)
+            os.chmod(sidecar_path, 0o600)
         except OSError as exc:
             raise IOError(
                 f"Failed to write audit sidecar at " f"{sidecar_path}: {exc}"

@@ -342,6 +342,9 @@ class ClinicalReportGenerator:
         """Render the report to a temp file, then atomically rename.
 
         This ensures the target path never holds partial output.
+        Clinical reports may contain PHI (patient identifiers); file
+        permissions are restricted to owner-only (0o600) to limit
+        exposure on shared filesystems.
         """
         fmt = self._config.output_format
         tmp_fd = None
@@ -362,6 +365,9 @@ class ClinicalReportGenerator:
             tmp_fd = None
             tmp_path = Path(tmp_name)
 
+            # Restrict permissions before writing PHI content
+            os.chmod(tmp_path, 0o600)
+
             if fmt == "clinical-html":
                 html_content = self._template_engine.render_html(sections)
                 tmp_path.write_text(html_content, encoding="utf-8")
@@ -373,6 +379,8 @@ class ClinicalReportGenerator:
                 raise IOError(f"Unsupported clinical format: {fmt}")
 
             os.replace(str(tmp_path), str(output_path))
+            # Ensure final file also has restricted permissions
+            os.chmod(output_path, 0o600)
             tmp_path = None
 
         except (IOError, ImportError):
