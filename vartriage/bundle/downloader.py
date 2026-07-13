@@ -169,7 +169,7 @@ class BundleDownloader:
             bytes_downloaded=bytes_downloaded,
             resumed=resumed,
             duration_seconds=duration,
-            checksum_verified=bool(expected_checksum),
+            checksum_verified=checksum_ok,
         )
 
     def _download_with_retry(
@@ -198,7 +198,7 @@ class BundleDownloader:
                 if exc.code not in self._RETRYABLE_STATUS:
                     raise DownloadError(url, f"HTTP {exc.code}: {exc.reason}") from exc
                 last_error = exc
-            except OSError as exc:
+            except (OSError) as exc:
                 last_error = exc
 
             start_offset = self._current_offset(dest, start_offset)
@@ -229,7 +229,7 @@ class BundleDownloader:
         else:
             mode = "wb"
 
-        response = urlopen(request, timeout=self._connect_timeout)
+        response = urlopen(request, timeout=self._read_timeout)
 
         # Check if server supports range (206 Partial Content)
         if start_offset > 0 and response.status != 206:

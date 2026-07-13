@@ -12,8 +12,9 @@ from vartriage.bundle._checksums import (
     compute_sha256,
     verify_checksum,
 )
-from vartriage.bundle._disk import available_space_bytes, format_bytes
+from vartriage.bundle._disk import available_space_bytes, check_disk_space, format_bytes
 from vartriage.bundle.config import BundleConfig
+from vartriage.bundle.downloader import BundleDownloader, DownloadError
 from vartriage.bundle.manifest import BundleManifest
 from vartriage.bundle.registry import BundleEntry, BundleRegistry
 from vartriage.bundle.storage import BundleStorage
@@ -252,3 +253,127 @@ class TestTransformerRegistry:
         assert dest.exists()
         assert result.rows_written >= 9
         assert dest.read_bytes() == content
+
+
+class TestBundleDownloader:
+    """Tests for BundleDownloader using monkeypatched urlopen."""
+
+    def test_successful_download(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Mock urlopen returning data, verify file written and .partial removed."""
+        import io
+        from unittest.mock import MagicMock
+
+        fake_response = MagicMock()
+        fake_response.status = 200
+        fake_response.read = MagicMock(
+            side_effect=[b"hello world data", b""]
+        )
+
+        def mock_urlopen(
+            request: object, timeout: object = None
+        ) -> MagicMock:
+            return fake_response
+
+        monkeypatch.setattr(
+            "vartriage.bundle.downloader.urlopen", mock_urlopen
+        )
+
+        dest = tmp_path / "test_file.txt"
+        downloader = BundleDownloader(
+            timeout=(5, 10), max_retries=0, show_progress=False
+        )
+        result = downloader.download(url="http://example.com/test.txt", dest=dest)
+
+        assert dest.exists()
+        assert dest.read_bytes() == b"hello world data"
+        assert not Path(str(dest) + ".partial").exists()
+        assert result.bytes_downloaded == 16
+        assert result.checksum_verified is True
+
+    def test_retry_on_transient_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Mock urlopen raising HTTPError(500) then succeeding."""
+        from unittest.mock import MagicMock
+        from urllib.error import HTTPError
+
+        call_count = 0
+
+        def mock_urlopen(
+            request: object, timeout: object = None
+        ) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise HTTPError(
+                    "http://example.com/f.txt", 500, "Server Error",
+                    {}, None  # type: ignore[arg-type]
+                )
+            resp = MagicMock()
+            resp.status = 200
+            resp.read = MagicMock(side_effect=[b"data", b""])
+            return resp
+
+        monkeypatch.setattr(
+            "vartriage.bundle.downloader.urlopen", mock_urlopen
+        )
+        # Patch time.sleep to avoid actual waiting
+        monkeypatch.setattr("vartriage.bundle.downloader.time.sleep", lambda _: None)
+
+        dest = tmp_path / "retry_file.txt"
+        downloader = BundleDownloader(
+            timeout=(5, 10), max_retries=2, show_progress=False
+        )
+        result = downloader.download(url="http://example.com/f.txt", dest=dest)
+
+        assert dest.exists()
+        assert result.bytes_downloaded == 4
+        assert call_count == 2
+
+    def test_checksum_mismatch_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Provide wrong expected checksum, verify DownloadError raised."""
+        from unittest.mock import MagicMock
+
+        fake_response = MagicMock()
+        fake_response.status = 200
+        fake_response.read = MagicMock(side_effect=[b"some data", b""])
+
+        def mock_urlopen(
+            request: object, timeout: object = None
+        ) -> MagicMock:
+            return fake_response
+
+        monkeypatch.setattr(
+            "vartriage.bundle.downloader.urlopen", mock_urlopen
+        )
+
+        dest = tmp_path / "checksum_file.txt"
+        downloader = BundleDownloader(
+            timeout=(5, 10), max_retries=0, show_progress=False
+        )
+
+        with pytest.raises(DownloadError, match="Checksum mismatch"):
+            downloader.download(
+                url="http://example.com/f.txt",
+                dest=dest,
+                expected_checksum="sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            )
+
+
+class TestDiskSpaceInsufficient:
+    """Test check_disk_space raises on insufficient space."""
+
+    def test_check_disk_space_insufficient_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Monkeypatch available_space_bytes to return less than required."""
+        monkeypatch.setattr(
+            "vartriage.bundle._disk.available_space_bytes",
+            lambda path: 100,
+        )
+        with pytest.raises(OSError, match="Insufficient disk space"):
+            check_disk_space(tmp_path, 1_000_000)

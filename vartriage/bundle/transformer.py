@@ -15,6 +15,27 @@ from pathlib import Path
 from typing import Optional, Protocol, Sequence
 
 
+def _validate_source_path(source: Path) -> None:
+    """Validate a source path before passing to subprocess.
+
+    Ensures the path exists and is within expected boundaries.
+    Prevents path traversal or unexpected shell metacharacters.
+
+    Raises
+    ------
+    ValueError
+        If the path contains suspicious components.
+    FileNotFoundError
+        If the path doesn't exist.
+    """
+    if not source.exists():
+        raise FileNotFoundError(f"Source file not found: {source}")
+    resolved = source.resolve()
+    name = resolved.name
+    if ".." in str(resolved) or not name:
+        raise ValueError(f"Invalid source path: {source}")
+
+
 @dataclass
 class TransformResult:
     """Result of a file transformation.
@@ -109,6 +130,7 @@ class VcfToTsvTransformer:
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write(self._header + "\n")
+            _validate_source_path(source)
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -141,20 +163,22 @@ class VcfToTsvTransformer:
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
-        with open(dest, "w", encoding="utf-8") as out:
-            out.write(self._header + "\n")
-            for record in vcf:
-                chrom = record.chrom
-                if self._add_chr_prefix and not chrom.startswith("chr"):
-                    chrom = "chr" + chrom
-                pos = record.pos
-                ref = record.ref
-                for alt in record.alts or []:
-                    af = record.info.get("AF", [None])[0] if "AF" in record.info else ""
-                    af_str = str(af) if af is not None else "."
-                    out.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{af_str}\n")
-                    rows += 1
-        vcf.close()
+        try:
+            with open(dest, "w", encoding="utf-8") as out:
+                out.write(self._header + "\n")
+                for record in vcf:
+                    chrom = record.chrom
+                    if self._add_chr_prefix and not chrom.startswith("chr"):
+                        chrom = "chr" + chrom
+                    pos = record.pos
+                    ref = record.ref
+                    for alt in record.alts or []:
+                        af = record.info.get("AF", [None])[0] if "AF" in record.info else ""
+                        af_str = str(af) if af is not None else "."
+                        out.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{af_str}\n")
+                        rows += 1
+        finally:
+            vcf.close()
 
         return TransformResult(output_path=dest, rows_written=rows, source_path=source)
 
@@ -189,19 +213,12 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
             str(source),
         ]
 
-        sig_map = {
-            "Pathogenic": "Pathogenic",
-            "Likely_pathogenic": "Likely pathogenic",
-            "Uncertain_significance": "Uncertain significance",
-            "Likely_benign": "Likely benign",
-            "Benign": "Benign",
-        }
-
         dest.parent.mkdir(parents=True, exist_ok=True)
         rows = 0
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tclinical_significance\n")
+            _validate_source_path(source)
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -223,7 +240,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
                 # Normalize significance
                 raw_sig = parts[4].split("/")[0].split(",")[0]
                 normalized = None
-                for key, val in sig_map.items():
+                for key, val in self._SIG_MAP.items():
                     if raw_sig.startswith(key) or raw_sig.lower().startswith(
                         key.lower()
                     ):
@@ -261,20 +278,22 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
-        with open(dest, "w", encoding="utf-8") as out:
-            out.write("chrom\tpos\tref\talt\tclinical_significance\n")
-            for record in vcf:
-                chrom = self._normalize_chrom(record.chrom)
-                normalized = self._extract_clnsig(record)
-                if normalized is None:
-                    continue
+        try:
+            with open(dest, "w", encoding="utf-8") as out:
+                out.write("chrom\tpos\tref\talt\tclinical_significance\n")
+                for record in vcf:
+                    chrom = self._normalize_chrom(record.chrom)
+                    normalized = self._extract_clnsig(record)
+                    if normalized is None:
+                        continue
 
-                for alt in record.alts or []:
-                    out.write(
-                        f"{chrom}\t{record.pos}\t{record.ref}\t{alt}\t{normalized}\n"
-                    )
-                    rows += 1
-        vcf.close()
+                    for alt in record.alts or []:
+                        out.write(
+                            f"{chrom}\t{record.pos}\t{record.ref}\t{alt}\t{normalized}\n"
+                        )
+                        rows += 1
+        finally:
+            vcf.close()
 
         return TransformResult(output_path=dest, rows_written=rows, source_path=source)
 
@@ -414,6 +433,7 @@ class SpliceAIExtractor:
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tscore\n")
+            _validate_source_path(source)
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -455,21 +475,23 @@ class SpliceAIExtractor:
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
-        with open(dest, "w", encoding="utf-8") as out:
-            out.write("chrom\tpos\tref\talt\tscore\n")
-            for record in vcf:
-                info_val = record.info.get("SpliceAI", None)
-                if info_val is None:
-                    continue
-                raw = str(info_val[0]) if isinstance(info_val, tuple) else str(info_val)
-                score = self._parse_max_delta(raw)
-                if score is not None:
-                    for alt in record.alts or []:
-                        out.write(
-                            f"{record.chrom}\t{record.pos}\t{record.ref}\t{alt}\t{score:.4f}\n"
-                        )
-                        rows += 1
-        vcf.close()
+        try:
+            with open(dest, "w", encoding="utf-8") as out:
+                out.write("chrom\tpos\tref\talt\tscore\n")
+                for record in vcf:
+                    info_val = record.info.get("SpliceAI", None)
+                    if info_val is None:
+                        continue
+                    raw = str(info_val[0]) if isinstance(info_val, tuple) else str(info_val)
+                    score = self._parse_max_delta(raw)
+                    if score is not None:
+                        for alt in record.alts or []:
+                            out.write(
+                                f"{record.chrom}\t{record.pos}\t{record.ref}\t{alt}\t{score:.4f}\n"
+                            )
+                            rows += 1
+        finally:
+            vcf.close()
 
         return TransformResult(output_path=dest, rows_written=rows, source_path=source)
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Literal, Optional, cast
+from typing import Any, Literal, Optional, cast
 
 from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
 
@@ -267,109 +267,42 @@ def _run_pipeline(
     from vartriage.pipeline import Pipeline
 
     output_format: str = args.output_format
-
     inheritance_config = _build_inheritance_config(args)
 
-    # Bundle auto-resolution: fill in missing paths from installed bundles
     use_bundles: bool = getattr(args, "use_bundles", False)
     genome_build: str = getattr(args, "genome_build", "grch38")
 
+    paths = _resolve_reference_paths(args, use_bundles, genome_build)
+
     annotation_config: Optional[AnnotationConfig] = None
-    gene_annotation: Optional[Path] = args.gene_annotation
-    gnomad: Optional[Path] = args.gnomad
-    clinvar: Optional[Path] = args.clinvar
-    cadd_scores: Optional[Path] = args.cadd_scores
-    revel_scores: Optional[Path] = args.revel_scores
-    spliceai_scores: Optional[Path] = args.spliceai_scores
-
-    if use_bundles:
-        from vartriage.bundle.storage import BundleStorage
-        storage = BundleStorage()
-
-        if gene_annotation is None:
-            resolved = storage.resolve_path(genome_build, "gencode")
-            if resolved:
-                gene_annotation = resolved
-
-        if gnomad is None:
-            resolved = storage.resolve_path(genome_build, "gnomad-exomes-chr22")
-            if resolved:
-                gnomad = resolved
-
-        if clinvar is None:
-            resolved = storage.resolve_path(genome_build, "clinvar")
-            if resolved:
-                clinvar = resolved
-
-        if cadd_scores is None:
-            resolved = storage.resolve_path(genome_build, "cadd")
-            if resolved:
-                cadd_scores = resolved
-
-        if revel_scores is None:
-            resolved = storage.resolve_path(genome_build, "revel")
-            if resolved:
-                revel_scores = resolved
-
-        if spliceai_scores is None:
-            resolved = storage.resolve_path(genome_build, "spliceai")
-            if resolved:
-                spliceai_scores = resolved
-
-    if gene_annotation is not None and gnomad is not None:
+    if paths["gene_annotation"] is not None and paths["gnomad"] is not None:
         annotation_config = AnnotationConfig(
-            gene_annotation_path=gene_annotation,
-            gnomad_path=gnomad,
-            clinvar_path=clinvar,
+            gene_annotation_path=paths["gene_annotation"],
+            gnomad_path=paths["gnomad"],
+            clinvar_path=paths["clinvar"],
         )
 
     prioritization_config = PrioritizationConfig(
-        cadd_scores_path=cadd_scores,
-        revel_scores_path=revel_scores,
-        spliceai_scores_path=spliceai_scores,
+        cadd_scores_path=paths["cadd_scores"],
+        revel_scores_path=paths["revel_scores"],
+        spliceai_scores_path=paths["spliceai_scores"],
     )
 
-    report_fmt = cast(
-        Literal[
-            "json",
-            "csv",
-            "pdf",
-            "vcf",
-            "clinical-pdf",
-            "clinical-html",
-            "clinical-docx",
-        ],
-        output_format,
-    )
     report_config = ReportConfig(
-        output_format=report_fmt,
+        output_format=cast(
+            Literal["json", "csv", "pdf", "vcf",
+                    "clinical-pdf", "clinical-html", "clinical-docx"],
+            output_format,
+        ),
     )
 
-    gene_filter_config: Optional[GeneFilterConfig] = None
-    if args.gene_list is not None:
-        gene_filter_config = GeneFilterConfig(
-            gene_list_path=args.gene_list,
-        )
-
-    region_filter_config: Optional[RegionFilterConfig] = None
-    if args.regions is not None:
-        region_filter_config = RegionFilterConfig(
-            bed_path=args.regions,
-        )
-
-    sample_config: Optional[SampleConfig] = None
-    if args.sample is not None:
-        sample_config = SampleConfig(
-            sample_name=args.sample,
-            min_gq=args.min_gq,
-        )
-
-    if args.min_gq is not None and args.sample is None:
-        print(
-            "Error: --min-gq requires --sample",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+    gene_filter_config = _build_optional_config(
+        args.gene_list, lambda p: GeneFilterConfig(gene_list_path=p)
+    )
+    region_filter_config = _build_optional_config(
+        args.regions, lambda p: RegionFilterConfig(bed_path=p)
+    )
+    sample_config = _build_sample_config(args)
 
     pipeline_config = PipelineConfig(
         vcf_path=vcf_path,
@@ -390,16 +323,68 @@ def _run_pipeline(
     return pipeline.run()
 
 
+def _resolve_reference_paths(
+    args: argparse.Namespace, use_bundles: bool, genome_build: str
+) -> dict[str, Optional[Path]]:
+    """Resolve reference file paths, filling from bundles if enabled."""
+    paths: dict[str, Optional[Path]] = {
+        "gene_annotation": args.gene_annotation,
+        "gnomad": args.gnomad,
+        "clinvar": args.clinvar,
+        "cadd_scores": args.cadd_scores,
+        "revel_scores": args.revel_scores,
+        "spliceai_scores": args.spliceai_scores,
+    }
+
+    if not use_bundles:
+        return paths
+
+    from vartriage.bundle.storage import BundleStorage
+    storage = BundleStorage()
+
+    bundle_names = {
+        "gene_annotation": "gencode",
+        "gnomad": "gnomad-exomes-chr22",
+        "clinvar": "clinvar",
+        "cadd_scores": "cadd",
+        "revel_scores": "revel",
+        "spliceai_scores": "spliceai",
+    }
+
+    for key, bundle_name in bundle_names.items():
+        if paths[key] is None:
+            resolved = storage.resolve_path(genome_build, bundle_name)
+            if resolved:
+                paths[key] = resolved
+
+    return paths
+
+
+def _build_optional_config(
+    value: Optional[Path], factory: Any
+) -> Any:
+    """Build an optional config if value is not None."""
+    return factory(value) if value is not None else None
+
+
+def _build_sample_config(args: argparse.Namespace) -> Optional[Any]:
+    """Build SampleConfig from args, validating --min-gq requires --sample."""
+    from vartriage.models.config import SampleConfig
+
+    if args.min_gq is not None and args.sample is None:
+        print("Error: --min-gq requires --sample", file=sys.stderr)
+        sys.exit(2)
+
+    if args.sample is None:
+        return None
+
+    return SampleConfig(sample_name=args.sample, min_gq=args.min_gq)
+
+
 def _build_clinical_config(
     args: argparse.Namespace,
     output_format: str,
 ) -> Optional[ClinicalReportConfig]:
-    """Build ClinicalReportConfig if clinical format is requested."""
-    if not output_format.startswith("clinical-"):
-        return None
-
-    from vartriage.models.config import ClinicalReportConfig as _CRC
-
     """Build ClinicalReportConfig if clinical format is requested."""
     if not output_format.startswith("clinical-"):
         return None
@@ -468,31 +453,6 @@ def _run_bundle_cli(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="vartriage bundle")
     subparsers = parser.add_subparsers(dest="bundle_command")
     add_bundle_subcommands(subparsers)
-
-    # Re-parse with the bundle-specific parser
-    # add_bundle_subcommands adds to a sub-parser, but we need
-    # to parse directly here since we intercepted early.
-    bundle_parser = argparse.ArgumentParser(prog="vartriage bundle")
-    bundle_sub = bundle_parser.add_subparsers(dest="bundle_command")
-
-    dl = bundle_sub.add_parser("download", help="Download a reference bundle")
-    dl.add_argument("--bundle", required=True)
-    dl.add_argument("--build", default=None)
-    dl.add_argument("--dest", default=None)
-    dl.add_argument("--no-transform", action="store_true")
-    dl.add_argument("--no-progress", action="store_true")
-
-    ls = bundle_sub.add_parser("list", help="List bundles")
-    ls.add_argument("--build", default=None)
-    ls.add_argument("--json", action="store_true", dest="json_output")
-
-    vf = bundle_sub.add_parser("verify", help="Verify bundles")
-    vf.add_argument("--bundle", default=None)
-    vf.add_argument("--build", default=None)
-
-    bundle_sub.add_parser("status", help="Show status")
-    bundle_sub.add_parser("update-registry", help="Update registry")
-
-    args = bundle_parser.parse_args(argv)
+    args = parser.parse_args(argv)
     exit_code = run_bundle_command(args)
     sys.exit(exit_code)

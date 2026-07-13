@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from vartriage.bundle._checksums import compute_sha256, verify_checksum
+from vartriage.bundle._checksums import compute_sha256
 from vartriage.bundle._disk import format_bytes
 from vartriage.bundle.config import BundleConfig
 from vartriage.bundle.downloader import BundleDownloader, DownloadError
@@ -81,6 +81,23 @@ def run_bundle_command(args: argparse.Namespace) -> int:
         return 1
 
 
+def _sanitize_filename(raw_name: str) -> str:
+    """Sanitize a filename extracted from a URL to prevent path traversal.
+
+    Raises
+    ------
+    ValueError
+        If the filename is empty, contains '..', or is otherwise unsafe.
+    """
+    # Strip any path separators that may have been embedded
+    name = raw_name.replace("/", "").replace("\\", "")
+    if not name or ".." in name or name.startswith("."):
+        raise ValueError(
+            f"Unsafe filename derived from URL: '{raw_name}'"
+        )
+    return name
+
+
 def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) -> int:
     """Handle 'vartriage bundle download'."""
     registry = BundleRegistry.load()
@@ -113,7 +130,7 @@ def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) ->
 
     # Determine raw file destination
     raw_dir = storage.raw_dir(build, bundle_name)
-    raw_filename = url.split("/")[-1]
+    raw_filename = _sanitize_filename(url.split("/")[-1])
     raw_dest = raw_dir / raw_filename
 
     print(f"Downloading {entry.display_name} v{entry.version} ({build})...")
@@ -163,7 +180,7 @@ def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) ->
         except (ImportError, OSError, ValueError) as exc:
             print(f"  Transform failed: {exc}", file=sys.stderr)
             print(f"  Raw file retained at: {raw_dest}", file=sys.stderr)
-            transformed_filename = raw_filename
+            transformed_filename = ""
 
     # Write manifest
     timestamp = datetime.now(timezone.utc).isoformat()

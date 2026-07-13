@@ -20,7 +20,7 @@ else:
     try:
         import tomli as tomllib
     except ModuleNotFoundError:
-        tomllib = None  # type: ignore[assignment]
+        tomllib = None  # type: ignore[assignment,unused-ignore]
 
 
 @dataclass
