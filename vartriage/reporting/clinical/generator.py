@@ -349,6 +349,11 @@ class ClinicalReportGenerator:
         tmp_fd = None
         tmp_path: Path | None = None
 
+        # Resolve output_path to prevent path traversal
+        output_path = output_path.resolve()
+        if not output_path.parent.exists():
+            raise IOError(f"Parent directory does not exist: {output_path.parent}")
+
         try:
             tmp_fd, tmp_name = tempfile.mkstemp(
                 dir=output_path.parent,
