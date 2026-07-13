@@ -333,32 +333,19 @@ def _build_clinical_config(
         return None
 
     from vartriage.models.config import ClinicalReportConfig as _CRC
+    """Build ClinicalReportConfig if clinical format is requested."""
+    if not output_format.startswith("clinical-"):
+        return None
 
-    missing_flags: list[str] = []
-    patient_id: str | None = args.patient_id
-    panel_name: str | None = args.panel_name
-    if patient_id is not None:
-        patient_id = patient_id.strip() or None
-    if panel_name is not None:
-        panel_name = panel_name.strip() or None
-    if patient_id is None:
-        missing_flags.append("--patient-id")
-    if panel_name is None:
-        missing_flags.append("--panel-name")
-    if missing_flags:
-        print(
-            f"Error: clinical format requires " f"{', '.join(missing_flags)}",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+    from vartriage.models.config import ClinicalReportConfig as _CRC
 
     clinical_fmt = cast(
         Literal["clinical-pdf", "clinical-html", "clinical-docx"],
         output_format,
     )
     return _CRC(
-        patient_id=patient_id,  # type: ignore[arg-type]
-        panel_name=panel_name,  # type: ignore[arg-type]
+        patient_id=args.patient_id,
+        panel_name=args.panel_name,
         output_format=clinical_fmt,
     )
 
