@@ -6,11 +6,9 @@ import warnings
 
 import pytest
 
-from vartriage._internal.warning_accumulator import (
-    MissingDataSummaryWarning,
-    WarningAccumulator,
-    is_connection_failure,
-)
+from vartriage._internal.warning_accumulator import (MissingDataSummaryWarning,
+                                                     WarningAccumulator,
+                                                     is_connection_failure)
 from vartriage.models.config import MissingDataConfig
 from vartriage.models.warnings import MissingDataWarning
 
@@ -64,8 +62,12 @@ class TestWarningAccumulatorBasics:
     def test_add_single_warning(self) -> None:
         acc = WarningAccumulator()
         warning = MissingDataWarning(
-            chrom="chr1", pos=100, ref="A", alt="T",
-            source="gnomAD", reason="not_found",
+            chrom="chr1",
+            pos=100,
+            ref="A",
+            alt="T",
+            source="gnomAD",
+            reason="not_found",
         )
         acc.add(warning)
         assert acc.total_count == 1
@@ -118,9 +120,7 @@ class TestWarningAccumulatorThreshold:
         config = MissingDataConfig(warning_threshold=3)
         acc = WarningAccumulator(config)
         for i in range(3):
-            acc.add(MissingDataWarning(
-                "chr1", i + 1, "A", "T", "gnomAD", "not_found"
-            ))
+            acc.add(MissingDataWarning("chr1", i + 1, "A", "T", "gnomAD", "not_found"))
         assert acc.total_count == 3
         assert acc.threshold_exceeded is False
 
@@ -128,9 +128,7 @@ class TestWarningAccumulatorThreshold:
         config = MissingDataConfig(warning_threshold=3)
         acc = WarningAccumulator(config)
         for i in range(4):
-            acc.add(MissingDataWarning(
-                "chr1", i + 1, "A", "T", "gnomAD", "not_found"
-            ))
+            acc.add(MissingDataWarning("chr1", i + 1, "A", "T", "gnomAD", "not_found"))
         assert acc.total_count == 4
         assert acc.threshold_exceeded is True
 
@@ -165,8 +163,7 @@ class TestWarningAccumulatorThreshold:
             acc.add(MissingDataWarning("chr1", 4, "C", "G", "gnomAD", "not_found"))
 
             summary_warnings = [
-                w for w in caught
-                if issubclass(w.category, MissingDataSummaryWarning)
+                w for w in caught if issubclass(w.category, MissingDataSummaryWarning)
             ]
             assert len(summary_warnings) == 1
 
@@ -222,7 +219,9 @@ class TestMissingDataSummaryWarning:
         assert "300" in text
 
     def test_is_user_warning(self) -> None:
-        summary = MissingDataSummaryWarning(total_count=5, sources=frozenset({"gnomAD"}))
+        summary = MissingDataSummaryWarning(
+            total_count=5, sources=frozenset({"gnomAD"})
+        )
         assert isinstance(summary, UserWarning)
 
 

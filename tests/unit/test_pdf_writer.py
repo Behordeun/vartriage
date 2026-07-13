@@ -7,16 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 from vartriage.reporting.pdf_fallback import PDFFallbackRenderer
 
 
@@ -130,10 +124,8 @@ class TestReportlabPDFRenderer:
         assert output.stat().st_size > 0
 
     def test_null_values_rendered_as_na(self, tmp_path: Path) -> None:
-        from vartriage.reporting.pdf_writer import (
-            ReportlabPDFRenderer,
-            _extract_row,
-        )
+        from vartriage.reporting.pdf_writer import (ReportlabPDFRenderer,
+                                                    _extract_row)
 
         variant = _make_classified_variant(
             allele_frequency=None,
@@ -170,7 +162,9 @@ class TestReportlabPDFRenderer:
         content = output.read_bytes()
         assert content[:5] == b"%PDF-"
 
-    def test_renderer_raises_without_reportlab(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_renderer_raises_without_reportlab(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Verify ReportlabPDFRenderer raises at construction if reportlab missing."""
         import vartriage.reporting.pdf_writer as pdf_module
 

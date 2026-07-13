@@ -2,7 +2,7 @@
 
 Clinical variant triage for gene panels. One pip install, one command: VCF in, ACMG-classified report out. No Java, no Perl, no Spark cluster.
 
-vartriage is the open-source Python library for turning panel sequencing VCFs into auditable, sign-off-ready clinical reports. It handles the full chain: quality filtering, consequence annotation, population frequency lookup, multi-predictor pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP evidence classification, trio inheritance analysis, and structured report generation. Every decision is traceable. Every run is reproducible from its config alone.
+vartriage is the open-source Python library for turning panel sequencing VCFs into auditable, sign-off-ready clinical reports. It handles the full chain: quality filtering, consequence annotation, population frequency lookup, multi-predictor pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP evidence classification, trio inheritance analysis, and structured clinical report generation with per-variant evidence narratives. Every decision is traceable. Every run is reproducible from its config alone.
 
 **Why vartriage instead of VEP + slivar + custom scripts?**
 
@@ -10,6 +10,7 @@ vartriage is the open-source Python library for turning panel sequencing VCFs in
 - Streaming architecture: processes 4M+ variant WGS files under 2GB RAM
 - Trio-aware: de novo, dominant, recessive, compound het, X-linked in one pass
 - Three pathogenicity predictors with dynamic weight redistribution
+- Clinical reports: structured PDF/HTML/DOCX with per-variant evidence narratives, ACMG explanations, and JSON audit trail
 - Outputs directly to IGV-loadable bgzipped VCF with triage annotations
 - Typed Python API with Protocol-based backends (swap in your own annotators)
 
@@ -34,6 +35,7 @@ Optional extras:
 ```bash
 pip install vartriage[accelerated]   # polars + pyranges backends
 pip install vartriage[pdf]           # reportlab PDF reports
+pip install vartriage[clinical]      # weasyprint + python-docx for clinical reports
 pip install vartriage[all]           # everything
 ```
 
@@ -61,6 +63,26 @@ vartriage \
   --sample PROBAND_01 \
   --min-gq 20
 ```
+
+Clinical report options:
+
+```bash
+vartriage \
+  --vcf sample.vcf.gz \
+  --output clinical_report.html \
+  --output-format clinical-html \
+  --patient-id PAT-2025-001 \
+  --panel-name "Cardiac Panel v3" \
+  --gene-annotation gencode.v44.gtf \
+  --gnomad gnomad.v4.sites.tsv \
+  --clinvar clinvar_20240101.tsv \
+  --cadd-scores cadd_scores.tsv \
+  --revel-scores revel_scores.tsv \
+  --spliceai-scores spliceai_scores.tsv \
+  --gene-list cardiac_panel.txt
+```
+
+Formats: `clinical-html` (self-contained HTML), `clinical-pdf` (requires weasyprint), `clinical-docx` (requires python-docx). Both `--patient-id` and `--panel-name` are required for clinical formats.
 
 Run `vartriage --help` for the complete list.
 
@@ -144,7 +166,7 @@ When only two scores are available, weights redistribute proportionally. Single 
 
 Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
 
-**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with per-variant evidence narratives, an executive summary, findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
 
 ## Configuration
 
@@ -177,7 +199,18 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 
 | Field | Type | Default | Options |
 | --- | --- | --- | --- |
-| output_format | str | "json" | "json", "csv", "pdf", "vcf" |
+| output_format | str | "json" | "json", "csv", "pdf", "vcf", "clinical-html", "clinical-pdf", "clinical-docx" |
+
+### ClinicalReportConfig
+
+| Field | Type | Default | Options |
+| --- | --- | --- | --- |
+| patient_id | str | required | Patient identifier |
+| panel_name | str | required | Gene panel name |
+| output_format | str | required | "clinical-pdf", "clinical-html", "clinical-docx" |
+| report_template | str | "standard" | Template name |
+
+Constructed automatically when `--output-format` is a `clinical-*` value. Requires `--patient-id` and `--panel-name`.
 
 ### GeneFilterConfig
 
@@ -250,6 +283,8 @@ warnings.filterwarnings("ignore", category=VarTriageWarning)
 | polars >=0.20,<2.0 | no | [accelerated] | Batch frequency/ClinVar joins |
 | pyranges >=0.1,<1.0 | no | [accelerated] | Interval overlap queries |
 | reportlab >=4.0,<5.0 | no | [pdf] | PDF report rendering |
+| weasyprint >=60.0,<62.0 | no | [clinical] | Clinical PDF rendering |
+| python-docx >=1.0,<2.0 | no | [clinical] | Clinical DOCX rendering |
 
 Without optional extras, the library uses pure-Python fallbacks (dict lookups, bisect-based interval tree). Same output either way; the accelerated path is faster on large reference files.
 
@@ -293,6 +328,7 @@ vartriage/
     prioritization/       # AF gating + CADD/REVEL/SpliceAI scoring (ScoreLoader)
     classification/       # ACMG evidence tagging
     reporting/            # JSON, CSV, PDF, VCF (streaming writers)
+        clinical/         # Clinical report generation (HTML/PDF/DOCX + audit trail)
     models/               # Dataclasses, enums, configs, warnings
     _internal/            # Batch utils, interval tree, caching, vectorized ops
     py.typed              # PEP 561 marker

@@ -15,7 +15,6 @@ from typing import Optional, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
-
 # Memory limit for vectorized operations (2 GB)
 _MAX_MEMORY_BYTES: int = 2 * 1024 * 1024 * 1024
 
@@ -144,8 +143,7 @@ def compute_composite_vectorized(
 
     composite = np.full_like(cadd_normalized, np.nan)
     composite[both] = (
-        revel_scores[both] * revel_weight
-        + cadd_normalized[both] * cadd_weight
+        revel_scores[both] * revel_weight + cadd_normalized[both] * cadd_weight
     )
     composite[cadd_only] = cadd_normalized[cadd_only]
     composite[revel_only] = revel_scores[revel_only]
@@ -210,23 +208,19 @@ def batch_normalize_scores(
         end = min(start + chunk_size, n)
 
         try:
-            cadd_chunk, revel_chunk, comp_chunk = (
-                _process_score_chunk(
-                    cadd_scores[start:end],
-                    revel_scores[start:end],
-                    revel_weight,
-                    cadd_weight,
-                )
+            cadd_chunk, revel_chunk, comp_chunk = _process_score_chunk(
+                cadd_scores[start:end],
+                revel_scores[start:end],
+                revel_weight,
+                cadd_weight,
             )
         except MemoryError:
             # Fall back to smaller chunks on memory pressure
-            cadd_chunk, revel_chunk, comp_chunk = (
-                _process_with_fallback(
-                    cadd_scores[start:end],
-                    revel_scores[start:end],
-                    revel_weight,
-                    cadd_weight,
-                )
+            cadd_chunk, revel_chunk, comp_chunk = _process_with_fallback(
+                cadd_scores[start:end],
+                revel_scores[start:end],
+                revel_weight,
+                cadd_weight,
             )
 
         cadd_out.extend(cadd_chunk)
@@ -385,9 +379,7 @@ def batch_frequency_join(
             },
         )
     except Exception as exc:
-        raise RuntimeError(
-            f"Failed to read reference file: {exc}"
-        ) from exc
+        raise RuntimeError(f"Failed to read reference file: {exc}") from exc
 
     # Normalize column names
     ref_df = ref_df.rename({col: col.lower() for col in ref_df.columns})
@@ -414,10 +406,7 @@ def batch_frequency_join(
     )
 
     af_series = result["af"]
-    return [
-        float(val) if val is not None else None
-        for val in af_series.to_list()
-    ]
+    return [float(val) if val is not None else None for val in af_series.to_list()]
 
 
 def batch_coordinate_overlap_join(

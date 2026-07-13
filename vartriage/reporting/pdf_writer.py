@@ -16,21 +16,14 @@ try:
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import cm
-    from reportlab.platypus import (
-        PageBreak,
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    )
+    from reportlab.platypus import (PageBreak, Paragraph, SimpleDocTemplate,
+                                    Spacer, Table, TableStyle)
 
     HAS_REPORTLAB = True
 except ImportError:
     HAS_REPORTLAB = False
 
 from vartriage.models.variant import ClassifiedVariant
-
 
 _OUTPUT_FIELDS = [
     "Chromosome",

@@ -12,7 +12,6 @@ from typing import Any, Iterator, Sequence, Union
 
 from vartriage.models.variant import ClassifiedVariant
 
-
 # Output field order as specified in requirements
 _OUTPUT_FIELDS: tuple[str, ...] = (
     "chromosome",

@@ -17,21 +17,12 @@ from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (
-    AnnotationConfig,
-    PrioritizationConfig,
-    QualityFilterConfig,
-    ReportConfig,
-)
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    FunctionalConsequence,
-)
+from vartriage.models.config import (AnnotationConfig, PrioritizationConfig,
+                                     QualityFilterConfig, ReportConfig)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, FunctionalConsequence)
 from vartriage.prioritization.scoring import score_variants
 from vartriage.reporting.generator import ReportGenerator
-
 
 # ---------------------------------------------------------------------------
 # Synthetic data generation helpers
@@ -150,22 +141,21 @@ def _write_gtf(tmp_dir: Path) -> Path:
     """
     gtf_path = tmp_dir / "genes.gtf"
     gtf_lines = [
-        '##format: gtf',
-        'chr1\thavana\tgene\t900\t2100\t.\t+\t.\t'
+        "##format: gtf",
+        "chr1\thavana\tgene\t900\t2100\t.\t+\t.\t"
         'gene_id "BRCA1"; gene_name "BRCA1";',
-        'chr1\thavana\ttranscript\t900\t2100\t.\t+\t.\t'
+        "chr1\thavana\ttranscript\t900\t2100\t.\t+\t.\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
-        'chr1\thavana\texon\t900\t2100\t.\t+\t.\t'
+        "chr1\thavana\texon\t900\t2100\t.\t+\t.\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
-        'chr1\thavana\tCDS\t1000\t2000\t.\t+\t0\t'
+        "chr1\thavana\tCDS\t1000\t2000\t.\t+\t0\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
-        'chr3\thavana\tgene\t2900\t4100\t.\t+\t.\t'
-        'gene_id "TP53"; gene_name "TP53";',
-        'chr3\thavana\ttranscript\t2900\t4100\t.\t+\t.\t'
+        "chr3\thavana\tgene\t2900\t4100\t.\t+\t.\t" 'gene_id "TP53"; gene_name "TP53";',
+        "chr3\thavana\ttranscript\t2900\t4100\t.\t+\t.\t"
         'gene_id "TP53"; transcript_id "TP53.1"; gene_name "TP53";',
-        'chr3\thavana\texon\t2900\t4100\t.\t+\t.\t'
+        "chr3\thavana\texon\t2900\t4100\t.\t+\t.\t"
         'gene_id "TP53"; transcript_id "TP53.1"; gene_name "TP53";',
-        'chr3\thavana\tCDS\t3000\t4000\t.\t+\t0\t'
+        "chr3\thavana\tCDS\t3000\t4000\t.\t+\t0\t"
         'gene_id "TP53"; transcript_id "TP53.1"; gene_name "TP53";',
     ]
     gtf_path.write_text("\n".join(gtf_lines) + "\n", encoding="utf-8")
@@ -342,6 +332,7 @@ def _run_pipeline(
     qf_config = QualityFilterConfig(min_qual=min_qual)
     quality_filter = QualityFilter(qf_config)
     import warnings as _w
+
     with _w.catch_warnings():
         _w.simplefilter("ignore")
         filtered = list(quality_filter.apply(iter(raw_variants)))
@@ -362,9 +353,8 @@ def _run_pipeline(
         batch_size=1000,
     )
     # Apply frequency filter first
-    from vartriage.prioritization.frequency_filter import (
-        FrequencyFilter,
-    )
+    from vartriage.prioritization.frequency_filter import FrequencyFilter
+
     freq_filter = FrequencyFilter(pri_config)
     af_filtered = list(freq_filter.apply(iter(annotated)))
 
@@ -436,9 +426,7 @@ class TestPipelineE2E:
             output_dir=pipeline_data["output_dir"],
         )
         assert len(classified) > 0
-        assert all(
-            isinstance(v, ClassifiedVariant) for v in classified
-        )
+        assert all(isinstance(v, ClassifiedVariant) for v in classified)
 
     def test_quality_filtering_excludes_expected_variants(
         self, pipeline_data: dict[str, Path]
@@ -456,6 +444,7 @@ class TestPipelineE2E:
 
         # Apply quality filter with threshold 30
         import warnings as _w
+
         qf = QualityFilter(QualityFilterConfig(min_qual=30.0))
         with _w.catch_warnings():
             _w.simplefilter("ignore")
@@ -479,8 +468,7 @@ class TestPipelineE2E:
 
         # Some variants should have frequency_unknown=True and still appear
         freq_unknown_variants = [
-            v for v in classified
-            if v.scored.annotated.frequency_unknown
+            v for v in classified if v.scored.annotated.frequency_unknown
         ]
         assert len(freq_unknown_variants) > 0
 
@@ -496,9 +484,7 @@ class TestPipelineE2E:
             output_dir=pipeline_data["output_dir"],
         )
 
-        consequences = {
-            v.scored.annotated.consequence for v in classified
-        }
+        consequences = {v.scored.annotated.consequence for v in classified}
         # Should have at least Missense, Frameshift, and either
         # Splice_Site or Synonymous or Intergenic
         assert FunctionalConsequence.MISSENSE in consequences
@@ -529,8 +515,10 @@ class TestPipelineE2E:
         )
 
         pathogenic_or_likely = [
-            v for v in classified
-            if v.classification in (
+            v
+            for v in classified
+            if v.classification
+            in (
                 ACMGClassification.PATHOGENIC,
                 ACMGClassification.LIKELY_PATHOGENIC,
             )
@@ -540,14 +528,13 @@ class TestPipelineE2E:
 
         # Verify at least one has the expected evidence tags
         from vartriage.models.variant import EvidenceTag
+
         for v in pathogenic_or_likely:
             tags = v.evidence_tags
             # Should have PVS1 at minimum (frameshift)
             assert EvidenceTag.PVS1 in tags
 
-    def test_composite_rank_ordering(
-        self, pipeline_data: dict[str, Path]
-    ) -> None:
+    def test_composite_rank_ordering(self, pipeline_data: dict[str, Path]) -> None:
         """Output is sorted descending by composite_rank, nulls last."""
         _, classified = _run_pipeline(
             vcf_path=pipeline_data["vcf_path"],
@@ -567,18 +554,14 @@ class TestPipelineE2E:
         # Null ranks should appear after all non-null ranks
         if null_positions and non_null_ranks:
             first_null_pos = null_positions[0]
-            last_non_null_pos = max(
-                i for i, r in enumerate(ranks) if r is not None
-            )
+            last_non_null_pos = max(i for i, r in enumerate(ranks) if r is not None)
             assert first_null_pos > last_non_null_pos
 
 
 class TestJSONOutput:
     """Verify JSON report output validity and structure."""
 
-    def test_json_output_is_valid_json(
-        self, pipeline_data: dict[str, Path]
-    ) -> None:
+    def test_json_output_is_valid_json(self, pipeline_data: dict[str, Path]) -> None:
         """Generated JSON file is parseable and RFC 8259 compliant."""
         output_path, _ = _run_pipeline(
             vcf_path=pipeline_data["vcf_path"],
@@ -629,9 +612,7 @@ class TestJSONOutput:
             assert isinstance(record["ref_allele"], str)
             assert isinstance(record["alt_allele"], str)
 
-    def test_json_round_trip_fidelity(
-        self, pipeline_data: dict[str, Path]
-    ) -> None:
+    def test_json_round_trip_fidelity(self, pipeline_data: dict[str, Path]) -> None:
         """Serializing and deserializing JSON preserves all values."""
         output_path, classified = _run_pipeline(
             vcf_path=pipeline_data["vcf_path"],
@@ -653,9 +634,7 @@ class TestJSONOutput:
             assert record["ref_allele"] == base.ref
             assert record["alt_allele"] == base.alt
 
-    def test_json_null_representation(
-        self, pipeline_data: dict[str, Path]
-    ) -> None:
+    def test_json_null_representation(self, pipeline_data: dict[str, Path]) -> None:
         """Absent field values are represented as JSON null."""
         output_path, _ = _run_pipeline(
             vcf_path=pipeline_data["vcf_path"],
@@ -668,9 +647,7 @@ class TestJSONOutput:
 
         data = json.loads(output_path.read_text(encoding="utf-8"))
         # Some variants should have null allele_frequency (frequency_unknown)
-        null_af_records = [
-            r for r in data if r["allele_frequency"] is None
-        ]
+        null_af_records = [r for r in data if r["allele_frequency"] is None]
         assert len(null_af_records) > 0
 
 
@@ -730,9 +707,7 @@ class TestCSVOutput:
         data_rows = rows[1:]
         assert len(data_rows) == len(classified)
 
-    def test_csv_consistent_field_count(
-        self, pipeline_data: dict[str, Path]
-    ) -> None:
+    def test_csv_consistent_field_count(self, pipeline_data: dict[str, Path]) -> None:
         """Every CSV row has the same number of fields as the header."""
         output_path, _ = _run_pipeline(
             vcf_path=pipeline_data["vcf_path"],
@@ -749,9 +724,9 @@ class TestCSVOutput:
 
         header_count = len(rows[0])
         for i, row in enumerate(rows[1:], start=2):
-            assert len(row) == header_count, (
-                f"Row {i} has {len(row)} fields, expected {header_count}"
-            )
+            assert (
+                len(row) == header_count
+            ), f"Row {i} has {len(row)} fields, expected {header_count}"
 
     def test_csv_empty_fields_for_null_values(
         self, pipeline_data: dict[str, Path]
@@ -774,18 +749,14 @@ class TestCSVOutput:
         # Find clinvar_assertion column index
         clinvar_idx = header.index("clinvar_assertion")
         # Some variants should have empty clinvar_assertion
-        empty_clinvar_rows = [
-            r for r in rows if r[clinvar_idx] == ""
-        ]
+        empty_clinvar_rows = [r for r in rows if r[clinvar_idx] == ""]
         assert len(empty_clinvar_rows) > 0
 
 
 class TestPDFOutput:
     """Verify PDF report output (requires reportlab)."""
 
-    def test_pdf_output_is_valid(
-        self, pipeline_data: dict[str, Path]
-    ) -> None:
+    def test_pdf_output_is_valid(self, pipeline_data: dict[str, Path]) -> None:
         """Generated PDF file exists and has non-zero size."""
         pytest.importorskip("reportlab")
 
@@ -800,9 +771,7 @@ class TestPDFOutput:
         assert output_path.exists()
         assert output_path.stat().st_size > 0
 
-    def test_pdf_starts_with_pdf_header(
-        self, pipeline_data: dict[str, Path]
-    ) -> None:
+    def test_pdf_starts_with_pdf_header(self, pipeline_data: dict[str, Path]) -> None:
         """Valid PDF files start with the %PDF magic bytes."""
         pytest.importorskip("reportlab")
 
@@ -834,8 +803,7 @@ class TestVUSClassification:
         )
 
         vus_variants = [
-            v for v in classified
-            if v.classification == ACMGClassification.VUS
+            v for v in classified if v.classification == ACMGClassification.VUS
         ]
         # Many variants should be VUS (synonymous, intergenic,
         # missense without sufficient evidence)
@@ -854,8 +822,6 @@ class TestVUSClassification:
         )
 
         # Find any variant with no evidence tags
-        no_tags = [
-            v for v in classified if len(v.evidence_tags) == 0
-        ]
+        no_tags = [v for v in classified if len(v.evidence_tags) == 0]
         for v in no_tags:
             assert v.classification == ACMGClassification.VUS

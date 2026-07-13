@@ -10,11 +10,8 @@ import pytest
 
 from vartriage.filter.gene_filter import GeneFilter
 from vartriage.models.config import GeneFilterConfig
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    FunctionalConsequence,
-    Variant,
-)
+from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
+                                      Variant)
 
 
 def _make_variant(
@@ -48,21 +45,15 @@ def _write_gene_file(tmp_path: Path, content: str) -> Path:
 class TestGeneListLoading:
     """Gene list file parsing and validation."""
 
-    def test_loads_mixed_case_symbols_as_uppercase(
-        self, tmp_path: Path
-    ) -> None:
-        gene_file = _write_gene_file(
-            tmp_path, "brca1\nTP53\nMlh1\n"
-        )
+    def test_loads_mixed_case_symbols_as_uppercase(self, tmp_path: Path) -> None:
+        gene_file = _write_gene_file(tmp_path, "brca1\nTP53\nMlh1\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
 
         assert gf.genes == frozenset({"BRCA1", "TP53", "MLH1"})
 
     def test_skips_blank_lines(self, tmp_path: Path) -> None:
-        gene_file = _write_gene_file(
-            tmp_path, "BRCA1\n\n\nTP53\n   \nMLH1\n"
-        )
+        gene_file = _write_gene_file(tmp_path, "BRCA1\n\n\nTP53\n   \nMLH1\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
 
@@ -78,20 +69,14 @@ class TestGeneListLoading:
 
         assert gf.genes == frozenset({"BRCA1", "TP53"})
 
-    def test_strips_leading_trailing_whitespace(
-        self, tmp_path: Path
-    ) -> None:
-        gene_file = _write_gene_file(
-            tmp_path, "  BRCA1  \n\tTP53\t\n"
-        )
+    def test_strips_leading_trailing_whitespace(self, tmp_path: Path) -> None:
+        gene_file = _write_gene_file(tmp_path, "  BRCA1  \n\tTP53\t\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
 
         assert gf.genes == frozenset({"BRCA1", "TP53"})
 
-    def test_raises_file_not_found_on_missing_file(
-        self, tmp_path: Path
-    ) -> None:
+    def test_raises_file_not_found_on_missing_file(self, tmp_path: Path) -> None:
         missing = tmp_path / "nonexistent.txt"
         config = GeneFilterConfig(gene_list_path=missing)
 
@@ -101,9 +86,7 @@ class TestGeneListLoading:
     def test_raises_value_error_on_only_comments_and_blanks(
         self, tmp_path: Path
     ) -> None:
-        gene_file = _write_gene_file(
-            tmp_path, "# comment\n\n   \n# another\n"
-        )
+        gene_file = _write_gene_file(tmp_path, "# comment\n\n   \n# another\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
 
         with pytest.raises(ValueError, match="no valid gene"):
@@ -113,9 +96,7 @@ class TestGeneListLoading:
 class TestGeneFilterInclusion:
     """Filter correctly includes matching variants."""
 
-    def test_apply_reusable_across_multiple_calls(
-        self, tmp_path: Path
-    ) -> None:
+    def test_apply_reusable_across_multiple_calls(self, tmp_path: Path) -> None:
         """apply() resets state on each call, no leakage between streams."""
         gene_file = _write_gene_file(tmp_path, "GENE1\nGENE2\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
@@ -141,9 +122,7 @@ class TestGeneFilterInclusion:
         assert result2[0].gene_name == "GENE2"
         assert gf.unmatched_genes == frozenset({"GENE1"})
 
-    def test_variant_with_matching_gene_passes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_variant_with_matching_gene_passes(self, tmp_path: Path) -> None:
         gene_file = _write_gene_file(tmp_path, "BRCA1\nTP53\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
@@ -153,9 +132,7 @@ class TestGeneFilterInclusion:
 
         assert result == [variant]
 
-    def test_case_insensitive_matching(
-        self, tmp_path: Path
-    ) -> None:
+    def test_case_insensitive_matching(self, tmp_path: Path) -> None:
         gene_file = _write_gene_file(tmp_path, "BRCA1\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
@@ -181,9 +158,7 @@ class TestGeneFilterInclusion:
 class TestGeneFilterExclusion:
     """Filter correctly excludes non-matching variants."""
 
-    def test_variant_with_non_matching_gene_excluded(
-        self, tmp_path: Path
-    ) -> None:
+    def test_variant_with_non_matching_gene_excluded(self, tmp_path: Path) -> None:
         gene_file = _write_gene_file(tmp_path, "BRCA1\nTP53\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
@@ -193,9 +168,7 @@ class TestGeneFilterExclusion:
 
         assert result == []
 
-    def test_intergenic_variant_excluded(
-        self, tmp_path: Path
-    ) -> None:
+    def test_intergenic_variant_excluded(self, tmp_path: Path) -> None:
         gene_file = _write_gene_file(tmp_path, "BRCA1\nTP53\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
@@ -209,12 +182,8 @@ class TestGeneFilterExclusion:
 class TestUnmatchedGeneDetection:
     """Unmatched gene tracking after stream exhaustion."""
 
-    def test_unmatched_genes_reported_after_exhaustion(
-        self, tmp_path: Path
-    ) -> None:
-        gene_file = _write_gene_file(
-            tmp_path, "BRCA1\nTP53\nMLH1\n"
-        )
+    def test_unmatched_genes_reported_after_exhaustion(self, tmp_path: Path) -> None:
+        gene_file = _write_gene_file(tmp_path, "BRCA1\nTP53\nMLH1\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
 
@@ -226,9 +195,7 @@ class TestUnmatchedGeneDetection:
 
         assert gf.unmatched_genes == frozenset({"MLH1"})
 
-    def test_no_unmatched_when_all_genes_hit(
-        self, tmp_path: Path
-    ) -> None:
+    def test_no_unmatched_when_all_genes_hit(self, tmp_path: Path) -> None:
         gene_file = _write_gene_file(tmp_path, "BRCA1\nTP53\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
@@ -244,9 +211,7 @@ class TestUnmatchedGeneDetection:
     def test_unmatched_genes_logged_as_warning(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        gene_file = _write_gene_file(
-            tmp_path, "BRCA1\nTP53\nMLH1\n"
-        )
+        gene_file = _write_gene_file(tmp_path, "BRCA1\nTP53\nMLH1\n")
         config = GeneFilterConfig(gene_list_path=gene_file)
         gf = GeneFilter(config)
 

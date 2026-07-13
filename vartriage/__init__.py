@@ -14,35 +14,21 @@ Example
 
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
-from vartriage.filter.quality_filter import QualityFilter
-from vartriage.io.exceptions import (
-    ConfigurationError,
-    ParseError,
-    ReferenceFileError,
-    VariantPrioritizationError,
-)
-from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (
-    AnnotationConfig,
-    MissingDataConfig,
-    PipelineConfig,
-    PrioritizationConfig,
-    QualityFilterConfig,
-    ReportConfig,
-)
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EVIDENCE_STRENGTH_MAP,
-    EvidenceStrength,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
 from vartriage.exceptions import VarTriageWarning
+from vartriage.filter.quality_filter import QualityFilter
+from vartriage.io.exceptions import (ConfigurationError, ParseError,
+                                     ReferenceFileError,
+                                     VariantPrioritizationError)
+from vartriage.io.vcf_parser import VCFParser
+from vartriage.models.config import (AnnotationConfig, MissingDataConfig,
+                                     PipelineConfig, PrioritizationConfig,
+                                     QualityFilterConfig, ReportConfig)
+from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
+                                      ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceStrength, EvidenceTag,
+                                      FunctionalConsequence, ScoredVariant,
+                                      Variant)
 from vartriage.models.warnings import MissingDataWarning
 from vartriage.pipeline import Pipeline
 from vartriage.prioritization.engine import PrioritizationEngine
@@ -50,6 +36,7 @@ from vartriage.reporting.generator import ReportGenerator
 
 try:
     from importlib.metadata import version as _get_version
+
     __version__ = _get_version("vartriage")
 except Exception:
     __version__ = "0.1.0"

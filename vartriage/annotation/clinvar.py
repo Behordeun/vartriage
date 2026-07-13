@@ -23,7 +23,6 @@ from typing import Optional
 from vartriage.io.exceptions import ReferenceFileError
 from vartriage.models.variant import ClinVarAssertion
 
-
 _SIGNIFICANCE_MAP: dict[str, ClinVarAssertion] = {
     "Pathogenic": ClinVarAssertion.PATHOGENIC,
     "Likely pathogenic": ClinVarAssertion.LIKELY_PATHOGENIC,
@@ -71,14 +70,10 @@ class DictClinVarDatabase:
             malformed data that cannot be parsed.
         """
         if not reference_path.exists():
-            raise ReferenceFileError(
-                f"{reference_path}: file not found"
-            )
+            raise ReferenceFileError(f"{reference_path}: file not found")
 
         if not reference_path.is_file():
-            raise ReferenceFileError(
-                f"{reference_path}: not a regular file"
-            )
+            raise ReferenceFileError(f"{reference_path}: not a regular file")
 
         try:
             self._data = self._parse_tsv(reference_path)
@@ -86,8 +81,7 @@ class DictClinVarDatabase:
             raise
         except Exception as exc:
             raise ReferenceFileError(
-                f"{reference_path}: failed to parse ClinVar reference: "
-                f"{exc}"
+                f"{reference_path}: failed to parse ClinVar reference: " f"{exc}"
             ) from exc
 
         self._loaded = True

@@ -23,9 +23,7 @@ VARTRIAGE_INFO_FIELDS: list[dict[str, str]] = [
         "ID": "VARTRIAGE_CONSEQUENCE",
         "Number": "1",
         "Type": "String",
-        "Description": (
-            "Functional consequence assigned by vartriage"
-        ),
+        "Description": ("Functional consequence assigned by vartriage"),
     },
     {
         "ID": "VARTRIAGE_AF",
@@ -43,17 +41,13 @@ VARTRIAGE_INFO_FIELDS: list[dict[str, str]] = [
         "ID": "VARTRIAGE_ACMG",
         "Number": "1",
         "Type": "String",
-        "Description": (
-            "ACMG/AMP classification assigned by vartriage"
-        ),
+        "Description": ("ACMG/AMP classification assigned by vartriage"),
     },
     {
         "ID": "VARTRIAGE_TAGS",
         "Number": "1",
         "Type": "String",
-        "Description": (
-            "Comma-separated ACMG evidence tags assigned by vartriage"
-        ),
+        "Description": ("Comma-separated ACMG evidence tags assigned by vartriage"),
     },
 ]
 
@@ -102,7 +96,7 @@ def _add_info_headers(
     """
     for field_def in VARTRIAGE_INFO_FIELDS:
         header.add_line(
-            '##INFO=<ID={ID},Number={Number},Type={Type},'
+            "##INFO=<ID={ID},Number={Number},Type={Type},"
             'Description="{Description}">'.format(**field_def)
         )
     return header
@@ -136,9 +130,7 @@ def _inject_info_fields(
         record.info["VARTRIAGE_RANK"] = classified.scored.composite_rank
 
     if classified.evidence_tags:
-        tags_str = ",".join(
-            sorted(tag.value for tag in classified.evidence_tags)
-        )
+        tags_str = ",".join(sorted(tag.value for tag in classified.evidence_tags))
         record.info["VARTRIAGE_TAGS"] = tags_str
 
 
@@ -185,9 +177,7 @@ def write_vcf(
         with pysam.VariantFile(str(source_vcf_path), "r") as src:
             new_header = _add_info_headers(src.header.copy())
 
-            with pysam.VariantFile(
-                str(tmp_path), "wz", header=new_header
-            ) as out:
+            with pysam.VariantFile(str(tmp_path), "wz", header=new_header) as out:
                 for record in src:
                     # Build a new record in the output header context
                     new_rec = out.new_record(
@@ -207,9 +197,9 @@ def write_vcf(
                     # Copy FORMAT/sample data
                     for sample in record.samples:
                         for fmt_key in record.samples[sample]:
-                            new_rec.samples[sample][fmt_key] = (
-                                record.samples[sample][fmt_key]
-                            )
+                            new_rec.samples[sample][fmt_key] = record.samples[sample][
+                                fmt_key
+                            ]
 
                     # Inject VARTRIAGE_* fields for matched variants.
                     # Check all ALT alleles since source VCF may have
@@ -227,9 +217,7 @@ def write_vcf(
                                 str(alt_allele),
                             )
                             if key in lookup:
-                                _inject_info_fields(
-                                    new_rec, lookup[key]
-                                )
+                                _inject_info_fields(new_rec, lookup[key])
                                 break  # one annotation per record
 
                     out.write(new_rec)
@@ -246,8 +234,6 @@ def write_vcf(
         for p in (tmp_path, tmp_tbi_path):
             if p.exists():
                 p.unlink()
-        raise IOError(
-            f"Failed to write VCF output: {exc}"
-        ) from exc
+        raise IOError(f"Failed to write VCF output: {exc}") from exc
 
     return output_path

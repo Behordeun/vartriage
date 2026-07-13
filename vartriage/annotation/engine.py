@@ -14,17 +14,11 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from vartriage.models.config import AnnotationConfig
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    ClinVarAssertion,
-    Variant,
-)
+from vartriage.models.variant import (AnnotatedVariant, ClinVarAssertion,
+                                      Variant)
 from vartriage.models.warnings import MissingDataWarning
-from vartriage.protocols import (
-    ClinVarDatabase,
-    FrequencyDatabase,
-    IntervalIndex,
-)
+from vartriage.protocols import (ClinVarDatabase, FrequencyDatabase,
+                                 IntervalIndex)
 
 logger = logging.getLogger(__name__)
 
@@ -79,20 +73,18 @@ class AnnotationEngine:
         self._validate_paths(config)
 
         # Initialize consequence annotator
-        self._consequence_annotator: IntervalIndex = (
-            self._build_consequence_annotator(
-                config.gene_annotation_path
-            )
+        self._consequence_annotator: IntervalIndex = self._build_consequence_annotator(
+            config.gene_annotation_path
         )
 
         # Initialize frequency database
-        self._frequency_db: FrequencyDatabase = (
-            self._build_frequency_db(config.gnomad_path)
+        self._frequency_db: FrequencyDatabase = self._build_frequency_db(
+            config.gnomad_path
         )
 
         # Initialize ClinVar database (optional)
-        self._clinvar_db: Optional[ClinVarDatabase] = (
-            self._build_clinvar_db(config.clinvar_path)
+        self._clinvar_db: Optional[ClinVarDatabase] = self._build_clinvar_db(
+            config.clinvar_path
         )
 
     @property
@@ -100,9 +92,7 @@ class AnnotationEngine:
         """Warnings accumulated for variants missing from references."""
         return self._warnings
 
-    def annotate(
-        self, variants: Iterator[Variant]
-    ) -> Iterator[AnnotatedVariant]:
+    def annotate(self, variants: Iterator[Variant]) -> Iterator[AnnotatedVariant]:
         """Annotate variants with consequence, frequency, and ClinVar data.
 
         Processes variants in batches of ``config.batch_size`` (default
@@ -130,9 +120,7 @@ class AnnotationEngine:
 
             yield from self._annotate_batch(batch)
 
-    def _annotate_batch(
-        self, batch: list[Variant]
-    ) -> list[AnnotatedVariant]:
+    def _annotate_batch(self, batch: list[Variant]) -> list[AnnotatedVariant]:
         """Run consequence + frequency + ClinVar on a single batch."""
         # Consequence assignment
         consequences = self._consequence_annotator.assign_batch(batch)
@@ -141,17 +129,13 @@ class AnnotationEngine:
         gene_names = self._extract_gene_names(batch)
 
         # Frequency lookup
-        variant_keys = [
-            (v.chrom, v.pos, v.ref, v.alt) for v in batch
-        ]
+        variant_keys = [(v.chrom, v.pos, v.ref, v.alt) for v in batch]
         frequencies = self._frequency_db.lookup_batch(variant_keys)
 
         # ClinVar lookup
         clinvar_assertions: list[Optional[ClinVarAssertion]] = []
         if self._clinvar_db is not None:
-            clinvar_assertions = (
-                self._clinvar_db.lookup_batch(variant_keys)
-            )
+            clinvar_assertions = self._clinvar_db.lookup_batch(variant_keys)
         else:
             clinvar_assertions = [None] * len(batch)
 
@@ -203,9 +187,7 @@ class AnnotationEngine:
 
         return results
 
-    def _extract_gene_names(
-        self, batch: list[Variant]
-    ) -> list[Optional[str]]:
+    def _extract_gene_names(self, batch: list[Variant]) -> list[Optional[str]]:
         """Extract gene names for a batch of variants.
 
         Uses the consequence annotator's overlap() method per variant
@@ -225,8 +207,8 @@ class AnnotationEngine:
         """
         # If the annotator exposes a batch gene lookup, use it
         if hasattr(self._consequence_annotator, "gene_names_batch"):
-            result: list[Optional[str]] = (
-                self._consequence_annotator.gene_names_batch(batch)
+            result: list[Optional[str]] = self._consequence_annotator.gene_names_batch(
+                batch
             )
             return result
 
@@ -240,9 +222,7 @@ class AnnotationEngine:
                 alt=variant.alt,
             )
             if overlaps:
-                gene_names.append(
-                    overlaps[0].get("gene_name")
-                )
+                gene_names.append(overlaps[0].get("gene_name"))
             else:
                 gene_names.append(None)
         return gene_names
@@ -251,8 +231,7 @@ class AnnotationEngine:
         """Fail fast if any required reference file is missing."""
         if not config.gene_annotation_path.exists():
             raise FileNotFoundError(
-                f"Gene annotation file not found: "
-                f"{config.gene_annotation_path}"
+                f"Gene annotation file not found: " f"{config.gene_annotation_path}"
             )
 
         if not config.gnomad_path.exists():
@@ -265,9 +244,7 @@ class AnnotationEngine:
                 f"ClinVar reference file not found: {config.clinvar_path}"
             )
 
-    def _build_consequence_annotator(
-        self, annotation_path: Path
-    ) -> IntervalIndex:
+    def _build_consequence_annotator(self, annotation_path: Path) -> IntervalIndex:
         """Pick the best consequence annotator available.
 
         Tries pyranges first, falls back to the pure-Python interval tree.
@@ -284,13 +261,10 @@ class AnnotationEngine:
         """
         if _pyranges_available():
             try:
-                from vartriage.annotation.consequence_pyranges import (
-                    PyRangesConsequenceAnnotator,
-                )
+                from vartriage.annotation.consequence_pyranges import \
+                    PyRangesConsequenceAnnotator
 
-                logger.info(
-                    "Using pyranges backend for consequence annotation"
-                )
+                logger.info("Using pyranges backend for consequence annotation")
                 return PyRangesConsequenceAnnotator(annotation_path)
             except Exception as exc:
                 logger.warning(
@@ -298,18 +272,12 @@ class AnnotationEngine:
                     exc,
                 )
 
-        from vartriage.annotation.consequence import (
-            ConsequenceAnnotator,
-        )
+        from vartriage.annotation.consequence import ConsequenceAnnotator
 
-        logger.info(
-            "Using pure-Python backend for consequence annotation"
-        )
+        logger.info("Using pure-Python backend for consequence annotation")
         return ConsequenceAnnotator(annotation_path)
 
-    def _build_frequency_db(
-        self, gnomad_path: Path
-    ) -> FrequencyDatabase:
+    def _build_frequency_db(self, gnomad_path: Path) -> FrequencyDatabase:
         """Pick the best frequency database available.
 
         Selects backend based on file extension:
@@ -328,26 +296,20 @@ class AnnotationEngine:
         """
         gnomad_name = gnomad_path.name
         if gnomad_name.endswith((".vcf.bgz", ".vcf.gz")):
-            from vartriage.annotation.frequency_tabix import (
-                TabixFrequencyDatabase,
-            )
+            from vartriage.annotation.frequency_tabix import \
+                TabixFrequencyDatabase
 
-            logger.info(
-                "Using tabix VCF backend for frequency lookup"
-            )
+            logger.info("Using tabix VCF backend for frequency lookup")
             freq_db: FrequencyDatabase = TabixFrequencyDatabase()
             freq_db.load(gnomad_path)
             return freq_db
 
         if _polars_available():
             try:
-                from vartriage.annotation.frequency_polars import (
-                    PolarsFrequencyDatabase,
-                )
+                from vartriage.annotation.frequency_polars import \
+                    PolarsFrequencyDatabase
 
-                logger.info(
-                    "Using polars backend for frequency lookup"
-                )
+                logger.info("Using polars backend for frequency lookup")
                 polars_db: FrequencyDatabase = PolarsFrequencyDatabase()
                 polars_db.load(gnomad_path)
                 return polars_db
@@ -358,9 +320,7 @@ class AnnotationEngine:
                     exc,
                 )
 
-        from vartriage.annotation.frequency import (
-            DictFrequencyDatabase,
-        )
+        from vartriage.annotation.frequency import DictFrequencyDatabase
 
         logger.info("Using pure-Python backend for frequency lookup")
         freq_db = DictFrequencyDatabase()
@@ -387,26 +347,20 @@ class AnnotationEngine:
 
         if _polars_available():
             try:
-                from vartriage.annotation.clinvar_polars import (
-                    PolarsClinVarDatabase,
-                )
+                from vartriage.annotation.clinvar_polars import \
+                    PolarsClinVarDatabase
 
-                logger.info(
-                    "Using polars backend for ClinVar lookup"
-                )
+                logger.info("Using polars backend for ClinVar lookup")
                 clinvar_db: ClinVarDatabase = PolarsClinVarDatabase()
                 clinvar_db.load(clinvar_path)
                 return clinvar_db
             except Exception as exc:
                 logger.warning(
-                    "polars ClinVar backend failed, falling back to "
-                    "pure-Python: %s",
+                    "polars ClinVar backend failed, falling back to " "pure-Python: %s",
                     exc,
                 )
 
-        from vartriage.annotation.clinvar import (
-            DictClinVarDatabase,
-        )
+        from vartriage.annotation.clinvar import DictClinVarDatabase
 
         logger.info("Using pure-Python backend for ClinVar lookup")
         clinvar_db = DictClinVarDatabase()

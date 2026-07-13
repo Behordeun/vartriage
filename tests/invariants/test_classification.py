@@ -6,24 +6,17 @@ and that combining rules produce the correct final classification.
 
 from __future__ import annotations
 
-from hypothesis import given, settings, assume
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
+from tests.generators.variants import evidence_tag_set, scored_variant
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.classification.combining import combine_evidence
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClinVarAssertion,
-    EvidenceStrength,
-    EvidenceTag,
-    EVIDENCE_STRENGTH_MAP,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
-
-from tests.generators.variants import scored_variant, evidence_tag_set
+from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
+                                      ACMGClassification, AnnotatedVariant,
+                                      ClinVarAssertion, EvidenceStrength,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -33,6 +26,7 @@ _PVS1_CONSEQUENCES = [FunctionalConsequence.NONSENSE, FunctionalConsequence.FRAM
 _NON_PVS1_CONSEQUENCES = [
     c for c in FunctionalConsequence if c not in _PVS1_CONSEQUENCES
 ]
+
 
 @st.composite
 def scored_variant_for_classification(draw: st.DrawFn) -> ScoredVariant:
@@ -89,9 +83,7 @@ def scored_variant_for_classification(draw: st.DrawFn) -> ScoredVariant:
     # REVEL score: None (missing) or a value in [0, 1]
     revel_available = draw(st.booleans())
     if revel_available:
-        revel_score = draw(
-            st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
-        )
+        revel_score = draw(st.floats(min_value=0.0, max_value=1.0, allow_nan=False))
     else:
         revel_score = None
 
@@ -106,9 +98,7 @@ def scored_variant_for_classification(draw: st.DrawFn) -> ScoredVariant:
     # SpliceAI score: None (missing) or a value in [0, 1]
     spliceai_available = draw(st.booleans())
     if spliceai_available:
-        spliceai_score = draw(
-            st.floats(min_value=0.0, max_value=1.0, allow_nan=False)
-        )
+        spliceai_score = draw(st.floats(min_value=0.0, max_value=1.0, allow_nan=False))
     else:
         spliceai_score = None
 
@@ -129,13 +119,14 @@ def scored_variant_for_classification(draw: st.DrawFn) -> ScoredVariant:
         composite_rank=composite_rank,
     )
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
 def test_pvs1_assigned_iff_nonsense_or_frameshift(variant: ScoredVariant) -> None:
-    """PVS1 is assigned for Nonsense/Frameshift or SPLICE_SITE with SpliceAI > 0.8.
-    """
+    """PVS1 is assigned for Nonsense/Frameshift or SPLICE_SITE with SpliceAI > 0.8."""
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
@@ -143,22 +134,18 @@ def test_pvs1_assigned_iff_nonsense_or_frameshift(variant: ScoredVariant) -> Non
     consequence = variant.annotated.consequence
     spliceai = variant.spliceai_score
 
-    pvs1_expected = (
-        consequence in (
-            FunctionalConsequence.NONSENSE,
-            FunctionalConsequence.FRAMESHIFT,
-        )
-        or (
-            consequence == FunctionalConsequence.SPLICE_SITE
-            and spliceai is not None
-            and spliceai > 0.8
-        )
+    pvs1_expected = consequence in (
+        FunctionalConsequence.NONSENSE,
+        FunctionalConsequence.FRAMESHIFT,
+    ) or (
+        consequence == FunctionalConsequence.SPLICE_SITE
+        and spliceai is not None
+        and spliceai > 0.8
     )
 
     if pvs1_expected:
         assert EvidenceTag.PVS1 in classified.evidence_tags, (
-            f"PVS1 should be assigned for {consequence.value} "
-            f"(spliceai={spliceai})"
+            f"PVS1 should be assigned for {consequence.value} " f"(spliceai={spliceai})"
         )
     else:
         assert EvidenceTag.PVS1 not in classified.evidence_tags, (
@@ -166,11 +153,11 @@ def test_pvs1_assigned_iff_nonsense_or_frameshift(variant: ScoredVariant) -> Non
             f"(spliceai={spliceai})"
         )
 
+
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
 def test_pm2_assigned_iff_af_below_threshold(variant: ScoredVariant) -> None:
-    """PM2 is assigned when AF < 0.0001; omitted when AF is None (missing).
-    """
+    """PM2 is assigned when AF < 0.0001; omitted when AF is None (missing)."""
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
@@ -179,28 +166,28 @@ def test_pm2_assigned_iff_af_below_threshold(variant: ScoredVariant) -> None:
 
     if af is None:
         # Data unavailable, PM2 should be omitted
-        assert EvidenceTag.PM2 not in classified.evidence_tags, (
-            "PM2 should be omitted when allele frequency is unavailable"
-        )
-        assert "gnomAD" in classified.missing_data_sources, (
-            "gnomAD should be listed as missing when AF is None"
-        )
+        assert (
+            EvidenceTag.PM2 not in classified.evidence_tags
+        ), "PM2 should be omitted when allele frequency is unavailable"
+        assert (
+            "gnomAD" in classified.missing_data_sources
+        ), "gnomAD should be listed as missing when AF is None"
     elif af < 0.0001:
-        assert EvidenceTag.PM2 in classified.evidence_tags, (
-            f"PM2 should be assigned for AF={af} < 0.0001"
-        )
+        assert (
+            EvidenceTag.PM2 in classified.evidence_tags
+        ), f"PM2 should be assigned for AF={af} < 0.0001"
     else:
-        assert EvidenceTag.PM2 not in classified.evidence_tags, (
-            f"PM2 should NOT be assigned for AF={af} >= 0.0001"
-        )
+        assert (
+            EvidenceTag.PM2 not in classified.evidence_tags
+        ), f"PM2 should NOT be assigned for AF={af} >= 0.0001"
+
 
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
 def test_pp3_assigned_iff_revel_or_spliceai_triggers(
     variant: ScoredVariant,
 ) -> None:
-    """PP3 assigned when REVEL > 0.7, or SpliceAI > 0.5 on splice-adjacent.
-    """
+    """PP3 assigned when REVEL > 0.7, or SpliceAI > 0.5 on splice-adjacent."""
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
@@ -224,9 +211,9 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
 
     # REVEL path triggers PP3
     if revel_available and revel > 0.7:
-        assert EvidenceTag.PP3 in classified.evidence_tags, (
-            f"PP3 should be assigned for REVEL={revel} > 0.7"
-        )
+        assert (
+            EvidenceTag.PP3 in classified.evidence_tags
+        ), f"PP3 should be assigned for REVEL={revel} > 0.7"
         return
 
     # SpliceAI path triggers PP3 on splice-adjacent
@@ -243,11 +230,11 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
         f"SpliceAI={spliceai}, consequence={consequence.value}"
     )
 
+
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
 def test_pp5_assigned_iff_clinvar_pathogenic(variant: ScoredVariant) -> None:
-    """PP5 assigned when ClinVar is Pathogenic; omitted when None (missing).
-    """
+    """PP5 assigned when ClinVar is Pathogenic; omitted when None (missing)."""
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
@@ -255,20 +242,21 @@ def test_pp5_assigned_iff_clinvar_pathogenic(variant: ScoredVariant) -> None:
     assertion = variant.annotated.clinvar_assertion
 
     if assertion is None:
-        assert EvidenceTag.PP5 not in classified.evidence_tags, (
-            "PP5 should be omitted when ClinVar data is unavailable"
-        )
-        assert "ClinVar" in classified.missing_data_sources, (
-            "ClinVar should be listed as missing when assertion is None"
-        )
+        assert (
+            EvidenceTag.PP5 not in classified.evidence_tags
+        ), "PP5 should be omitted when ClinVar data is unavailable"
+        assert (
+            "ClinVar" in classified.missing_data_sources
+        ), "ClinVar should be listed as missing when assertion is None"
     elif assertion == ClinVarAssertion.PATHOGENIC:
-        assert EvidenceTag.PP5 in classified.evidence_tags, (
-            "PP5 should be assigned when ClinVar is Pathogenic"
-        )
+        assert (
+            EvidenceTag.PP5 in classified.evidence_tags
+        ), "PP5 should be assigned when ClinVar is Pathogenic"
     else:
-        assert EvidenceTag.PP5 not in classified.evidence_tags, (
-            f"PP5 should NOT be assigned for ClinVar={assertion.value}"
-        )
+        assert (
+            EvidenceTag.PP5 not in classified.evidence_tags
+        ), f"PP5 should NOT be assigned for ClinVar={assertion.value}"
+
 
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
@@ -315,7 +303,8 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
         elif (
             spliceai_available
             and spliceai > 0.5
-            and consequence in (
+            and consequence
+            in (
                 FunctionalConsequence.SPLICE_SITE,
                 FunctionalConsequence.MISSENSE,
             )
@@ -327,15 +316,15 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     if assertion == ClinVarAssertion.PATHOGENIC:
         expected_tags.add(EvidenceTag.PP5)
 
-    assert classified.evidence_tags == frozenset(expected_tags), (
-        f"Expected tags {expected_tags}, got {classified.evidence_tags}"
-    )
+    assert classified.evidence_tags == frozenset(
+        expected_tags
+    ), f"Expected tags {expected_tags}, got {classified.evidence_tags}"
+
 
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
 def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
-    """Missing data sources are reported when required data is unavailable.
-    """
+    """Missing data sources are reported when required data is unavailable."""
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
@@ -367,7 +356,8 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
     elif (
         spliceai_available
         and spliceai > 0.5
-        and consequence in (
+        and consequence
+        in (
             FunctionalConsequence.SPLICE_SITE,
             FunctionalConsequence.MISSENSE,
         )
@@ -395,18 +385,20 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
         f"got {classified.missing_data_sources}"
     )
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(data=st.data())
 @settings(max_examples=100)
 def test_empty_tags_produce_vus(data: st.DataObject) -> None:
-    """Empty tag sets always produce VUS classification.
-    """
+    """Empty tag sets always produce VUS classification."""
     tags: frozenset[EvidenceTag] = frozenset()
     result = combine_evidence(tags)
-    assert result == ACMGClassification.VUS, (
-        f"Empty tag set should yield VUS, got {result.value}"
-    )
+    assert (
+        result == ACMGClassification.VUS
+    ), f"Empty tag set should yield VUS, got {result.value}"
+
 
 @given(tags=evidence_tag_set())
 @settings(max_examples=200)
@@ -440,16 +432,12 @@ def test_combining_rules_match_specification(
 
     # Pathogenic rules
     is_pathogenic = (
-        (vs >= 1 and s >= 1)
-        or (s >= 2 and sup >= 1)
-        or (vs >= 1 and sup >= 2)
+        (vs >= 1 and s >= 1) or (s >= 2 and sup >= 1) or (vs >= 1 and sup >= 2)
     )
 
     # Likely Pathogenic rules
     is_likely_pathogenic = (
-        (vs >= 1 and m >= 1)
-        or (s >= 1 and 1 <= m <= 2)
-        or (s >= 1 and sup >= 2)
+        (vs >= 1 and m >= 1) or (s >= 1 and 1 <= m <= 2) or (s >= 1 and sup >= 2)
     )
 
     if not tags:
@@ -466,6 +454,7 @@ def test_combining_rules_match_specification(
         f"(VS={vs}, S={s}, M={m}, Sup={sup}): "
         f"expected {expected.value}, got {result.value}"
     )
+
 
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
@@ -491,6 +480,7 @@ def test_classifier_output_matches_combining_rules(
         f"for tags {[t.value for t in classified.evidence_tags]}"
     )
 
+
 @given(data=st.data())
 @settings(max_examples=100)
 def test_pvs1_plus_pp3_pp5_yields_pathogenic(data: st.DataObject) -> None:
@@ -500,9 +490,10 @@ def test_pvs1_plus_pp3_pp5_yields_pathogenic(data: st.DataObject) -> None:
     """
     tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PP3, EvidenceTag.PP5})
     result = combine_evidence(tags)
-    assert result == ACMGClassification.PATHOGENIC, (
-        f"PVS1+PP3+PP5 should be Pathogenic, got {result.value}"
-    )
+    assert (
+        result == ACMGClassification.PATHOGENIC
+    ), f"PVS1+PP3+PP5 should be Pathogenic, got {result.value}"
+
 
 @given(data=st.data())
 @settings(max_examples=100)
@@ -513,9 +504,10 @@ def test_pvs1_plus_pm2_yields_likely_pathogenic(data: st.DataObject) -> None:
     """
     tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PM2})
     result = combine_evidence(tags)
-    assert result == ACMGClassification.LIKELY_PATHOGENIC, (
-        f"PVS1+PM2 should be Likely_Pathogenic, got {result.value}"
-    )
+    assert (
+        result == ACMGClassification.LIKELY_PATHOGENIC
+    ), f"PVS1+PM2 should be Likely_Pathogenic, got {result.value}"
+
 
 @given(data=st.data())
 @settings(max_examples=100)
@@ -527,6 +519,6 @@ def test_single_supporting_tag_yields_vus(data: st.DataObject) -> None:
     tag = data.draw(st.sampled_from([EvidenceTag.PP3, EvidenceTag.PP5]))
     tags = frozenset({tag})
     result = combine_evidence(tags)
-    assert result == ACMGClassification.VUS, (
-        f"Single {tag.value} should yield VUS, got {result.value}"
-    )
+    assert (
+        result == ACMGClassification.VUS
+    ), f"Single {tag.value} should yield VUS, got {result.value}"

@@ -14,7 +14,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional, Protocol
 
-from vartriage.models.variant import ClinVarAssertion, FunctionalConsequence, Variant
+from vartriage.models.variant import (ClinVarAssertion, FunctionalConsequence,
+                                      Variant)
 
 
 class IntervalIndex(Protocol):
@@ -66,9 +67,7 @@ class IntervalIndex(Protocol):
         """
         ...
 
-    def assign_batch(
-        self, variants: list["Variant"]
-    ) -> list["FunctionalConsequence"]:
+    def assign_batch(self, variants: list["Variant"]) -> list["FunctionalConsequence"]:
         """Assign consequences to a batch of variants.
 
         Returns a list of the same length as the input, positionally

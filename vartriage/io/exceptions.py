@@ -74,9 +74,7 @@ class ParseError(VariantPrioritizationError):
         self.detail: str = detail
 
         if field is not None:
-            message = (
-                f"Line {line_number}, field '{field}': {detail}"
-            )
+            message = f"Line {line_number}, field '{field}': {detail}"
         else:
             message = f"Line {line_number}: {detail}"
 

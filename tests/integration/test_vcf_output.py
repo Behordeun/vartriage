@@ -12,10 +12,7 @@ from pathlib import Path
 import pysam
 import pytest
 
-from vartriage.models.config import (
-    PipelineConfig,
-    ReportConfig,
-)
+from vartriage.models.config import PipelineConfig, ReportConfig
 from vartriage.pipeline import Pipeline
 
 
@@ -23,10 +20,7 @@ def _write_tiny_vcf(path: Path) -> Path:
     """Create a minimal bgzipped VCF with two variants using pysam."""
     header = pysam.VariantHeader()
     header.add_sample("SAMPLE")
-    header.add_line(
-        '##FORMAT=<ID=GT,Number=1,Type=String,'
-        'Description="Genotype">'
-    )
+    header.add_line("##FORMAT=<ID=GT,Number=1,Type=String," 'Description="Genotype">')
     header.add_line("##contig=<ID=chr1,length=1000000>")
 
     with pysam.VariantFile(str(path), "wz", header=header) as vcf:
@@ -72,9 +66,7 @@ class TestVCFOutputIntegration:
 
         return output_path, source_vcf
 
-    def test_output_is_bgzipped(
-        self, pipeline_vcf: tuple[Path, Path]
-    ) -> None:
+    def test_output_is_bgzipped(self, pipeline_vcf: tuple[Path, Path]) -> None:
         """Output file exists at expected path and is bgzipped."""
         output_path, _ = pipeline_vcf
         assert output_path.exists()
@@ -83,18 +75,14 @@ class TestVCFOutputIntegration:
         magic = output_path.read_bytes()[:2]
         assert magic == b"\x1f\x8b"
 
-    def test_tbi_index_exists(
-        self, pipeline_vcf: tuple[Path, Path]
-    ) -> None:
+    def test_tbi_index_exists(self, pipeline_vcf: tuple[Path, Path]) -> None:
         """A .tbi tabix index file exists alongside the VCF."""
         output_path, _ = pipeline_vcf
         tbi_path = Path(str(output_path) + ".tbi")
         assert tbi_path.exists()
         assert tbi_path.stat().st_size > 0
 
-    def test_vartriage_headers_present(
-        self, pipeline_vcf: tuple[Path, Path]
-    ) -> None:
+    def test_vartriage_headers_present(self, pipeline_vcf: tuple[Path, Path]) -> None:
         """Output VCF header declares all VARTRIAGE_* INFO fields."""
         output_path, _ = pipeline_vcf
 
@@ -110,9 +98,7 @@ class TestVCFOutputIntegration:
         }
         assert expected.issubset(info_ids)
 
-    def test_opens_with_pysam(
-        self, pipeline_vcf: tuple[Path, Path]
-    ) -> None:
+    def test_opens_with_pysam(self, pipeline_vcf: tuple[Path, Path]) -> None:
         """Output can be opened and iterated with pysam."""
         output_path, _ = pipeline_vcf
 

@@ -2,6 +2,24 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - Unreleased
+
+### Added
+
+- **Clinical report generation** (`--output-format clinical-html|clinical-pdf|clinical-docx`): produces structured, sign-off-ready clinical variant reports from ClassifiedVariant data. Per-variant evidence narratives with plain-language ACMG criteria explanations. Structured sections: Header, Executive Summary, Findings Table, Evidence Cards, Limitations, Methodology, Sign-off. JSON audit trail sidecar (`.audit.json`) with run manifest and per-variant decision log.
+- CLI flags `--patient-id` and `--panel-name` for clinical report metadata. Required when using any `clinical-*` output format.
+- `ClinicalReportConfig` dataclass: `patient_id`, `panel_name`, `output_format`, `report_template`.
+- Self-contained HTML output (all CSS inlined, no JavaScript, no external dependencies).
+- PDF rendering via WeasyPrint (optional dependency). DOCX rendering via python-docx (optional dependency).
+- Atomic file writing for clinical reports (temp file + rename).
+- Findings table sorted by classification tier (Pathogenic > Likely_Pathogenic > VUS), then by composite rank descending within each tier.
+- Empty variant set produces a valid report with zero counts and a negative-finding statement.
+
+### Dependencies
+
+- `weasyprint` (optional, for `clinical-pdf`)
+- `python-docx` (optional, for `clinical-docx`)
+
 ## [0.4.0] - 2025-07-12
 
 ### Added

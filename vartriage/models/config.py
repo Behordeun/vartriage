@@ -133,12 +133,21 @@ class ReportConfig:
 
     Parameters
     ----------
-    output_format : Literal["json", "csv", "pdf", "vcf"]
-        Desired output format for the final clinical report. Default is
-        ``"json"``.
+    output_format : str
+        Desired output format for the final report. Accepts "json",
+        "csv", "pdf", "vcf", "clinical-pdf", "clinical-html", or
+        "clinical-docx". Default is ``"json"``.
     """
 
-    output_format: Literal["json", "csv", "pdf", "vcf"] = "json"
+    output_format: Literal[
+        "json",
+        "csv",
+        "pdf",
+        "vcf",
+        "clinical-pdf",
+        "clinical-html",
+        "clinical-docx",
+    ] = "json"
 
 
 @dataclass(frozen=True)
@@ -184,16 +193,24 @@ class InheritanceConfig:
     father: str
     patterns: list[str] = field(
         default_factory=lambda: [
-            "de_novo", "dominant", "recessive",
-            "compound_het", "x_linked",
+            "de_novo",
+            "dominant",
+            "recessive",
+            "compound_het",
+            "x_linked",
         ]
     )
 
     SUPPORTED_PATTERNS: frozenset[str] = field(
-        default=frozenset({
-            "de_novo", "dominant", "recessive",
-            "compound_het", "x_linked",
-        }),
+        default=frozenset(
+            {
+                "de_novo",
+                "dominant",
+                "recessive",
+                "compound_het",
+                "x_linked",
+            }
+        ),
         init=False,
         repr=False,
     )
@@ -206,9 +223,7 @@ class InheritanceConfig:
         if not self.father:
             raise ValueError("father sample name is required")
         if not self.patterns:
-            raise ValueError(
-                "at least one inheritance pattern is required"
-            )
+            raise ValueError("at least one inheritance pattern is required")
         for pattern in self.patterns:
             if pattern not in self.SUPPORTED_PATTERNS:
                 raise ValueError(
@@ -254,9 +269,7 @@ class SampleConfig:
 
     def __post_init__(self) -> None:
         if self.min_gq is not None and not (0 <= self.min_gq <= 99):
-            raise ValueError(
-                f"min_gq must be between 0 and 99, got {self.min_gq}"
-            )
+            raise ValueError(f"min_gq must be between 0 and 99, got {self.min_gq}")
 
 
 @dataclass(frozen=True)
@@ -270,6 +283,41 @@ class GeneFilterConfig:
     """
 
     gene_list_path: Path
+
+
+@dataclass(frozen=True)
+class ClinicalReportConfig:
+    """Configuration for clinical report generation.
+
+    Parameters
+    ----------
+    patient_id : str
+        Patient identifier (required, non-empty).
+    panel_name : str
+        Gene panel name (required, non-empty).
+    output_format : Literal[
+        "clinical-pdf", "clinical-html", "clinical-docx"
+    ]
+        Target output format for the clinical report.
+    report_template : str
+        Report template name. Default is "standard".
+
+    Raises
+    ------
+    ValueError
+        If patient_id or panel_name is empty or whitespace-only.
+    """
+
+    patient_id: str
+    panel_name: str
+    output_format: Literal["clinical-pdf", "clinical-html", "clinical-docx"]
+    report_template: str = "standard"
+
+    def __post_init__(self) -> None:
+        if not self.patient_id or not self.patient_id.strip():
+            raise ValueError("patient_id is required and must be non-empty")
+        if not self.panel_name or not self.panel_name.strip():
+            raise ValueError("panel_name is required and must be non-empty")
 
 
 @dataclass(frozen=True)
@@ -299,12 +347,29 @@ class PipelineConfig:
 
     vcf_path: Path
     output_path: Path
-    quality_filter: QualityFilterConfig = field(default_factory=QualityFilterConfig)
+    quality_filter: QualityFilterConfig = field(
+        default_factory=QualityFilterConfig
+    )
     annotation: Optional[AnnotationConfig] = None
-    prioritization: PrioritizationConfig = field(default_factory=PrioritizationConfig)
+    prioritization: PrioritizationConfig = field(
+        default_factory=PrioritizationConfig
+    )
     report: ReportConfig = field(default_factory=ReportConfig)
-    missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
+    missing_data: MissingDataConfig = field(
+        default_factory=MissingDataConfig
+    )
     gene_filter: GeneFilterConfig | None = field(default=None)
     region_filter: RegionFilterConfig | None = field(default=None)
     sample: SampleConfig | None = field(default=None)
     inheritance: "InheritanceConfig | None" = field(default=None)
+    clinical_report: "ClinicalReportConfig | None" = field(
+        default=None
+    )
+
+    def __post_init__(self) -> None:
+        fmt = self.report.output_format
+        if fmt.startswith("clinical-") and self.clinical_report is None:
+            raise ValueError(
+                f"clinical_report config is required when "
+                f"report.output_format is '{fmt}'"
+            )

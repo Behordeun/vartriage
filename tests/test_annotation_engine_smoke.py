@@ -7,14 +7,9 @@ import pytest
 
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.models.config import AnnotationConfig
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    ClinVarAssertion,
-    FunctionalConsequence,
-    Variant,
-)
+from vartriage.models.variant import (AnnotatedVariant, ClinVarAssertion,
+                                      FunctionalConsequence, Variant)
 from vartriage.models.warnings import MissingDataWarning
-
 
 # Minimal GTF content
 SAMPLE_GTF = """\
@@ -176,9 +171,7 @@ class TestAnnotationEngineAnnotate:
         assert annotated.frequency_unknown is True
 
         # Should have emitted at least one gnomAD warning
-        gnomad_warnings = [
-            w for w in engine.warnings if w.source == "gnomAD"
-        ]
+        gnomad_warnings = [w for w in engine.warnings if w.source == "gnomAD"]
         assert len(gnomad_warnings) >= 1
         assert gnomad_warnings[0].chrom == "chr1"
         assert gnomad_warnings[0].pos == 3100
@@ -244,9 +237,7 @@ class TestAnnotationEngineAnnotate:
         engine = AnnotationEngine(config)
 
         # Create more variants than batch_size
-        variants = [
-            _make_variant("chr1", 2100, "A", "T") for _ in range(1500)
-        ]
+        variants = [_make_variant("chr1", 2100, "A", "T") for _ in range(1500)]
         results = list(engine.annotate(iter(variants)))
 
         assert len(results) == 1500
@@ -256,9 +247,7 @@ class TestAnnotationEngineAnnotate:
 
 
 class TestAnnotationEngineWithoutClinVar:
-    def test_no_clinvar_yields_null_assertion_and_unknown_false(
-        self, annotation_files
-    ):
+    def test_no_clinvar_yields_null_assertion_and_unknown_false(self, annotation_files):
         """When ClinVar path is None, clinvar_unknown stays False (not queried)."""
         gtf_path, gnomad_path, _ = annotation_files
         config = AnnotationConfig(

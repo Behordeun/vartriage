@@ -21,7 +21,6 @@ from vartriage.exceptions import VarTriageWarning
 from vartriage.models.variant import AnnotatedVariant, ScoredVariant
 from vartriage.models.warnings import MissingDataWarning
 
-
 REVEL_WEIGHT: float = 0.6
 CADD_WEIGHT: float = 0.4
 CADD_MAX_PHRED: float = 99.0
@@ -420,8 +419,7 @@ def score_variants(
 
     for w in missing_data_warnings:
         warnings.warn(
-            f"MissingDataWarning: {w.chrom}:{w.pos} {w.ref}>{w.alt} - "
-            f"{w.reason}",
+            f"MissingDataWarning: {w.chrom}:{w.pos} {w.ref}>{w.alt} - " f"{w.reason}",
             UserWarning,
             stacklevel=2,
         )
@@ -443,6 +441,7 @@ def sort_by_composite_rank(variants: list[ScoredVariant]) -> list[ScoredVariant]
         Variants sorted with highest composite_rank first and null-ranked
         variants at the end.
     """
+
     def sort_key(v: ScoredVariant) -> tuple[int, float]:
         if v.composite_rank is None:
             return (1, 0.0)

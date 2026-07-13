@@ -13,25 +13,17 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vartriage.models.config import ReportConfig
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
-from vartriage.reporting.generator import ReportGenerator
-from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
-from vartriage.exceptions import VarTriageWarning
-from vartriage.prioritization.scoring import ScoreValidationWarning
+from tests.generators.variants import evidence_tag_set, scored_variant
 from vartriage._internal.warning_accumulator import MissingDataSummaryWarning
-
-from tests.generators.variants import scored_variant, evidence_tag_set
-
+from vartriage.exceptions import VarTriageWarning
+from vartriage.models.config import ReportConfig
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
+from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
+from vartriage.prioritization.scoring import ScoreValidationWarning
+from vartriage.reporting.generator import ReportGenerator
 
 # ---------------------------------------------------------------------------
 # Shared strategies
@@ -66,16 +58,8 @@ def st_coordinate_key(draw: st.DrawFn) -> CoordinateKey:
     """Build a random (chrom, pos, ref, alt) tuple."""
     chrom = draw(st.sampled_from(CHROMOSOMES))
     pos = draw(st.integers(min_value=1, max_value=250_000_000))
-    ref = draw(
-        st.text(
-            alphabet="ACGT", min_size=1, max_size=5
-        )
-    )
-    alt = draw(
-        st.text(
-            alphabet="ACGT", min_size=1, max_size=5
-        )
-    )
+    ref = draw(st.text(alphabet="ACGT", min_size=1, max_size=5))
+    alt = draw(st.text(alphabet="ACGT", min_size=1, max_size=5))
     return (chrom, pos, ref, alt)
 
 
@@ -87,11 +71,7 @@ def st_coordinate_key(draw: st.DrawFn) -> CoordinateKey:
 class TestIteratorSequenceEquivalence:
     """Iterator vs sequence output should be byte-identical."""
 
-    @given(
-        variants=st.lists(
-            st_classified_variant(), min_size=0, max_size=30
-        )
-    )
+    @given(variants=st.lists(st_classified_variant(), min_size=0, max_size=30))
     @settings(max_examples=100, deadline=None)
     def test_json_output_identical_for_iter_and_sequence(
         self, variants: list[ClassifiedVariant]
@@ -112,11 +92,7 @@ class TestIteratorSequenceEquivalence:
 
         assert bytes_seq == bytes_iter
 
-    @given(
-        variants=st.lists(
-            st_classified_variant(), min_size=0, max_size=30
-        )
-    )
+    @given(variants=st.lists(st_classified_variant(), min_size=0, max_size=30))
     @settings(max_examples=100, deadline=None)
     def test_csv_output_identical_for_iter_and_sequence(
         self, variants: list[ClassifiedVariant]
@@ -150,17 +126,17 @@ class TestScoreLoaderRoundTrip:
         data=st.dictionaries(
             keys=st_coordinate_key(),
             values=st.floats(
-                min_value=0.0, max_value=99.0,
-                allow_nan=False, allow_infinity=False,
+                min_value=0.0,
+                max_value=99.0,
+                allow_nan=False,
+                allow_infinity=False,
             ),
             min_size=0,
             max_size=30,
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_load_cadd_round_trip(
-        self, data: dict[CoordinateKey, float]
-    ) -> None:
+    def test_load_cadd_round_trip(self, data: dict[CoordinateKey, float]) -> None:
         """Write a TSV then load_cadd. Each key maps to its original score."""
         loader = ScoreLoader()
 
@@ -181,15 +157,15 @@ class TestScoreLoaderRoundTrip:
         data=st.dictionaries(
             keys=st_coordinate_key(),
             values=st.floats(
-                min_value=0.0, max_value=99.0,
-                allow_nan=False, allow_infinity=False,
+                min_value=0.0,
+                max_value=99.0,
+                allow_nan=False,
+                allow_infinity=False,
             ),
             min_size=1,
             max_size=20,
         ),
-        missing_keys=st.lists(
-            st_coordinate_key(), min_size=1, max_size=5
-        ),
+        missing_keys=st.lists(st_coordinate_key(), min_size=1, max_size=5),
     )
     @settings(max_examples=100, deadline=None)
     def test_lookup_batch_returns_none_for_missing(
@@ -212,25 +188,24 @@ class TestScoreLoaderRoundTrip:
         results = loader.lookup_batch(truly_missing, loaded)
         for i, result in enumerate(results):
             assert result is None, (
-                f"Expected None for missing key {truly_missing[i]}, "
-                f"got {result}"
+                f"Expected None for missing key {truly_missing[i]}, " f"got {result}"
             )
 
     @given(
         data=st.dictionaries(
             keys=st_coordinate_key(),
             values=st.floats(
-                min_value=0.0, max_value=1.0,
-                allow_nan=False, allow_infinity=False,
+                min_value=0.0,
+                max_value=1.0,
+                allow_nan=False,
+                allow_infinity=False,
             ),
             min_size=1,
             max_size=20,
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_load_revel_round_trip(
-        self, data: dict[CoordinateKey, float]
-    ) -> None:
+    def test_load_revel_round_trip(self, data: dict[CoordinateKey, float]) -> None:
         """load_revel behaves identically to load_cadd for round-trips."""
         loader = ScoreLoader()
 
@@ -262,9 +237,7 @@ class TestScoreLoaderRoundTrip:
 class TestCLI:
     """Unit tests for CLI argument parsing and error handling."""
 
-    def test_vcf_and_output_produces_exit_0(
-        self, tmp_path: Path
-    ) -> None:
+    def test_vcf_and_output_produces_exit_0(self, tmp_path: Path) -> None:
         """Valid --vcf + --output exits 0 with a mocked pipeline."""
         from vartriage.cli import main
 
@@ -313,10 +286,14 @@ class TestCLI:
         output_file = tmp_path / "report.json"
 
         with pytest.raises(SystemExit) as exc_info:
-            main([
-                "--vcf", str(nonexistent),
-                "--output", str(output_file),
-            ])
+            main(
+                [
+                    "--vcf",
+                    str(nonexistent),
+                    "--output",
+                    str(output_file),
+                ]
+            )
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
@@ -365,8 +342,7 @@ class TestWarningHierarchy:
             )
 
         vartriage_warnings = [
-            w for w in caught
-            if issubclass(w.category, VarTriageWarning)
+            w for w in caught if issubclass(w.category, VarTriageWarning)
         ]
         assert len(vartriage_warnings) == 0
 
@@ -385,9 +361,7 @@ class TestWarningHierarchy:
 class TestScoreLoaderUnit:
     """Unit tests for ScoreLoader edge cases and error handling."""
 
-    def test_valid_cadd_tsv_loading_and_lookup(
-        self, tmp_path: Path
-    ) -> None:
+    def test_valid_cadd_tsv_loading_and_lookup(self, tmp_path: Path) -> None:
         """Well-formed CADD TSV loads correctly."""
         tsv_content = (
             "#chrom\tpos\tref\talt\tscore\n"
@@ -405,9 +379,7 @@ class TestScoreLoaderUnit:
         assert scores[("chr2", 200, "G", "C")] == pytest.approx(30.0)
         assert scores[("chrX", 500, "AA", "TT")] == pytest.approx(15.7)
 
-    def test_valid_revel_tsv_loading_and_lookup(
-        self, tmp_path: Path
-    ) -> None:
+    def test_valid_revel_tsv_loading_and_lookup(self, tmp_path: Path) -> None:
         """Well-formed REVEL TSV loads correctly."""
         tsv_content = (
             "#chrom\tpos\tref\talt\tscore\n"
@@ -423,14 +395,9 @@ class TestScoreLoaderUnit:
         assert scores[("chr1", 100, "A", "G")] == pytest.approx(0.85)
         assert scores[("chr3", 999, "C", "T")] == pytest.approx(0.12)
 
-    def test_missing_coordinate_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_coordinate_returns_none(self, tmp_path: Path) -> None:
         """Absent coordinates come back as None in batch lookups."""
-        tsv_content = (
-            "#chrom\tpos\tref\talt\tscore\n"
-            "chr1\t100\tA\tT\t25.3\n"
-        )
+        tsv_content = "#chrom\tpos\tref\talt\tscore\n" "chr1\t100\tA\tT\t25.3\n"
         tsv_path = tmp_path / "cadd.tsv"
         tsv_path.write_text(tsv_content, encoding="utf-8")
 
@@ -444,9 +411,7 @@ class TestScoreLoaderUnit:
         assert results[0] == pytest.approx(25.3)
         assert results[1] is None
 
-    def test_nonexistent_file_raises_value_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_nonexistent_file_raises_value_error(self, tmp_path: Path) -> None:
         """Non-existent path raises ValueError."""
         loader = ScoreLoader()
         fake_path = tmp_path / "nonexistent.tsv"
@@ -454,9 +419,7 @@ class TestScoreLoaderUnit:
         with pytest.raises(ValueError, match="not found"):
             loader.load_cadd(fake_path)
 
-    def test_empty_file_returns_empty_dict(
-        self, tmp_path: Path
-    ) -> None:
+    def test_empty_file_returns_empty_dict(self, tmp_path: Path) -> None:
         """Empty (or header-only) file gives an empty dict."""
         tsv_path = tmp_path / "empty.tsv"
         tsv_path.write_text("", encoding="utf-8")

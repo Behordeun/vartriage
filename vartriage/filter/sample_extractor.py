@@ -29,9 +29,7 @@ class SampleExtractor:
         If config.sample_name is not in sample_names.
     """
 
-    def __init__(
-        self, config: SampleConfig, sample_names: list[str]
-    ) -> None:
+    def __init__(self, config: SampleConfig, sample_names: list[str]) -> None:
         if config.sample_name not in sample_names:
             raise ValueError(
                 f"Sample '{config.sample_name}' not found in VCF. "
@@ -40,9 +38,7 @@ class SampleExtractor:
         self._sample_name = config.sample_name
         self._min_gq = config.min_gq
 
-    def apply(
-        self, variants: Iterator[Variant]
-    ) -> Iterator[Variant]:
+    def apply(self, variants: Iterator[Variant]) -> Iterator[Variant]:
         """Filter variants by alt allele presence and GQ threshold.
 
         Strips _pysam_samples from info and attaches sample_gt,

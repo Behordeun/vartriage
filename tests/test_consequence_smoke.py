@@ -3,13 +3,10 @@
 import tempfile
 from pathlib import Path
 
-from vartriage._internal.interval_tree import (
-    SortedArrayIntervalIndex,
-    _parse_attributes,
-)
+from vartriage._internal.interval_tree import (SortedArrayIntervalIndex,
+                                               _parse_attributes)
 from vartriage.annotation.consequence import ConsequenceAnnotator
 from vartriage.models.variant import FunctionalConsequence, Variant
-
 
 # Minimal GTF content for testing
 SAMPLE_GTF = """\
@@ -51,9 +48,7 @@ class TestAttributeParsing:
 
 class TestSortedArrayIntervalIndex:
     def _create_index(self) -> tuple[SortedArrayIntervalIndex, Path]:
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".gtf", delete=False
-        )
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False)
         tmp.write(SAMPLE_GTF)
         tmp.flush()
         tmp.close()
@@ -107,9 +102,7 @@ class TestSortedArrayIntervalIndex:
 
 class TestConsequenceAnnotator:
     def _create_annotator(self) -> ConsequenceAnnotator:
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".gtf", delete=False
-        )
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False)
         tmp.write(SAMPLE_GTF)
         tmp.flush()
         tmp.close()
@@ -156,16 +149,21 @@ class TestConsequenceAnnotator:
         variant = _make_variant("chr1", 2100, "A", "T")
         result = annotator.assign(variant)
         # Should be at least Missense (more severe than Synonymous)
-        severity = {c: i for i, c in enumerate(
-            [FunctionalConsequence.FRAMESHIFT,
-             FunctionalConsequence.NONSENSE,
-             FunctionalConsequence.SPLICE_SITE,
-             FunctionalConsequence.MISSENSE,
-             FunctionalConsequence.IN_FRAME_INSERTION,
-             FunctionalConsequence.IN_FRAME_DELETION,
-             FunctionalConsequence.SYNONYMOUS,
-             FunctionalConsequence.INTERGENIC]
-        )}
+        severity = {
+            c: i
+            for i, c in enumerate(
+                [
+                    FunctionalConsequence.FRAMESHIFT,
+                    FunctionalConsequence.NONSENSE,
+                    FunctionalConsequence.SPLICE_SITE,
+                    FunctionalConsequence.MISSENSE,
+                    FunctionalConsequence.IN_FRAME_INSERTION,
+                    FunctionalConsequence.IN_FRAME_DELETION,
+                    FunctionalConsequence.SYNONYMOUS,
+                    FunctionalConsequence.INTERGENIC,
+                ]
+            )
+        }
         assert severity[result] <= severity[FunctionalConsequence.MISSENSE]
 
     def test_assign_batch(self):

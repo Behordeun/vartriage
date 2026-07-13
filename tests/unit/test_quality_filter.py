@@ -81,7 +81,9 @@ class TestQualityFilterMissingQual:
 
     def test_emits_warning_for_missing_qual(self) -> None:
         qf = QualityFilter(QualityFilterConfig(min_qual=20.0))
-        variant = _make_variant(chrom="chr7", pos=54321, qual=None, filter_status="PASS")
+        variant = _make_variant(
+            chrom="chr7", pos=54321, qual=None, filter_status="PASS"
+        )
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             list(qf.apply(iter([variant])))

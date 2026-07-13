@@ -30,7 +30,6 @@ except ImportError:
 from vartriage.io.exceptions import ReferenceFileError
 from vartriage.models.variant import ClinVarAssertion
 
-
 _SIGNIFICANCE_MAP: dict[str, ClinVarAssertion] = {
     "Pathogenic": ClinVarAssertion.PATHOGENIC,
     "Likely pathogenic": ClinVarAssertion.LIKELY_PATHOGENIC,
@@ -39,9 +38,7 @@ _SIGNIFICANCE_MAP: dict[str, ClinVarAssertion] = {
     "Benign": ClinVarAssertion.BENIGN,
 }
 
-_REVERSE_MAP: dict[ClinVarAssertion, str] = {
-    v: k for k, v in _SIGNIFICANCE_MAP.items()
-}
+_REVERSE_MAP: dict[ClinVarAssertion, str] = {v: k for k, v in _SIGNIFICANCE_MAP.items()}
 
 
 class PolarsClinVarDatabase:
@@ -93,14 +90,10 @@ class PolarsClinVarDatabase:
             malformed data that cannot be parsed.
         """
         if not reference_path.exists():
-            raise ReferenceFileError(
-                f"{reference_path}: file not found"
-            )
+            raise ReferenceFileError(f"{reference_path}: file not found")
 
         if not reference_path.is_file():
-            raise ReferenceFileError(
-                f"{reference_path}: not a regular file"
-            )
+            raise ReferenceFileError(f"{reference_path}: not a regular file")
 
         try:
             df = pl.read_csv(
@@ -130,9 +123,7 @@ class PolarsClinVarDatabase:
 
         # Filter to only rows with recognized significance values
         valid_significances = list(_SIGNIFICANCE_MAP.keys())
-        df = df.filter(
-            pl.col("clinical_significance").is_in(valid_significances)
-        )
+        df = df.filter(pl.col("clinical_significance").is_in(valid_significances))
 
         self._reference_df = df.lazy()
         self._loaded = True

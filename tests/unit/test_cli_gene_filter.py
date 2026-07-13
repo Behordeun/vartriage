@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from vartriage.cli import _build_parser, _run_pipeline
 from vartriage.models.config import GeneFilterConfig
@@ -14,28 +14,42 @@ class TestGeneListArgumentParsing:
 
     def test_gene_list_argument_accepted(self) -> None:
         parser = _build_parser()
-        args = parser.parse_args([
-            "--vcf", "input.vcf",
-            "--output", "out.json",
-            "--gene-list", "/tmp/genes.txt",
-        ])
+        args = parser.parse_args(
+            [
+                "--vcf",
+                "input.vcf",
+                "--output",
+                "out.json",
+                "--gene-list",
+                "/tmp/genes.txt",
+            ]
+        )
         assert args.gene_list == Path("/tmp/genes.txt")
 
     def test_gene_list_defaults_to_none(self) -> None:
         parser = _build_parser()
-        args = parser.parse_args([
-            "--vcf", "input.vcf",
-            "--output", "out.json",
-        ])
+        args = parser.parse_args(
+            [
+                "--vcf",
+                "input.vcf",
+                "--output",
+                "out.json",
+            ]
+        )
         assert args.gene_list is None
 
     def test_gene_list_is_path_type(self) -> None:
         parser = _build_parser()
-        args = parser.parse_args([
-            "--vcf", "input.vcf",
-            "--output", "out.json",
-            "--gene-list", "my_panel.txt",
-        ])
+        args = parser.parse_args(
+            [
+                "--vcf",
+                "input.vcf",
+                "--output",
+                "out.json",
+                "--gene-list",
+                "my_panel.txt",
+            ]
+        )
         assert isinstance(args.gene_list, Path)
 
 
@@ -56,11 +70,16 @@ class TestGeneListConfigConstruction:
         mock_pipeline_cls.return_value = mock_pipeline
 
         parser = _build_parser()
-        args = parser.parse_args([
-            "--vcf", str(vcf_file),
-            "--output", str(tmp_path / "out.json"),
-            "--gene-list", str(gene_file),
-        ])
+        args = parser.parse_args(
+            [
+                "--vcf",
+                str(vcf_file),
+                "--output",
+                str(tmp_path / "out.json"),
+                "--gene-list",
+                str(gene_file),
+            ]
+        )
 
         _run_pipeline(args, vcf_file)
 
@@ -81,10 +100,14 @@ class TestGeneListConfigConstruction:
         mock_pipeline_cls.return_value = mock_pipeline
 
         parser = _build_parser()
-        args = parser.parse_args([
-            "--vcf", str(vcf_file),
-            "--output", str(tmp_path / "out.json"),
-        ])
+        args = parser.parse_args(
+            [
+                "--vcf",
+                str(vcf_file),
+                "--output",
+                str(tmp_path / "out.json"),
+            ]
+        )
 
         _run_pipeline(args, vcf_file)
 

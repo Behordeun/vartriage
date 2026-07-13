@@ -40,9 +40,7 @@ class GeneFilter:
     """
 
     def __init__(self, config: GeneFilterConfig) -> None:
-        self._genes: frozenset[str] = self._load_gene_list(
-            config.gene_list_path
-        )
+        self._genes: frozenset[str] = self._load_gene_list(config.gene_list_path)
         self._matched_genes: set[str] = set()
 
     @property
@@ -55,9 +53,7 @@ class GeneFilter:
         """Genes from the list that received zero matching variants."""
         return frozenset(self._genes - self._matched_genes)
 
-    def apply(
-        self, variants: Iterator[AnnotatedVariant]
-    ) -> Iterator[AnnotatedVariant]:
+    def apply(self, variants: Iterator[AnnotatedVariant]) -> Iterator[AnnotatedVariant]:
         """Yield variants whose gene_name is in the loaded gene set.
 
         After the iterator is fully consumed, logs a WARNING for any
@@ -137,9 +133,7 @@ class GeneFilter:
             File contains zero valid gene symbols.
         """
         if not path.exists():
-            raise FileNotFoundError(
-                f"Gene list file not found: {path}"
-            )
+            raise FileNotFoundError(f"Gene list file not found: {path}")
 
         genes: set[str] = set()
         with open(path, "r") as fh:
@@ -153,8 +147,7 @@ class GeneFilter:
 
         if not genes:
             raise ValueError(
-                f"Gene list file contains no valid gene "
-                f"symbols: {path}"
+                f"Gene list file contains no valid gene " f"symbols: {path}"
             )
 
         return frozenset(genes)

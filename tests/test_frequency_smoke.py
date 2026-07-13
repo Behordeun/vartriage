@@ -3,9 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from vartriage.annotation.frequency import (
-    DictFrequencyDatabase,
-)
+from vartriage.annotation.frequency import DictFrequencyDatabase
 from vartriage.io.exceptions import ReferenceFileError
 from vartriage.models.warnings import MissingDataWarning
 
@@ -19,9 +17,7 @@ def create_test_gnomad_file() -> Path:
         "chr2\t500\tAT\tA\t0.0001\n"
         "chrX\t1000\tC\tG\t0.25\n"
     )
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    )
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False)
     tmp.write(content)
     tmp.close()
     return Path(tmp.name)
@@ -72,9 +68,7 @@ def test_dict_frequency_missing_file():
 def test_dict_frequency_bad_format():
     """Test ReferenceFileError for files with wrong columns."""
     content = "col_a\tcol_b\n1\t2\n"
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    )
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False)
     tmp.write(content)
     tmp.close()
 
@@ -100,9 +94,7 @@ def test_polars_frequency_database():
     """Test PolarsFrequencyDatabase if polars is available."""
     try:
         from vartriage.annotation.frequency_polars import (
-            POLARS_AVAILABLE,
-            PolarsFrequencyDatabase,
-        )
+            POLARS_AVAILABLE, PolarsFrequencyDatabase)
     except ImportError:
         return
 
@@ -140,9 +132,7 @@ def test_polars_frequency_missing_file():
     """Test PolarsFrequencyDatabase with missing file."""
     try:
         from vartriage.annotation.frequency_polars import (
-            POLARS_AVAILABLE,
-            PolarsFrequencyDatabase,
-        )
+            POLARS_AVAILABLE, PolarsFrequencyDatabase)
     except ImportError:
         return
 
@@ -161,9 +151,7 @@ def test_polars_frequency_empty_batch():
     """Test PolarsFrequencyDatabase with empty batch."""
     try:
         from vartriage.annotation.frequency_polars import (
-            POLARS_AVAILABLE,
-            PolarsFrequencyDatabase,
-        )
+            POLARS_AVAILABLE, PolarsFrequencyDatabase)
     except ImportError:
         return
 

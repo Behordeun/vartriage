@@ -68,6 +68,10 @@ addopts = "-v --tb=short"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+filterwarnings = [
+    "ignore:MissingDataWarning:UserWarning",
+    "ignore:Missing data threshold:vartriage._internal.warning_accumulator.MissingDataSummaryWarning",
+]
 
 [tool.mypy]
 strict = true

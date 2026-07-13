@@ -14,17 +14,15 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from vartriage._internal.vectorized import (
-    _FALLBACK_CHUNK_SIZE,
-    _MAX_MEMORY_BYTES,
-    batch_coordinate_overlap_join,
-    batch_frequency_join,
-    batch_normalize_scores,
-    compute_composite_vectorized,
-    normalize_cadd_phred_vectorized,
-    polars_available,
-    validate_revel_vectorized,
-)
+from vartriage._internal.vectorized import (_FALLBACK_CHUNK_SIZE,
+                                            _MAX_MEMORY_BYTES,
+                                            batch_coordinate_overlap_join,
+                                            batch_frequency_join,
+                                            batch_normalize_scores,
+                                            compute_composite_vectorized,
+                                            normalize_cadd_phred_vectorized,
+                                            polars_available,
+                                            validate_revel_vectorized)
 
 
 class TestNormalizeCaddPhredVectorized:
@@ -142,7 +140,9 @@ class TestComputeCompositeVectorized:
     def test_custom_weights(self) -> None:
         cadd = np.array([0.5], dtype=np.float64)
         revel = np.array([0.8], dtype=np.float64)
-        result = compute_composite_vectorized(cadd, revel, revel_weight=0.5, cadd_weight=0.5)
+        result = compute_composite_vectorized(
+            cadd, revel, revel_weight=0.5, cadd_weight=0.5
+        )
         expected = 0.8 * 0.5 + 0.5 * 0.5
         assert result[0] == pytest.approx(expected)
 
@@ -166,33 +166,25 @@ class TestBatchNormalizeScores:
     """Tests for batch_normalize_scores."""
 
     def test_full_pipeline_both_scores(self) -> None:
-        cadd_out, revel_out, comp_out = batch_normalize_scores(
-            [30.0], [0.8]
-        )
+        cadd_out, revel_out, comp_out = batch_normalize_scores([30.0], [0.8])
         assert cadd_out[0] == pytest.approx(30.0 / 99.0)
         assert revel_out[0] == pytest.approx(0.8)
         assert comp_out[0] == pytest.approx(0.8 * 0.6 + (30.0 / 99.0) * 0.4)
 
     def test_none_values_remain_none(self) -> None:
-        cadd_out, revel_out, comp_out = batch_normalize_scores(
-            [None], [None]
-        )
+        cadd_out, revel_out, comp_out = batch_normalize_scores([None], [None])
         assert cadd_out[0] is None
         assert revel_out[0] is None
         assert comp_out[0] is None
 
     def test_negative_cadd_rejected(self) -> None:
-        cadd_out, revel_out, comp_out = batch_normalize_scores(
-            [-5.0], [0.5]
-        )
+        cadd_out, revel_out, comp_out = batch_normalize_scores([-5.0], [0.5])
         assert cadd_out[0] is None
         assert revel_out[0] == pytest.approx(0.5)
         assert comp_out[0] == pytest.approx(0.5)
 
     def test_invalid_revel_rejected(self) -> None:
-        cadd_out, revel_out, comp_out = batch_normalize_scores(
-            [30.0], [1.5]
-        )
+        cadd_out, revel_out, comp_out = batch_normalize_scores([30.0], [1.5])
         assert cadd_out[0] == pytest.approx(30.0 / 99.0)
         assert revel_out[0] is None
         assert comp_out[0] == pytest.approx(30.0 / 99.0)
@@ -241,9 +233,7 @@ class TestBatchFrequencyJoin:
     """Tests for polars-based batch_frequency_join."""
 
     def test_matching_variants_get_frequency(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".tsv", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
             f.write("chrom\tpos\tref\talt\taf\n")
             f.write("chr1\t100\tA\tT\t0.05\n")
             f.write("chr1\t200\tG\tC\t0.001\n")
@@ -256,9 +246,7 @@ class TestBatchFrequencyJoin:
         Path(ref_path).unlink()
 
     def test_missing_variants_get_none(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".tsv", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
             f.write("chrom\tpos\tref\talt\taf\n")
             f.write("chr1\t100\tA\tT\t0.05\n")
             ref_path = f.name

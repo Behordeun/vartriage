@@ -61,9 +61,7 @@ class FrequencyFilter:
             config = PrioritizationConfig()
         self._max_af = config.max_allele_frequency
 
-    def apply(
-        self, variants: Iterator[AnnotatedVariant]
-    ) -> Iterator[AnnotatedVariant]:
+    def apply(self, variants: Iterator[AnnotatedVariant]) -> Iterator[AnnotatedVariant]:
         """Filter variants by allele frequency threshold.
 
         Parameters
@@ -90,4 +88,3 @@ class FrequencyFilter:
 
             if variant.allele_frequency <= max_af:
                 yield variant
-

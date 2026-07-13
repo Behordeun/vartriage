@@ -12,12 +12,8 @@ from hypothesis import strategies as st
 from vartriage.filter.region_filter import RegionFilter
 from vartriage.filter.sample_extractor import SampleExtractor
 from vartriage.io.exceptions import ParseError
-from vartriage.models.config import (
-    RegionFilterConfig,
-    SampleConfig,
-)
+from vartriage.models.config import RegionFilterConfig, SampleConfig
 from vartriage.models.variant import Variant
-
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -31,9 +27,7 @@ def bed_interval(draw: st.DrawFn) -> tuple[str, int, int]:
     """Valid BED interval with start < end."""
     chrom = draw(st.sampled_from(CHROMOSOMES))
     start = draw(st.integers(min_value=0, max_value=249_999_998))
-    end = draw(
-        st.integers(min_value=start + 1, max_value=249_999_999)
-    )
+    end = draw(st.integers(min_value=start + 1, max_value=249_999_999))
     return (chrom, start, end)
 
 
@@ -65,9 +59,7 @@ def gt_tuple_with_alt(draw: st.DrawFn) -> tuple[int | None, ...]:
         )
     )
     if all(a == 0 for a in alleles):
-        idx = draw(
-            st.integers(min_value=0, max_value=len(alleles) - 1)
-        )
+        idx = draw(st.integers(min_value=0, max_value=len(alleles) - 1))
         alleles[idx] = draw(st.integers(min_value=1, max_value=3))
     return tuple(alleles)
 
@@ -99,9 +91,7 @@ def test_bed_parsing_round_trip(
     chrom, start, end = interval
     bed_line = f"{chrom}\t{start}\t{end}\n"
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".bed", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
         f.write(bed_line)
         bed_path = Path(f.name)
 
@@ -111,27 +101,40 @@ def test_bed_parsing_round_trip(
 
         # pos = start + 1 => 0-based = start, inside [start, end)
         v_start = Variant(
-            chrom=chrom, pos=start + 1, id=None,
-            ref="A", alt="T", qual=30.0,
-            filter_status="PASS", info={},
+            chrom=chrom,
+            pos=start + 1,
+            id=None,
+            ref="A",
+            alt="T",
+            qual=30.0,
+            filter_status="PASS",
+            info={},
         )
         assert list(rf.apply(iter([v_start]))) == [v_start]
 
         # pos = end => 0-based = end - 1, inside [start, end)
         v_end_minus_1 = Variant(
-            chrom=chrom, pos=end, id=None,
-            ref="A", alt="T", qual=30.0,
-            filter_status="PASS", info={},
+            chrom=chrom,
+            pos=end,
+            id=None,
+            ref="A",
+            alt="T",
+            qual=30.0,
+            filter_status="PASS",
+            info={},
         )
-        assert list(rf.apply(iter([v_end_minus_1]))) == [
-            v_end_minus_1
-        ]
+        assert list(rf.apply(iter([v_end_minus_1]))) == [v_end_minus_1]
 
         # pos = end + 1 => 0-based = end, NOT in [start, end)
         v_past_end = Variant(
-            chrom=chrom, pos=end + 1, id=None,
-            ref="A", alt="T", qual=30.0,
-            filter_status="PASS", info={},
+            chrom=chrom,
+            pos=end + 1,
+            id=None,
+            ref="A",
+            alt="T",
+            qual=30.0,
+            filter_status="PASS",
+            info={},
         )
         assert list(rf.apply(iter([v_past_end]))) == []
     finally:
@@ -147,17 +150,22 @@ def test_bed_parsing_round_trip(
 def malformed_bed_line(draw: st.DrawFn) -> str:
     """Malformed BED line (< 3 cols, bad ints, start>=end, negative)."""
     kind = draw(
-        st.sampled_from([
-            "few_columns", "non_integer",
-            "start_ge_end", "negative",
-        ])
+        st.sampled_from(
+            [
+                "few_columns",
+                "non_integer",
+                "start_ge_end",
+                "negative",
+            ]
+        )
     )
     if kind == "few_columns":
         num_cols = draw(st.integers(min_value=1, max_value=2))
         cols = [
             draw(
                 st.text(
-                    min_size=1, max_size=8,
+                    min_size=1,
+                    max_size=8,
                     alphabet="chrABC123",
                 )
             )
@@ -166,9 +174,7 @@ def malformed_bed_line(draw: st.DrawFn) -> str:
         return "\t".join(cols)
     elif kind == "non_integer":
         chrom = draw(st.sampled_from(CHROMOSOMES))
-        bad_val = draw(
-            st.text(min_size=1, max_size=5, alphabet="abcXYZ!@")
-        )
+        bad_val = draw(st.text(min_size=1, max_size=5, alphabet="abcXYZ!@"))
         return f"{chrom}\t{bad_val}\t100"
     elif kind == "start_ge_end":
         chrom = draw(st.sampled_from(CHROMOSOMES))
@@ -186,9 +192,7 @@ def malformed_bed_line(draw: st.DrawFn) -> str:
 @settings(max_examples=100)
 def test_bed_validation_rejects_malformed(bad_line: str) -> None:
     """Malformed BED lines raise ParseError with line_number=1."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".bed", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
         f.write(bad_line + "\n")
         bed_path = Path(f.name)
 
@@ -196,9 +200,7 @@ def test_bed_validation_rejects_malformed(bad_line: str) -> None:
         config = RegionFilterConfig(bed_path=bed_path)
         try:
             RegionFilter(config)
-            raise AssertionError(
-                f"Expected ParseError for line: {bad_line!r}"
-            )
+            raise AssertionError(f"Expected ParseError for line: {bad_line!r}")
         except ParseError as exc:
             assert exc.line_number == 1
     finally:
@@ -213,12 +215,14 @@ def test_bed_validation_rejects_malformed(bad_line: str) -> None:
 @given(
     intervals=st.lists(bed_interval(), min_size=1, max_size=10),
     comments=st.lists(
-        st.sampled_from([
-            "# this is a comment",
-            "#comment line",
-            "browser position chr1:1-100",
-            "track name=test",
-        ]),
+        st.sampled_from(
+            [
+                "# this is a comment",
+                "#comment line",
+                "browser position chr1:1-100",
+                "track name=test",
+            ]
+        ),
         min_size=0,
         max_size=5,
     ),
@@ -229,16 +233,12 @@ def test_comment_invisibility(
     comments: list[str],
 ) -> None:
     """Comment/browser/track lines don't change interval count."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".bed", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
         for chrom, start, end in intervals:
             f.write(f"{chrom}\t{start}\t{end}\n")
         data_only_path = Path(f.name)
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".bed", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
         for comment in comments:
             f.write(comment + "\n")
         for chrom, start, end in intervals:
@@ -252,12 +252,8 @@ def test_comment_invisibility(
         config_mixed = RegionFilterConfig(bed_path=mixed_path)
         rf_mixed = RegionFilter(config_mixed)
 
-        data_count = sum(
-            len(ivs) for ivs in rf_data._intervals.values()
-        )
-        mixed_count = sum(
-            len(ivs) for ivs in rf_mixed._intervals.values()
-        )
+        data_count = sum(len(ivs) for ivs in rf_data._intervals.values())
+        mixed_count = sum(len(ivs) for ivs in rf_mixed._intervals.values())
 
         assert data_count == mixed_count
     finally:
@@ -291,9 +287,7 @@ def test_overlap_correctness(
     variants: list[Variant],
 ) -> None:
     """RegionFilter agrees with naive O(n) overlap check."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".bed", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
         for chrom, start, end in intervals:
             f.write(f"{chrom}\t{start}\t{end}\n")
         bed_path = Path(f.name)
@@ -303,10 +297,7 @@ def test_overlap_correctness(
         rf = RegionFilter(config)
 
         result = list(rf.apply(iter(variants)))
-        expected = [
-            v for v in variants
-            if _naive_overlaps(intervals, v.chrom, v.pos)
-        ]
+        expected = [v for v in variants if _naive_overlaps(intervals, v.chrom, v.pos)]
 
         assert result == expected
     finally:
@@ -328,9 +319,7 @@ def test_order_preservation_region_filter(
     variants: list[Variant],
 ) -> None:
     """RegionFilter output is an ordered subsequence of input."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".bed", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
         for chrom, start, end in intervals:
             f.write(f"{chrom}\t{start}\t{end}\n")
         bed_path = Path(f.name)
@@ -347,9 +336,7 @@ def test_order_preservation_region_filter(
                 if v == r:
                     break
             else:
-                raise AssertionError(
-                    "Output variant not found in input order"
-                )
+                raise AssertionError("Output variant not found in input order")
     finally:
         bed_path.unlink(missing_ok=True)
 
@@ -370,14 +357,19 @@ def test_order_preservation_sample_extractor(
     enriched = []
     for v in variants:
         new_info = dict(v.info)
-        new_info["_pysam_samples"] = {
-            sample_name: {"GT": (0, 1), "GQ": 50}
-        }
-        enriched.append(Variant(
-            chrom=v.chrom, pos=v.pos, id=v.id,
-            ref=v.ref, alt=v.alt, qual=v.qual,
-            filter_status=v.filter_status, info=new_info,
-        ))
+        new_info["_pysam_samples"] = {sample_name: {"GT": (0, 1), "GQ": 50}}
+        enriched.append(
+            Variant(
+                chrom=v.chrom,
+                pos=v.pos,
+                id=v.id,
+                ref=v.ref,
+                alt=v.alt,
+                qual=v.qual,
+                filter_status=v.filter_status,
+                info=new_info,
+            )
+        )
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -426,20 +418,18 @@ def test_genotype_alt_allele_reject(
 def test_gq_threshold(gq: int, threshold: int) -> None:
     """Variant excluded iff GQ < threshold."""
     sample_name = "S1"
-    config = SampleConfig(
-        sample_name=sample_name, min_gq=threshold
-    )
+    config = SampleConfig(sample_name=sample_name, min_gq=threshold)
     extractor = SampleExtractor(config, [sample_name])
 
     variant = Variant(
-        chrom="chr1", pos=100, id=None,
-        ref="A", alt="T", qual=30.0,
+        chrom="chr1",
+        pos=100,
+        id=None,
+        ref="A",
+        alt="T",
+        qual=30.0,
         filter_status="PASS",
-        info={
-            "_pysam_samples": {
-                sample_name: {"GT": (0, 1), "GQ": gq}
-            }
-        },
+        info={"_pysam_samples": {sample_name: {"GT": (0, 1), "GQ": gq}}},
     )
 
     with warnings.catch_warnings():
@@ -468,9 +458,7 @@ def test_gq_config_validation(bad_gq: int) -> None:
     """GQ values outside [0, 99] raise ValueError."""
     try:
         SampleConfig(sample_name="test", min_gq=bad_gq)
-        raise AssertionError(
-            f"Expected ValueError for min_gq={bad_gq}"
-        )
+        raise AssertionError(f"Expected ValueError for min_gq={bad_gq}")
     except ValueError:
         pass
 
@@ -485,23 +473,21 @@ def test_gq_config_validation(bad_gq: int) -> None:
     gt=gt_tuple_with_alt(),
 )
 @settings(max_examples=100)
-def test_sample_data_attachment(
-    gq: int, gt: tuple[int | None, ...]
-) -> None:
+def test_sample_data_attachment(gq: int, gt: tuple[int | None, ...]) -> None:
     """Output info contains sample_gt, sample_name, sample_gq."""
     sample_name = "PROBAND"
     config = SampleConfig(sample_name=sample_name)
     extractor = SampleExtractor(config, [sample_name])
 
     variant = Variant(
-        chrom="chr1", pos=50, id=None,
-        ref="C", alt="G", qual=40.0,
+        chrom="chr1",
+        pos=50,
+        id=None,
+        ref="C",
+        alt="G",
+        qual=40.0,
         filter_status="PASS",
-        info={
-            "_pysam_samples": {
-                sample_name: {"GT": gt, "GQ": gq}
-            }
-        },
+        info={"_pysam_samples": {sample_name: {"GT": gt, "GQ": gq}}},
     )
 
     with warnings.catch_warnings():
@@ -522,9 +508,7 @@ def test_sample_data_attachment(
 # ---------------------------------------------------------------------------
 
 
-@given(
-    variants=st.lists(simple_variant(), min_size=0, max_size=20)
-)
+@given(variants=st.lists(simple_variant(), min_size=0, max_size=20))
 @settings(max_examples=100)
 def test_no_config_passthrough(variants: list[Variant]) -> None:
     """When region config is None, stream passes through unchanged."""

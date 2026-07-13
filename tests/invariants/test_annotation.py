@@ -9,26 +9,23 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from hypothesis import given, settings, assume
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
+from tests.generators.variants import chromosome, genomic_position, snv_allele
+from vartriage.annotation.clinvar import DictClinVarDatabase
 from vartriage.annotation.consequence import _most_severe_consequence
 from vartriage.annotation.frequency import DictFrequencyDatabase
-from vartriage.annotation.clinvar import DictClinVarDatabase
-from vartriage.models.variant import (
-    CONSEQUENCE_SEVERITY_ORDER,
-    ClinVarAssertion,
-    FunctionalConsequence,
-    Variant,
-)
-
-from tests.generators.variants import chromosome, genomic_position, snv_allele
+from vartriage.models.variant import (CONSEQUENCE_SEVERITY_ORDER,
+                                      ClinVarAssertion, FunctionalConsequence,
+                                      Variant)
 
 # ---------------------------------------------------------------------------
 # Strategies
 # ---------------------------------------------------------------------------
 
 CONSEQUENCE_VALUES = list(FunctionalConsequence)
+
 
 @st.composite
 def consequence_subset(draw: st.DrawFn) -> list[FunctionalConsequence]:
@@ -46,6 +43,7 @@ def consequence_subset(draw: st.DrawFn) -> list[FunctionalConsequence]:
     )
     return consequences
 
+
 @st.composite
 def variant_key(draw: st.DrawFn) -> tuple[str, int, str, str]:
     """Generate a (chrom, pos, ref, alt) lookup key."""
@@ -54,6 +52,7 @@ def variant_key(draw: st.DrawFn) -> tuple[str, int, str, str]:
     ref = draw(snv_allele())
     alt = draw(snv_allele())
     return (chrom, pos, ref, alt)
+
 
 @st.composite
 def frequency_database_scenario(
@@ -71,7 +70,9 @@ def frequency_database_scenario(
     for _ in range(num_entries):
         key = draw(variant_key())
         freq = draw(
-            st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False)
+            st.floats(
+                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
+            )
         )
         db_entries[key] = freq
 
@@ -83,9 +84,7 @@ def frequency_database_scenario(
             max_size=min(5, num_entries),
         )
     )
-    absent_keys = draw(
-        st.lists(variant_key(), min_size=1, max_size=5)
-    )
+    absent_keys = draw(st.lists(variant_key(), min_size=1, max_size=5))
 
     # Filter out absent keys that happen to be present
     truly_absent = [k for k in absent_keys if k not in db_entries]
@@ -95,10 +94,13 @@ def frequency_database_scenario(
 
     return db_entries, query_keys
 
+
 @st.composite
 def clinvar_database_scenario(
     draw: st.DrawFn,
-) -> tuple[dict[tuple[str, int, str, str], ClinVarAssertion], list[tuple[str, int, str, str]]]:
+) -> tuple[
+    dict[tuple[str, int, str, str], ClinVarAssertion], list[tuple[str, int, str, str]]
+]:
     """Generate a ClinVar database (as a dict) and query keys.
 
     Some keys match, some don't. Verifying both paths.
@@ -118,9 +120,7 @@ def clinvar_database_scenario(
             max_size=min(5, num_entries),
         )
     )
-    absent_keys = draw(
-        st.lists(variant_key(), min_size=1, max_size=5)
-    )
+    absent_keys = draw(st.lists(variant_key(), min_size=1, max_size=5))
 
     truly_absent = [k for k in absent_keys if k not in db_entries]
 
@@ -129,7 +129,9 @@ def clinvar_database_scenario(
 
     return db_entries, query_keys
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(consequences=consequence_subset())
 @settings(max_examples=200)
@@ -157,6 +159,7 @@ def test_most_severe_consequence_selected(
         f"got {result.value}"
     )
 
+
 @given(data=st.data())
 @settings(max_examples=200)
 def test_intergenic_assigned_when_no_overlaps(data: st.DataObject) -> None:
@@ -169,23 +172,24 @@ def test_intergenic_assigned_when_no_overlaps(data: st.DataObject) -> None:
     result = _most_severe_consequence(overlaps)
 
     # With empty overlaps, the function returns the initial best which is INTERGENIC
-    assert result == FunctionalConsequence.INTERGENIC, (
-        f"Expected INTERGENIC for empty overlap list, got {result.value}"
-    )
+    assert (
+        result == FunctionalConsequence.INTERGENIC
+    ), f"Expected INTERGENIC for empty overlap list, got {result.value}"
+
 
 @given(consequence=st.sampled_from(CONSEQUENCE_VALUES))
 @settings(max_examples=200)
 def test_single_consequence_returns_itself(
     consequence: FunctionalConsequence,
 ) -> None:
-    """A single overlapping transcript returns its own consequence unchanged.
-    """
+    """A single overlapping transcript returns its own consequence unchanged."""
     overlaps = [{"consequence": consequence.value}]
     result = _most_severe_consequence(overlaps)
 
-    assert result == consequence, (
-        f"Single consequence {consequence.value} should return itself, got {result.value}"
-    )
+    assert (
+        result == consequence
+    ), f"Single consequence {consequence.value} should return itself, got {result.value}"
+
 
 @given(
     less_severe=st.sampled_from(CONSEQUENCE_VALUES[1:]),
@@ -196,8 +200,7 @@ def test_severity_ranking_is_transitive(
     less_severe: FunctionalConsequence,
     more_severe_idx: st.DataObject,
 ) -> None:
-    """Any consequence ranked higher always wins over a lower-ranked one.
-    """
+    """Any consequence ranked higher always wins over a lower-ranked one."""
     severity_rank = {c: idx for idx, c in enumerate(CONSEQUENCE_SEVERITY_ORDER)}
     less_severe_rank = severity_rank[less_severe]
 
@@ -218,7 +221,9 @@ def test_severity_ranking_is_transitive(
         f"got {result.value}"
     )
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(scenario=frequency_database_scenario())
 @settings(max_examples=100)
@@ -234,9 +239,7 @@ def test_frequency_lookup_match_returns_value(
     db_entries, query_keys = scenario
 
     # Write the database to a temp TSV file
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
         f.write("chrom\tpos\tref\talt\taf\n")
         for (chrom, pos, ref, alt), freq in db_entries.items():
             f.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{freq}\n")
@@ -253,20 +256,18 @@ def test_frequency_lookup_match_returns_value(
         for key, result in zip(query_keys, results):
             if key in db_entries:
                 # Match: value should be attached
-                assert result is not None, (
-                    f"Expected frequency for {key}, got None"
-                )
+                assert result is not None, f"Expected frequency for {key}, got None"
                 assert abs(result - db_entries[key]) < 1e-7, (
-                    f"Expected frequency {db_entries[key]} for {key}, "
-                    f"got {result}"
+                    f"Expected frequency {db_entries[key]} for {key}, " f"got {result}"
                 )
             else:
                 # No match: null returned
-                assert result is None, (
-                    f"Expected None for absent key {key}, got {result}"
-                )
+                assert (
+                    result is None
+                ), f"Expected None for absent key {key}, got {result}"
     finally:
         tmp_path.unlink(missing_ok=True)
+
 
 @given(scenario=frequency_database_scenario())
 @settings(max_examples=100)
@@ -282,9 +283,7 @@ def test_frequency_lookup_missing_emits_warning(
     """
     db_entries, query_keys = scenario
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
         f.write("chrom\tpos\tref\talt\taf\n")
         for (chrom, pos, ref, alt), freq in db_entries.items():
             f.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{freq}\n")
@@ -298,9 +297,9 @@ def test_frequency_lookup_missing_emits_warning(
         db.lookup_batch(query_keys)
 
         absent_keys = [k for k in query_keys if k not in db_entries]
-        assert len(db.warnings) == len(absent_keys), (
-            f"Expected {len(absent_keys)} warnings, got {len(db.warnings)}"
-        )
+        assert len(db.warnings) == len(
+            absent_keys
+        ), f"Expected {len(absent_keys)} warnings, got {len(db.warnings)}"
 
         for warning, key in zip(db.warnings, absent_keys):
             assert warning.chrom == key[0]
@@ -310,6 +309,7 @@ def test_frequency_lookup_missing_emits_warning(
             assert warning.source == "gnomAD"
     finally:
         tmp_path.unlink(missing_ok=True)
+
 
 @given(scenario=clinvar_database_scenario())
 @settings(max_examples=100)
@@ -333,9 +333,7 @@ def test_clinvar_lookup_match_returns_assertion(
         ClinVarAssertion.BENIGN: "Benign",
     }
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".tsv", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
         f.write("chrom\tpos\tref\talt\tclinical_significance\n")
         for (chrom, pos, ref, alt), assertion in db_entries.items():
             sig_str = assertion_to_str[assertion]
@@ -352,15 +350,15 @@ def test_clinvar_lookup_match_returns_assertion(
 
         for key, result in zip(query_keys, results):
             if key in db_entries:
-                assert result is not None, (
-                    f"Expected ClinVar assertion for {key}, got None"
-                )
-                assert result == db_entries[key], (
-                    f"Expected {db_entries[key]} for {key}, got {result}"
-                )
+                assert (
+                    result is not None
+                ), f"Expected ClinVar assertion for {key}, got None"
+                assert (
+                    result == db_entries[key]
+                ), f"Expected {db_entries[key]} for {key}, got {result}"
             else:
-                assert result is None, (
-                    f"Expected None for absent key {key}, got {result}"
-                )
+                assert (
+                    result is None
+                ), f"Expected None for absent key {key}, got {result}"
     finally:
         tmp_path.unlink(missing_ok=True)

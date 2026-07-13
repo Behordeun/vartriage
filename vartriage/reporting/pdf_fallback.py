@@ -43,6 +43,5 @@ class PDFFallbackRenderer:
             Always raised with installation instructions.
         """
         raise ImportError(
-            "PDF output requires reportlab. "
-            "Install with: pip install vartriage[pdf]"
+            "PDF output requires reportlab. " "Install with: pip install vartriage[pdf]"
         )

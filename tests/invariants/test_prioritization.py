@@ -9,29 +9,19 @@ from __future__ import annotations
 import warnings
 from typing import Optional
 
-from hypothesis import given, settings, assume
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
+from tests.generators.variants import chromosome, genomic_position, snv_allele
 from vartriage.models.config import PrioritizationConfig
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 from vartriage.prioritization.frequency_filter import FrequencyFilter
-from vartriage.prioritization.scoring import (
-    compute_composite_ranks,
-    normalize_cadd_scores,
-    score_variants,
-    sort_by_composite_rank,
-    validate_revel_scores,
-)
-from tests.generators.variants import (
-    chromosome,
-    genomic_position,
-    snv_allele,
-)
+from vartriage.prioritization.scoring import (compute_composite_ranks,
+                                              normalize_cadd_scores,
+                                              score_variants,
+                                              sort_by_composite_rank,
+                                              validate_revel_scores)
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -52,6 +42,7 @@ VALID_CADD_PHRED = st.floats(
 VALID_REVEL = st.floats(
     min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
 )
+
 
 @st.composite
 def annotated_variant_for_frequency_filter(
@@ -96,6 +87,7 @@ def annotated_variant_for_frequency_filter(
         frequency_unknown=freq_unknown,
     )
 
+
 @st.composite
 def annotated_variant_with_known_af(
     draw: st.DrawFn,
@@ -126,18 +118,17 @@ def annotated_variant_with_known_af(
         frequency_unknown=False,
     )
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(
     variant=annotated_variant_with_known_af(),
     max_af=VALID_MAX_AF,
 )
 @settings(max_examples=200)
-def test_af_above_threshold_excluded(
-    variant: AnnotatedVariant, max_af: float
-) -> None:
-    """Variants with allele_frequency > max_af are excluded.
-    """
+def test_af_above_threshold_excluded(variant: AnnotatedVariant, max_af: float) -> None:
+    """Variants with allele_frequency > max_af are excluded."""
     assume(variant.allele_frequency is not None)
     assume(variant.allele_frequency > max_af)
 
@@ -150,6 +141,7 @@ def test_af_above_threshold_excluded(
         f"when max_af={max_af}"
     )
 
+
 @given(
     variant=annotated_variant_with_known_af(),
     max_af=VALID_MAX_AF,
@@ -158,8 +150,7 @@ def test_af_above_threshold_excluded(
 def test_af_at_or_below_threshold_retained(
     variant: AnnotatedVariant, max_af: float
 ) -> None:
-    """Variants with allele_frequency <= max_af are retained.
-    """
+    """Variants with allele_frequency <= max_af are retained."""
     assume(variant.allele_frequency is not None)
     assume(variant.allele_frequency <= max_af)
 
@@ -172,19 +163,15 @@ def test_af_at_or_below_threshold_retained(
         f"when max_af={max_af}"
     )
 
+
 @given(
     max_af=VALID_MAX_AF,
     data=st.data(),
 )
 @settings(max_examples=200)
-def test_frequency_unknown_always_retained(
-    max_af: float, data: st.DataObject
-) -> None:
-    """Variants with frequency_unknown=True are always retained regardless of threshold.
-    """
-    variant = data.draw(
-        annotated_variant_for_frequency_filter(frequency_unknown=True)
-    )
+def test_frequency_unknown_always_retained(max_af: float, data: st.DataObject) -> None:
+    """Variants with frequency_unknown=True are always retained regardless of threshold."""
+    variant = data.draw(annotated_variant_for_frequency_filter(frequency_unknown=True))
 
     config = PrioritizationConfig(max_allele_frequency=max_af)
     ff = FrequencyFilter(config)
@@ -195,18 +182,17 @@ def test_frequency_unknown_always_retained(
         f"regardless of AF={variant.allele_frequency} and max_af={max_af}"
     )
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(
     cadd_phred=VALID_CADD_PHRED,
     revel_score=VALID_REVEL,
 )
 @settings(max_examples=200)
-def test_composite_both_scores_available(
-    cadd_phred: float, revel_score: float
-) -> None:
-    """When both CADD and REVEL are available, composite = (revel * 0.6) + (cadd_norm * 0.4).
-    """
+def test_composite_both_scores_available(cadd_phred: float, revel_score: float) -> None:
+    """When both CADD and REVEL are available, composite = (revel * 0.6) + (cadd_norm * 0.4)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         cadd_normalized = normalize_cadd_scores([cadd_phred])
@@ -227,11 +213,11 @@ def test_composite_both_scores_available(
         f"CADD={cadd_phred}, REVEL={revel_score}"
     )
 
+
 @given(revel_score=VALID_REVEL)
 @settings(max_examples=200)
 def test_composite_revel_only(revel_score: float) -> None:
-    """When only REVEL is available, composite equals the REVEL score.
-    """
+    """When only REVEL is available, composite equals the REVEL score."""
     cadd_normalized = [None]
     revel_validated = validate_revel_scores([revel_score])
 
@@ -241,15 +227,15 @@ def test_composite_revel_only(revel_score: float) -> None:
     result = composites[0]
 
     assert result is not None
-    assert abs(result - revel_score) < 1e-10, (
-        f"Composite {result} != REVEL {revel_score} when CADD is missing"
-    )
+    assert (
+        abs(result - revel_score) < 1e-10
+    ), f"Composite {result} != REVEL {revel_score} when CADD is missing"
+
 
 @given(cadd_phred=VALID_CADD_PHRED)
 @settings(max_examples=200)
 def test_composite_cadd_only(cadd_phred: float) -> None:
-    """When only CADD is available, composite equals min(cadd_phred / 99, 1.0).
-    """
+    """When only CADD is available, composite equals min(cadd_phred / 99, 1.0)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         cadd_normalized = normalize_cadd_scores([cadd_phred])
@@ -263,43 +249,45 @@ def test_composite_cadd_only(cadd_phred: float) -> None:
     expected = min(cadd_phred / 99.0, 1.0)
 
     assert result is not None
-    assert abs(result - expected) < 1e-10, (
-        f"Composite {result} != expected CADD_norm {expected} when REVEL is missing"
-    )
+    assert (
+        abs(result - expected) < 1e-10
+    ), f"Composite {result} != expected CADD_norm {expected} when REVEL is missing"
+
 
 @settings(max_examples=100)
 @given(data=st.data())
 def test_composite_neither_score_is_null(data: st.DataObject) -> None:
-    """When neither CADD nor REVEL is available, composite is null.
-    """
+    """When neither CADD nor REVEL is available, composite is null."""
     cadd_normalized: list[Optional[float]] = [None]
     revel_validated: list[Optional[float]] = [None]
 
     composites = compute_composite_ranks(cadd_normalized, revel_validated)
     result = composites[0]
 
-    assert result is None, (
-        f"Composite should be None when neither score is available, got {result}"
-    )
+    assert (
+        result is None
+    ), f"Composite should be None when neither score is available, got {result}"
+
 
 @given(
     cadd_phred=VALID_CADD_PHRED,
 )
 @settings(max_examples=200)
 def test_cadd_normalization_formula(cadd_phred: float) -> None:
-    """CADD normalization applies min(score/99.0, 1.0).
-    """
+    """CADD normalization applies min(score/99.0, 1.0)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         result = normalize_cadd_scores([cadd_phred])
 
     expected = min(cadd_phred / 99.0, 1.0)
     assert result[0] is not None
-    assert abs(result[0] - expected) < 1e-10, (
-        f"Normalized CADD {result[0]} != expected {expected} for input {cadd_phred}"
-    )
+    assert (
+        abs(result[0] - expected) < 1e-10
+    ), f"Normalized CADD {result[0]} != expected {expected} for input {cadd_phred}"
+
 
 # ---------------------------------------------------------------------------
+
 
 @st.composite
 def scored_variant_with_rank(
@@ -346,6 +334,7 @@ def scored_variant_with_rank(
         composite_rank=composite_rank,
     )
 
+
 @given(
     variants=st.lists(scored_variant_with_rank(), min_size=0, max_size=50),
 )
@@ -353,8 +342,7 @@ def scored_variant_with_rank(
 def test_rank_ordering_descending_nulls_last(
     variants: list[ScoredVariant],
 ) -> None:
-    """Output is strictly descending by composite_rank with nulls at the end.
-    """
+    """Output is strictly descending by composite_rank with nulls at the end."""
     result = sort_by_composite_rank(variants)
 
     # Split into ranked and null-ranked
@@ -379,13 +367,13 @@ def test_rank_ordering_descending_nulls_last(
             f"{ranked[i + 1].composite_rank} at positions {i}, {i+1}"
         )
 
+
 @given(
     data=st.data(),
 )
 @settings(max_examples=200)
 def test_score_variants_output_ordering(data: st.DataObject) -> None:
-    """score_variants produces output sorted descending by composite_rank, nulls last.
-    """
+    """score_variants produces output sorted descending by composite_rank, nulls last."""
     n = data.draw(st.integers(min_value=1, max_value=20))
 
     variants: list[AnnotatedVariant] = []
@@ -395,12 +383,8 @@ def test_score_variants_output_ordering(data: st.DataObject) -> None:
     for _ in range(n):
         v = data.draw(annotated_variant_for_frequency_filter(frequency_unknown=False))
         variants.append(v)
-        cadd_scores.append(
-            data.draw(st.one_of(st.none(), VALID_CADD_PHRED))
-        )
-        revel_scores.append(
-            data.draw(st.one_of(st.none(), VALID_REVEL))
-        )
+        cadd_scores.append(data.draw(st.one_of(st.none(), VALID_CADD_PHRED)))
+        revel_scores.append(data.draw(st.one_of(st.none(), VALID_REVEL)))
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -415,9 +399,9 @@ def test_score_variants_output_ordering(data: st.DataObject) -> None:
         if sv.composite_rank is None:
             # Everything after this should also be None
             for j in range(i, len(result)):
-                assert result[j].composite_rank is None, (
-                    f"Found non-null rank after null at position {j}"
-                )
+                assert (
+                    result[j].composite_rank is None
+                ), f"Found non-null rank after null at position {j}"
             break
 
     # Ranked variants are in descending order

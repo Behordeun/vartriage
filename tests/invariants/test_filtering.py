@@ -7,22 +7,14 @@ import warnings
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from tests.generators.variants import (FILTER_FAIL_VALUES, FILTER_PASS_VALUES,
+                                       chromosome, genomic_position,
+                                       snv_allele)
 from vartriage.filter.quality_filter import QualityFilter
-from vartriage.models.config import (
-    AnnotationConfig,
-    PrioritizationConfig,
-    QualityFilterConfig,
-)
+from vartriage.models.config import (AnnotationConfig, PrioritizationConfig,
+                                     QualityFilterConfig)
 from vartriage.models.variant import Variant
 from vartriage.models.warnings import MissingDataWarning
-
-from tests.generators.variants import (
-    chromosome,
-    genomic_position,
-    snv_allele,
-    FILTER_PASS_VALUES,
-    FILTER_FAIL_VALUES,
-)
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -31,6 +23,7 @@ from tests.generators.variants import (
 VALID_QUAL_THRESHOLD = st.floats(
     min_value=0.0, max_value=1_000_000.0, allow_nan=False, allow_infinity=False
 )
+
 
 @st.composite
 def arbitrary_variant_for_filtering(draw: st.DrawFn) -> Variant:
@@ -43,9 +36,7 @@ def arbitrary_variant_for_filtering(draw: st.DrawFn) -> Variant:
     ref = draw(snv_allele())
     alt = draw(snv_allele())
 
-    filter_status = draw(
-        st.sampled_from(FILTER_PASS_VALUES + FILTER_FAIL_VALUES)
-    )
+    filter_status = draw(st.sampled_from(FILTER_PASS_VALUES + FILTER_FAIL_VALUES))
 
     qual: float | None = draw(
         st.one_of(
@@ -70,7 +61,9 @@ def arbitrary_variant_for_filtering(draw: st.DrawFn) -> Variant:
         info={},
     )
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(
     variant=arbitrary_variant_for_filtering(),
@@ -78,8 +71,7 @@ def arbitrary_variant_for_filtering(draw: st.DrawFn) -> Variant:
 )
 @settings(max_examples=200)
 def test_quality_filter_correctness(variant: Variant, threshold: float) -> None:
-    """Variant passes iff FILTER in {PASS, .} AND QUAL is not None AND QUAL >= threshold.
-    """
+    """Variant passes iff FILTER in {PASS, .} AND QUAL is not None AND QUAL >= threshold."""
     config = QualityFilterConfig(min_qual=threshold)
     qf = QualityFilter(config)
 
@@ -105,24 +97,24 @@ def test_quality_filter_correctness(variant: Variant, threshold: float) -> None:
         )
 
     # Variants excluded due to missing QUAL (with passing FILTER) trigger a warning
-    if (
-        variant.filter_status in {"PASS", "."}
-        and variant.qual is None
-    ):
+    if variant.filter_status in {"PASS", "."} and variant.qual is None:
         missing_qual_warnings = [
-            w for w in caught
+            w
+            for w in caught
             if issubclass(w.category, UserWarning)
             and w.message.args
             and isinstance(w.message.args[0], MissingDataWarning)
         ]
-        assert len(missing_qual_warnings) == 1, (
-            "Expected exactly one MissingDataWarning for missing QUAL"
-        )
+        assert (
+            len(missing_qual_warnings) == 1
+        ), "Expected exactly one MissingDataWarning for missing QUAL"
         warning_obj: MissingDataWarning = missing_qual_warnings[0].message.args[0]  # type: ignore[union-attr]
         assert variant.chrom in warning_obj.reason  # type: ignore[operator]
         assert str(variant.pos) in warning_obj.reason  # type: ignore[operator]
 
+
 # ---------------------------------------------------------------------------
+
 
 @given(
     variants=st.lists(arbitrary_variant_for_filtering(), min_size=0, max_size=50),
@@ -132,8 +124,7 @@ def test_quality_filter_correctness(variant: Variant, threshold: float) -> None:
 def test_filtering_preserves_ordering(
     variants: list[Variant], threshold: float
 ) -> None:
-    """Relative ordering of passing variants matches input ordering.
-    """
+    """Relative ordering of passing variants matches input ordering."""
     config = QualityFilterConfig(min_qual=threshold)
     qf = QualityFilter(config)
 
@@ -143,17 +134,20 @@ def test_filtering_preserves_ordering(
 
     # Compute which variants should pass using the same predicate
     expected = [
-        v for v in variants
+        v
+        for v in variants
         if v.filter_status in {"PASS", "."}
         and v.qual is not None
         and v.qual >= threshold
     ]
 
-    assert result == expected, (
-        "Filtered output does not preserve the relative input ordering"
-    )
+    assert (
+        result == expected
+    ), "Filtered output does not preserve the relative input ordering"
+
 
 # ---------------------------------------------------------------------------
+
 
 @given(
     value=st.one_of(
@@ -172,15 +166,15 @@ def test_filtering_preserves_ordering(
 )
 @settings(max_examples=100)
 def test_quality_filter_config_rejects_out_of_range(value: float) -> None:
-    """QualityFilterConfig rejects min_qual outside [0, 1_000_000].
-    """
+    """QualityFilterConfig rejects min_qual outside [0, 1_000_000]."""
     try:
         QualityFilterConfig(min_qual=value)
         assert False, f"Expected ValueError for min_qual={value}"
     except ValueError as exc:
-        assert "0" in str(exc) and "1000000" in str(exc), (
-            f"Error message should specify valid range, got: {exc}"
-        )
+        assert "0" in str(exc) and "1000000" in str(
+            exc
+        ), f"Error message should specify valid range, got: {exc}"
+
 
 @given(
     value=st.one_of(
@@ -199,15 +193,15 @@ def test_quality_filter_config_rejects_out_of_range(value: float) -> None:
 )
 @settings(max_examples=100)
 def test_prioritization_config_rejects_out_of_range_af(value: float) -> None:
-    """PrioritizationConfig rejects max_allele_frequency outside [0.0, 1.0].
-    """
+    """PrioritizationConfig rejects max_allele_frequency outside [0.0, 1.0]."""
     try:
         PrioritizationConfig(max_allele_frequency=value)
         assert False, f"Expected ValueError for max_allele_frequency={value}"
     except ValueError as exc:
-        assert "0.0" in str(exc) and "1.0" in str(exc), (
-            f"Error message should specify valid range, got: {exc}"
-        )
+        assert "0.0" in str(exc) and "1.0" in str(
+            exc
+        ), f"Error message should specify valid range, got: {exc}"
+
 
 @given(
     value=st.one_of(
@@ -217,8 +211,7 @@ def test_prioritization_config_rejects_out_of_range_af(value: float) -> None:
 )
 @settings(max_examples=100)
 def test_annotation_config_rejects_out_of_range_batch_size(value: int) -> None:
-    """AnnotationConfig rejects batch_size outside [1_000, 100_000].
-    """
+    """AnnotationConfig rejects batch_size outside [1_000, 100_000]."""
     from pathlib import Path
 
     try:
@@ -229,9 +222,10 @@ def test_annotation_config_rejects_out_of_range_batch_size(value: int) -> None:
         )
         assert False, f"Expected ValueError for batch_size={value}"
     except ValueError as exc:
-        assert "1000" in str(exc) and "100000" in str(exc), (
-            f"Error message should specify valid range, got: {exc}"
-        )
+        assert "1000" in str(exc) and "100000" in str(
+            exc
+        ), f"Error message should specify valid range, got: {exc}"
+
 
 @given(
     value=st.one_of(
@@ -243,12 +237,11 @@ def test_annotation_config_rejects_out_of_range_batch_size(value: int) -> None:
 def test_prioritization_config_rejects_out_of_range_batch_size(
     value: int,
 ) -> None:
-    """PrioritizationConfig rejects batch_size outside [1_000, 100_000].
-    """
+    """PrioritizationConfig rejects batch_size outside [1_000, 100_000]."""
     try:
         PrioritizationConfig(batch_size=value)
         assert False, f"Expected ValueError for batch_size={value}"
     except ValueError as exc:
-        assert "1000" in str(exc) and "100000" in str(exc), (
-            f"Error message should specify valid range, got: {exc}"
-        )
+        assert "1000" in str(exc) and "100000" in str(
+            exc
+        ), f"Error message should specify valid range, got: {exc}"

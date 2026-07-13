@@ -222,3 +222,139 @@ acc = pipeline.warning_accumulator
 print(f"Suppressed {acc.total_count} missing-data events")
 print(f"Sources: {acc.sources}")
 ```
+
+## Clinical report generation
+
+Produce a structured clinical report with per-variant evidence narratives and a JSON audit trail. The report includes an executive summary, findings table, evidence cards with ACMG criteria explanations, limitations, methodology, and sign-off sections.
+
+### HTML report (self-contained)
+
+```bash
+vartriage \
+  --vcf patient_exome.vcf.gz \
+  --output clinical_report.html \
+  --output-format clinical-html \
+  --patient-id PAT-2025-042 \
+  --panel-name "Hereditary Cancer Panel v2" \
+  --gene-annotation refs/gencode.v44.gtf \
+  --gnomad refs/gnomad.v4.exomes.tsv \
+  --clinvar refs/clinvar.tsv \
+  --cadd-scores refs/cadd_v1.7.tsv \
+  --revel-scores refs/revel_v1.3.tsv \
+  --spliceai-scores refs/spliceai_scores.tsv \
+  --gene-list refs/hereditary_cancer_panel.txt
+```
+
+Output: `clinical_report.html` (open in any browser, no network needed) and `clinical_report.html.audit.json`.
+
+### PDF report
+
+```bash
+pip install weasyprint  # one-time install
+
+vartriage \
+  --vcf patient_exome.vcf.gz \
+  --output clinical_report.pdf \
+  --output-format clinical-pdf \
+  --patient-id PAT-2025-042 \
+  --panel-name "Hereditary Cancer Panel v2" \
+  --gene-annotation refs/gencode.v44.gtf \
+  --gnomad refs/gnomad.v4.exomes.tsv \
+  --clinvar refs/clinvar.tsv \
+  --cadd-scores refs/cadd_v1.7.tsv \
+  --revel-scores refs/revel_v1.3.tsv \
+  --spliceai-scores refs/spliceai_scores.tsv \
+  --gene-list refs/hereditary_cancer_panel.txt
+```
+
+Text in the PDF is selectable and searchable. Evidence cards avoid page breaks mid-card.
+
+### Python API with clinical report
+
+```python
+from pathlib import Path
+from vartriage import (
+    Pipeline, PipelineConfig, AnnotationConfig,
+    PrioritizationConfig, QualityFilterConfig, ReportConfig,
+)
+from vartriage.models.config import ClinicalReportConfig
+
+config = PipelineConfig(
+    vcf_path=Path("patient_exome.vcf.gz"),
+    output_path=Path("clinical_report.html"),
+    quality_filter=QualityFilterConfig(min_qual=30.0),
+    annotation=AnnotationConfig(
+        gene_annotation_path=Path("refs/gencode.v44.gtf"),
+        gnomad_path=Path("refs/gnomad.v4.exomes.tsv"),
+        clinvar_path=Path("refs/clinvar.tsv"),
+    ),
+    prioritization=PrioritizationConfig(
+        max_allele_frequency=0.0001,
+        cadd_scores_path=Path("refs/cadd_v1.7.tsv"),
+        revel_scores_path=Path("refs/revel_v1.3.tsv"),
+        spliceai_scores_path=Path("refs/spliceai_scores.tsv"),
+    ),
+    report=ReportConfig(output_format="clinical-html"),
+    clinical_report=ClinicalReportConfig(
+        patient_id="PAT-2025-042",
+        panel_name="Hereditary Cancer Panel v2",
+        output_format="clinical-html",
+    ),
+)
+
+pipeline = Pipeline(config)
+pipeline.run()
+```
+
+### Reading the audit trail
+
+```python
+import json
+from pathlib import Path
+
+audit = json.loads(
+    Path("clinical_report.html.audit.json").read_text()
+)
+
+manifest = audit["run_manifest"]
+print(f"Patient: {manifest['patient_id']}")
+print(f"Panel: {manifest['panel_name']}")
+print(f"Pipeline: {manifest['pipeline_version']}")
+print(f"Executed: {manifest['execution_timestamp']}")
+print(f"References used: {len(manifest['reference_files'])}")
+
+# Per-variant decisions
+for entry in audit["decision_log"]:
+    tags = ", ".join(entry["evidence_tags_assigned"])
+    print(
+        f"  {entry['gene_name']} "
+        f"{entry['chromosome']}:{entry['position']} "
+        f"-> {entry['classification']} [{tags}]"
+    )
+```
+
+### Batch clinical reports
+
+Generate one clinical report per sample in a directory:
+
+```bash
+for vcf in samples/*.vcf.gz; do
+  sample=$(basename "$vcf" .vcf.gz)
+  vartriage \
+    --vcf "$vcf" \
+    --output "reports/${sample}_clinical.html" \
+    --output-format clinical-html \
+    --patient-id "$sample" \
+    --panel-name "Cardiac Panel v3" \
+    --gene-annotation refs/gencode.v44.gtf \
+    --gnomad refs/gnomad.v4.exomes.tsv \
+    --clinvar refs/clinvar.tsv \
+    --cadd-scores refs/cadd_v1.7.tsv \
+    --revel-scores refs/revel_v1.3.tsv \
+    --spliceai-scores refs/spliceai_scores.tsv \
+    --gene-list refs/cardiac_panel.txt
+  echo "Report generated: ${sample}"
+done
+```
+
+Each run produces a report file and its audit sidecar. Safe to parallelize.

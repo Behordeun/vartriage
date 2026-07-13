@@ -16,18 +16,22 @@ from vartriage.exceptions import VarTriageWarning
 from vartriage.models.config import MissingDataConfig
 from vartriage.models.warnings import MissingDataWarning
 
-_CONNECTION_FAILURE_REASONS = frozenset({
-    "connection_error",
-    "timeout",
-    "connection_timeout",
-    "read_timeout",
-    "dns_error",
-})
+_CONNECTION_FAILURE_REASONS = frozenset(
+    {
+        "connection_error",
+        "timeout",
+        "connection_timeout",
+        "read_timeout",
+        "dns_error",
+    }
+)
 
-_NOT_FOUND_REASONS = frozenset({
-    "not_found",
-    None,
-})
+_NOT_FOUND_REASONS = frozenset(
+    {
+        "not_found",
+        None,
+    }
+)
 
 
 def is_connection_failure(reason: Optional[str]) -> bool:

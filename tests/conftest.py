@@ -9,11 +9,7 @@ from typing import Generator
 import pytest
 from hypothesis import settings
 
-from vartriage.models.config import (
-    QualityFilterConfig,
-    PrioritizationConfig,
-)
-
+from vartriage.models.config import PrioritizationConfig, QualityFilterConfig
 
 settings.register_profile("ci", max_examples=500, deadline=None)
 settings.register_profile("dev", max_examples=50, deadline=None)
