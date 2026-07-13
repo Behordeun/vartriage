@@ -41,6 +41,14 @@ table {
     margin: 1rem 0;
     font-size: 10pt;
 }
+caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 9pt;
+    color: #666666;
+    font-style: italic;
+    padding-bottom: 0.3rem;
+}
 th {
     background-color: #003366;
     color: #ffffff;
@@ -125,6 +133,7 @@ tr:nth-child(even) {
 <section id="section-findings-table">
     <h2>Findings Table</h2>
     <table>
+        <caption>Variant findings ranked by classification tier and composite score</caption>
         <thead>
             <tr>
                 <th>Gene</th>
@@ -233,6 +242,7 @@ tr:nth-child(even) {
     <p><strong>Analysis Timestamp:</strong> 2026-07-13T14:32:08Z</p>
     <h3>Reference Files</h3>
     <table>
+        <caption>Reference data files used in this analysis with integrity checksums</caption>
         <thead>
             <tr>
                 <th>File</th>
@@ -268,6 +278,7 @@ tr:nth-child(even) {
     </table>
     <h3>Classification Parameters</h3>
     <table>
+        <caption>Pipeline classification parameters used for ACMG evidence evaluation</caption>
         <thead>
             <tr>
                 <th>Parameter</th>
