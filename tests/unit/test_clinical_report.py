@@ -15,30 +15,19 @@ from typing import Any
 import pytest
 
 from vartriage.models.config import ClinicalReportConfig
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClassifiedVariant, ClinVarAssertion,
+                                      EvidenceTag, FunctionalConsequence,
+                                      ScoredVariant, Variant)
 from vartriage.reporting.clinical.audit import AuditTrailWriter
 from vartriage.reporting.clinical.generator import ClinicalReportGenerator
-from vartriage.reporting.clinical.models import (
-    EvidenceCardData,
-    ExecutiveSummaryData,
-    FindingsRow,
-    HeaderData,
-    MethodologyData,
-    ReportSections,
-    SignOffData,
-)
+from vartriage.reporting.clinical.models import (EvidenceCardData,
+                                                 ExecutiveSummaryData,
+                                                 FindingsRow, HeaderData,
+                                                 MethodologyData,
+                                                 ReportSections, SignOffData)
 from vartriage.reporting.clinical.narrative import EvidenceNarrativeBuilder
 from vartriage.reporting.clinical.template_engine import ReportTemplateEngine
-
 
 # --- Fixtures ---
 
@@ -569,6 +558,7 @@ class TestRenderPdf:
         self, sample_sections: ReportSections, tmp_path: Path
     ) -> None:
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -578,11 +568,10 @@ class TestRenderPdf:
 
         engine = ReportTemplateEngine()
         import unittest.mock as mock
+
         with mock.patch("builtins.__import__", side_effect=mock_import):
             with pytest.raises(ImportError, match="weasyprint"):
-                engine.render_pdf(
-                    sample_sections, tmp_path / "report.pdf"
-                )
+                engine.render_pdf(sample_sections, tmp_path / "report.pdf")
 
     def test_render_pdf_calls_weasyprint_correctly(
         self, sample_sections: ReportSections, tmp_path: Path
@@ -599,18 +588,14 @@ class TestRenderPdf:
         engine = ReportTemplateEngine()
         output = tmp_path / "out" / "report.pdf"
 
-        with mock.patch.dict(
-            "sys.modules", {"weasyprint": mock_weasyprint}
-        ):
+        with mock.patch.dict("sys.modules", {"weasyprint": mock_weasyprint}):
             result = engine.render_pdf(sample_sections, output)
 
         assert result == output
         mock_html_cls.assert_called_once()
         call_kwargs = mock_html_cls.call_args
         assert "string" in call_kwargs.kwargs or len(call_kwargs.args) == 0
-        mock_html_instance.write_pdf.assert_called_once_with(
-            str(output)
-        )
+        mock_html_instance.write_pdf.assert_called_once_with(str(output))
         assert output.parent.exists()
 
 
@@ -621,6 +606,7 @@ class TestRenderDocx:
         self, sample_sections: ReportSections, tmp_path: Path
     ) -> None:
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -630,11 +616,10 @@ class TestRenderDocx:
 
         engine = ReportTemplateEngine()
         import unittest.mock as mock
+
         with mock.patch("builtins.__import__", side_effect=mock_import):
             with pytest.raises(ImportError, match="python-docx"):
-                engine.render_docx(
-                    sample_sections, tmp_path / "report.docx"
-                )
+                engine.render_docx(sample_sections, tmp_path / "report.docx")
 
     def test_render_docx_calls_python_docx_correctly(
         self, sample_sections: ReportSections, tmp_path: Path
@@ -642,9 +627,7 @@ class TestRenderDocx:
         import unittest.mock as mock
 
         mock_doc_instance = mock.MagicMock()
-        mock_document_cls = mock.MagicMock(
-            return_value=mock_doc_instance
-        )
+        mock_document_cls = mock.MagicMock(return_value=mock_doc_instance)
         mock_wd_table_alignment = mock.MagicMock()
         mock_wd_table_alignment.CENTER = 1
 
@@ -657,11 +640,14 @@ class TestRenderDocx:
         engine = ReportTemplateEngine()
         output = tmp_path / "sub" / "report.docx"
 
-        with mock.patch.dict("sys.modules", {
-            "docx": mock_docx_module,
-            "docx.enum": mock.MagicMock(),
-            "docx.enum.table": mock_enum_table,
-        }):
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "docx": mock_docx_module,
+                "docx.enum": mock.MagicMock(),
+                "docx.enum.table": mock_enum_table,
+            },
+        ):
             result = engine.render_docx(sample_sections, output)
 
         assert result == output
@@ -880,9 +866,7 @@ class TestRenderEvidenceCards:
                     gene_name="BRCA2",
                     consequence="Nonsense",
                     allele_frequency_formatted="0.0001 (1 in 10,000)",
-                    predictor_scores_formatted=[
-                        "CADD 35.0", "REVEL 0.91"
-                    ],
+                    predictor_scores_formatted=["CADD 35.0", "REVEL 0.91"],
                     clinvar_assertion="Pathogenic",
                     inheritance_pattern="Autosomal Dominant",
                     evidence_tags_with_explanations=[
@@ -1175,11 +1159,14 @@ class TestSetRepeatHeaderRow:
 
         mock_qn = mock.MagicMock(return_value="w:tblHeader")
 
-        with mock.patch.dict("sys.modules", {
-            "docx": mock.MagicMock(),
-            "docx.oxml": mock.MagicMock(),
-            "docx.oxml.ns": mock.MagicMock(qn=mock_qn),
-        }):
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "docx": mock.MagicMock(),
+                "docx.oxml": mock.MagicMock(),
+                "docx.oxml.ns": mock.MagicMock(qn=mock_qn),
+            },
+        ):
             ReportTemplateEngine._set_repeat_header_row(mock_table)
 
         mock_tr.get_or_add_trPr.assert_called_once()
@@ -1192,9 +1179,7 @@ class TestSetRepeatHeaderRow:
 
         mock_table = mock.MagicMock()
         mock_table.rows = [mock.MagicMock()]
-        mock_table.rows[0]._tr.get_or_add_trPr.side_effect = (
-            AttributeError("no trPr")
-        )
+        mock_table.rows[0]._tr.get_or_add_trPr.side_effect = AttributeError("no trPr")
 
         # Should not raise
         ReportTemplateEngine._set_repeat_header_row(mock_table)

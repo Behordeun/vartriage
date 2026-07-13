@@ -180,6 +180,12 @@ def main(argv: Optional[list[str]] = None) -> None:
     argv : list[str], optional
         Arguments to parse. Uses sys.argv[1:] when None.
     """
+    # Intercept 'bundle' subcommand before main parser
+    effective_argv = argv if argv is not None else sys.argv[1:]
+    if effective_argv and effective_argv[0] == "bundle":
+        _run_bundle_cli(effective_argv[1:])
+        return
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 
@@ -393,3 +399,40 @@ def _build_inheritance_config(
         father=father,  # type: ignore[arg-type]
         patterns=patterns,
     )
+
+
+def _run_bundle_cli(argv: list[str]) -> None:
+    """Handle the 'vartriage bundle' subcommand."""
+    from vartriage.bundle.cli import add_bundle_subcommands, run_bundle_command
+
+    parser = argparse.ArgumentParser(prog="vartriage bundle")
+    subparsers = parser.add_subparsers(dest="bundle_command")
+    add_bundle_subcommands(subparsers)
+
+    # Re-parse with the bundle-specific parser
+    # add_bundle_subcommands adds to a sub-parser, but we need
+    # to parse directly here since we intercepted early.
+    bundle_parser = argparse.ArgumentParser(prog="vartriage bundle")
+    bundle_sub = bundle_parser.add_subparsers(dest="bundle_command")
+
+    dl = bundle_sub.add_parser("download", help="Download a reference bundle")
+    dl.add_argument("--bundle", required=True)
+    dl.add_argument("--build", default=None)
+    dl.add_argument("--dest", default=None)
+    dl.add_argument("--no-transform", action="store_true")
+    dl.add_argument("--no-progress", action="store_true")
+
+    ls = bundle_sub.add_parser("list", help="List bundles")
+    ls.add_argument("--build", default=None)
+    ls.add_argument("--json", action="store_true", dest="json_output")
+
+    vf = bundle_sub.add_parser("verify", help="Verify bundles")
+    vf.add_argument("--bundle", default=None)
+    vf.add_argument("--build", default=None)
+
+    bundle_sub.add_parser("status", help="Show status")
+    bundle_sub.add_parser("update-registry", help="Update registry")
+
+    args = bundle_parser.parse_args(argv)
+    exit_code = run_bundle_command(args)
+    sys.exit(exit_code)
