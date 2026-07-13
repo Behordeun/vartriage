@@ -1,0 +1,8 @@
+rules:
+  - id: python.lang.security.audit.dangerous-subprocess-use-audit
+    paths:
+      exclude:
+        # transformer.py uses subprocess.run with list args (no shell=True).
+        # Source paths are from local bundle storage, validated by
+        # _validate_source_path() before use. Not user-controlled.
+        - vartriage/bundle/transformer.py
