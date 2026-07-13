@@ -10,8 +10,39 @@ jobs:
           python-version: "3.11"
       - run: pip install -e .[all]
       - run: sudo apt-get install -y bcftools tabix
-      - run: ./scripts/validate_giab.sh
+
+      - name: Run GIAB validation
+        run: ./scripts/validate_giab.sh
+
+      - name: Verify validation output exists
+        run: |
+          # Ensure the pipeline produced expected output files
+          RESULTS_DIR="validation_results/results"
+          if [ ! -f "${RESULTS_DIR}"/giab_chr22_*.json ]; then
+            echo "ERROR: No pipeline output JSON found in ${RESULTS_DIR}"
+            exit 1
+          fi
+          if [ ! -f "${RESULTS_DIR}"/validation_metrics_*.json ]; then
+            echo "ERROR: No validation metrics found in ${RESULTS_DIR}"
+            exit 1
+          fi
+          # Verify metrics file is valid JSON with expected structure
+          python3 -c "
+          import json, glob, sys
+          metrics_files = glob.glob('${RESULTS_DIR}/validation_metrics_*.json')
+          if not metrics_files:
+              print('ERROR: No metrics files found', file=sys.stderr)
+              sys.exit(1)
+          data = json.loads(open(metrics_files[0]).read())
+          assert 'validation_summary' in data, 'Missing validation_summary'
+          assert 'concordance' in data, 'Missing concordance'
+          total = data['validation_summary']['total_variants_processed']
+          assert total > 0, f'Expected >0 variants, got {total}'
+          print(f'Validation verified: {total} variants processed')
+          "
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: validation-results
           path: validation_results/

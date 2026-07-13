@@ -9,17 +9,26 @@
 #   - vartriage installed (pip install vartriage[all])
 #   - bcftools >= 1.17
 #   - htslib (tabix, bgzip)
-#   - wget or curl
+#   - wget or curl (either works, script auto-detects)
 #   - ~20 GB free disk space for reference files
 #
 # Usage:
 #   chmod +x scripts/validate_giab.sh
 #   ./scripts/validate_giab.sh [--output-dir /path/to/results]
+#
+# Exit codes:
+#   0 - validation completed successfully
+#   1 - missing dependencies or download failure
+#   2 - pipeline execution failure
+#   3 - metrics computation failure
 
 set -euo pipefail
 
 # Configuration
 OUTPUT_DIR="${1:-validation_results}"
+# Strip --output-dir prefix if passed as flag
+OUTPUT_DIR="${OUTPUT_DIR#--output-dir=}"
+OUTPUT_DIR="${OUTPUT_DIR#--output-dir }"
 GIAB_VERSION="v4.2.1"
 REFERENCE_BUILD="GRCh38"
 SAMPLE="HG002"
@@ -34,6 +43,46 @@ CLINVAR_URL="https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz"
 # gnomAD v4.1.1 exomes chr22 subset for validation (4.73 GiB)
 GNOMAD_CHR22_URL="https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1.1/vcf/exomes/gnomad.exomes.v4.1.1.sites.chr22.vcf.bgz"
 
+# --- Helper functions ---
+
+# Download a file using wget or curl (auto-detects available tool)
+download_file() {
+    local url="$1"
+    local dest="$2"
+
+    if command -v wget &>/dev/null; then
+        wget -q --show-progress -O "$dest" "$url"
+    elif command -v curl &>/dev/null; then
+        curl -fSL --progress-bar -o "$dest" "$url"
+    else
+        echo "ERROR: Neither wget nor curl is available. Install one of them."
+        exit 1
+    fi
+}
+
+# Check that a required command is available
+require_cmd() {
+    local cmd="$1"
+    if ! command -v "$cmd" &>/dev/null; then
+        echo "ERROR: Required command '$cmd' not found."
+        echo "Install it before running this script."
+        exit 1
+    fi
+}
+
+# --- Dependency checks ---
+
+require_cmd bcftools
+require_cmd tabix
+require_cmd vartriage
+require_cmd python3
+
+# Verify at least one download tool is present
+if ! command -v wget &>/dev/null && ! command -v curl &>/dev/null; then
+    echo "ERROR: Neither wget nor curl is available. Install one of them."
+    exit 1
+fi
+
 echo "============================================="
 echo " vartriage GIAB Validation Pipeline"
 echo " Sample: ${SAMPLE} (${GIAB_VERSION})"
@@ -47,15 +96,15 @@ mkdir -p "${OUTPUT_DIR}"/{data,refs,results,reports}
 # Step 1: Download GIAB benchmark VCF and high-confidence regions
 echo "[1/7] Downloading GIAB benchmark data..."
 if [ ! -f "${OUTPUT_DIR}/data/giab_benchmark.vcf.gz" ]; then
-    wget -q --show-progress -O "${OUTPUT_DIR}/data/giab_benchmark.vcf.gz" "${GIAB_VCF_URL}"
-    wget -q --show-progress -O "${OUTPUT_DIR}/data/giab_benchmark.vcf.gz.tbi" "${GIAB_VCF_URL}.tbi"
+    download_file "${GIAB_VCF_URL}" "${OUTPUT_DIR}/data/giab_benchmark.vcf.gz"
+    download_file "${GIAB_VCF_URL}.tbi" "${OUTPUT_DIR}/data/giab_benchmark.vcf.gz.tbi"
     echo "  Downloaded GIAB benchmark VCF"
 else
     echo "  GIAB benchmark VCF already exists, skipping"
 fi
 
 if [ ! -f "${OUTPUT_DIR}/data/giab_highconf.bed" ]; then
-    wget -q --show-progress -O "${OUTPUT_DIR}/data/giab_highconf.bed" "${GIAB_BED_URL}"
+    download_file "${GIAB_BED_URL}" "${OUTPUT_DIR}/data/giab_highconf.bed"
     echo "  Downloaded high-confidence regions BED"
 else
     echo "  High-confidence BED already exists, skipping"
@@ -64,8 +113,8 @@ fi
 # Step 2: Download ClinVar for annotation
 echo "[2/7] Downloading ClinVar..."
 if [ ! -f "${OUTPUT_DIR}/refs/clinvar.vcf.gz" ]; then
-    wget -q --show-progress -O "${OUTPUT_DIR}/refs/clinvar.vcf.gz" "${CLINVAR_URL}"
-    wget -q --show-progress -O "${OUTPUT_DIR}/refs/clinvar.vcf.gz.tbi" "${CLINVAR_URL}.tbi"
+    download_file "${CLINVAR_URL}" "${OUTPUT_DIR}/refs/clinvar.vcf.gz"
+    download_file "${CLINVAR_URL}.tbi" "${OUTPUT_DIR}/refs/clinvar.vcf.gz.tbi"
     echo "  Downloaded ClinVar VCF"
 else
     echo "  ClinVar already exists, skipping"
@@ -95,8 +144,8 @@ fi
 # Step 4: Download gnomAD chr22 for frequency annotation
 echo "[4/7] Downloading gnomAD chr22 (exomes)..."
 if [ ! -f "${OUTPUT_DIR}/refs/gnomad.chr22.vcf.bgz" ]; then
-    wget -q --show-progress -O "${OUTPUT_DIR}/refs/gnomad.chr22.vcf.bgz" "${GNOMAD_CHR22_URL}"
-    wget -q --show-progress -O "${OUTPUT_DIR}/refs/gnomad.chr22.vcf.bgz.tbi" "${GNOMAD_CHR22_URL}.tbi"
+    download_file "${GNOMAD_CHR22_URL}" "${OUTPUT_DIR}/refs/gnomad.chr22.vcf.bgz"
+    download_file "${GNOMAD_CHR22_URL}.tbi" "${OUTPUT_DIR}/refs/gnomad.chr22.vcf.bgz.tbi"
     echo "  Downloaded gnomAD v4.1.1 chr22 exomes"
 else
     echo "  gnomAD chr22 already exists, skipping"
@@ -120,19 +169,22 @@ echo "[6/7] Running vartriage on chr22..."
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # JSON output for analysis
-vartriage \
+if ! vartriage \
     --vcf "${OUTPUT_DIR}/data/giab_chr22.vcf.gz" \
     --output "${OUTPUT_DIR}/results/giab_chr22_${TIMESTAMP}.json" \
     --output-format json \
     --gnomad "${OUTPUT_DIR}/refs/gnomad.chr22.vcf.bgz" \
     --clinvar "${OUTPUT_DIR}/refs/clinvar.tsv" \
     --regions "${OUTPUT_DIR}/data/giab_highconf.bed" \
-    2>&1 | tee "${OUTPUT_DIR}/results/run_log_${TIMESTAMP}.txt"
+    2>&1 | tee "${OUTPUT_DIR}/results/run_log_${TIMESTAMP}.txt"; then
+    echo "ERROR: vartriage pipeline failed. Check run_log for details."
+    exit 2
+fi
 
 echo "  Pipeline complete"
 
 # Clinical HTML report
-vartriage \
+if ! vartriage \
     --vcf "${OUTPUT_DIR}/data/giab_chr22.vcf.gz" \
     --output "${OUTPUT_DIR}/reports/giab_chr22_clinical_${TIMESTAMP}.html" \
     --output-format clinical-html \
@@ -141,14 +193,17 @@ vartriage \
     --gnomad "${OUTPUT_DIR}/refs/gnomad.chr22.vcf.bgz" \
     --clinvar "${OUTPUT_DIR}/refs/clinvar.tsv" \
     --regions "${OUTPUT_DIR}/data/giab_highconf.bed" \
-    2>&1 | tee -a "${OUTPUT_DIR}/results/run_log_${TIMESTAMP}.txt"
+    2>&1 | tee -a "${OUTPUT_DIR}/results/run_log_${TIMESTAMP}.txt"; then
+    echo "ERROR: Clinical report generation failed."
+    exit 2
+fi
 
 echo "  Clinical report generated"
 
 # Step 7: Compute validation metrics
 echo "[7/7] Computing validation metrics..."
 
-python3 - "${OUTPUT_DIR}" "${TIMESTAMP}" <<'PYTHON_SCRIPT'
+if ! python3 - "${OUTPUT_DIR}" "${TIMESTAMP}" <<'PYTHON_SCRIPT'
 import json
 import sys
 from pathlib import Path
@@ -157,28 +212,44 @@ output_dir = Path(sys.argv[1])
 timestamp = sys.argv[2]
 
 results_file = output_dir / "results" / f"giab_chr22_{timestamp}.json"
-results = json.loads(results_file.read_text())
+
+# Read and parse results with error handling
+try:
+    raw_text = results_file.read_text(encoding="utf-8")
+except OSError as exc:
+    print(f"ERROR: Cannot read results file {results_file}: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    results = json.loads(raw_text)
+except json.JSONDecodeError as exc:
+    print(f"ERROR: Invalid JSON in {results_file}: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+if not isinstance(results, list):
+    print(f"ERROR: Expected JSON array, got {type(results).__name__}", file=sys.stderr)
+    sys.exit(1)
 
 # Classification distribution
-classifications = {}
+classifications: dict[str, int] = {}
 for v in results:
-    cls = v["acmg_classification"]
+    cls = v.get("acmg_classification", "Unknown")
     classifications[cls] = classifications.get(cls, 0) + 1
 
 # Evidence tag frequency
-tag_counts = {}
+tag_counts: dict[str, int] = {}
 for v in results:
-    for tag in v["evidence_tags"]:
+    for tag in v.get("evidence_tags", []):
         tag_counts[tag] = tag_counts.get(tag, 0) + 1
 
 # Consequence distribution
-consequences = {}
+consequences: dict[str, int] = {}
 for v in results:
-    cons = v["functional_consequence"]
+    cons = v.get("functional_consequence", "Unknown")
     consequences[cons] = consequences.get(cons, 0) + 1
 
 # Missing data summary
-missing_sources = {}
+missing_sources: dict[str, int] = {}
 for v in results:
     for src in v.get("missing_data_sources", []):
         missing_sources[src] = missing_sources.get(src, 0) + 1
@@ -192,14 +263,14 @@ clinvar_actionable = [
 # Variants classified as Pathogenic/LP by pipeline
 pipeline_actionable = [
     v for v in results
-    if v["acmg_classification"] in ("Pathogenic", "Likely_Pathogenic")
+    if v.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
 ]
 
 # Concordance: variants where pipeline classification matches ClinVar
 concordant = [
     v for v in results
     if v.get("clinvar_assertion") in ("Pathogenic", "Likely_Pathogenic")
-    and v["acmg_classification"] in ("Pathogenic", "Likely_Pathogenic")
+    and v.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
 ]
 
 report = {
@@ -223,19 +294,24 @@ report = {
     },
     "actionable_variants": [
         {
-            "gene": v["gene_name"],
-            "position": f"{v['chromosome']}:{v['position']}",
-            "consequence": v["functional_consequence"],
-            "classification": v["acmg_classification"],
+            "gene": v.get("gene_name"),
+            "position": f"{v.get('chromosome', '?')}:{v.get('position', '?')}",
+            "consequence": v.get("functional_consequence"),
+            "classification": v.get("acmg_classification"),
             "clinvar": v.get("clinvar_assertion"),
-            "composite_rank": v["composite_rank"],
+            "composite_rank": v.get("composite_rank"),
         }
         for v in pipeline_actionable
     ],
 }
 
 metrics_file = output_dir / "results" / f"validation_metrics_{timestamp}.json"
-metrics_file.write_text(json.dumps(report, indent=2))
+
+try:
+    metrics_file.write_text(json.dumps(report, indent=2), encoding="utf-8")
+except OSError as exc:
+    print(f"ERROR: Cannot write metrics file {metrics_file}: {exc}", file=sys.stderr)
+    sys.exit(1)
 
 print(f"\n{'='*50}")
 print(f" VALIDATION RESULTS")
@@ -254,7 +330,14 @@ if clinvar_actionable:
 print(f"")
 print(f" Metrics saved: {metrics_file}")
 print(f"{'='*50}")
+
+# Exit with success
+sys.exit(0)
 PYTHON_SCRIPT
+then
+    echo "ERROR: Validation metrics computation failed."
+    exit 3
+fi
 
 echo ""
 echo "Validation complete. Results in: ${OUTPUT_DIR}/"
