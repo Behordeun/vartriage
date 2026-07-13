@@ -293,14 +293,11 @@ class EvidenceNarrativeBuilder:
             If banned content is found in the narrative.
         """
         if self.EM_DASH in text:
-            raise ValueError(
-                f"Narrative contains em dash (U+2014): {text!r}"
-            )
+            raise ValueError(f"Narrative contains em dash (U+2014): {text!r}")
 
         text_lower = text.lower()
         for word in self.BANNED_VOCABULARY:
             if word in text_lower:
                 raise ValueError(
-                    f"Narrative contains banned vocabulary "
-                    f"'{word}': {text!r}"
+                    f"Narrative contains banned vocabulary " f"'{word}': {text!r}"
                 )

@@ -22,28 +22,40 @@ wget -q --show-progress -O data/references/clinvar.vcf.gz.tbi \
   https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz.tbi
 
 echo "    Converting to TSV format..."
+# ClinVar GRCh38 VCF uses bare chromosome names (1, 2, ..., 22, X, Y)
+# but vartriage VCFs typically use 'chr' prefix. Normalize to chr-prefixed.
 bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/CLNSIG\n' \
-  data/references/clinvar.vcf.gz > data/references/clinvar.tsv
-echo "    Done: data/references/clinvar.tsv"
+  data/references/clinvar.vcf.gz \
+  | awk 'BEGIN{OFS="\t"} {$1="chr"$1; print}' \
+  | sed '1i\chrom\tpos\tref\talt\tclinical_significance' \
+  > data/references/clinvar.tsv
+echo "    Done: data/references/clinvar.tsv (chr-prefixed)"
 
 echo ""
 echo "=== 3/4: gnomAD chr22 exomes (population frequency) ==="
-echo "    ~500 MB - this will take a while"
+echo "    ~4.7 GB - this will take a while"
 wget -q --show-progress -O data/references/gnomad.chr22.vcf.bgz \
-  https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/vcf/exomes/gnomad.exomes.v4.1.sites.chr22.vcf.bgz
+  https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1.1/vcf/exomes/gnomad.exomes.v4.1.1.sites.chr22.vcf.bgz
+wget -q --show-progress -O data/references/gnomad.chr22.vcf.bgz.tbi \
+  https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1.1/vcf/exomes/gnomad.exomes.v4.1.1.sites.chr22.vcf.bgz.tbi
 
 echo "    Converting to TSV format (chrom, pos, ref, alt, af)..."
+# gnomAD GRCh38 VCF uses chr-prefixed names already
 bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/AF\n' \
-  data/references/gnomad.chr22.vcf.bgz > data/references/gnomad_chr22.tsv
+  data/references/gnomad.chr22.vcf.bgz \
+  | sed '1i\chrom\tpos\tref\talt\taf' \
+  > data/references/gnomad_chr22.tsv
 echo "    Done: data/references/gnomad_chr22.tsv"
 
 echo ""
 echo "=== 4/4: CADD scores for chr22 ==="
-echo "    NOTE: CADD whole-genome is 80GB. For chr22 subset, we use the API."
-echo "    Creating a small test CADD file from known variants instead."
-echo "    (Full CADD download: https://cadd.gs.washington.edu/download)"
+echo "    NOTE: CADD whole-genome is 350GB+. For testing, we create a minimal file."
+echo "    For real analysis, download from: https://cadd.gs.washington.edu/download"
+echo "    The sample file below covers a few known positions. After running the"
+echo "    pipeline once with your VCF, use scripts/prepare_references.sh to generate"
+echo "    a CADD file that overlaps with your actual variants."
 
-# Create a minimal CADD test file with known chr22 variants
+# Create a minimal CADD test file (header uses # prefix which vartriage skips)
 cat > data/references/cadd_chr22_sample.tsv << 'EOF'
 #chrom	pos	ref	alt	score
 chr22	16364843	G	A	23.4
@@ -58,7 +70,6 @@ chr22	42128277	C	T	35.0
 chr22	50356620	G	A	24.9
 EOF
 echo "    Done: data/references/cadd_chr22_sample.tsv (sample only)"
-echo "    For real testing, download from https://cadd.gs.washington.edu/download"
 
 echo ""
 echo "=== All done ==="

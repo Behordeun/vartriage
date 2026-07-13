@@ -84,27 +84,35 @@ class InheritanceFilter:
                 continue
 
             proband_gt, mother_gt, father_gt = trio
-            patterns = self._classify_patterns(proband_gt, mother_gt, father_gt, variant.chrom)
+            patterns = self._classify_patterns(
+                proband_gt, mother_gt, father_gt, variant.chrom
+            )
 
             if not compound_het_active:
                 yield self._build_output(variant, proband_gt, patterns)
                 continue
 
             current_gene, gene_buffer = yield from self._process_compound_het(
-                variant, proband_gt, mother_gt, father_gt, patterns,
-                current_gene, gene_buffer,
+                variant,
+                proband_gt,
+                mother_gt,
+                father_gt,
+                patterns,
+                current_gene,
+                gene_buffer,
             )
 
         if compound_het_active and gene_buffer:
             yield from self._flush_gene_buffer(gene_buffer)
 
-    def _extract_trio_genotypes(
-        self, variant: Variant
-    ) -> tuple[str, str, str] | None:
+    def _extract_trio_genotypes(self, variant: Variant) -> tuple[str, str, str] | None:
         """Extract and normalize trio genotypes, returning None if proband has no alt."""
         proband_gt = self._extract_genotype(variant, self._proband)
-        if (proband_gt is None or proband_gt == "./."
-                or not self._has_alt_allele(proband_gt)):
+        if (
+            proband_gt is None
+            or proband_gt == "./."
+            or not self._has_alt_allele(proband_gt)
+        ):
             return None
 
         mother_gt = self._extract_genotype(variant, self._mother) or "./."
@@ -126,8 +134,7 @@ class InheritanceFilter:
             ("x_linked", self._classify_x_linked(proband_gt, mother_gt, chrom)),
         ]
         return [
-            name for name, result in classifiers
-            if name in self._patterns and result
+            name for name, result in classifiers if name in self._patterns and result
         ]
 
     def _process_compound_het(
@@ -139,7 +146,9 @@ class InheritanceFilter:
         patterns: list[str],
         current_gene: str | None,
         gene_buffer: list[tuple[Variant, str, str, str, list[str]]],
-    ) -> Generator[Variant, None, tuple[str | None, list[tuple[Variant, str, str, str, list[str]]]]]:
+    ) -> Generator[
+        Variant, None, tuple[str | None, list[tuple[Variant, str, str, str, list[str]]]]
+    ]:
         """Handle compound het buffering logic, yielding on gene boundaries.
 
         Returns the updated (current_gene, gene_buffer) via generator return.

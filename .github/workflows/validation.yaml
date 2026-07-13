@@ -1,0 +1,58 @@
+name: GIAB Validation
+on: workflow_dispatch
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .[all]
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y bcftools tabix
+
+      - name: Verify bcftools version
+        run: |
+          REQUIRED_VERSION="1.17"
+          INSTALLED_VERSION="$(bcftools --version | head -n1 | awk '{print $2}')"
+          if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$INSTALLED_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+            echo "bcftools version $INSTALLED_VERSION is less than required $REQUIRED_VERSION"
+            exit 1
+          fi
+          echo "bcftools version $INSTALLED_VERSION >= $REQUIRED_VERSION"
+
+      - name: Run GIAB validation
+        run: ./scripts/validate_giab.sh --output-dir validation_results --region chr22
+
+      - name: Verify validation output
+        run: |
+          RESULTS_DIR="validation_results/results"
+          if ! ls "${RESULTS_DIR}"/giab_chr22_*.json 1>/dev/null 2>&1; then
+            echo "ERROR: No pipeline output JSON found in ${RESULTS_DIR}"
+            exit 1
+          fi
+          if ! ls "${RESULTS_DIR}"/validation_metrics_*.json 1>/dev/null 2>&1; then
+            echo "ERROR: No validation metrics found in ${RESULTS_DIR}"
+            exit 1
+          fi
+          # Verify metrics file is valid JSON with expected structure
+          python3 -c "
+          import json, glob, sys
+          metrics_files = glob.glob('${RESULTS_DIR}/validation_metrics_*.json')
+          if not metrics_files:
+              print('ERROR: No metrics files found', file=sys.stderr)
+              sys.exit(1)
+          data = json.loads(open(metrics_files[0]).read())
+          assert 'validation_summary' in data, 'Missing validation_summary'
+          assert 'concordance' in data, 'Missing concordance'
+          total = data['validation_summary']['total_variants_processed']
+          assert total > 0, f'Expected >0 variants, got {total}'
+          print(f'Validation verified: {total} variants processed')
+          "
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-results
+          path: validation_results/

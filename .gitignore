@@ -47,3 +47,6 @@ test_*.tmp.py
 .vscode
 
 data/
+
+# Validation output (large downloaded reference data)
+validation_results/

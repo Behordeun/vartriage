@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Variant Report: DEMO-2026-001</title>
+    <style>
+body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 2rem;
+    max-width: 210mm;
+    margin-left: auto;
+    margin-right: auto;
+}
+h1 {
+    font-size: 18pt;
+    color: #003366;
+    border-bottom: 2px solid #003366;
+    padding-bottom: 0.3rem;
+    margin-top: 1.5rem;
+}
+h2 {
+    font-size: 14pt;
+    color: #003366;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+h3 {
+    font-size: 12pt;
+    color: #333333;
+    margin-top: 1rem;
+    margin-bottom: 0.4rem;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 10pt;
+}
+caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 9pt;
+    color: #666666;
+    font-style: italic;
+    padding-bottom: 0.3rem;
+}
+th {
+    background-color: #003366;
+    color: #ffffff;
+    padding: 0.5rem;
+    text-align: left;
+    font-weight: 600;
+}
+td {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid #dddddd;
+}
+tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+.evidence-card {
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 1rem;
+    margin: 1rem 0;
+    page-break-inside: avoid;
+}
+.evidence-card h3 {
+    margin-top: 0;
+}
+.summary-box {
+    background-color: #f0f4f8;
+    border-left: 4px solid #003366;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+.limitations-list {
+    background-color: #fff8e1;
+    border-left: 4px solid #f9a825;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+.sign-off-block {
+    margin-top: 2rem;
+    border-top: 1px solid #cccccc;
+    padding-top: 1rem;
+}
+.sign-off-field {
+    margin: 0.5rem 0;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px dotted #999999;
+    min-height: 1.5rem;
+}
+.metadata {
+    color: #666666;
+    font-size: 9pt;
+}
+@media print {
+    body {
+        padding: 0;
+    }
+    .evidence-card {
+        page-break-inside: avoid;
+    }
+}
+    </style>
+</head>
+<body>
+<section id="section-header">
+    <h1>Clinical Variant Report</h1>
+    <div class="metadata">
+        <p><strong>Patient ID:</strong> DEMO-2026-001</p>
+        <p><strong>Gene Panel:</strong> Hereditary Cancer Panel v2</p>
+        <p><strong>Analysis Date:</strong> 2026-07-13</p>
+        <p><strong>Pipeline Version:</strong> 0.5.0</p>
+    </div>
+</section>
+<section id="section-executive-summary">
+    <h2>Executive Summary</h2>
+    <div class="summary-box">
+        <p><strong>Total variants analyzed:</strong> 42,817</p>
+        <p><strong>Variants passed filters:</strong> 1,204</p>
+        <p><strong>Pathogenic:</strong> 1</p>
+        <p><strong>Likely Pathogenic:</strong> 2</p>
+        <p><strong>Variants of Uncertain Significance:</strong> 18</p>
+    </div>
+</section>
+<section id="section-findings-table">
+    <h2>Findings Table</h2>
+    <table>
+        <caption>Variant findings ranked by classification tier and composite score</caption>
+        <thead>
+            <tr>
+                <th>Gene</th>
+                <th>Consequence</th>
+                <th>Classification</th>
+                <th>Composite Rank</th>
+                <th>Location</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>BRCA1</td>
+                <td>Frameshift</td>
+                <td>Pathogenic</td>
+                <td>0.97</td>
+                <td>chr17:43094464</td>
+            </tr>
+            <tr>
+                <td>TP53</td>
+                <td>Missense</td>
+                <td>Likely_Pathogenic</td>
+                <td>0.91</td>
+                <td>chr17:7674220</td>
+            </tr>
+            <tr>
+                <td>MLH1</td>
+                <td>Splice_Site</td>
+                <td>Likely_Pathogenic</td>
+                <td>0.88</td>
+                <td>chr3:37050340</td>
+            </tr>
+            <tr>
+                <td>ATM</td>
+                <td>Missense</td>
+                <td>VUS</td>
+                <td>0.62</td>
+                <td>chr11:108289632</td>
+            </tr>
+            <tr>
+                <td>CHEK2</td>
+                <td>Missense</td>
+                <td>VUS</td>
+                <td>0.55</td>
+                <td>chr22:28695868</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+<section id="section-evidence-cards">
+    <h2>Evidence Cards</h2>
+    <div class="evidence-card">
+        <h3>BRCA1: Frameshift</h3>
+        <p><strong>Allele Frequency:</strong> Absent from gnomAD (0 / 152,312 alleles)</p>
+        <p><strong>Predictor Scores:</strong> CADD 38.0 (normalized 0.38), REVEL 0.94, SpliceAI 0.12</p>
+        <p><strong>ClinVar:</strong> Pathogenic</p>
+        <p><strong>ACMG Criteria:</strong> PVS1 (null variant in a gene where loss of function causes disease), PM2 (absent from population databases), PP3 (computational evidence supports pathogenicity), PP5 (ClinVar reports pathogenic)</p>
+        <p>This frameshift variant in BRCA1 introduces a premature stop codon at position chr17:43094464. The variant is absent from population databases (gnomAD), consistent with a rare deleterious allele. Multiple computational predictors agree on a damaging effect (CADD 38.0, REVEL 0.94). ClinVar independently classifies this variant as Pathogenic based on clinical evidence from multiple submitters. Loss-of-function variants in BRCA1 are a well-established mechanism for hereditary breast and ovarian cancer syndrome.</p>
+    </div>
+    <div class="evidence-card">
+        <h3>TP53: Missense</h3>
+        <p><strong>Allele Frequency:</strong> 0.000007 (approximately 1 in 143,000 individuals)</p>
+        <p><strong>Predictor Scores:</strong> CADD 32.0 (normalized 0.32), REVEL 0.89, SpliceAI 0.03</p>
+        <p><strong>ClinVar:</strong> Likely pathogenic</p>
+        <p><strong>ACMG Criteria:</strong> PM2 (absent/extremely rare in population databases), PP3 (computational evidence supports pathogenicity), PP5 (ClinVar reports likely pathogenic)</p>
+        <p>This missense variant in TP53 at chr17:7674220 substitutes a highly conserved residue in the DNA-binding domain. Population frequency is extremely low (AF 0.000007), well below the expected carrier frequency for Li-Fraumeni syndrome. Both CADD (32.0) and REVEL (0.89) predict a deleterious effect. ClinVar classifies this variant as Likely pathogenic. The affected residue falls within a known hotspot region for somatic and germline TP53 mutations.</p>
+    </div>
+    <div class="evidence-card">
+        <h3>MLH1: Splice_Site</h3>
+        <p><strong>Allele Frequency:</strong> Absent from gnomAD (0 / 152,312 alleles)</p>
+        <p><strong>Predictor Scores:</strong> CADD 28.5 (normalized 0.29), SpliceAI 0.92</p>
+        <p><strong>ClinVar:</strong> Likely pathogenic</p>
+        <p><strong>Inheritance:</strong> Autosomal dominant</p>
+        <p><strong>ACMG Criteria:</strong> PVS1 (splice-site variant with high SpliceAI score predicting loss of function), PM2 (absent from population databases), PP3 (SpliceAI 0.92 strongly predicts splice disruption), PP5 (ClinVar reports likely pathogenic)</p>
+        <p>This splice-site variant in MLH1 at chr3:37050340 disrupts the canonical donor site of exon 12. SpliceAI assigns a delta score of 0.92, strongly predicting loss of the native splice donor. The variant is absent from gnomAD, consistent with pathogenicity. ClinVar classifies it as Likely pathogenic based on functional studies and segregation data. Loss of MLH1 function underlies Lynch syndrome (hereditary nonpolyposis colorectal cancer).</p>
+    </div>
+    <div class="evidence-card">
+        <h3>ATM: Missense</h3>
+        <p><strong>Allele Frequency:</strong> 0.00089 (approximately 1 in 1,124 individuals)</p>
+        <p><strong>Predictor Scores:</strong> CADD 24.1 (normalized 0.24), REVEL 0.58, SpliceAI 0.01</p>
+        <p><strong>ClinVar:</strong> Uncertain significance</p>
+        <p><strong>ACMG Criteria:</strong> PP3 (computational evidence provides weak support for pathogenicity)</p>
+        <p>This missense variant in ATM at chr11:108289632 has a population frequency near the pathogenicity threshold (AF 0.00089). Computational scores are mixed: CADD (24.1) places it in the top 1% genome-wide, but REVEL (0.58) falls in the uncertain range. ClinVar classifies this as VUS. Without stronger segregation or functional data, this variant remains of uncertain significance.</p>
+    </div>
+    <div class="evidence-card">
+        <h3>CHEK2: Missense</h3>
+        <p><strong>Allele Frequency:</strong> 0.0045 (approximately 1 in 222 individuals)</p>
+        <p><strong>Predictor Scores:</strong> CADD 22.3 (normalized 0.23), REVEL 0.44, SpliceAI 0.00</p>
+        <p><strong>ClinVar:</strong> Uncertain significance</p>
+        <p><strong>ACMG Criteria:</strong> PP3 (weak computational support)</p>
+        <p>This missense variant in CHEK2 at chr22:28695868 has a population frequency slightly above the rare disease threshold. REVEL (0.44) falls below the pathogenicity cutoff, and SpliceAI predicts no splice impact. ClinVar lists this as VUS. The relatively common population frequency and modest computational scores suggest this is unlikely to be a high-penetrance pathogenic allele, though moderate-risk contributions cannot be excluded.</p>
+    </div>
+</section>
+<section id="section-limitations">
+    <h2>Limitations</h2>
+    <div class="limitations-list">
+        <ul>
+            <li>REVEL scores were unavailable for 3 variants in non-coding regions (REVEL is trained on missense variants only)</li>
+            <li>SpliceAI scores were unavailable for 2 variants outside the pre-computed score set</li>
+            <li>gnomAD frequency data uses exome-only counts; some rare variants in poorly captured regions may have inflated apparent rarity</li>
+        </ul>
+    </div>
+</section>
+<section id="section-methodology">
+    <h2>Methodology</h2>
+    <p><strong>Pipeline Version:</strong> 0.5.0</p>
+    <p><strong>Analysis Timestamp:</strong> 2026-07-13T14:32:08Z</p>
+    <h3>Reference Files</h3>
+    <table>
+        <caption>Reference data files used in this analysis with integrity checksums</caption>
+        <thead>
+            <tr>
+                <th>File</th>
+                <th>SHA-256 Checksum</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>refs/gencode.v44.gtf</td>
+                <td><code>sha256:a3b1c4d5e6f7...8901abcdef23</code></td>
+            </tr>
+            <tr>
+                <td>refs/gnomad.v4.exomes.tsv</td>
+                <td><code>sha256:b4c2d5e6f7a8...9012bcdefg34</code></td>
+            </tr>
+            <tr>
+                <td>refs/clinvar.tsv</td>
+                <td><code>sha256:c5d3e6f7a8b9...0123cdefgh45</code></td>
+            </tr>
+            <tr>
+                <td>refs/cadd_v1.7.tsv</td>
+                <td><code>sha256:d6e4f7a8b9c0...1234defghi56</code></td>
+            </tr>
+            <tr>
+                <td>refs/revel_v1.3.tsv</td>
+                <td><code>sha256:e7f5a8b9c0d1...2345efghij67</code></td>
+            </tr>
+            <tr>
+                <td>refs/spliceai_scores.tsv</td>
+                <td><code>sha256:f8a6b9c0d1e2...3456fghijk78</code></td>
+            </tr>
+        </tbody>
+    </table>
+    <h3>Classification Parameters</h3>
+    <table>
+        <caption>Pipeline classification parameters used for ACMG evidence evaluation</caption>
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>max_allele_frequency</td>
+                <td>0.0001</td>
+            </tr>
+            <tr>
+                <td>min_qual</td>
+                <td>30.0</td>
+            </tr>
+            <tr>
+                <td>cadd_weight</td>
+                <td>0.5</td>
+            </tr>
+            <tr>
+                <td>revel_weight</td>
+                <td>0.3</td>
+            </tr>
+            <tr>
+                <td>spliceai_weight</td>
+                <td>0.2</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+<section id="section-sign-off">
+    <h2>Sign-off</h2>
+    <div class="sign-off-block">
+        <div class="sign-off-field">
+            <strong>Reviewer:</strong> [Reviewer Name]
+        </div>
+        <div class="sign-off-field">
+            <strong>Date:</strong> [Review Date]
+        </div>
+        <div class="sign-off-field">
+            <strong>Digital Signature:</strong> [Digital Signature]
+        </div>
+    </div>
+</section>
+</body>
+</html>

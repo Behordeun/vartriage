@@ -149,8 +149,8 @@ class ReportTemplateEngine:
             If python-docx is not installed.
         """
         try:
-            from docx import Document  # type: ignore[import-not-found]
-            from docx.enum.table import WD_TABLE_ALIGNMENT  # type: ignore[import-not-found]  # noqa: E501
+            from docx import Document
+            from docx.enum.table import WD_TABLE_ALIGNMENT  # noqa: E501
         except ImportError as exc:
             raise ImportError(
                 "DOCX output requires the 'python-docx' package. "
@@ -499,7 +499,7 @@ class ReportTemplateEngine:
         fails silently if the internal structure changes.
         """
         try:
-            from docx.oxml.ns import qn  # type: ignore[import-not-found]
+            from docx.oxml.ns import qn
 
             tbl_pr = table.rows[0]._tr
             tr_pr = tbl_pr.get_or_add_trPr()

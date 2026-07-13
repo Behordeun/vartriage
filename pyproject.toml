@@ -89,6 +89,8 @@ module = [
     "reportlab.*",
     "pysam",
     "pysam.*",
+    "docx",
+    "docx.*",
 ]
 ignore_missing_imports = true
 

@@ -217,3 +217,65 @@ Common conventions:
 - Ensembl style: `1`, `2`, ..., `X`, `Y`
 
 If your VCF uses `chr1` but your gnomAD file uses `1`, lookups will return no matches. Normalize before running the pipeline.
+
+**Automatic normalization:**
+
+Run `scripts/prepare_references.sh` to detect and fix chromosome naming mismatches in all reference files:
+
+```bash
+./scripts/prepare_references.sh data/references
+```
+
+This script checks each TSV file, adds `chr` prefix where missing, and validates column headers.
+
+**Manual normalization:**
+
+```bash
+# Add chr prefix to a TSV file (preserving header)
+awk 'BEGIN{OFS="\t"} NR==1{print; next} {$1="chr"$1; print}' input.tsv > output.tsv
+```
+
+## Troubleshooting
+
+### Zero ClinVar matches despite having a ClinVar file
+
+**Cause:** ClinVar GRCh38 VCF (`clinvar.vcf.gz` from NCBI) uses bare chromosome names (`1`, `22`) while most GRCh38 VCF files use `chr`-prefixed names (`chr1`, `chr22`).
+
+**Fix:** Run `./scripts/prepare_references.sh` or manually normalize:
+
+```bash
+awk 'BEGIN{OFS="\t"} NR==1{print; next} {$1="chr"$1; print}' clinvar.tsv > clinvar_fixed.tsv
+mv clinvar_fixed.tsv clinvar.tsv
+```
+
+The `scripts/download_test_data.sh` script handles this automatically when downloading fresh data.
+
+### Zero CADD score matches
+
+**Cause:** The CADD sample file ships with only 10 positions for format validation. These positions likely don't overlap with your VCF variants.
+
+**Fix:** Download the full CADD pre-scored file for your chromosome(s) of interest from [cadd.gs.washington.edu/download](https://cadd.gs.washington.edu/download), then extract to TSV:
+
+```bash
+# For whole-genome pre-scored (SNVs only, ~80 GB compressed):
+zcat whole_genome_SNVs.tsv.gz | awk 'BEGIN{OFS="\t"; print "#chrom","pos","ref","alt","score"} 
+    !/^#/ {print "chr"$1, $2, $3, $4, $6}' > cadd_prescored.tsv
+```
+
+### Missing data warnings flooding output
+
+The pipeline emits a warning for each variant missing a score lookup. For large VCFs with sparse reference files, this produces thousands of warnings.
+
+**Suppress in Python:**
+
+```python
+import warnings
+from vartriage import MissingDataWarning
+warnings.filterwarnings("ignore", category=MissingDataWarning)
+```
+
+**Context:** After 1000 warnings, the pipeline emits a single `MissingDataSummaryWarning` and stops individual per-variant warnings.
+
+### PP3 not firing despite having CADD scores
+
+PP3 requires **REVEL > 0.7** or **SpliceAI > 0.5** (on splice-adjacent variants). CADD scores drive the composite rank for prioritization ordering but do not directly trigger ACMG evidence tags. To get PP3, provide REVEL and/or SpliceAI score files.

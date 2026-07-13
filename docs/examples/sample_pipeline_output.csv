@@ -1,0 +1,8 @@
+chromosome,position,ref_allele,alt_allele,gene_name,functional_consequence,allele_frequency,clinvar_assertion,cadd_phred,revel_score,spliceai_score,composite_rank,evidence_tags,acmg_classification
+chr17,43094464,ACTG,A,BRCA1,Frameshift,,Pathogenic,38.0,0.94,0.12,0.9704,"PVS1;PM2;PP3;PP5",Pathogenic
+chr17,7674220,G,A,TP53,Missense,0.000007,Likely_Pathogenic,32.0,0.89,0.03,0.9112,"PM2;PP3;PP5",Likely_Pathogenic
+chr3,37050340,G,T,MLH1,Splice_Site,,Likely_Pathogenic,28.5,,0.92,0.8814,"PVS1;PM2;PP3;PP5",Likely_Pathogenic
+chr11,108289632,C,T,ATM,Missense,0.00089,VUS,24.1,0.58,0.01,0.6198,PP3,VUS
+chr22,28695868,G,A,CHEK2,Missense,0.0045,VUS,22.3,0.44,0.0,0.5521,PP3,VUS
+chr13,32398489,A,G,BRCA2,Missense,0.012,Benign,14.2,0.18,0.01,0.2105,,VUS
+chr7,55191822,T,G,EGFR,Synonymous,0.23,,8.1,,0.0,0.0818,,VUS

@@ -1,0 +1,109 @@
+{
+  "run_manifest": {
+    "patient_id": "DEMO-2026-001",
+    "panel_name": "Hereditary Cancer Panel v2",
+    "output_format": "clinical-html",
+    "report_template": "default",
+    "pipeline_version": "0.5.0",
+    "execution_timestamp": "2026-07-13T14:32:08Z",
+    "python_version": "3.11.9",
+    "platform": "macOS-14.5-arm64-arm-64bit",
+    "reference_files": {
+      "refs/gencode.v44.gtf": "sha256:a3b1c4d5e6f78901abcdef234567890abcdef1234567890abcdef1234567890ab",
+      "refs/gnomad.v4.exomes.tsv": "sha256:b4c2d5e6f7a89012bcdefg34567890abcdef1234567890abcdef1234567890abc",
+      "refs/clinvar.tsv": "sha256:c5d3e6f7a8b90123cdefgh45678901abcdef1234567890abcdef1234567890abcd",
+      "refs/cadd_v1.7.tsv": "sha256:d6e4f7a8b9c01234defghi56789012abcdef1234567890abcdef1234567890abcde",
+      "refs/revel_v1.3.tsv": "sha256:e7f5a8b9c0d12345efghij67890123abcdef1234567890abcdef1234567890abcdef",
+      "refs/spliceai_scores.tsv": "sha256:f8a6b9c0d1e23456fghijk78901234abcdef1234567890abcdef1234567890abcde"
+    }
+  },
+  "decision_log": [
+    {
+      "chromosome": "chr17",
+      "position": 43094464,
+      "ref": "ACTG",
+      "alt": "A",
+      "gene_name": "BRCA1",
+      "evidence_tags_assigned": ["PM2", "PP3", "PP5", "PVS1"],
+      "evidence_tags_skipped": {},
+      "scores": {
+        "cadd_phred": 38.0,
+        "cadd_normalized": 0.3838,
+        "revel_score": 0.94,
+        "spliceai_score": 0.12,
+        "composite_rank": 0.9704
+      },
+      "classification": "Pathogenic"
+    },
+    {
+      "chromosome": "chr17",
+      "position": 7674220,
+      "ref": "G",
+      "alt": "A",
+      "gene_name": "TP53",
+      "evidence_tags_assigned": ["PM2", "PP3", "PP5"],
+      "evidence_tags_skipped": {},
+      "scores": {
+        "cadd_phred": 32.0,
+        "cadd_normalized": 0.3232,
+        "revel_score": 0.89,
+        "spliceai_score": 0.03,
+        "composite_rank": 0.9112
+      },
+      "classification": "Likely_Pathogenic"
+    },
+    {
+      "chromosome": "chr3",
+      "position": 37050340,
+      "ref": "G",
+      "alt": "T",
+      "gene_name": "MLH1",
+      "evidence_tags_assigned": ["PM2", "PP3", "PP5", "PVS1"],
+      "evidence_tags_skipped": {
+        "PP3": ["REVEL"]
+      },
+      "scores": {
+        "cadd_phred": 28.5,
+        "cadd_normalized": 0.2879,
+        "revel_score": null,
+        "spliceai_score": 0.92,
+        "composite_rank": 0.8814
+      },
+      "classification": "Likely_Pathogenic"
+    },
+    {
+      "chromosome": "chr11",
+      "position": 108289632,
+      "ref": "C",
+      "alt": "T",
+      "gene_name": "ATM",
+      "evidence_tags_assigned": ["PP3"],
+      "evidence_tags_skipped": {},
+      "scores": {
+        "cadd_phred": 24.1,
+        "cadd_normalized": 0.2434,
+        "revel_score": 0.58,
+        "spliceai_score": 0.01,
+        "composite_rank": 0.6198
+      },
+      "classification": "VUS"
+    },
+    {
+      "chromosome": "chr22",
+      "position": 28695868,
+      "ref": "G",
+      "alt": "A",
+      "gene_name": "CHEK2",
+      "evidence_tags_assigned": ["PP3"],
+      "evidence_tags_skipped": {},
+      "scores": {
+        "cadd_phred": 22.3,
+        "cadd_normalized": 0.2253,
+        "revel_score": 0.44,
+        "spliceai_score": 0.0,
+        "composite_rank": 0.5521
+      },
+      "classification": "VUS"
+    }
+  ]
+}
