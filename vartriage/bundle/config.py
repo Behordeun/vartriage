@@ -11,14 +11,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-# Python 3.11+ has tomllib in stdlib; for 3.10 we fall back
-try:
+# Python 3.11+ has tomllib in stdlib; for 3.10 we use tomli
+import sys
+
+if sys.version_info >= (3, 11):
     import tomllib
-except ModuleNotFoundError:
+else:
     try:
         import tomli as tomllib
     except ModuleNotFoundError:
-        tomllib = None  # type: ignore[assignment,unused-ignore]
+        tomllib = None  # type: ignore[assignment]
 
 
 @dataclass

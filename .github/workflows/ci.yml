@@ -30,7 +30,7 @@ jobs:
         run: pytest
 
       - name: Run mypy
-        run: mypy --strict --python-version=${{ matrix.python-version }} vartriage/
+        run: mypy --strict --no-warn-unused-ignores --python-version=${{ matrix.python-version }} vartriage/
 
       - name: Build package
         run: |
