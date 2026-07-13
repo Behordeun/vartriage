@@ -45,7 +45,23 @@ pip install vartriage[all]           # everything
 vartriage --vcf sample.vcf.gz --output candidates.json
 ```
 
-Full options:
+### Score bundles (new in v0.6.0)
+
+Download reference files automatically:
+
+```bash
+# See available bundles
+vartriage bundle list
+
+# Download ClinVar + gnomAD for chr22
+vartriage bundle download --bundle clinvar
+vartriage bundle download --bundle gnomad-exomes-chr22
+
+# Run with auto-resolved reference paths
+vartriage --vcf sample.vcf.gz --output results.json --use-bundles
+```
+
+### Full options
 
 ```bash
 vartriage \

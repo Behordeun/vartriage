@@ -299,3 +299,45 @@ config = PipelineConfig(
 ```
 
 This writes `clinical_report.html` (self-contained, viewable offline) and `clinical_report.html.audit.json` (machine-parseable decision log).
+
+## Bundle Configuration (v0.6.0+)
+
+The bundle system uses a TOML configuration file at `~/.vartriage/config.toml`:
+
+```toml
+[bundle]
+default_build = "grch38"
+download_concurrency = 2
+storage_path = "~/.vartriage/bundles"
+auto_verify = true
+
+[bundle.proxy]
+http_proxy = ""
+https_proxy = ""
+```
+
+Environment variable overrides:
+
+- `VARTRIAGE_BUNDLE_STORAGE` — override storage path
+- `VARTRIAGE_DEFAULT_BUILD` — override default genome build
+
+### Pipeline integration
+
+Add `use_bundles=True` to auto-resolve missing reference paths:
+
+```python
+config = PipelineConfig(
+    vcf_path=Path("patient.vcf.gz"),
+    output_path=Path("results.json"),
+    use_bundles=True,        # resolve from ~/.vartriage/bundles/
+    genome_build="grch38",   # which build to look up
+)
+```
+
+Or via CLI:
+
+```bash
+vartriage --vcf patient.vcf.gz --output results.json --use-bundles --genome-build grch38
+```
+
+Explicitly provided paths always take precedence over bundle resolution. See [docs/bundles.md](bundles.md) for the full bundle user guide.

@@ -2,6 +2,26 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - 2026-07-13
+
+### Added
+
+- **Score bundle downloader** (`vartriage bundle`): automated downloading, transformation, and management of reference files. Supported bundles: ClinVar, gnomAD exomes (chr22), REVEL, GENCODE, SpliceAI. Subcommands: `download`, `list`, `verify`, `status`, `update-registry`.
+- **Bundle-aware pipeline** (`--use-bundles`, `--genome-build`): auto-resolve reference file paths from installed bundles. Explicit CLI paths take precedence. No configuration needed after `vartriage bundle download`.
+- HTTP download engine with resume support (Range header), atomic `.partial` files, exponential backoff retry (1s, 2s, 4s) for 429/5xx errors, and streaming progress bar on stderr.
+- Post-download transformers: VCF-to-TSV (bcftools with pysam fallback), ClinVar normalizer (adds `chr` prefix + CLNSIG mapping), CSV-to-TSV (REVEL), SpliceAI max-delta extractor, and passthrough (gz decompression).
+- Per-bundle manifests tracking version, checksums, download timestamps, and source URLs.
+- Configurable storage layout at `~/.vartriage/bundles/` with env var override (`VARTRIAGE_BUNDLE_STORAGE`).
+- TOML configuration file support (`~/.vartriage/config.toml`) for default build, concurrency, and proxy settings.
+- Disk space pre-flight validation before downloads.
+- SHA-256 checksum verification for downloaded and transformed files.
+- `use_bundles` and `genome_build` fields on `PipelineConfig`.
+- `docs/bundles.md` user guide with command reference and storage layout documentation.
+
+### Changed
+
+- `pyproject.toml`: added `tomli` and `tomllib` to mypy ignore list for Python 3.10 compatibility.
+
 ## [0.5.0] - 2026-07-13
 
 ### Added
