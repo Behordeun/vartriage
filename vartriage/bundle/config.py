@@ -7,12 +7,11 @@ overrides from environment variables.
 from __future__ import annotations
 
 import os
+# Python 3.11+ has tomllib in stdlib; for 3.10 we use tomli
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
-
-# Python 3.11+ has tomllib in stdlib; for 3.10 we use tomli
-import sys
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -71,8 +70,18 @@ class BundleConfig:
 
         config = cls()
 
-        if path.exists() and tomllib is not None:
-            config._apply_toml(path)
+        if path.exists():
+            if tomllib is None:
+                import warnings
+
+                warnings.warn(
+                    f"Config file {path} exists but TOML parsing is "
+                    "unavailable. Install 'tomli' on Python 3.10 to "
+                    "enable configuration.",
+                    stacklevel=2,
+                )
+            else:
+                config._apply_toml(path)
 
         config._apply_env_overrides()
         return config

@@ -92,9 +92,7 @@ def _sanitize_filename(raw_name: str) -> str:
     # Strip any path separators that may have been embedded
     name = raw_name.replace("/", "").replace("\\", "")
     if not name or ".." in name or name.startswith("."):
-        raise ValueError(
-            f"Unsafe filename derived from URL: '{raw_name}'"
-        )
+        raise ValueError(f"Unsafe filename derived from URL: '{raw_name}'")
     return name
 
 

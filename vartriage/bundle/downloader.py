@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from vartriage.bundle._checksums import compute_sha256, verify_checksum
@@ -198,7 +198,7 @@ class BundleDownloader:
                 if exc.code not in self._RETRYABLE_STATUS:
                     raise DownloadError(url, f"HTTP {exc.code}: {exc.reason}") from exc
                 last_error = exc
-            except (OSError) as exc:
+            except OSError as exc:
                 last_error = exc
 
             start_offset = self._current_offset(dest, start_offset)

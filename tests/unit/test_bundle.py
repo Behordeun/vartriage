@@ -7,22 +7,18 @@ from pathlib import Path
 
 import pytest
 
-from vartriage.bundle._checksums import (
-    ChecksumMismatchError,
-    compute_sha256,
-    verify_checksum,
-)
-from vartriage.bundle._disk import available_space_bytes, check_disk_space, format_bytes
+from vartriage.bundle._checksums import (ChecksumMismatchError, compute_sha256,
+                                         verify_checksum)
+from vartriage.bundle._disk import (available_space_bytes, check_disk_space,
+                                    format_bytes)
 from vartriage.bundle.config import BundleConfig
 from vartriage.bundle.downloader import BundleDownloader, DownloadError
 from vartriage.bundle.manifest import BundleManifest
 from vartriage.bundle.registry import BundleEntry, BundleRegistry
 from vartriage.bundle.storage import BundleStorage
-from vartriage.bundle.transformer import (
-    TRANSFORM_REGISTRY,
-    PassthroughTransformer,
-    get_transformer,
-)
+from vartriage.bundle.transformer import (TRANSFORM_REGISTRY,
+                                          PassthroughTransformer,
+                                          get_transformer)
 
 
 class TestBundleRegistry:
@@ -114,9 +110,7 @@ class TestBundleStorage:
         assert storage.is_installed("grch38", "clinvar") is False
         assert storage.installed_version("grch38", "clinvar") is None
 
-    def test_resolve_path_returns_none_when_not_installed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_resolve_path_returns_none_when_not_installed(self, tmp_path: Path) -> None:
         storage = BundleStorage(tmp_path)
         assert storage.resolve_path("grch38", "clinvar") is None
 
@@ -267,18 +261,12 @@ class TestBundleDownloader:
 
         fake_response = MagicMock()
         fake_response.status = 200
-        fake_response.read = MagicMock(
-            side_effect=[b"hello world data", b""]
-        )
+        fake_response.read = MagicMock(side_effect=[b"hello world data", b""])
 
-        def mock_urlopen(
-            request: object, timeout: object = None
-        ) -> MagicMock:
+        def mock_urlopen(request: object, timeout: object = None) -> MagicMock:
             return fake_response
 
-        monkeypatch.setattr(
-            "vartriage.bundle.downloader.urlopen", mock_urlopen
-        )
+        monkeypatch.setattr("vartriage.bundle.downloader.urlopen", mock_urlopen)
 
         dest = tmp_path / "test_file.txt"
         downloader = BundleDownloader(
@@ -301,24 +289,23 @@ class TestBundleDownloader:
 
         call_count = 0
 
-        def mock_urlopen(
-            request: object, timeout: object = None
-        ) -> MagicMock:
+        def mock_urlopen(request: object, timeout: object = None) -> MagicMock:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise HTTPError(
-                    "http://example.com/f.txt", 500, "Server Error",
-                    {}, None  # type: ignore[arg-type]
+                    "http://example.com/f.txt",
+                    500,
+                    "Server Error",
+                    {},
+                    None,  # type: ignore[arg-type]
                 )
             resp = MagicMock()
             resp.status = 200
             resp.read = MagicMock(side_effect=[b"data", b""])
             return resp
 
-        monkeypatch.setattr(
-            "vartriage.bundle.downloader.urlopen", mock_urlopen
-        )
+        monkeypatch.setattr("vartriage.bundle.downloader.urlopen", mock_urlopen)
         # Patch time.sleep to avoid actual waiting
         monkeypatch.setattr("vartriage.bundle.downloader.time.sleep", lambda _: None)
 
@@ -342,14 +329,10 @@ class TestBundleDownloader:
         fake_response.status = 200
         fake_response.read = MagicMock(side_effect=[b"some data", b""])
 
-        def mock_urlopen(
-            request: object, timeout: object = None
-        ) -> MagicMock:
+        def mock_urlopen(request: object, timeout: object = None) -> MagicMock:
             return fake_response
 
-        monkeypatch.setattr(
-            "vartriage.bundle.downloader.urlopen", mock_urlopen
-        )
+        monkeypatch.setattr("vartriage.bundle.downloader.urlopen", mock_urlopen)
 
         dest = tmp_path / "checksum_file.txt"
         downloader = BundleDownloader(

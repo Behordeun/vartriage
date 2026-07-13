@@ -131,7 +131,7 @@ class VcfToTsvTransformer:
         with open(dest, "w", encoding="utf-8") as out:
             out.write(self._header + "\n")
             _validate_source_path(source)
-            result = subprocess.run(
+            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -173,7 +173,11 @@ class VcfToTsvTransformer:
                     pos = record.pos
                     ref = record.ref
                     for alt in record.alts or []:
-                        af = record.info.get("AF", [None])[0] if "AF" in record.info else ""
+                        af = (
+                            record.info.get("AF", [None])[0]
+                            if "AF" in record.info
+                            else ""
+                        )
                         af_str = str(af) if af is not None else "."
                         out.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{af_str}\n")
                         rows += 1
@@ -219,7 +223,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tclinical_significance\n")
             _validate_source_path(source)
-            result = subprocess.run(
+            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -434,7 +438,7 @@ class SpliceAIExtractor:
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tscore\n")
             _validate_source_path(source)
-            result = subprocess.run(
+            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -482,7 +486,11 @@ class SpliceAIExtractor:
                     info_val = record.info.get("SpliceAI", None)
                     if info_val is None:
                         continue
-                    raw = str(info_val[0]) if isinstance(info_val, tuple) else str(info_val)
+                    raw = (
+                        str(info_val[0])
+                        if isinstance(info_val, tuple)
+                        else str(info_val)
+                    )
                     score = self._parse_max_delta(raw)
                     if score is not None:
                         for alt in record.alts or []:
@@ -533,7 +541,8 @@ class PassthroughTransformer:
             shutil.copy2(source, dest)
 
         # Count lines (approximate row count)
-        rows = sum(1 for _ in open(dest, "rb")) - 1
+        with open(dest, "r", encoding="utf-8", errors="replace") as f:
+            rows = sum(1 for _ in f) - 1
 
         return TransformResult(
             output_path=dest, rows_written=max(0, rows), source_path=source

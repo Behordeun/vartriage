@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Literal, Optional, cast
+from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, cast
 
 from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
+
+if TYPE_CHECKING:
+    from vartriage.models.config import SampleConfig
 
 
 def _get_version() -> str:
@@ -290,8 +293,15 @@ def _run_pipeline(
 
     report_config = ReportConfig(
         output_format=cast(
-            Literal["json", "csv", "pdf", "vcf",
-                    "clinical-pdf", "clinical-html", "clinical-docx"],
+            Literal[
+                "json",
+                "csv",
+                "pdf",
+                "vcf",
+                "clinical-pdf",
+                "clinical-html",
+                "clinical-docx",
+            ],
             output_format,
         ),
     )
@@ -340,6 +350,7 @@ def _resolve_reference_paths(
         return paths
 
     from vartriage.bundle.storage import BundleStorage
+
     storage = BundleStorage()
 
     bundle_names = {
@@ -360,14 +371,19 @@ def _resolve_reference_paths(
     return paths
 
 
+ConfigT = TypeVar("ConfigT")
+
+
 def _build_optional_config(
-    value: Optional[Path], factory: Any
-) -> Any:
+    value: Optional[Path], factory: Callable[[Path], ConfigT]
+) -> Optional[ConfigT]:
     """Build an optional config if value is not None."""
     return factory(value) if value is not None else None
 
 
-def _build_sample_config(args: argparse.Namespace) -> Optional[Any]:
+def _build_sample_config(
+    args: argparse.Namespace,
+) -> Optional["SampleConfig"]:
     """Build SampleConfig from args, validating --min-gq requires --sample."""
     from vartriage.models.config import SampleConfig
 
