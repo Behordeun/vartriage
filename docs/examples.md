@@ -234,7 +234,7 @@ vartriage \
   --vcf patient_exome.vcf.gz \
   --output clinical_report.html \
   --output-format clinical-html \
-  --patient-id PAT-2025-042 \
+  --patient-id PAT-2026-042 \
   --panel-name "Hereditary Cancer Panel v2" \
   --gene-annotation refs/gencode.v44.gtf \
   --gnomad refs/gnomad.v4.exomes.tsv \
@@ -256,7 +256,7 @@ vartriage \
   --vcf patient_exome.vcf.gz \
   --output clinical_report.pdf \
   --output-format clinical-pdf \
-  --patient-id PAT-2025-042 \
+  --patient-id PAT-2026-042 \
   --panel-name "Hereditary Cancer Panel v2" \
   --gene-annotation refs/gencode.v44.gtf \
   --gnomad refs/gnomad.v4.exomes.tsv \
@@ -296,7 +296,7 @@ config = PipelineConfig(
     ),
     report=ReportConfig(output_format="clinical-html"),
     clinical_report=ClinicalReportConfig(
-        patient_id="PAT-2025-042",
+        patient_id="PAT-2026-042",
         panel_name="Hereditary Cancer Panel v2",
         output_format="clinical-html",
     ),

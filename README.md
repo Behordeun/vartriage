@@ -71,7 +71,7 @@ vartriage \
   --vcf sample.vcf.gz \
   --output clinical_report.html \
   --output-format clinical-html \
-  --patient-id PAT-2025-001 \
+  --patient-id PAT-2026-001 \
   --panel-name "Cardiac Panel v3" \
   --gene-annotation gencode.v44.gtf \
   --gnomad gnomad.v4.sites.tsv \

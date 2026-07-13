@@ -131,14 +131,14 @@ Configuration for structured clinical report generation. Required when `--output
 from vartriage.models.config import ClinicalReportConfig
 
 config = ClinicalReportConfig(
-    patient_id="PAT-2025-001",
+    patient_id="PAT-2026-001",
     panel_name="Cardiac Panel v3",
     output_format="clinical-html",
 )
 
 # With custom template
 config = ClinicalReportConfig(
-    patient_id="PAT-2025-002",
+    patient_id="PAT-2026-002",
     panel_name="Hereditary Cancer Panel",
     output_format="clinical-pdf",
     report_template="standard",
@@ -291,7 +291,7 @@ config = PipelineConfig(
     ),
     report=ReportConfig(output_format="clinical-html"),
     clinical_report=ClinicalReportConfig(
-        patient_id="PAT-2025-001",
+        patient_id="PAT-2026-001",
         panel_name="Cardiac Panel v3",
         output_format="clinical-html",
     ),

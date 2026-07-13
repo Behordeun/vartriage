@@ -225,7 +225,7 @@ vartriage \
   --vcf proband_exome.vcf.gz \
   --output results/clinical_report.html \
   --output-format clinical-html \
-  --patient-id PAT-2025-001 \
+  --patient-id PAT-2026-001 \
   --panel-name "Cardiac Panel v3" \
   --gene-annotation references/gencode.v44.gtf \
   --gnomad references/gnomad.v4.exomes.tsv \
@@ -268,7 +268,7 @@ config = PipelineConfig(
     ),
     report=ReportConfig(output_format="clinical-html"),
     clinical_report=ClinicalReportConfig(
-        patient_id="PAT-2025-001",
+        patient_id="PAT-2026-001",
         panel_name="Cardiac Panel v3",
         output_format="clinical-html",
     ),
@@ -289,7 +289,7 @@ vartriage \
   --vcf proband_exome.vcf.gz \
   --output results/clinical_report.pdf \
   --output-format clinical-pdf \
-  --patient-id PAT-2025-001 \
+  --patient-id PAT-2026-001 \
   --panel-name "Cardiac Panel v3" \
   --gene-annotation references/gencode.v44.gtf \
   --gnomad references/gnomad.v4.exomes.tsv \
@@ -311,7 +311,7 @@ vartriage \
   --vcf proband_exome.vcf.gz \
   --output results/clinical_report.docx \
   --output-format clinical-docx \
-  --patient-id PAT-2025-001 \
+  --patient-id PAT-2026-001 \
   --panel-name "Cardiac Panel v3" \
   --gene-annotation references/gencode.v44.gtf \
   --gnomad references/gnomad.v4.exomes.tsv \

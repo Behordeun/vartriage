@@ -2,7 +2,7 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.5.0] - 2025-07-13
+## [0.5.0] - 2026-07-13
 
 ### Added
 
@@ -20,7 +20,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 - `weasyprint` (optional, for `clinical-pdf`)
 - `python-docx` (optional, for `clinical-docx`)
 
-## [0.4.0] - 2025-07-12
+## [0.4.0] - 2026-07-12
 
 ### Added
 
@@ -30,7 +30,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 - **Gene list filtering** (`--gene-list`): restrict analysis to variants in a user-supplied gene panel file. One gene symbol per line, case-insensitive matching. Genes in the list with zero matching variants produce a logged WARNING so you can catch typos or outdated nomenclature.
 - `gene_name` field on `AnnotatedVariant` populated during consequence annotation.
 
-## [0.3.0] - 2025-07-12
+## [0.3.0] - 2026-07-12
 
 ### Added
 
@@ -41,7 +41,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 - **VCF output format** (`--output-format vcf`): produces an annotated bgzipped VCF (.vcf.gz) with a tabix index (.tbi). Re-reads the source VCF, injects VARTRIAGE_CONSEQUENCE, VARTRIAGE_AF, VARTRIAGE_RANK, VARTRIAGE_ACMG, and VARTRIAGE_TAGS INFO fields for classified variants, and writes all records (matched or not) to output. Directly loadable in IGV and queryable with bcftools.
 - **SpliceAI score integration** (`--spliceai-scores`): third pathogenicity predictor alongside CADD and REVEL. Dynamic weight redistribution in the composite formula (0.5/0.3/0.2 when all three present, proportional fallback for any two, single-score identity). PP3 now also fires when SpliceAI > 0.5 on splice-site or missense variants. PVS1 fires for SPLICE_SITE + SpliceAI > 0.8. Fully backward-compatible: existing two-score behavior unchanged when SpliceAI is not configured.
 
-## [0.2.0] - 2025-07-10
+## [0.2.0] - 2026-07-10
 
 ### Added
 
@@ -55,7 +55,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 - chr22 full annotation benchmark (130K variants + GENCODE + 4.8M gnomAD entries): 36.3s wall time, ~2 GB peak RSS
 - With 100K gnomAD subset: 19.5s wall time, 453 MB peak RSS
 
-## [0.1.1] - 2025-07-10
+## [0.1.1] - 2026-07-10
 
 ### Fixed
 
@@ -76,7 +76,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 - `CONTRIBUTING.md`
 - `LICENSE` file (MIT)
 
-## [0.1.0] - 2025-07-09
+## [0.1.0] - 2026-07-09
 
 Initial release on PyPI.
 
