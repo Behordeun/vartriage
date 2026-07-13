@@ -138,9 +138,7 @@ class ClinicalReportGenerator:
                 output_path.unlink(missing_ok=True)
             except OSError:
                 pass
-            raise IOError(
-                f"Audit trail write failed: {exc}"
-            ) from exc
+            raise IOError(f"Audit trail write failed: {exc}") from exc
 
         return output_path
 

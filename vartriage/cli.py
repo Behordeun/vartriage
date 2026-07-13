@@ -333,6 +333,7 @@ def _build_clinical_config(
         return None
 
     from vartriage.models.config import ClinicalReportConfig as _CRC
+
     """Build ClinicalReportConfig if clinical format is requested."""
     if not output_format.startswith("clinical-"):
         return None

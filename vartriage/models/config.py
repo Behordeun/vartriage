@@ -347,24 +347,16 @@ class PipelineConfig:
 
     vcf_path: Path
     output_path: Path
-    quality_filter: QualityFilterConfig = field(
-        default_factory=QualityFilterConfig
-    )
+    quality_filter: QualityFilterConfig = field(default_factory=QualityFilterConfig)
     annotation: Optional[AnnotationConfig] = None
-    prioritization: PrioritizationConfig = field(
-        default_factory=PrioritizationConfig
-    )
+    prioritization: PrioritizationConfig = field(default_factory=PrioritizationConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
-    missing_data: MissingDataConfig = field(
-        default_factory=MissingDataConfig
-    )
+    missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
     gene_filter: GeneFilterConfig | None = field(default=None)
     region_filter: RegionFilterConfig | None = field(default=None)
     sample: SampleConfig | None = field(default=None)
     inheritance: "InheritanceConfig | None" = field(default=None)
-    clinical_report: "ClinicalReportConfig | None" = field(
-        default=None
-    )
+    clinical_report: "ClinicalReportConfig | None" = field(default=None)
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format

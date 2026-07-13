@@ -150,7 +150,8 @@ class ReportTemplateEngine:
         """
         try:
             from docx import Document  # type: ignore[import-not-found]
-            from docx.enum.table import WD_TABLE_ALIGNMENT  # type: ignore[import-not-found]  # noqa: E501
+            from docx.enum.table import \
+                WD_TABLE_ALIGNMENT  # type: ignore[import-not-found]  # noqa: E501
         except ImportError as exc:
             raise ImportError(
                 "DOCX output requires the 'python-docx' package. "
