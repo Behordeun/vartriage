@@ -168,6 +168,22 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Gene panel name for clinical reports",
     )
+    parser.add_argument(
+        "--use-bundles",
+        action="store_true",
+        default=False,
+        help=(
+            "Auto-resolve reference file paths from installed bundles "
+            "(~/.vartriage/bundles/). Paths explicitly passed via "
+            "--gnomad, --clinvar, etc. take precedence."
+        ),
+    )
+    parser.add_argument(
+        "--genome-build",
+        type=str,
+        default="grch38",
+        help="Genome build for bundle resolution (default: grch38)",
+    )
 
     return parser
 
@@ -254,21 +270,63 @@ def _run_pipeline(
 
     inheritance_config = _build_inheritance_config(args)
 
+    # Bundle auto-resolution: fill in missing paths from installed bundles
+    use_bundles: bool = getattr(args, "use_bundles", False)
+    genome_build: str = getattr(args, "genome_build", "grch38")
+
     annotation_config: Optional[AnnotationConfig] = None
     gene_annotation: Optional[Path] = args.gene_annotation
     gnomad: Optional[Path] = args.gnomad
+    clinvar: Optional[Path] = args.clinvar
+    cadd_scores: Optional[Path] = args.cadd_scores
+    revel_scores: Optional[Path] = args.revel_scores
+    spliceai_scores: Optional[Path] = args.spliceai_scores
+
+    if use_bundles:
+        from vartriage.bundle.storage import BundleStorage
+        storage = BundleStorage()
+
+        if gene_annotation is None:
+            resolved = storage.resolve_path(genome_build, "gencode")
+            if resolved:
+                gene_annotation = resolved
+
+        if gnomad is None:
+            resolved = storage.resolve_path(genome_build, "gnomad-exomes-chr22")
+            if resolved:
+                gnomad = resolved
+
+        if clinvar is None:
+            resolved = storage.resolve_path(genome_build, "clinvar")
+            if resolved:
+                clinvar = resolved
+
+        if cadd_scores is None:
+            resolved = storage.resolve_path(genome_build, "cadd")
+            if resolved:
+                cadd_scores = resolved
+
+        if revel_scores is None:
+            resolved = storage.resolve_path(genome_build, "revel")
+            if resolved:
+                revel_scores = resolved
+
+        if spliceai_scores is None:
+            resolved = storage.resolve_path(genome_build, "spliceai")
+            if resolved:
+                spliceai_scores = resolved
 
     if gene_annotation is not None and gnomad is not None:
         annotation_config = AnnotationConfig(
             gene_annotation_path=gene_annotation,
             gnomad_path=gnomad,
-            clinvar_path=args.clinvar,
+            clinvar_path=clinvar,
         )
 
     prioritization_config = PrioritizationConfig(
-        cadd_scores_path=args.cadd_scores,
-        revel_scores_path=args.revel_scores,
-        spliceai_scores_path=args.spliceai_scores,
+        cadd_scores_path=cadd_scores,
+        revel_scores_path=revel_scores,
+        spliceai_scores_path=spliceai_scores,
     )
 
     report_fmt = cast(
@@ -324,6 +382,8 @@ def _run_pipeline(
         region_filter=region_filter_config,
         sample=sample_config,
         clinical_report=clinical_config,
+        use_bundles=use_bundles,
+        genome_build=genome_build,
     )
 
     pipeline = Pipeline(pipeline_config)

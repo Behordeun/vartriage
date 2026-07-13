@@ -357,6 +357,8 @@ class PipelineConfig:
     sample: SampleConfig | None = field(default=None)
     inheritance: "InheritanceConfig | None" = field(default=None)
     clinical_report: "ClinicalReportConfig | None" = field(default=None)
+    use_bundles: bool = False
+    genome_build: str = "grch38"
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format
