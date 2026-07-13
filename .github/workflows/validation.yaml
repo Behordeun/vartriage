@@ -1,0 +1,17 @@
+name: GIAB Validation
+on: workflow_dispatch
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .[all]
+      - run: sudo apt-get install -y bcftools tabix
+      - run: ./scripts/validate_giab.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: validation-results
+          path: validation_results/
