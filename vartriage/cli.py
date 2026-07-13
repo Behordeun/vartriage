@@ -335,9 +335,15 @@ def _build_clinical_config(
     from vartriage.models.config import ClinicalReportConfig as _CRC
 
     missing_flags: list[str] = []
-    if args.patient_id is None:
+    patient_id: str | None = args.patient_id
+    panel_name: str | None = args.panel_name
+    if patient_id is not None:
+        patient_id = patient_id.strip() or None
+    if panel_name is not None:
+        panel_name = panel_name.strip() or None
+    if patient_id is None:
         missing_flags.append("--patient-id")
-    if args.panel_name is None:
+    if panel_name is None:
         missing_flags.append("--panel-name")
     if missing_flags:
         print(
@@ -351,8 +357,8 @@ def _build_clinical_config(
         output_format,
     )
     return _CRC(
-        patient_id=args.patient_id,
-        panel_name=args.panel_name,
+        patient_id=patient_id,  # type: ignore[arg-type]
+        panel_name=panel_name,  # type: ignore[arg-type]
         output_format=clinical_fmt,
     )
 

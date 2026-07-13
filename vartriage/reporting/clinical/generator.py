@@ -121,15 +121,26 @@ class ClinicalReportGenerator:
         # Render and write atomically.
         self._render_atomic(sections, output_path)
 
-        # Write audit trail sidecar.
-        self._audit_writer.write(
-            output_path=output_path,
-            config=self._config,
-            variants=sorted_variants,
-            reference_checksums=self._reference_checksums,
-            pipeline_version=self._pipeline_version,
-            execution_timestamp=timestamp,
-        )
+        # Write audit trail sidecar. If this fails after the report
+        # was written, remove the report to avoid an inconsistent
+        # state (report exists without its audit trail).
+        try:
+            self._audit_writer.write(
+                output_path=output_path,
+                config=self._config,
+                variants=sorted_variants,
+                reference_checksums=self._reference_checksums,
+                pipeline_version=self._pipeline_version,
+                execution_timestamp=timestamp,
+            )
+        except Exception as exc:
+            try:
+                output_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise IOError(
+                f"Audit trail write failed: {exc}"
+            ) from exc
 
         return output_path
 
@@ -312,6 +323,11 @@ class ClinicalReportGenerator:
 
     def _build_methodology(self, timestamp: str) -> MethodologyData:
         """Build the methodology section from config metadata."""
+        # NOTE: classification_parameters currently only includes
+        # report-level settings. Adding scoring thresholds (e.g.
+        # max_allele_frequency, PP3 threshold) requires access to
+        # PrioritizationConfig which is not available here.
+        # Planned for v0.6.0.
         params: dict[str, str] = {
             "report_template": self._config.report_template,
             "output_format": self._config.output_format,

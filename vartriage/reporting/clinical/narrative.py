@@ -280,7 +280,7 @@ class EvidenceNarrativeBuilder:
         return f"{tag.value} ({explanation})"
 
     def _validate_output(self, text: str) -> None:
-        """Assert the narrative contains no banned words or em dashes.
+        """Validate the narrative contains no banned words or em dashes.
 
         Parameters
         ----------
@@ -289,15 +289,18 @@ class EvidenceNarrativeBuilder:
 
         Raises
         ------
-        AssertionError
+        ValueError
             If banned content is found in the narrative.
         """
-        assert (
-            self.EM_DASH not in text
-        ), f"Narrative contains em dash (U+2014): {text!r}"
+        if self.EM_DASH in text:
+            raise ValueError(
+                f"Narrative contains em dash (U+2014): {text!r}"
+            )
 
         text_lower = text.lower()
         for word in self.BANNED_VOCABULARY:
-            assert (
-                word not in text_lower
-            ), f"Narrative contains banned vocabulary '{word}': {text!r}"
+            if word in text_lower:
+                raise ValueError(
+                    f"Narrative contains banned vocabulary "
+                    f"'{word}': {text!r}"
+                )

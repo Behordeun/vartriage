@@ -495,11 +495,15 @@ class ReportTemplateEngine:
         """Enable 'repeat header row' on a DOCX table.
 
         This makes column headers appear on every page when the
-        table spans multiple pages.
+        table spans multiple pages. Uses python-docx private API;
+        fails silently if the internal structure changes.
         """
-        from docx.oxml.ns import qn  # type: ignore[import-not-found]
+        try:
+            from docx.oxml.ns import qn  # type: ignore[import-not-found]
 
-        tbl_pr = table.rows[0]._tr
-        tr_pr = tbl_pr.get_or_add_trPr()
-        repeat_header = tr_pr.makeelement(qn("w:tblHeader"), {})
-        tr_pr.append(repeat_header)
+            tbl_pr = table.rows[0]._tr
+            tr_pr = tbl_pr.get_or_add_trPr()
+            repeat_header = tr_pr.makeelement(qn("w:tblHeader"), {})
+            tr_pr.append(repeat_header)
+        except (AttributeError, ImportError):
+            pass

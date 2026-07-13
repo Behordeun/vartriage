@@ -8,7 +8,7 @@ more inheritance patterns, and emits enriched Variant objects.
 from __future__ import annotations
 
 import re
-from typing import Iterator
+from typing import Generator, Iterator
 
 from vartriage.models.config import InheritanceConfig
 from vartriage.models.variant import Variant
@@ -79,64 +79,87 @@ class InheritanceFilter:
         current_gene: str | None = None
 
         for variant in variants:
-            proband_gt = self._extract_genotype(variant, self._proband)
-            if proband_gt is None or proband_gt == "./.":
+            trio = self._extract_trio_genotypes(variant)
+            if trio is None:
                 continue
 
-            if not self._has_alt_allele(proband_gt):
-                continue
+            proband_gt, mother_gt, father_gt = trio
+            patterns = self._classify_patterns(proband_gt, mother_gt, father_gt, variant.chrom)
 
-            mother_gt = self._extract_genotype(variant, self._mother)
-            father_gt = self._extract_genotype(variant, self._father)
-            if mother_gt is None:
-                mother_gt = "./."
-            if father_gt is None:
-                father_gt = "./."
-
-            patterns: list[str] = []
-            if "de_novo" in self._patterns:
-                if self._classify_de_novo(proband_gt, mother_gt, father_gt):
-                    patterns.append("de_novo")
-            if "dominant" in self._patterns:
-                if self._classify_dominant(proband_gt, mother_gt, father_gt):
-                    patterns.append("dominant")
-            if "recessive" in self._patterns:
-                if self._classify_recessive(proband_gt, mother_gt, father_gt):
-                    patterns.append("recessive")
-            if "x_linked" in self._patterns:
-                if self._classify_x_linked(proband_gt, mother_gt, variant.chrom):
-                    patterns.append("x_linked")
-
-            if compound_het_active:
-                gene = variant.info.get("gene")
-                if gene is None:
-                    yield self._build_output(variant, proband_gt, patterns)
-                    continue
-
-                # Gene boundary flush: assumes variants arrive grouped
-                # by gene (standard for coordinate-sorted VCFs where
-                # same-gene variants are contiguous). Using a single
-                # buffer rather than per-gene dicts keeps memory bounded
-                # for large inputs.
-                if current_gene is not None and gene != current_gene:
-                    yield from self._flush_gene_buffer(gene_buffer)
-                    gene_buffer = []
-
-                current_gene = gene
-                gene_buffer.append(
-                    (
-                        variant,
-                        proband_gt,
-                        mother_gt,
-                        father_gt,
-                        patterns,
-                    )
-                )
-            else:
+            if not compound_het_active:
                 yield self._build_output(variant, proband_gt, patterns)
+                continue
+
+            current_gene, gene_buffer = yield from self._process_compound_het(
+                variant, proband_gt, mother_gt, father_gt, patterns,
+                current_gene, gene_buffer,
+            )
 
         if compound_het_active and gene_buffer:
             yield from self._flush_gene_buffer(gene_buffer)
+
+    def _extract_trio_genotypes(
+        self, variant: Variant
+    ) -> tuple[str, str, str] | None:
+        """Extract and normalize trio genotypes, returning None if proband has no alt."""
+        proband_gt = self._extract_genotype(variant, self._proband)
+        if (proband_gt is None or proband_gt == "./."
+                or not self._has_alt_allele(proband_gt)):
+            return None
+
+        mother_gt = self._extract_genotype(variant, self._mother) or "./."
+        father_gt = self._extract_genotype(variant, self._father) or "./."
+        return proband_gt, mother_gt, father_gt
+
+    def _classify_patterns(
+        self,
+        proband_gt: str,
+        mother_gt: str,
+        father_gt: str,
+        chrom: str,
+    ) -> list[str]:
+        """Evaluate all non-compound inheritance patterns for a variant."""
+        classifiers: list[tuple[str, bool]] = [
+            ("de_novo", self._classify_de_novo(proband_gt, mother_gt, father_gt)),
+            ("dominant", self._classify_dominant(proband_gt, mother_gt, father_gt)),
+            ("recessive", self._classify_recessive(proband_gt, mother_gt, father_gt)),
+            ("x_linked", self._classify_x_linked(proband_gt, mother_gt, chrom)),
+        ]
+        return [
+            name for name, result in classifiers
+            if name in self._patterns and result
+        ]
+
+    def _process_compound_het(
+        self,
+        variant: Variant,
+        proband_gt: str,
+        mother_gt: str,
+        father_gt: str,
+        patterns: list[str],
+        current_gene: str | None,
+        gene_buffer: list[tuple[Variant, str, str, str, list[str]]],
+    ) -> Generator[Variant, None, tuple[str | None, list[tuple[Variant, str, str, str, list[str]]]]]:
+        """Handle compound het buffering logic, yielding on gene boundaries.
+
+        Returns the updated (current_gene, gene_buffer) via generator return.
+        """
+        gene = variant.info.get("gene")
+        if gene is None:
+            if gene_buffer:
+                yield from self._flush_gene_buffer(gene_buffer)
+                gene_buffer = []
+                current_gene = None
+            yield self._build_output(variant, proband_gt, patterns)
+            return current_gene, gene_buffer
+
+        if current_gene is not None and gene != current_gene:
+            yield from self._flush_gene_buffer(gene_buffer)
+            gene_buffer = []
+
+        current_gene = gene
+        gene_buffer.append((variant, proband_gt, mother_gt, father_gt, patterns))
+        return current_gene, gene_buffer
 
     def _extract_genotype(self, variant: Variant, sample_name: str) -> str | None:
         """Pull GT from _pysam_samples and format as VCF string.

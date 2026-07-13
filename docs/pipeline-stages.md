@@ -65,7 +65,7 @@ When a proband-mother-father trio is configured, replaces SampleExtractor and cl
 **Patterns classified:**
 
 | Pattern | Condition |
-|---------|-----------|
+| --------- | ----------- |
 | de_novo | Proband has alt, both parents hom-ref |
 | dominant | Proband het, exactly one parent het |
 | recessive | Proband hom-alt, both parents het |

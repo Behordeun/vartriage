@@ -93,7 +93,7 @@ When the format is `clinical-html`, `clinical-pdf`, or `clinical-docx`, the pipe
 Trio-based inheritance pattern classification settings.
 
 | Field | Type | Default | Notes |
-|-------|------|---------|-------|
+| ------- | ------ | --------- | ---- | ------- |
 | `proband` | `str` | required | Proband sample name |
 | `mother` | `str` | required | Mother sample name |
 | `father` | `str` | required | Father sample name |
@@ -121,7 +121,7 @@ Raises `ValueError` if sample names are empty, patterns list is empty, or any pa
 Configuration for structured clinical report generation. Required when `--output-format` is `clinical-html`, `clinical-pdf`, or `clinical-docx`.
 
 | Field | Type | Default | Notes |
-|-------|------|---------|-------|
+| ------- | ------ | --------- | ------- |
 | `patient_id` | `str` | required | Patient identifier (non-empty) |
 | `panel_name` | `str` | required | Gene panel name (non-empty) |
 | `output_format` | `Literal` | required | `"clinical-pdf"`, `"clinical-html"`, or `"clinical-docx"` |
@@ -154,12 +154,13 @@ The clinical report produces:
 - DOCX via python-docx (install with `pip install python-docx`)
 
 A JSON audit trail sidecar (`.audit.json`) is written alongside every clinical report. It contains the run manifest (config, reference checksums, timestamps) and a per-variant decision log.
+
 ## GeneFilterConfig
 
 Restricts analysis to variants in a user-supplied gene list.
 
 | Field | Type | Default | Notes |
-|-------|------|---------|-------|
+| ------- | ------ | --------- | ------- |
 | `gene_list_path` | `Path` | required | Plain text file, one gene symbol per line |
 
 ```python
@@ -200,6 +201,9 @@ Top-level configuration aggregating all sub-configs.
 | `missing_data` | `MissingDataConfig` | default instance | |
 | `inheritance` | `Optional[InheritanceConfig]` | `None` | None skips trio analysis |
 | `gene_filter` | `Optional[GeneFilterConfig]` | `None` | None skips gene filtering |
+| `region_filter` | `Optional[RegionFilterConfig]` | `None` | None skips region filtering |
+| `sample` | `Optional[SampleConfig]` | `None` | None skips sample extraction |
+| `clinical_report` | `Optional[ClinicalReportConfig]` | `None` | Required for clinical formats |
 
 ## Example configurations
 
