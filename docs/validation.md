@@ -33,10 +33,10 @@ The script handles downloading, extraction, running the pipeline, and computing 
 
 ## Data sources
 
-| Resource                          | Size    | Source                                                                                                                          |
-| --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Resource                          | Size    | Source                                                                                                                           |
+| --------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | GIAB HG002 benchmark VCF (GRCh38) | ~250 MB | [NIST FTP](https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.2.1/GRCh38/) |
-| GIAB high-confidence regions BED  | ~2 MB   | Same FTP                                                                                                                        |
+| GIAB high-confidence regions BED  | ~2 MB   | Same FTP                                                                                                                         |
 | ClinVar VCF (GRCh38)              | ~80 MB  | [NCBI FTP](https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/)                                                                 |
 | gnomAD v4.1.1 exomes chr22        | ~4.7 GB | [gnomAD Downloads](https://gnomad.broadinstitute.org/downloads)                                                                  |
 

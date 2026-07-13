@@ -1,5 +1,9 @@
 name: GIAB Validation
 on: workflow_dispatch
+
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
