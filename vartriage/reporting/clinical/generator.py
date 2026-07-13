@@ -370,6 +370,9 @@ class ClinicalReportGenerator:
 
             if fmt == "clinical-html":
                 html_content = self._template_engine.render_html(sections)
+                # Clinical reports intentionally contain patient identifiers
+                # in plain text as the file's core purpose. Permissions
+                # restricted to 0o600 after write.
                 tmp_path.write_text(html_content, encoding="utf-8")
             elif fmt == "clinical-pdf":
                 self._template_engine.render_pdf(sections, tmp_path)

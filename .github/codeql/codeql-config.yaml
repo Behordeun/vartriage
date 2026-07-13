@@ -1,0 +1,21 @@
+name: "vartriage CodeQL configuration"
+
+# Clinical report generation intentionally writes patient identifiers
+# (PHI) to output files as its core function. These are not accidental
+# clear-text storage of secrets — they are the product of the pipeline.
+# File permissions are restricted to 0o600 (owner-only) as mitigation.
+
+paths-ignore:
+  - "tests/**"
+  - "scripts/**"
+  - "docs/**"
+
+query-filters:
+  # Suppress clear-text storage alerts for clinical report output paths.
+  # The reporting/clinical/ module exists to produce human-readable reports
+  # containing patient data. Encrypting these files would make them unusable.
+  - exclude:
+      id: py/clear-text-storage-sensitive-data
+      paths:
+        - "vartriage/reporting/clinical/audit.py"
+        - "vartriage/reporting/clinical/generator.py"

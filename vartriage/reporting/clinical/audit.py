@@ -81,11 +81,13 @@ class AuditTrailWriter:
 
         try:
             sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+            # Clinical audit trails intentionally store patient identifiers
+            # in plain text as the file's core purpose. File permissions
+            # are restricted to owner-only (0o600) to limit access.
             sidecar_path.write_text(
                 json.dumps(audit_data, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
-            # Restrict permissions: audit trail contains PHI (patient_id)
             os.chmod(sidecar_path, 0o600)
         except OSError as exc:
             raise IOError(
