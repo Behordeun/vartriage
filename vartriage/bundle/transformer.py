@@ -494,7 +494,7 @@ class SpliceAIExtractor:
 
 
 class PassthroughTransformer:
-    """No transformation needed — copy or decompress only.
+    """No transformation needed - copy or decompress only.
 
     Used for GENCODE GTF files that are used as-is by the pipeline.
     Handles .gz decompression if needed.

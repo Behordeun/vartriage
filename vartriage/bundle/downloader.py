@@ -1,6 +1,6 @@
 """HTTP download engine with resume support.
 
-Uses urllib from stdlib — no external dependencies required.
+Uses urllib from stdlib - no external dependencies required.
 Falls back gracefully when servers don't support Range requests.
 """
 

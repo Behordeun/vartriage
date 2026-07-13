@@ -318,8 +318,8 @@ https_proxy = ""
 
 Environment variable overrides:
 
-- `VARTRIAGE_BUNDLE_STORAGE` — override storage path
-- `VARTRIAGE_DEFAULT_BUILD` — override default genome build
+- `VARTRIAGE_BUNDLE_STORAGE` - override storage path
+- `VARTRIAGE_DEFAULT_BUILD` - override default genome build
 
 ### Pipeline integration
 

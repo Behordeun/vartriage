@@ -39,11 +39,11 @@ vartriage bundle download --bundle revel --no-progress
 
 Options:
 
-- `--bundle NAME` — bundle to download (required)
-- `--build BUILD` — genome build, default from config (grch38)
-- `--dest DIR` — custom storage directory
-- `--no-transform` — download raw file only, skip TSV conversion
-- `--no-progress` — suppress progress bar
+- `--bundle NAME` - bundle to download (required)
+- `--build BUILD` - genome build, default from config (grch38)
+- `--dest DIR` - custom storage directory
+- `--no-transform` - download raw file only, skip TSV conversion
+- `--no-progress` - suppress progress bar
 
 ### `vartriage bundle list`
 

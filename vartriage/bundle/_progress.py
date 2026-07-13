@@ -1,7 +1,7 @@
 """Progress display for downloads and transforms.
 
 Writes to stderr so it doesn't interfere with pipeline output.
-No external dependencies — uses simple ANSI escape codes.
+No external dependencies - uses simple ANSI escape codes.
 """
 
 from __future__ import annotations
