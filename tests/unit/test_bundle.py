@@ -360,3 +360,110 @@ class TestDiskSpaceInsufficient:
         )
         with pytest.raises(OSError, match="Insufficient disk space"):
             check_disk_space(tmp_path, 1_000_000)
+
+
+class TestParallelDownload:
+    """Tests for download_many parallel download function."""
+
+    def test_download_many_empty_requests(self) -> None:
+        """Empty request list returns empty result immediately."""
+        from vartriage.bundle.downloader import download_many
+
+        result = download_many(requests=[], concurrency=2)
+        assert result.all_succeeded is True
+        assert result.success_count == 0
+        assert result.error_count == 0
+        assert result.total_bytes == 0
+
+    def test_download_many_two_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Download two files in parallel with mocked urlopen."""
+        from unittest.mock import MagicMock
+
+        from vartriage.bundle.downloader import DownloadRequest, download_many
+
+        call_count = 0
+
+        def mock_urlopen(request: object, timeout: object = None) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            resp = MagicMock()
+            resp.status = 200
+            resp.read = MagicMock(side_effect=[b"file content here", b""])
+            return resp
+
+        monkeypatch.setattr("vartriage.bundle.downloader.urlopen", mock_urlopen)
+
+        requests = [
+            DownloadRequest(
+                url="http://example.com/a.txt",
+                dest=tmp_path / "a.txt",
+                label="file-a",
+            ),
+            DownloadRequest(
+                url="http://example.com/b.txt",
+                dest=tmp_path / "b.txt",
+                label="file-b",
+            ),
+        ]
+
+        result = download_many(requests, concurrency=2, show_progress=False)
+
+        assert result.all_succeeded is True
+        assert result.success_count == 2
+        assert result.error_count == 0
+        assert "file-a" in result.results
+        assert "file-b" in result.results
+        assert (tmp_path / "a.txt").exists()
+        assert (tmp_path / "b.txt").exists()
+        assert result.total_bytes == 34  # 17 bytes * 2 files
+
+    def test_download_many_partial_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One download fails, the other succeeds — partial results returned."""
+        from unittest.mock import MagicMock
+        from urllib.error import HTTPError
+
+        from vartriage.bundle.downloader import DownloadRequest, download_many
+
+        call_urls: list[str] = []
+
+        def mock_urlopen(request: object, timeout: object = None) -> MagicMock:
+            url = request.full_url if hasattr(request, "full_url") else str(request)
+            call_urls.append(url)
+            if "fail" in url:
+                raise HTTPError(url, 403, "Forbidden", {}, None)  # type: ignore[arg-type]
+            resp = MagicMock()
+            resp.status = 200
+            resp.read = MagicMock(side_effect=[b"ok", b""])
+            return resp
+
+        monkeypatch.setattr("vartriage.bundle.downloader.urlopen", mock_urlopen)
+        # Speed up retries
+        monkeypatch.setattr("vartriage.bundle.downloader.time.sleep", lambda _: None)
+
+        requests = [
+            DownloadRequest(
+                url="http://example.com/good.txt",
+                dest=tmp_path / "good.txt",
+                label="good",
+            ),
+            DownloadRequest(
+                url="http://example.com/fail.txt",
+                dest=tmp_path / "fail.txt",
+                label="bad",
+            ),
+        ]
+
+        result = download_many(
+            requests, concurrency=2, max_retries=0, show_progress=False
+        )
+
+        assert result.all_succeeded is False
+        assert result.success_count == 1
+        assert result.error_count == 1
+        assert "good" in result.results
+        assert "bad" in result.errors
+        assert (tmp_path / "good.txt").exists()

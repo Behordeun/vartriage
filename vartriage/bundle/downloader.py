@@ -2,15 +2,17 @@
 
 Uses urllib from stdlib - no external dependencies required.
 Falls back gracefully when servers don't support Range requests.
+Supports parallel downloads via ThreadPoolExecutor.
 """
 
 from __future__ import annotations
 
 import os
 import time
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -262,3 +264,140 @@ class BundleDownloader:
             progress.finish()
 
         return bytes_downloaded
+
+
+@dataclass
+class DownloadRequest:
+    """Specification for a single download in a parallel batch.
+
+    Attributes
+    ----------
+    url : str
+        URL to download from.
+    dest : Path
+        Final destination path.
+    expected_size : int | None
+        Expected file size for disk space validation.
+    expected_checksum : str
+        SHA-256 checksum to verify. Empty string to skip.
+    label : str
+        Human-readable label for progress display (e.g., bundle name).
+    """
+
+    url: str
+    dest: Path
+    expected_size: Optional[int] = None
+    expected_checksum: str = ""
+    label: str = ""
+
+
+@dataclass
+class BatchDownloadResult:
+    """Aggregated result of a parallel download batch.
+
+    Attributes
+    ----------
+    results : dict[str, DownloadResult]
+        Mapping of label (or URL) to successful download result.
+    errors : dict[str, str]
+        Mapping of label (or URL) to error message for failed downloads.
+    total_bytes : int
+        Total bytes downloaded across all successful files.
+    duration_seconds : float
+        Wall-clock time for the entire batch.
+    """
+
+    results: dict[str, DownloadResult] = field(default_factory=dict)
+    errors: dict[str, str] = field(default_factory=dict)
+    total_bytes: int = 0
+    duration_seconds: float = 0.0
+
+    @property
+    def success_count(self) -> int:
+        """Number of successful downloads."""
+        return len(self.results)
+
+    @property
+    def error_count(self) -> int:
+        """Number of failed downloads."""
+        return len(self.errors)
+
+    @property
+    def all_succeeded(self) -> bool:
+        """True if every download in the batch completed without error."""
+        return len(self.errors) == 0
+
+
+def download_many(
+    requests: Sequence[DownloadRequest],
+    concurrency: int = 2,
+    max_retries: int = 3,
+    show_progress: bool = True,
+) -> BatchDownloadResult:
+    """Download multiple files in parallel using a thread pool.
+
+    Each download runs independently with its own retry logic.
+    Partial failures don't cancel other in-flight downloads.
+
+    Parameters
+    ----------
+    requests : Sequence[DownloadRequest]
+        List of files to download.
+    concurrency : int
+        Maximum number of simultaneous downloads (default: 2).
+    max_retries : int
+        Retry attempts per individual download.
+    show_progress : bool
+        Whether to display per-file progress bars.
+
+    Returns
+    -------
+    BatchDownloadResult
+        Aggregated results with per-file success/failure details.
+    """
+    if not requests:
+        return BatchDownloadResult()
+
+    # Clamp concurrency to a reasonable range
+    concurrency = max(1, min(concurrency, 8))
+
+    batch = BatchDownloadResult()
+    start_time = time.monotonic()
+
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        future_to_request = {
+            executor.submit(
+                _execute_single_download, req, max_retries, show_progress
+            ): req
+            for req in requests
+        }
+
+        for future in as_completed(future_to_request):
+            req = future_to_request[future]
+            key = req.label or req.url
+
+            try:
+                result = future.result()
+                batch.results[key] = result
+                batch.total_bytes += result.bytes_downloaded
+            except (DownloadError, OSError) as exc:
+                batch.errors[key] = str(exc)
+
+    batch.duration_seconds = time.monotonic() - start_time
+    return batch
+
+
+def _execute_single_download(
+    req: DownloadRequest, max_retries: int, show_progress: bool
+) -> DownloadResult:
+    """Execute a single download request (runs inside a thread)."""
+    downloader = BundleDownloader(
+        max_retries=max_retries,
+        show_progress=show_progress,
+    )
+    return downloader.download(
+        url=req.url,
+        dest=req.dest,
+        expected_size=req.expected_size,
+        expected_checksum=req.expected_checksum,
+    )

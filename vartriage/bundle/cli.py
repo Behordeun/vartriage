@@ -15,9 +15,15 @@ from typing import Any
 from vartriage.bundle._checksums import compute_sha256
 from vartriage.bundle._disk import format_bytes
 from vartriage.bundle.config import BundleConfig
-from vartriage.bundle.downloader import BundleDownloader, DownloadError
+from vartriage.bundle.downloader import (
+    BatchDownloadResult,
+    BundleDownloader,
+    DownloadError,
+    DownloadRequest,
+    download_many,
+)
 from vartriage.bundle.manifest import BundleManifest
-from vartriage.bundle.registry import BundleRegistry
+from vartriage.bundle.registry import BundleEntry, BundleRegistry
 from vartriage.bundle.storage import BundleStorage
 from vartriage.bundle.transformer import get_transformer
 
@@ -28,7 +34,13 @@ def add_bundle_subcommands(subparsers: Any) -> None:
     This is called from the main CLI module during parser setup.
     """
     dl = subparsers.add_parser("download", help="Download a reference bundle")
-    dl.add_argument("--bundle", required=True, help="Bundle name to download")
+    dl.add_argument("--bundle", default=None, help="Bundle name to download")
+    dl.add_argument(
+        "--all",
+        action="store_true",
+        dest="download_all",
+        help="Download all bundles for the build",
+    )
     dl.add_argument("--build", default=None, help="Genome build (default: from config)")
     dl.add_argument("--dest", default=None, help="Custom storage directory")
     dl.add_argument("--no-transform", action="store_true", help="Skip transformation")
@@ -99,7 +111,21 @@ def _sanitize_filename(raw_name: str) -> str:
 def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) -> int:
     """Handle 'vartriage bundle download'."""
     registry = BundleRegistry.load()
-    bundle_name = args.bundle
+    bundle_name = getattr(args, "bundle", None)
+    download_all = getattr(args, "download_all", False)
+
+    if not bundle_name and not download_all:
+        print(
+            "Error: Provide --bundle <name> or --all to download bundles.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if download_all:
+        return _cmd_download_all(args, config, build, registry)
+
+    # At this point bundle_name is guaranteed to be a non-empty string
+    assert isinstance(bundle_name, str)
 
     entry = registry.get(bundle_name, build)
     if entry is None:
@@ -146,10 +172,7 @@ def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) ->
             expected_size=entry.expected_size_bytes,
             expected_checksum=entry.checksum_sha256,
         )
-    except DownloadError as exc:
-        print(f"\nError: {exc}", file=sys.stderr)
-        return 1
-    except OSError as exc:
+    except (DownloadError, OSError) as exc:
         print(f"\nError: {exc}", file=sys.stderr)
         return 1
 
@@ -158,27 +181,9 @@ def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) ->
         f"in {result.duration_seconds:.1f}s"
     )
 
-    # Transform (unless --no-transform)
-    if getattr(args, "no_transform", False):
-        transformed_filename = raw_filename
-    else:
-        print(f"  Transforming ({entry.transform_type})...")
-        transformer = get_transformer(entry.transform_type, bundle_name)
-        bundle_dir = storage.bundle_dir(build, bundle_name)
-        output_name = f"{bundle_name}.tsv"
-        if entry.transform_type == "none":
-            # For passthrough, keep original extension
-            output_name = raw_filename.replace(".gz", "")
-
-        transform_dest = bundle_dir / output_name
-        try:
-            t_result = transformer.transform(raw_dest, transform_dest, build)
-            print(f"  Transformed: {t_result.rows_written} records -> {output_name}")
-            transformed_filename = output_name
-        except (ImportError, OSError, ValueError) as exc:
-            print(f"  Transform failed: {exc}", file=sys.stderr)
-            print(f"  Raw file retained at: {raw_dest}", file=sys.stderr)
-            transformed_filename = ""
+    transformed_filename = _run_transform(
+        args, entry, storage, build, bundle_name, raw_dest, raw_filename
+    )
 
     # Write manifest
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -201,6 +206,185 @@ def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) ->
     return 0
 
 
+def _run_transform(
+    args: argparse.Namespace,
+    entry: BundleEntry,
+    storage: BundleStorage,
+    build: str,
+    bundle_name: str,
+    raw_dest: Path,
+    raw_filename: str,
+) -> str:
+    """Run the transform step, returning the transformed filename."""
+    if getattr(args, "no_transform", False):
+        return raw_filename
+
+    print(f"  Transforming ({entry.transform_type})...")
+    transformer = get_transformer(entry.transform_type, bundle_name)
+    bundle_dir = storage.bundle_dir(build, bundle_name)
+    output_name = f"{bundle_name}.tsv"
+    if entry.transform_type == "none":
+        output_name = raw_filename.replace(".gz", "")
+
+    transform_dest = bundle_dir / output_name
+    try:
+        t_result = transformer.transform(raw_dest, transform_dest, build)
+        print(f"  Transformed: {t_result.rows_written} records -> {output_name}")
+        return output_name
+    except (ImportError, OSError, ValueError) as exc:
+        print(f"  Transform failed: {exc}", file=sys.stderr)
+        print(f"  Raw file retained at: {raw_dest}", file=sys.stderr)
+        return ""
+
+
+def _cmd_download_all(
+    args: argparse.Namespace,
+    config: BundleConfig,
+    build: str,
+    registry: BundleRegistry,
+) -> int:
+    """Download all available bundles for a build using parallel downloads."""
+    available = registry.available_for_build(build)
+    if not available:
+        print(f"No bundles available for {build}.", file=sys.stderr)
+        return 1
+
+    dest_path = Path(args.dest) if args.dest else config.storage_path
+    storage = BundleStorage(dest_path)
+    show_progress = not getattr(args, "no_progress", False)
+
+    requests = _build_download_requests(available, storage, build)
+
+    if not requests:
+        print(f"All bundles already installed for {build}.")
+        return 0
+
+    print(
+        f"Downloading {len(requests)} bundle(s) for {build} "
+        f"(concurrency: {config.download_concurrency})..."
+    )
+
+    batch_result = download_many(
+        requests=requests,
+        concurrency=config.download_concurrency,
+        max_retries=3,
+        show_progress=show_progress,
+    )
+
+    no_transform = getattr(args, "no_transform", False)
+    _process_batch_results(available, batch_result, storage, build, no_transform)
+
+    print(
+        f"\nBatch complete: {batch_result.success_count} succeeded, "
+        f"{batch_result.error_count} failed, "
+        f"{format_bytes(batch_result.total_bytes)} downloaded "
+        f"in {batch_result.duration_seconds:.1f}s."
+    )
+
+    if batch_result.errors:
+        print("\nFailed downloads:", file=sys.stderr)
+        for label, err in batch_result.errors.items():
+            print(f"  {label}: {err}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+def _build_download_requests(
+    available: list[BundleEntry], storage: BundleStorage, build: str
+) -> list[DownloadRequest]:
+    """Build download requests for bundles not already installed."""
+    requests: list[DownloadRequest] = []
+    for entry in available:
+        if storage.is_installed(build, entry.name):
+            print(f"  {entry.name}: already installed, skipping.")
+            continue
+
+        url = entry.source_urls.get(build.lower())
+        if not url:
+            continue
+
+        storage.ensure_dirs(build, entry.name)
+        raw_dir = storage.raw_dir(build, entry.name)
+        raw_filename = _sanitize_filename(url.split("/")[-1])
+        raw_dest = raw_dir / raw_filename
+
+        requests.append(
+            DownloadRequest(
+                url=url,
+                dest=raw_dest,
+                expected_size=entry.expected_size_bytes,
+                expected_checksum=entry.checksum_sha256,
+                label=entry.name,
+            )
+        )
+    return requests
+
+
+def _process_batch_results(
+    available: list[BundleEntry],
+    batch_result: BatchDownloadResult,
+    storage: BundleStorage,
+    build: str,
+    no_transform: bool,
+) -> None:
+    """Transform successful downloads and write manifests."""
+    for entry in available:
+        if entry.name not in batch_result.results:
+            continue
+
+        dl_result = batch_result.results[entry.name]
+        raw_dest = dl_result.path
+
+        transformed_filename = _transform_entry(
+            entry, storage, build, raw_dest, no_transform
+        )
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        url = entry.source_urls.get(build.lower(), "")
+        manifest = BundleManifest(
+            bundle_name=entry.name,
+            version=entry.version,
+            genome_build=build,
+            download_timestamp=timestamp,
+            source_url=url,
+            raw_checksum=compute_sha256(raw_dest) if raw_dest.exists() else "",
+            transformed_checksum="",
+            transformed_filename=transformed_filename,
+            raw_filename=raw_dest.name,
+            transform_type=entry.transform_type,
+            file_size_bytes=raw_dest.stat().st_size if raw_dest.exists() else 0,
+        )
+        manifest.save(storage.manifest_path(build, entry.name))
+
+
+def _transform_entry(
+    entry: BundleEntry,
+    storage: BundleStorage,
+    build: str,
+    raw_dest: Path,
+    no_transform: bool,
+) -> str:
+    """Transform a single downloaded entry, returning the output filename."""
+    if no_transform:
+        return raw_dest.name
+
+    transformer = get_transformer(entry.transform_type, entry.name)
+    bundle_dir = storage.bundle_dir(build, entry.name)
+    output_name = f"{entry.name}.tsv"
+    if entry.transform_type == "none":
+        output_name = raw_dest.name.replace(".gz", "")
+
+    transform_dest = bundle_dir / output_name
+    try:
+        t_result = transformer.transform(raw_dest, transform_dest, build)
+        print(f"  {entry.name}: transformed {t_result.rows_written} records")
+        return output_name
+    except (ImportError, OSError, ValueError) as exc:
+        print(f"  {entry.name}: transform failed: {exc}", file=sys.stderr)
+        return ""
+
+
 def _cmd_list(args: argparse.Namespace, config: BundleConfig, build: str) -> int:
     """Handle 'vartriage bundle list'."""
     registry = BundleRegistry.load()
@@ -216,7 +400,7 @@ def _cmd_list(args: argparse.Namespace, config: BundleConfig, build: str) -> int
     return 0
 
 
-def _print_list_json(available: list[Any], storage: BundleStorage, build: str) -> None:
+def _print_list_json(available: list[BundleEntry], storage: BundleStorage, build: str) -> None:
     """Print bundle list as JSON."""
     output = []
     for entry in available:
@@ -234,7 +418,7 @@ def _print_list_json(available: list[Any], storage: BundleStorage, build: str) -
     print(json.dumps(output, indent=2))
 
 
-def _print_list_table(available: list[Any], storage: BundleStorage, build: str) -> None:
+def _print_list_table(available: list[BundleEntry], storage: BundleStorage, build: str) -> None:
     """Print bundle list as formatted table."""
     print(f"Score bundles for {build}:")
     print(f"{'Name':<22} {'Version':<10} {'Status':<12} {'Description'}")
@@ -252,12 +436,12 @@ def _print_list_table(available: list[Any], storage: BundleStorage, build: str) 
     print(f"\n{len(available)} bundles available for {build}.")
 
 
-def _install_status(storage: BundleStorage, build: str, entry: object) -> str:
+def _install_status(storage: BundleStorage, build: str, entry: BundleEntry) -> str:
     """Determine install status string for a bundle entry."""
-    installed_ver = storage.installed_version(build, entry.name)  # type: ignore[attr-defined]
+    installed_ver = storage.installed_version(build, entry.name)
     if not installed_ver:
         return "available"
-    if installed_ver == entry.version:  # type: ignore[attr-defined]
+    if installed_ver == entry.version:
         return "installed"
     return f"outdated ({installed_ver})"
 
