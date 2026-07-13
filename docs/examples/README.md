@@ -22,6 +22,25 @@ typical clinical-grade setup.
 
 ### Clinical report
 
+Using installed bundles (recommended):
+
+```bash
+vartriage bundle download --bundle clinvar
+vartriage bundle download --bundle gnomad-exomes-chr22
+vartriage bundle download --bundle gencode
+
+vartriage \
+  --vcf synthetic_exome.vcf.gz \
+  --output sample_clinical_report.html \
+  --output-format clinical-html \
+  --patient-id "DEMO-2026-001" \
+  --panel-name "Hereditary Cancer Panel v2" \
+  --use-bundles \
+  --gene-list refs/hereditary_cancer_panel.txt
+```
+
+Or with explicit paths:
+
 ```bash
 vartriage \
   --vcf synthetic_exome.vcf.gz \
