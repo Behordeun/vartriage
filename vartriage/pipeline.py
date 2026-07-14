@@ -116,7 +116,14 @@ class Pipeline:
         quality_filter = QualityFilter(self._config.quality_filter)
 
         annotation_engine: Optional[AnnotationEngine] = None
-        if self._config.annotation is not None:
+        api_annotation_engine = None
+
+        if self._config.api is not None:
+            # API or hybrid mode: use API-based annotation
+            api_annotation_engine = self._build_api_annotation_engine()
+
+        if api_annotation_engine is None and self._config.annotation is not None:
+            # Local mode (or hybrid fallback): use file-based annotation
             annotation_engine = AnnotationEngine(self._config.annotation)
 
         prioritization_engine = PrioritizationEngine(self._config.prioritization)
@@ -145,6 +152,7 @@ class Pipeline:
                 parser,
                 quality_filter,
                 annotation_engine,
+                api_annotation_engine,
             )
 
             if self._config.gene_filter is not None:
@@ -268,6 +276,7 @@ class Pipeline:
         parser: VCFParser,
         quality_filter: QualityFilter,
         annotation_engine: Optional[AnnotationEngine],
+        api_annotation_engine: object = None,
     ) -> Iterator["AnnotatedVariant"]:
         """Build the filtered and annotated variant stream."""
         stream: Iterator[Variant] = iter(parser)
@@ -322,7 +331,18 @@ class Pipeline:
         filtered = quality_filter.apply(stream)
         if annotation_engine is not None:
             return annotation_engine.annotate(filtered)
+        if api_annotation_engine is not None:
+            return api_annotation_engine.annotate(filtered)  # type: ignore[attr-defined,no-any-return]
         return self._passthrough_annotation(filtered)
+
+    def _build_api_annotation_engine(self) -> object:
+        """Construct the API annotation engine from config.
+
+        Deferred import to avoid pulling httpx into the core module.
+        """
+        from vartriage.api.annotation_engine import APIAnnotationEngine
+
+        return APIAnnotationEngine(self._config.api)  # type: ignore[arg-type]
 
     def _validate_config(self, config: PipelineConfig) -> None:
         """Validate all configuration at construction time (fail-fast).

@@ -359,6 +359,7 @@ class PipelineConfig:
     clinical_report: "ClinicalReportConfig | None" = field(default=None)
     use_bundles: bool = False
     genome_build: str = "grch38"
+    api: "object | None" = field(default=None)
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format

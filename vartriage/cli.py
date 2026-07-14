@@ -187,6 +187,29 @@ def _build_parser() -> argparse.ArgumentParser:
         default="grch38",
         help="Genome build for bundle resolution (default: grch38)",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["local", "api", "hybrid"],
+        default="local",
+        help=(
+            "Annotation mode: 'local' uses file-based backends (default), "
+            "'api' queries remote services (Ensembl VEP, ClinVar), "
+            "'hybrid' uses local files where available and API for gaps. "
+            "API mode requires: pip install vartriage[api]"
+        ),
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="NCBI API key for higher ClinVar rate limits (also reads NCBI_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--no-confirm",
+        action="store_true",
+        default=False,
+        help="Skip confirmation prompts for large API-mode runs (>1000 variants)",
+    )
 
     return parser
 
@@ -274,6 +297,10 @@ def _run_pipeline(
 
     use_bundles: bool = getattr(args, "use_bundles", False)
     genome_build: str = getattr(args, "genome_build", "grch38")
+    mode: str = getattr(args, "mode", "local")
+
+    # Build API config if mode requires it
+    api_config = _build_api_config(args, mode, genome_build)
 
     paths = _resolve_reference_paths(args, use_bundles, genome_build)
 
@@ -327,10 +354,39 @@ def _run_pipeline(
         clinical_report=clinical_config,
         use_bundles=use_bundles,
         genome_build=genome_build,
+        api=api_config,
     )
 
     pipeline = Pipeline(pipeline_config)
     return pipeline.run()
+
+
+def _build_api_config(
+    args: argparse.Namespace,
+    mode: str,
+    genome_build: str,
+) -> "Optional[object]":
+    """Build APIConfig if mode is api or hybrid. Returns None for local mode."""
+    if mode == "local":
+        return None
+
+    try:
+        from vartriage.api.config import APIConfig
+    except ImportError:
+        print(
+            "Error: API mode requires the 'httpx' package.\n"
+            "Install with: pip install vartriage[api]",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    api_key: Optional[str] = getattr(args, "api_key", None)
+
+    return APIConfig.load(
+        mode=mode,
+        genome_build=genome_build,
+        ncbi_api_key=api_key,
+    )
 
 
 def _resolve_reference_paths(
