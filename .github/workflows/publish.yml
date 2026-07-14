@@ -11,6 +11,7 @@ jobs:
     environment: pypi
     permissions:
       id-token: write
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -28,3 +29,31 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Extract version from tag
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          # Try to extract changelog section for this version
+          if [ -f docs/changelog.md ]; then
+            NOTES=$(awk "/^## ${TAG//./\\.}/{found=1; next} /^## v[0-9]/{if(found) exit} found{print}" docs/changelog.md)
+          fi
+          if [ -z "$NOTES" ]; then
+            NOTES="Release ${TAG} published to PyPI."
+          fi
+          # Write to file to avoid quoting issues
+          echo "$NOTES" > /tmp/release_notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file /tmp/release_notes.md \
+            dist/*

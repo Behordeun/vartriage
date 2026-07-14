@@ -97,13 +97,15 @@ class TestCSVWriter:
         assert data_row[1] == "12345"
         assert data_row[2] == "A"
         assert data_row[3] == "T"
-        assert data_row[4] == "Missense"
-        assert data_row[5] == "0.002"
-        assert data_row[6] == "0.78"
-        assert data_row[7] == "Pathogenic"
-        assert data_row[8] == "Likely_Pathogenic"
+        assert data_row[4] == ""  # gene_name (None)
+        assert data_row[5] == "Missense"
+        assert data_row[6] == "0.002"
+        assert data_row[7] == ""  # revel_score (None)
+        assert data_row[8] == "0.78"
+        assert data_row[9] == "Pathogenic"
+        assert data_row[10] == "Likely_Pathogenic"
         # Evidence tags sorted alphabetically by value
-        assert data_row[9] == "PM2;PVS1"
+        assert data_row[11] == "PM2;PVS1"
 
     def test_absent_values_become_empty_fields(self, tmp_path: Path) -> None:
         """None values are represented as empty strings in CSV output."""
@@ -121,10 +123,10 @@ class TestCSVWriter:
             rows = list(reader)
 
         data_row = rows[1]
-        assert data_row[5] == ""  # allele_frequency
-        assert data_row[6] == ""  # composite_rank
-        assert data_row[7] == ""  # clinvar_assertion
-        assert data_row[9] == ""  # evidence_tags (empty frozenset)
+        assert data_row[6] == ""  # allele_frequency
+        assert data_row[8] == ""  # composite_rank
+        assert data_row[9] == ""  # clinvar_assertion
+        assert data_row[11] == ""  # evidence_tags (empty frozenset)
 
     def test_multiple_variants_preserve_order(self, tmp_path: Path) -> None:
         """Multiple variants appear in the output in the same order as input."""

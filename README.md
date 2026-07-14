@@ -1,28 +1,33 @@
 # vartriage
 
-Clinical variant triage for gene panels. One pip install, one command: VCF in, ACMG-classified report out. No Java, no Perl, no Spark cluster.
+Clinical variant triage for gene panels. VCF in, ACMG-classified report out.
 
-vartriage is the open-source Python library for turning panel sequencing VCFs into auditable, sign-off-ready clinical reports. It handles the full chain: quality filtering, consequence annotation, population frequency lookup, multi-predictor pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP evidence classification, trio inheritance analysis, and structured clinical report generation with per-variant evidence narratives. Every decision is traceable. Every run is reproducible from its config alone.
+```bash
+pip install vartriage[all]
+vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-html \
+  --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
+```
 
-**Why vartriage instead of VEP + slivar + custom scripts?**
+**What it does:** quality filtering, consequence annotation (GENCODE), population frequency lookup (gnomAD), pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP classification, trio inheritance analysis, and clinical report generation with audit trail.
 
-- Single tool, single install: `pip install vartriage[all]`
-- Streaming architecture: processes 4M+ variant WGS files under 2GB RAM
-- Trio-aware: de novo, dominant, recessive, compound het, X-linked in one pass
-- Three pathogenicity predictors with dynamic weight redistribution
-- Clinical reports: structured PDF/HTML/DOCX with per-variant evidence narratives, ACMG explanations, and JSON audit trail
-- Outputs directly to IGV-loadable bgzipped VCF with triage annotations
-- Typed Python API with Protocol-based backends (swap in your own annotators)
+**Why use it:**
+
+- Single Python package, no Java/Perl/Spark dependencies
+- Streams 4M+ variant WGS files under 2 GB RAM
+- Trio-aware: de novo, dominant, recessive, compound het, X-linked
+- Score bundle downloader: `vartriage bundle download --bundle clinvar` fetches and prepares reference files
+- Outputs: JSON, CSV, PDF, HTML clinical reports, IGV-loadable annotated VCF
+- Typed API with Protocol-based backends
 
 **Benchmarks:**
 
-| Workload | Variants | Wall time | Peak RSS | Throughput |
-| --- | --- | --- | --- | --- |
-| GIAB HG002 (QC only, no annotation) | 4,048,342 | 156 s | 122 MB | ~26K var/sec |
-| chr22 full annotation (GENCODE + 4.8M gnomAD) | 130,141 | 36.3 s | ~2 GB | ~3.6K var/sec |
-| chr22 annotation (100K gnomAD subset) | 130,141 | 19.5 s | 453 MB | ~6.7K var/sec |
+| Workload | Variants | Wall time | Peak RSS |
+| --- | --- | --- | --- |
+| WGS QC only | 4M | 156 s | 122 MB |
+| chr22 full annotation | 130K | 36 s | ~2 GB |
+| chr22 annotation (100K gnomAD) | 130K | 19.5 s | 453 MB |
 
-Streaming architecture, so JSON and CSV reports never buffer the full variant set in memory. Reference files (GTF, CADD, REVEL, SpliceAI) are cached after first parse. Subsequent runs load from cache in seconds.
+Reference files are cached after first parse. Subsequent runs load from cache in seconds.
 
 ## Install
 
@@ -45,7 +50,23 @@ pip install vartriage[all]           # everything
 vartriage --vcf sample.vcf.gz --output candidates.json
 ```
 
-Full options:
+### Score bundles (new in v0.6.0)
+
+Download reference files automatically:
+
+```bash
+# See available bundles
+vartriage bundle list
+
+# Download ClinVar + gnomAD for chr22
+vartriage bundle download --bundle clinvar
+vartriage bundle download --bundle gnomad-exomes-chr22
+
+# Run with auto-resolved reference paths
+vartriage --vcf sample.vcf.gz --output results.json --use-bundles
+```
+
+### Full options
 
 ```bash
 vartriage \

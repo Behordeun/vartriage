@@ -358,3 +358,115 @@ done
 ```
 
 Each run produces a report file and its audit sidecar. Safe to parallelize.
+
+## Score bundle downloader
+
+### First-time setup with bundles
+
+Download reference files and run the pipeline without specifying paths:
+
+```bash
+# Install reference bundles (one-time)
+vartriage bundle download --bundle clinvar
+vartriage bundle download --bundle gnomad-exomes-chr22
+vartriage bundle download --bundle gencode
+vartriage bundle download --bundle revel
+
+# Run using installed bundles (paths auto-resolved)
+vartriage \
+  --vcf patient_exome.vcf.gz \
+  --output results.json \
+  --use-bundles
+```
+
+No `--gnomad`, `--clinvar`, `--gene-annotation`, or `--revel-scores` flags needed. The pipeline finds them in `~/.vartriage/bundles/grch38/`.
+
+### Mixing bundles with explicit paths
+
+Bundles fill in what you don't specify. Explicit paths take priority:
+
+```bash
+# Uses bundle gnomAD + GENCODE, but your own ClinVar file
+vartriage \
+  --vcf patient.vcf.gz \
+  --output results.json \
+  --use-bundles \
+  --clinvar /data/custom_clinvar_2026.tsv
+```
+
+### Python API with bundles
+
+```python
+from pathlib import Path
+from vartriage import Pipeline, PipelineConfig, ReportConfig
+
+config = PipelineConfig(
+    vcf_path=Path("patient.vcf.gz"),
+    output_path=Path("results.json"),
+    report=ReportConfig(output_format="json"),
+    use_bundles=True,
+    genome_build="grch38",
+)
+
+pipeline = Pipeline(config)
+pipeline.run()
+```
+
+### Checking what's installed
+
+```bash
+# List available vs installed bundles
+vartriage bundle list
+
+# Detailed status with disk usage
+vartriage bundle status
+
+# Verify checksums of installed bundles
+vartriage bundle verify
+```
+
+### Clinical reports with bundles
+
+Combine `--use-bundles` with clinical output for a zero-config clinical workflow:
+
+```bash
+vartriage \
+  --vcf patient.vcf.gz \
+  --output report.html \
+  --output-format clinical-html \
+  --patient-id PAT-2026-100 \
+  --panel-name "Cardiac Panel v3" \
+  --use-bundles \
+  --gene-list refs/cardiac_panel.txt
+```
+
+Only the gene list needs to be specified explicitly (it's project-specific, not a standard reference).
+
+### Custom storage location
+
+Override the default bundle storage path:
+
+```bash
+export VARTRIAGE_BUNDLE_STORAGE=/shared/genomics/vartriage_bundles
+
+# Downloads go to /shared/genomics/vartriage_bundles/grch38/clinvar/
+vartriage bundle download --bundle clinvar
+
+# Pipeline picks them up from the same location
+vartriage --vcf input.vcf.gz --output out.json --use-bundles
+```
+
+Or pass `--dest` for a single download:
+
+```bash
+vartriage bundle download --bundle clinvar --dest /tmp/bundles
+```
+
+### GRCh37 builds
+
+For hg19/GRCh37 data, specify the build:
+
+```bash
+vartriage bundle download --bundle clinvar --build grch37
+vartriage --vcf hg19_sample.vcf.gz --output out.json --use-bundles --genome-build grch37
+```

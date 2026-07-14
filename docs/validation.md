@@ -92,7 +92,7 @@ The script produces four output files:
 
 ## Full-genome validation
 
-For comprehensive validation across all chromosomes:
+For full validation across all chromosomes:
 
 ```bash
 # Modify the script to use full gnomAD and CADD/REVEL scores

@@ -18,8 +18,10 @@ _OUTPUT_FIELDS: tuple[str, ...] = (
     "position",
     "ref_allele",
     "alt_allele",
+    "gene_name",
     "functional_consequence",
     "allele_frequency",
+    "revel_score",
     "composite_rank",
     "clinvar_assertion",
     "acmg_classification",
@@ -56,8 +58,10 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
     record["position"] = raw.pos
     record["ref_allele"] = raw.ref
     record["alt_allele"] = raw.alt
+    record["gene_name"] = annotated.gene_name
     record["functional_consequence"] = consequence
     record["allele_frequency"] = annotated.allele_frequency
+    record["revel_score"] = scored.revel_score
     record["composite_rank"] = scored.composite_rank
     record["clinvar_assertion"] = clinvar
     record["acmg_classification"] = classification

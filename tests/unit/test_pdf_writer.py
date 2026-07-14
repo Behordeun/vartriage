@@ -135,10 +135,10 @@ class TestReportlabPDFRenderer:
         )
         row = _extract_row(variant)
 
-        assert row[5] == "N/A"  # Allele Frequency
-        assert row[6] == "N/A"  # Composite Rank
-        assert row[7] == "N/A"  # ClinVar Assertion
-        assert row[9] == "N/A"  # Evidence Tags
+        assert row[6] == "N/A"  # Allele Frequency
+        assert row[8] == "N/A"  # Composite Rank
+        assert row[9] == "N/A"  # ClinVar Assertion
+        assert row[11] == "N/A"  # Evidence Tags
 
     def test_creates_parent_directories(self, tmp_path: Path) -> None:
         from vartriage.reporting.pdf_writer import ReportlabPDFRenderer

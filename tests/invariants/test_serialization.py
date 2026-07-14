@@ -92,6 +92,10 @@ def test_json_round_trip_preserves_field_values(
         assert record["ref_allele"] == raw.ref, f"Record {i}: ref_allele mismatch"
         assert record["alt_allele"] == raw.alt, f"Record {i}: alt_allele mismatch"
 
+        assert (
+            record["gene_name"] == annotated.gene_name
+        ), f"Record {i}: gene_name mismatch"
+
         expected_consequence = (
             annotated.consequence.value if annotated.consequence is not None else None
         )
@@ -108,6 +112,10 @@ def test_json_round_trip_preserves_field_values(
             ), f"Record {i}: allele_frequency should be float"
         else:
             assert record["allele_frequency"] is None
+
+        assert (
+            record["revel_score"] == scored.revel_score
+        ), f"Record {i}: revel_score mismatch"
 
         assert (
             record["composite_rank"] == scored.composite_rank
@@ -168,8 +176,10 @@ def test_json_output_field_order(
         "position",
         "ref_allele",
         "alt_allele",
+        "gene_name",
         "functional_consequence",
         "allele_frequency",
+        "revel_score",
         "composite_rank",
         "clinvar_assertion",
         "acmg_classification",
