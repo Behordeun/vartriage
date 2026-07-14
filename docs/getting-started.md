@@ -4,7 +4,7 @@
 
 - Python 3.10+
 - A VCF file (`.vcf` or `.vcf.gz` with `.tbi` index)
-- Reference files for annotation (gnomAD, gene models, optionally ClinVar)
+- Reference files for annotation (gnomAD, gene models, optionally ClinVar) **or** API mode (`pip install vartriage[api]`) which queries remote services instead
 
 ## Installation
 
@@ -24,6 +24,12 @@ With PDF report support:
 
 ```bash
 pip install vartriage[pdf]
+```
+
+With API annotation mode (no local reference files needed):
+
+```bash
+pip install vartriage[api]
 ```
 
 Everything:

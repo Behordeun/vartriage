@@ -30,3 +30,5 @@ pipeline.run()
 ```
 
 See [Getting Started](getting-started.md) for installation options and a full walkthrough.
+
+For zero-config annotation without local reference files, see [API Mode](api-mode.md).

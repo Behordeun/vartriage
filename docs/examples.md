@@ -470,3 +470,86 @@ For hg19/GRCh37 data, specify the build:
 vartriage bundle download --bundle clinvar --build grch37
 vartriage --vcf hg19_sample.vcf.gz --output out.json --use-bundles --genome-build grch37
 ```
+
+## API annotation mode
+
+### Gene panel with zero local files
+
+No reference file downloads needed. Queries Ensembl VEP, ClinVar, and CADD via HTTP:
+
+```bash
+pip install vartriage[api]
+
+vartriage \
+  --vcf gene_panel.vcf.gz \
+  --output panel_results.json \
+  --mode api
+```
+
+Typical time: under 30 seconds for a 50-variant panel.
+
+### Hybrid mode: local gnomAD + API for the rest
+
+Use a local gnomAD file you already have, let the API handle ClinVar and consequence annotation:
+
+```bash
+vartriage \
+  --vcf sample.vcf.gz \
+  --output results.json \
+  --mode hybrid \
+  --gnomad refs/gnomad.v4.exomes.tsv
+```
+
+### API mode with clinical report
+
+Combine API annotation with clinical report generation:
+
+```bash
+vartriage \
+  --vcf patient_panel.vcf.gz \
+  --output clinical_report.html \
+  --output-format clinical-html \
+  --mode api \
+  --patient-id PAT-2026-055 \
+  --panel-name "Epilepsy Gene Panel" \
+  --revel-scores refs/revel_v1.3.tsv
+```
+
+REVEL scores require a local file (no public API). All other annotations come from the network.
+
+### Python API with API mode
+
+```python
+from pathlib import Path
+from vartriage import Pipeline, PipelineConfig, ReportConfig
+from vartriage.api import APIConfig
+
+config = PipelineConfig(
+    vcf_path=Path("panel.vcf.gz"),
+    output_path=Path("results.json"),
+    report=ReportConfig(output_format="json"),
+    api=APIConfig(mode="api", genome_build="grch38"),
+)
+
+pipeline = Pipeline(config)
+pipeline.run()
+```
+
+### Cache management
+
+```bash
+# Check cache stats (entries, disk size, hit rate)
+vartriage api cache stats
+
+# Clear the cache to force fresh API queries
+vartriage api cache clear
+```
+
+### Performance note
+
+API mode is 20-130x slower than local mode depending on variant count. For whole-exome or whole-genome datasets, use local mode with the bundle downloader instead:
+
+```bash
+vartriage bundle download --bundle all
+vartriage --vcf wgs.vcf.gz --output results.json --use-bundles
+```

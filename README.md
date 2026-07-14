@@ -41,6 +41,7 @@ Optional extras:
 pip install vartriage[accelerated]   # polars + pyranges backends
 pip install vartriage[pdf]           # reportlab PDF reports
 pip install vartriage[clinical]      # weasyprint + python-docx for clinical reports
+pip install vartriage[api]           # httpx for API annotation mode
 pip install vartriage[all]           # everything
 ```
 
@@ -65,6 +66,23 @@ vartriage bundle download --bundle gnomad-exomes-chr22
 # Run with auto-resolved reference paths
 vartriage --vcf sample.vcf.gz --output results.json --use-bundles
 ```
+
+### API mode (new in v0.7.0)
+
+Annotate variants via remote APIs with zero local reference files:
+
+```bash
+# Gene panel, no downloads needed
+vartriage --vcf panel.vcf --output results.json --mode api
+
+# Hybrid: local gnomAD + API for ClinVar/CADD
+vartriage --vcf panel.vcf --output results.json --mode hybrid --gnomad gnomad.tsv
+
+# With NCBI API key for faster ClinVar queries
+vartriage --vcf panel.vcf --output results.json --mode api --api-key YOUR_KEY
+```
+
+Queries Ensembl VEP, ClinVar, CADD, and SpliceAI. Responses are cached in SQLite for instant re-runs. See [docs/api-mode.md](docs/api-mode.md) for configuration and performance details.
 
 ### Full options
 
