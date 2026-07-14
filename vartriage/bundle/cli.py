@@ -15,13 +15,9 @@ from typing import Any
 from vartriage.bundle._checksums import compute_sha256
 from vartriage.bundle._disk import format_bytes
 from vartriage.bundle.config import BundleConfig
-from vartriage.bundle.downloader import (
-    BatchDownloadResult,
-    BundleDownloader,
-    DownloadError,
-    DownloadRequest,
-    download_many,
-)
+from vartriage.bundle.downloader import (BatchDownloadResult, BundleDownloader,
+                                         DownloadError, DownloadRequest,
+                                         download_many)
 from vartriage.bundle.manifest import BundleManifest
 from vartriage.bundle.registry import BundleEntry, BundleRegistry
 from vartriage.bundle.storage import BundleStorage
@@ -400,7 +396,9 @@ def _cmd_list(args: argparse.Namespace, config: BundleConfig, build: str) -> int
     return 0
 
 
-def _print_list_json(available: list[BundleEntry], storage: BundleStorage, build: str) -> None:
+def _print_list_json(
+    available: list[BundleEntry], storage: BundleStorage, build: str
+) -> None:
     """Print bundle list as JSON."""
     output = []
     for entry in available:
@@ -418,7 +416,9 @@ def _print_list_json(available: list[BundleEntry], storage: BundleStorage, build
     print(json.dumps(output, indent=2))
 
 
-def _print_list_table(available: list[BundleEntry], storage: BundleStorage, build: str) -> None:
+def _print_list_table(
+    available: list[BundleEntry], storage: BundleStorage, build: str
+) -> None:
     """Print bundle list as formatted table."""
     print(f"Score bundles for {build}:")
     print(f"{'Name':<22} {'Version':<10} {'Status':<12} {'Description'}")

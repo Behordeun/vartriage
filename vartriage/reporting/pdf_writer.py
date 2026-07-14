@@ -98,7 +98,9 @@ def _extract_row(variant: ClassifiedVariant) -> list[str]:
         _format_value(annotated.gene_name),
         _format_value(consequence_str),
         _format_value(af_str),
-        _format_value(f"{scored.revel_score:.4f}" if scored.revel_score is not None else None),
+        _format_value(
+            f"{scored.revel_score:.4f}" if scored.revel_score is not None else None
+        ),
         _format_value(rank_str),
         _format_value(clinvar_str),
         _format_value(classification_str),
