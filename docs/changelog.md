@@ -2,6 +2,32 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0] - 2026-07-14
+
+### Added
+
+- **API annotation mode** (`--mode api|hybrid`): query Ensembl VEP, ClinVar E-utilities, CADD, and SpliceAI via HTTP instead of local reference files. Zero-config variant triage for gene panels and exploratory analysis.
+- **Ensembl VEP client**: batch POST annotation (200 variants/request) with consequence, gene symbol, gnomAD frequency, and CADD Phred extraction. VEP Sequence Ontology terms mapped to FunctionalConsequence enum across 14 severity ranks. GRCh37 and GRCh38 support.
+- **ClinVar E-utilities client**: esearch + esummary lookups with clinical significance mapping, review status ranking for conflicting interpretations, and NCBI API key support for higher rate limits.
+- **CADD REST API client**: position-based Phred score lookups with ref/alt allele filtering. Used as fallback when VEP's CADD plugin has no pre-computed score.
+- **SpliceAI Lookup client**: max delta score extraction with consequence-based smart filtering (only queries splice-relevant variants to conserve rate limit).
+- **API annotation engine**: composes VEP + ClinVar into the same `annotate()` interface as the local engine. Concurrent ClinVar lookups via ThreadPoolExecutor.
+- **API score provider**: CADD score hierarchy (VEP plugin first, standalone API fallback) and SpliceAI lookups. Documents REVEL limitation (no API exists).
+- **Response caching**: SQLite-backed at `~/.vartriage/api_cache.db` with configurable TTL (7 days default, 30 days for ClinVar). Pinned mode (`cache_ttl_days = -1`) for clinical reproducibility.
+- **Resilience stack**: token bucket rate limiter (per-service with daily caps), circuit breaker (CLOSED/OPEN/HALF_OPEN with 60s recovery), exponential backoff retry (1s/2s/4s, max 3), Retry-After header parsing.
+- **VCF-to-VEP notation converter**: handles SNVs, deletions, insertions, MNVs, complex indels, and chr prefix stripping.
+- CLI flags: `--mode` (local/api/hybrid), `--api-key` (NCBI), `--no-confirm` (skip large-run prompt).
+- HTTP proxy support via `HTTPS_PROXY`/`HTTP_PROXY` env vars and `[api.proxy]` TOML config.
+- User-Agent header on all requests identifying vartriage version and project URL.
+- `docs/api-mode.md` user guide.
+- `pip install vartriage[api]` optional dependency group (httpx).
+
+### Changed
+
+- `PipelineConfig` accepts an optional `api` field for API backend configuration.
+- `Pipeline.run()` routes to `APIAnnotationEngine` when API mode is active.
+- `pyproject.toml`: added `api` and updated `all` optional dependency groups.
+
 ## [0.6.0] - 2026-07-13
 
 ### Added

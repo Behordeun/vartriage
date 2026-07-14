@@ -341,3 +341,72 @@ vartriage --vcf patient.vcf.gz --output results.json --use-bundles --genome-buil
 ```
 
 Explicitly provided paths always take precedence over bundle resolution. See [docs/bundles.md](bundles.md) for the full bundle user guide.
+
+## API Configuration (v0.7.0+)
+
+Configure the API annotation backend via `~/.vartriage/config.toml`:
+
+```toml
+[api]
+mode = "local"                        # "local" | "api" | "hybrid"
+genome_build = "grch38"               # "grch37" | "grch38"
+ncbi_api_key = ""                     # or set NCBI_API_KEY env var
+cache_ttl_days = 7                    # -1 to pin indefinitely
+cache_path = "~/.vartriage/api_cache.db"
+vep_batch_size = 200                  # max 200 (Ensembl limit)
+max_retries = 3
+preferred_frequency_source = "gnomad_exome"  # or "gnomad_genome"
+
+[api.rate_limits]
+vep_requests_per_second = 15
+clinvar_requests_per_second = 10      # 3 without API key
+cadd_requests_per_second = 2
+spliceai_requests_per_minute = 5
+
+[api.timeouts]
+connect_seconds = 10
+read_seconds = 30
+
+[api.proxy]
+url = ""                              # e.g., "http://proxy:8080"
+```
+
+### APIConfig Fields
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `mode` | `Literal` | `"local"` | `"local"`, `"api"`, `"hybrid"` |
+| `genome_build` | `Literal` | `"grch38"` | `"grch37"`, `"grch38"` |
+| `ncbi_api_key` | `str \| None` | `None` | NCBI API key for ClinVar |
+| `cache_path` | `Path` | `~/.vartriage/api_cache.db` | SQLite cache location |
+| `cache_ttl_days` | `int` | `7` | Days until cache expiry. -1 = pinned |
+| `vep_batch_size` | `int` | `200` | 1 to 200 |
+| `max_retries` | `int` | `3` | 0 to 10 |
+| `connect_timeout` | `float` | `10.0` | Seconds |
+| `read_timeout` | `float` | `30.0` | Seconds |
+| `vep_rate_limit` | `float` | `15.0` | Requests/second |
+| `clinvar_rate_limit` | `float` | `10.0` | Requests/second (with key) |
+| `cadd_rate_limit` | `float` | `2.0` | Requests/second |
+| `spliceai_rate_limit` | `float` | `0.08` | Requests/second (5/min) |
+| `vep_daily_limit` | `int \| None` | `55000` | VEP daily request cap |
+| `proxy_url` | `str \| None` | `None` | HTTP proxy URL |
+| `preferred_frequency_source` | `Literal` | `"gnomad_exome"` | `"gnomad_exome"`, `"gnomad_genome"` |
+
+### Environment Variables
+
+| Variable | Overrides |
+|----------|-----------|
+| `NCBI_API_KEY` | `ncbi_api_key` |
+| `HTTPS_PROXY` | `proxy_url` |
+| `HTTP_PROXY` | `proxy_url` (lower priority than HTTPS_PROXY) |
+
+### Priority Order
+
+Settings merge with this precedence (highest wins):
+
+1. CLI flags (`--mode`, `--api-key`)
+2. Environment variables
+3. TOML config file (`~/.vartriage/config.toml` `[api]` section)
+4. Built-in defaults
+
+See [docs/api-mode.md](api-mode.md) for the full API mode user guide.
