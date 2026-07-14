@@ -305,18 +305,54 @@ class ClinicalReportGenerator:
         return cards
 
     def _collect_limitations(self, variants: list[ClassifiedVariant]) -> list[str]:
-        """Collect all missing data source names for limitations."""
-        all_sources: set[str] = set()
-        for v in variants:
-            all_sources.update(v.missing_data_sources)
+        """Collect limitations from per-variant missing data lookups.
 
+        Distinguishes between data sources that were configured but had
+        no match for specific variants (common for large call sets) vs.
+        sources that were never provided. Uses reference_checksums to
+        determine which sources were actually loaded.
+        """
+        # Count per-source how many variants had no lookup match
+        source_counts: dict[str, int] = {}
+        for v in variants:
+            for src in v.missing_data_sources:
+                source_counts[src] = source_counts.get(src, 0) + 1
+
+        if not source_counts:
+            return []
+
+        # Determine which sources were configured by checking reference checksums
+        configured_sources: set[str] = set()
+        checksum_keys_lower = " ".join(self._reference_checksums.keys()).lower()
+        if "gnomad" in checksum_keys_lower:
+            configured_sources.add("gnomAD")
+        if "clinvar" in checksum_keys_lower:
+            configured_sources.add("ClinVar")
+        if "revel" in checksum_keys_lower:
+            configured_sources.add("REVEL")
+        if "spliceai" in checksum_keys_lower:
+            configured_sources.add("SpliceAI")
+        if "cadd" in checksum_keys_lower:
+            configured_sources.add("CADD")
+
+        total = len(variants)
         limitations: list[str] = []
-        for source in sorted(all_sources):
-            limitations.append(
-                f"{source} data was not available during "
-                f"classification, which may affect evidence "
-                f"tag assignment for affected variants."
-            )
+        for source in sorted(source_counts):
+            count = source_counts[source]
+            if source in configured_sources:
+                limitations.append(
+                    f"{source} reference was queried but {count:,} of "
+                    f"{total:,} variants ({100 * count / total:.1f}%) had "
+                    f"no matching entry. This is expected for variants "
+                    f"outside the dataset's coverage (e.g., novel or "
+                    f"non-coding variants)."
+                )
+            else:
+                limitations.append(
+                    f"{source} data was not provided for this analysis. "
+                    f"{count:,} variants could not be evaluated for the "
+                    f"corresponding evidence criteria."
+                )
         return limitations
 
     def _build_methodology(self, timestamp: str) -> MethodologyData:
