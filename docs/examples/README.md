@@ -6,12 +6,12 @@ without needing to run the full pipeline.
 
 ## Files
 
-| File                                     | Description                                                       |
-| ---------------------------------------- | ----------------------------------------------------------------- |
-| `sample_clinical_report.html`            | Self-contained clinical HTML report for a hereditary cancer panel |
-| `sample_clinical_report.html.audit.json` | Audit trail sidecar for the clinical report                       |
+| File                                     | Description                                                           |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| `sample_clinical_report.html`            | Self-contained clinical HTML report for a hereditary cancer panel     |
+| `sample_clinical_report.html.audit.json` | Audit trail sidecar for the clinical report                           |
 | `sample_pipeline_output.json`            | Standard JSON output with gene_name, revel_score, and all ACMG fields |
-| `sample_pipeline_output.csv`             | CSV equivalent (12 columns: chromosome through evidence_tags)     |
+| `sample_pipeline_output.csv`             | CSV equivalent (12 columns: chromosome through evidence_tags)         |
 
 ## How these were generated
 
@@ -102,4 +102,3 @@ vartriage \
 
 Local files take priority where provided. The pipeline queries APIs
 only for sources without a local path.
-
