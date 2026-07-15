@@ -275,17 +275,29 @@ class VEPClient:
                 parsed_by_input[input_str] = entry
 
         # Match responses back to input variants
-        for idx_in_uncached, notation in enumerate(vep_notations):
-            original_idx = uncached_indices[idx_in_uncached]
-            entry = parsed_by_input.get(notation)
+        self._store_results(
+            parsed_by_input, vep_notations, uncached_indices,
+            uncached_variants, results, release,
+        )
+        return results
 
+    def _store_results(
+        self,
+        parsed_by_input: dict[str, Any],
+        vep_notations: list[str],
+        uncached_indices: list[int],
+        uncached_variants: list[tuple[str, int, str, str]],
+        results: list[Optional[VEPAnnotation]],
+        release: Optional[str],
+    ) -> None:
+        """Parse VEP responses, populate results, and cache entries."""
+        for idx_in_uncached, notation in enumerate(vep_notations):
+            entry = parsed_by_input.get(notation)
             if entry is None:
                 continue
 
-            annotation = self._parse_vep_entry(entry)
-            results[original_idx] = annotation
+            results[uncached_indices[idx_in_uncached]] = self._parse_vep_entry(entry)
 
-            # Cache the raw entry
             chrom, pos, ref, alt = uncached_variants[idx_in_uncached]
             cache_key = ResponseCache.build_key(
                 "vep", self._genome_build, chrom, pos, ref, alt
@@ -297,8 +309,6 @@ class VEPClient:
                 genome_build=self._genome_build,
                 source_version=f"Ensembl {release}" if release else None,
             )
-
-        return results
 
     def _parse_vep_entry(self, entry: dict[str, Any]) -> VEPAnnotation:
         """Extract structured annotation from a single VEP response object."""
@@ -389,21 +399,26 @@ class VEPClient:
 
         for variant in colocated:
             frequencies = variant.get("frequencies", {})
-            # frequencies is keyed by allele: {"A": {"gnomade_af": 0.002}}
-            for allele, sources in frequencies.items():
-                if not isinstance(sources, dict):
-                    continue
-                if primary_key in sources:
-                    try:
-                        return float(sources[primary_key])
-                    except (ValueError, TypeError):
-                        continue
-                if fallback_key in sources:
-                    try:
-                        return float(sources[fallback_key])
-                    except (ValueError, TypeError):
-                        continue
+            for _allele, sources in frequencies.items():
+                freq = self._freq_from_sources(sources, primary_key, fallback_key)
+                if freq is not None:
+                    return freq
 
+        return None
+
+    @staticmethod
+    def _freq_from_sources(
+        sources: object, primary_key: str, fallback_key: str
+    ) -> Optional[float]:
+        """Try to extract a float frequency from a sources dict."""
+        if not isinstance(sources, dict):
+            return None
+        for key in (primary_key, fallback_key):
+            if key in sources:
+                try:
+                    return float(sources[key])
+                except (ValueError, TypeError):
+                    continue
         return None
 
     def close(self) -> None:
