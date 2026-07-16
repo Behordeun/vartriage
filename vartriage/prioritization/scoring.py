@@ -390,6 +390,12 @@ def score_variants(
             revel_score=revel_validated[i],
             spliceai_score=splice_score,
             composite_rank=composite,
+            prioritization_score=compute_prioritization_score(
+                consequence=variant.consequence,
+                revel_score=revel_validated[i],
+                spliceai_score=splice_score,
+                cadd_phred=raw_cadd,
+            ),
         )
         scored.append(scored_variant)
 
