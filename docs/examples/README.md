@@ -6,12 +6,12 @@ without needing to run the full pipeline.
 
 ## Files
 
-| File                                     | Description                                                       |
-| ---------------------------------------- | ----------------------------------------------------------------- |
-| `sample_clinical_report.html`            | Self-contained clinical HTML report for a hereditary cancer panel |
-| `sample_clinical_report.html.audit.json` | Audit trail sidecar for the clinical report                       |
-| `sample_pipeline_output.json`            | Standard JSON output from a prioritized exome run                 |
-| `sample_pipeline_output.csv`             | CSV equivalent of the JSON output                                 |
+| File                                     | Description                                                           |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| `sample_clinical_report.html`            | Self-contained clinical HTML report for a hereditary cancer panel     |
+| `sample_clinical_report.html.audit.json` | Audit trail sidecar for the clinical report                           |
+| `sample_pipeline_output.json`            | Standard JSON output with gene_name, revel_score, and all ACMG fields |
+| `sample_pipeline_output.csv`             | CSV equivalent (12 columns: chromosome through evidence_tags)         |
 
 ## How these were generated
 
@@ -70,3 +70,35 @@ vartriage \
   --cadd-scores refs/cadd_v1.7.tsv \
   --revel-scores refs/revel_v1.3.tsv
 ```
+
+### API mode (no local reference files)
+
+```bash
+pip install vartriage[api]
+
+vartriage \
+  --vcf synthetic_exome.vcf.gz \
+  --output sample_api_output.json \
+  --output-format json \
+  --mode api
+```
+
+API mode queries Ensembl VEP, ClinVar, and CADD via HTTP. Responses
+are cached locally in SQLite (`~/.vartriage/api_cache.db`) so repeated
+runs complete instantly. See [docs/api-mode.md](../api-mode.md) for
+full configuration and performance details.
+
+### Hybrid mode (local gnomAD + API for the rest)
+
+```bash
+vartriage \
+  --vcf synthetic_exome.vcf.gz \
+  --output sample_hybrid_output.json \
+  --output-format json \
+  --mode hybrid \
+  --gnomad refs/gnomad.v4.exomes.tsv \
+  --revel-scores refs/revel_v1.3.tsv
+```
+
+Local files take priority where provided. The pipeline queries APIs
+only for sources without a local path.

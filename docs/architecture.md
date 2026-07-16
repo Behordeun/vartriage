@@ -48,6 +48,28 @@ vartriage/
     └── warning_accumulator.py  # Warning collection + threshold
 ```
 
+## API annotation backend (v0.7.0+)
+
+```text
+vartriage/api/
+├── __init__.py              # Lazy exports (APIConfig, APIAnnotationEngine, APIScoreProvider)
+├── _base.py                 # BaseAPIClient (retry, rate limit, circuit breaker, proxy)
+├── _rate_limiter.py         # Token bucket with daily caps
+├── _circuit_breaker.py      # CLOSED/OPEN/HALF_OPEN state machine
+├── _cache.py                # SQLite response cache with TTL + pinned mode
+├── _notation.py             # VCF-to-VEP coordinate converter
+├── _consequence_map.py      # SO term to FunctionalConsequence mapping (45 terms, 14 ranks)
+├── config.py                # APIConfig dataclass (TOML + env var loading)
+├── vep_client.py            # Ensembl VEP batch POST client
+├── clinvar_client.py        # NCBI ClinVar E-utilities client
+├── cadd_client.py           # CADD REST score lookups
+├── spliceai_client.py       # SpliceAI Lookup with smart filtering
+├── annotation_engine.py     # Composes VEP + ClinVar into annotate() interface
+└── score_provider.py        # CADD hierarchy + SpliceAI + REVEL limitation
+```
+
+The API package provides an alternative annotation backend that queries remote services instead of local files. All components use deferred httpx imports so that `import vartriage` works without httpx installed. The `BaseAPIClient` composes rate limiting, circuit breaking, and retry into a single request path shared by all service-specific clients. See [docs/api-mode.md](api-mode.md) for usage.
+
 ## Protocol-based backend system
 
 The library uses Python `Protocol` classes (structural subtyping) to define contracts between the orchestrator and backend implementations. These are declared in `protocols.py`.
@@ -78,11 +100,11 @@ To add a new annotation source (e.g., OMIM, SpliceAI):
 
 1. Define the Protocol in `protocols.py`:
 
-```python
-class SpliceAIDatabase(Protocol):
-    def load(self, reference_path: Path) -> None: ...
-    def lookup_batch(self, variants: list[tuple[str, int, str, str]]) -> list[Optional[float]]: ...
-```
+    ```python
+    class SpliceAIDatabase(Protocol):
+        def load(self, reference_path: Path) -> None: ...
+        def lookup_batch(self, variants: list[tuple[str, int, str, str]]) -> list[Optional[float]]: ...
+    ```
 
 2. Write the pure-Python implementation in `annotation/spliceai.py`.
 
@@ -106,6 +128,7 @@ class SpliceAIDatabase(Protocol):
 Currently cached: GTF interval trees, CADD score dicts, REVEL score dicts.
 
 Cache invalidation triggers:
+
 - Source file mtime changes (you downloaded a new GENCODE release, etc.)
 - vartriage version changes (internal data structures may have changed)
 - Cache file deleted manually
@@ -117,7 +140,7 @@ The atomic write ensures a crash during serialization won't leave a corrupt cach
 `AnnotationEngine` selects the frequency backend based on the file extension of `gnomad_path`:
 
 | Extension | Backend | Memory profile |
-|---|---|---|
+| --- | --- | --- |
 | `.vcf.bgz`, `.vcf.gz` | `TabixFrequencyDatabase` | Near-zero (queries on the fly) |
 | `.tsv`, `.tsv.gz` | `PolarsFrequencyDatabase` or `DictFrequencyDatabase` | Full dict in RAM |
 
