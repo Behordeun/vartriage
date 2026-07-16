@@ -67,6 +67,7 @@ class AnnotationConfig:
     gene_annotation_path: Path
     gnomad_path: Path
     clinvar_path: Optional[Path] = None
+    reference_fasta_path: Optional[Path] = None
     batch_size: int = 10_000
 
     def __post_init__(self) -> None:
