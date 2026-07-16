@@ -602,6 +602,7 @@ class TestJSONOutput:
             "allele_frequency",
             "revel_score",
             "composite_rank",
+            "prioritization_score",
             "clinvar_assertion",
             "acmg_classification",
             "evidence_tags",
