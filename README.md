@@ -82,7 +82,7 @@ vartriage --vcf panel.vcf --output results.json --mode hybrid --gnomad gnomad.ts
 vartriage --vcf panel.vcf --output results.json --mode api --api-key YOUR_KEY
 ```
 
-Queries Ensembl VEP, ClinVar, CADD, and SpliceAI. Responses are cached in SQLite for instant re-runs. See [docs/api-mode.md](docs/api-mode.md) for configuration and performance details.
+Queries Ensembl VEP, ClinVar, CADD, and SpliceAI. Responses are cached in SQLite for instant re-runs. See [API Mode Guide](https://github.com/Behordeun/vartriage/blob/main/docs/api-mode.md) for configuration and performance details.
 
 ### Full options
 
@@ -375,7 +375,7 @@ vartriage/
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](https://github.com/Behordeun/vartriage/blob/main/CONTRIBUTING.md).
 
 ## License
 
