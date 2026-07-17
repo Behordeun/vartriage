@@ -433,27 +433,29 @@ def sort_by_composite_rank(variants: list[ScoredVariant]) -> list[ScoredVariant]
 
 
 def compute_prioritization_score(
-    consequence: "FunctionalConsequence",
+    consequence: FunctionalConsequence,
     revel_score: Optional[float],
     spliceai_score: Optional[float],
     cadd_phred: Optional[float],
 ) -> Optional[float]:
-    """Compute a prioritization score using validated, literature-backed logic.
+    """Compute a prioritization score: max across available predictor scores.
 
-    Strategy:
-    - Missense: use REVEL directly (validated 0.7 threshold for PP3)
-    - Splice-adjacent: use SpliceAI delta directly (validated 0.5 threshold)
-    - Other coding: use CADD Phred normalized to 0-1 (Phred / 60, capped)
-    - When multiple apply: take the maximum (most concerning wins)
-    - No scores available: return None
+    Takes the maximum of all available scores (REVEL, SpliceAI, normalized
+    CADD). The consequence parameter is retained for future use when
+    primary/secondary weighting may differ by variant type.
 
-    This replaces the unvalidated 0.4/0.6 weighted average. The score is
-    for sorting and triage, not a clinical classification threshold.
+    Score sources:
+    - REVEL: 0.0-1.0 (literature-validated 0.7 threshold for PP3)
+    - SpliceAI: 0.0-1.0 (literature-validated 0.5 threshold)
+    - CADD: Phred / 60, capped at 1.0 (normalized to same scale)
+
+    The final score is for sorting and triage, not a clinical
+    classification threshold.
 
     Parameters
     ----------
     consequence
-        Functional consequence of the variant.
+        Functional consequence (reserved for future weighted logic).
     revel_score
         Validated REVEL score (0.0-1.0) or None.
     spliceai_score
@@ -468,24 +470,11 @@ def compute_prioritization_score(
     """
     scores: list[float] = []
 
-    # REVEL: primary for missense (literature-validated)
-    if consequence == FunctionalConsequence.MISSENSE and revel_score is not None:
+    if revel_score is not None:
         scores.append(revel_score)
-
-    # SpliceAI: primary for splice-adjacent
-    if consequence == FunctionalConsequence.SPLICE_SITE and spliceai_score is not None:
+    if spliceai_score is not None:
         scores.append(spliceai_score)
-
-    # CADD: general deleteriousness (normalized to 0-1 scale)
     if cadd_phred is not None:
         scores.append(min(cadd_phred / 60.0, 1.0))
-
-    # REVEL as supplementary even for non-missense if available
-    if revel_score is not None and consequence != FunctionalConsequence.MISSENSE:
-        scores.append(revel_score)
-
-    # SpliceAI as supplementary for missense near splice sites
-    if spliceai_score is not None and consequence != FunctionalConsequence.SPLICE_SITE:
-        scores.append(spliceai_score)
 
     return max(scores) if scores else None

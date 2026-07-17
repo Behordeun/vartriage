@@ -11,10 +11,14 @@ import bisect
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from vartriage._internal.cache import try_load_cache, try_write_cache
 from vartriage.io.exceptions import ReferenceFileError
+
+if TYPE_CHECKING:
+    from vartriage.annotation.codon_resolver import CodonResolver
+    from vartriage.annotation.transcript_index import TranscriptCDSIndex
 
 logger = logging.getLogger(__name__)
 
@@ -140,8 +144,8 @@ class SortedArrayIntervalIndex:
         self._chromosomes: dict[str, _ChromIndex] = {}
         self._loaded: bool = False
         self._exon_boundaries: dict[str, list[tuple[int, int, str]]] = {}
-        self._codon_resolver: object = None
-        self._transcript_index: object = None
+        self._codon_resolver: Optional["CodonResolver"] = None
+        self._transcript_index: Optional["TranscriptCDSIndex"] = None
 
     def load(self, annotation_path: Path) -> None:
         """Load gene annotation from a GTF/GFF file.
@@ -190,7 +194,7 @@ class SortedArrayIntervalIndex:
 
         # Finalize transcript index for codon resolution
         if self._transcript_index is not None:
-            self._transcript_index.finalize()  # type: ignore[attr-defined]
+            self._transcript_index.finalize()
 
         self._loaded = True
 
@@ -280,7 +284,7 @@ class SortedArrayIntervalIndex:
             frame = int(parts[7]) if parts[7] != "." else 0
         except (ValueError, IndexError):
             frame = 0
-        self._transcript_index.add_cds_exon(  # type: ignore[attr-defined]
+        self._transcript_index.add_cds_exon( 
             transcript_id=transcript_id,
             gene_name=gene_name,
             chrom=chrom,
@@ -290,7 +294,7 @@ class SortedArrayIntervalIndex:
             frame=frame,
         )
 
-    def set_codon_resolver(self, resolver: object) -> None:
+    def set_codon_resolver(self, resolver: CodonResolver) -> None:
         """Attach a CodonResolver for amino acid-level consequence calling.
 
         When set, SNVs in CDS regions use proper codon resolution
@@ -299,7 +303,7 @@ class SortedArrayIntervalIndex:
         self._codon_resolver = resolver
 
     @property
-    def transcript_index(self) -> object:
+    def transcript_index(self) -> Optional[TranscriptCDSIndex]:
         """Access the TranscriptCDSIndex built during GTF parsing."""
         return self._transcript_index
 
@@ -448,7 +452,7 @@ def _determine_consequence(
     alt: str,
     feature_type: str,
     is_splice_site: bool,
-    codon_resolver: object = None,
+    codon_resolver: Optional[CodonResolver] = None,
     chrom: str = "",
     pos: int = 0,
     transcript_id: str = "",

@@ -31,7 +31,9 @@ _KNOWN_VARIANTS: list[tuple[str, int, str, str, FunctionalConsequence]] = [
     ("chr17", 43094452, "G", "A", FunctionalConsequence.MISSENSE),
     # BRAF V600 region (missense)
     ("chr7", 140753336, "A", "T", FunctionalConsequence.MISSENSE),
-    # TP53 common synonymous polymorphism (codon position 3)
+    # TP53 exon 5 region — VEP calls this missense despite being at codon
+    # position 3 (the wobble position can still change the amino acid for
+    # some codons; this tests that our SO mapping handles real VEP output)
     ("chr17", 7676154, "G", "A", FunctionalConsequence.MISSENSE),
     # Intergenic variant (far from any gene)
     ("chr1", 10000, "A", "T", FunctionalConsequence.INTERGENIC),
