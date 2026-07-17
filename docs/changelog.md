@@ -2,6 +2,35 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0] - 2026-07-16
+
+### Added
+
+- **Codon-level consequence calling** (`--reference-fasta`): SNVs in CDS regions now use actual amino acid comparison instead of the positional heuristic. Requires an indexed reference FASTA. Correctly distinguishes synonymous, missense, and nonsense changes by extracting the reference codon, substituting the variant base, and translating both codons.
+- **Variant normalization**: left-align and trim indels before gnomAD/ClinVar/score lookups using the reference FASTA (Tan et al. 2015 algorithm). Reduces silent lookup failures caused by representation differences between VCF callers and reference databases.
+- **Prioritization score** (`prioritization_score` output field): literature-backed scoring using REVEL directly for missense (validated 0.7 threshold), SpliceAI for splice-adjacent, CADD Phred/60 for non-missense. Replaces the unvalidated 0.4/0.6 weighted average as the recommended ranking method.
+- `TranscriptCDSIndex`: per-transcript CDS exon map built from GTF, enabling genomic-to-CDS position mapping for forward and reverse strand genes.
+- `CodonResolver`: FASTA-backed codon extraction with split-codon-at-exon-junction handling and negative-strand reverse complement.
+- `VariantNormalizer`: three-step normalization (right-trim, left-trim, left-align) with 1000-iteration safety cap.
+- `compute_prioritization_score()` function in scoring module.
+- Standard genetic code table (`_internal/genetic_code.py`) with `translate_codon()` and `reverse_complement()`.
+- 36 unit tests covering genetic code, transcript index, normalizer, and prioritization score.
+- 3 live VEP concordance integration tests (marked `@pytest.mark.slow`).
+
+### Changed
+
+- `ScoredVariant` now carries both `composite_rank` (legacy) and `prioritization_score` (new). Both synced via `__post_init__` when only one is set.
+- JSON output includes `prioritization_score` field alongside `composite_rank`.
+- `_determine_consequence()` accepts optional `codon_resolver` parameter; uses it for SNVs in CDS when available, falls back to positional heuristic without FASTA.
+- `AnnotationConfig` gains `reference_fasta_path: Optional[Path]` field.
+- GTF parsing now populates a `TranscriptCDSIndex` from CDS features (frame column extracted).
+
+### Notes
+
+- Without `--reference-fasta`, all behavior is unchanged from v0.7.0 (backward compatible).
+- The positional heuristic ("SNV in CDS = Missense") remains as a fallback. To get correct consequence calling, provide the reference FASTA.
+- `composite_rank` is deprecated in favor of `prioritization_score`. Both are present in output for backward compatibility. `composite_rank` will be removed in v1.0.0.
+
 ## [0.7.0] - 2026-07-14
 
 ### Added
