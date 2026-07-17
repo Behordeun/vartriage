@@ -20,6 +20,7 @@ def _make_scored_variant(
     frequency_unknown: bool = False,
     clinvar_unknown: bool = False,
     revel_score: float | None = 0.5,
+    spliceai_score: float | None = None,
     cadd_phred: float | None = 25.0,
 ) -> ScoredVariant:
     """Create a ScoredVariant with configurable fields for testing."""
@@ -48,6 +49,7 @@ def _make_scored_variant(
         cadd_phred=cadd_phred,
         cadd_normalized=cadd_normalized,
         revel_score=revel_score,
+        spliceai_score=spliceai_score,
         composite_rank=None,
     )
 
@@ -101,8 +103,9 @@ class TestClassifyCombiningWiring:
         """A variant with no evidence tags gets classified as VUS."""
         sv = _make_scored_variant(
             consequence=FunctionalConsequence.SYNONYMOUS,
-            allele_frequency=0.05,
+            allele_frequency=0.005,
             revel_score=0.3,
+            spliceai_score=0.5,
             clinvar_assertion=ClinVarAssertion.VUS,
         )
         classifier = ACMGClassifier()

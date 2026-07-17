@@ -30,6 +30,16 @@ _PP3_SPLICEAI_THRESHOLD: float = 0.5
 
 _PVS1_SPLICEAI_THRESHOLD: float = 0.8
 
+_BA1_AF_THRESHOLD: float = 0.05
+
+_BS1_AF_THRESHOLD: float = 0.01
+
+_BP4_REVEL_THRESHOLD: float = 0.15
+
+_BP4_CADD_THRESHOLD: float = 10.0
+
+_BP7_SPLICEAI_THRESHOLD: float = 0.1
+
 _PP3_SPLICE_ADJACENT: frozenset[FunctionalConsequence] = frozenset(
     {
         FunctionalConsequence.SPLICE_SITE,
@@ -118,6 +128,12 @@ class ACMGClassifier:
         self._evaluate_pp3(variant, tags, missing_sources)
         self._evaluate_pp5(variant, tags, missing_sources)
 
+        # Benign criteria
+        self._evaluate_ba1(variant, tags, missing_sources)
+        self._evaluate_bs1(variant, tags, missing_sources)
+        self._evaluate_bp4(variant, tags, missing_sources)
+        self._evaluate_bp7(variant, tags, missing_sources)
+
         return tags, missing_sources
 
     def _evaluate_pvs1(
@@ -162,24 +178,23 @@ class ACMGClassifier:
         tags: set[EvidenceTag],
         missing_sources: set[str],
     ) -> None:
-        """Assign PM2 if allele frequency is below 0.0001.
+        """Assign PM2 if allele frequency is below 0.0001 in ALL populations.
 
-        If gnomAD frequency data is unavailable (frequency_unknown is True and
-        allele_frequency is None), PM2 is omitted and gnomAD is recorded as a
-        missing data source.
-
-        Parameters
-        ----------
-        variant : ScoredVariant
-            The variant to evaluate.
-        tags : set[EvidenceTag]
-            Accumulator for assigned tags (mutated in place).
-        missing_sources : set[str]
-            Accumulator for missing data sources (mutated in place).
+        Uses population-specific frequencies when available. If any
+        population exceeds the threshold, PM2 does not fire (the variant
+        is not truly rare). Falls back to global AF when per-population
+        data is absent.
         """
         annotated = variant.annotated
-        af = annotated.allele_frequency
+        pop_freq = annotated.population_frequencies
 
+        if pop_freq is not None:
+            if pop_freq.all_below(_PM2_AF_THRESHOLD):
+                tags.add(EvidenceTag.PM2)
+            return
+
+        # Fallback: global AF
+        af = annotated.allele_frequency
         if af is None:
             missing_sources.add("gnomAD")
             return
@@ -278,4 +293,100 @@ class ACMGClassifier:
         elif assertion in _PP5_CONFLICTING_ASSERTIONS:
             # The assertion itself is Benign or Likely_Benign, so PP5
             # does not apply (this is the "conflicting" case).
+            pass
+
+    def _evaluate_ba1(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
+    ) -> None:
+        """Assign BA1 if any population AF exceeds 5%.
+
+        BA1 is standalone benign evidence. If population-specific
+        frequencies are available, checks each population. Falls back
+        to global AF when per-population data is absent.
+        """
+        annotated = variant.annotated
+        pop_freq = annotated.population_frequencies
+
+        if pop_freq is not None:
+            if pop_freq.any_exceeds(_BA1_AF_THRESHOLD):
+                tags.add(EvidenceTag.BA1)
+
+        else:
+            # Fallback to global AF
+            af = annotated.allele_frequency
+            if af is not None and af > _BA1_AF_THRESHOLD:
+                tags.add(EvidenceTag.BA1)
+
+    def _evaluate_bs1(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
+    ) -> None:
+        """Assign BS1 if any population AF exceeds 1%.
+
+        Only fires when BA1 has not already been assigned (BA1 is
+        stronger and subsumes BS1 in the combining rules).
+        """
+        if EvidenceTag.BA1 in tags:
+            return
+
+        annotated = variant.annotated
+        pop_freq = annotated.population_frequencies
+
+        if pop_freq is not None:
+            if pop_freq.any_exceeds(_BS1_AF_THRESHOLD):
+                tags.add(EvidenceTag.BS1)
+
+        else:
+            af = annotated.allele_frequency
+            if af is not None and af > _BS1_AF_THRESHOLD:
+                tags.add(EvidenceTag.BS1)
+
+    def _evaluate_bp4(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
+    ) -> None:
+        """Assign BP4 for computational benign evidence.
+
+        BP4 fires when:
+        - Missense with REVEL < 0.15 (computational evidence suggests no impact)
+        - Non-missense with CADD Phred < 10
+        """
+        consequence = variant.annotated.consequence
+
+        if consequence == FunctionalConsequence.MISSENSE:
+            revel = variant.revel_score
+            if revel is not None and revel < _BP4_REVEL_THRESHOLD:
+                tags.add(EvidenceTag.BP4)
+        else:
+            cadd = variant.cadd_phred
+            if cadd is not None and cadd < _BP4_CADD_THRESHOLD:
+                tags.add(EvidenceTag.BP4)
+
+    def _evaluate_bp7(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
+    ) -> None:
+        """Assign BP7 for synonymous variants with no splice impact.
+
+        Fires when the variant is synonymous AND SpliceAI < 0.1
+        (no predicted splice disruption).
+        """
+        if variant.annotated.consequence != FunctionalConsequence.SYNONYMOUS:
+            return
+
+        spliceai = variant.spliceai_score
+        if spliceai is not None and spliceai < _BP7_SPLICEAI_THRESHOLD:
+            tags.add(EvidenceTag.BP7)
+        elif spliceai is None:
+            # Without SpliceAI, we can't confirm no splice impact
+            # BP7 requires negative splice evidence, so don't fire
             pass
