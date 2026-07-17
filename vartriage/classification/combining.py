@@ -10,7 +10,10 @@ Pathogenic Combining Rules:
 
 Benign Combining Rules:
 - BENIGN: 1 BA (standalone), or 2 BS
-- LIKELY_BENIGN: 1 BS + 1 BP, or 2 BP (when no pathogenic evidence)
+- LIKELY_BENIGN: 1 BS + 1 BP
+
+Note: 2 BP alone is insufficient for classification change per ACMG
+Table 5 (returns VUS). This is intentional.
 
 Conflicting Evidence:
 - Pathogenic + Benign evidence present = VUS with conflict flag

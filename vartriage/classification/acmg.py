@@ -183,12 +183,23 @@ class ACMGClassifier:
         Uses population-specific frequencies when available. If any
         population exceeds the threshold, PM2 does not fire (the variant
         is not truly rare). Falls back to global AF when per-population
-        data is absent.
+        data is absent. Treats all-None population data as missing.
         """
         annotated = variant.annotated
         pop_freq = annotated.population_frequencies
 
         if pop_freq is not None:
+            # Guard: if all population fields are None, treat as missing data
+            has_any_data = any(
+                v is not None for v in (
+                    pop_freq.afr, pop_freq.amr, pop_freq.asj,
+                    pop_freq.eas, pop_freq.fin, pop_freq.nfe,
+                    pop_freq.sas, pop_freq.global_af,
+                )
+            )
+            if not has_any_data:
+                missing_sources.add("gnomAD")
+                return
             if pop_freq.all_below(_PM2_AF_THRESHOLD):
                 tags.add(EvidenceTag.PM2)
             return
@@ -357,8 +368,18 @@ class ACMGClassifier:
         BP4 fires when:
         - Missense with REVEL < 0.15 (computational evidence suggests no impact)
         - Non-missense with CADD Phred < 10
+
+        Does NOT fire for null variants (frameshift/nonsense) where
+        computational predictors are not appropriate for benign evidence.
         """
         consequence = variant.annotated.consequence
+
+        # Null variants should not receive computational benign evidence
+        if consequence in (
+            FunctionalConsequence.FRAMESHIFT,
+            FunctionalConsequence.NONSENSE,
+        ):
+            return
 
         if consequence == FunctionalConsequence.MISSENSE:
             revel = variant.revel_score

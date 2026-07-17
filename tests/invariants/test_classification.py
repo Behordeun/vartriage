@@ -288,8 +288,21 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
         expected_tags.add(EvidenceTag.PVS1)
 
     # PM2: AF < 0.0001 (skip if AF is None)
+    # PM2: AF < 0.0001 in ALL populations (population-aware)
     af = variant.annotated.allele_frequency
-    if af is not None and af < 0.0001:
+    pop_freq = variant.annotated.population_frequencies
+
+    if pop_freq is not None:
+        has_any_data = any(
+            v is not None for v in (
+                pop_freq.afr, pop_freq.amr, pop_freq.asj,
+                pop_freq.eas, pop_freq.fin, pop_freq.nfe,
+                pop_freq.sas, pop_freq.global_af,
+            )
+        )
+        if has_any_data and pop_freq.all_below(0.0001):
+            expected_tags.add(EvidenceTag.PM2)
+    elif af is not None and af < 0.0001:
         expected_tags.add(EvidenceTag.PM2)
 
     # PP3: REVEL > 0.7 OR SpliceAI > 0.5 on splice-adjacent
@@ -333,13 +346,15 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
             expected_tags.add(EvidenceTag.BS1)
 
     # BP4: computational benign (missense REVEL < 0.15, or non-missense CADD < 10)
-    if consequence == FunctionalConsequence.MISSENSE:
-        if revel is not None and revel < 0.15:
-            expected_tags.add(EvidenceTag.BP4)
-    else:
-        cadd = variant.cadd_phred
-        if cadd is not None and cadd < 10.0:
-            expected_tags.add(EvidenceTag.BP4)
+    # Does NOT fire for null variants (frameshift/nonsense)
+    if consequence not in (FunctionalConsequence.FRAMESHIFT, FunctionalConsequence.NONSENSE):
+        if consequence == FunctionalConsequence.MISSENSE:
+            if revel is not None and revel < 0.15:
+                expected_tags.add(EvidenceTag.BP4)
+        else:
+            cadd = variant.cadd_phred
+            if cadd is not None and cadd < 10.0:
+                expected_tags.add(EvidenceTag.BP4)
 
     # BP7: synonymous + SpliceAI < 0.1
     if consequence == FunctionalConsequence.SYNONYMOUS:
