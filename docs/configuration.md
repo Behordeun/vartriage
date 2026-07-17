@@ -374,7 +374,7 @@ url = ""                              # e.g., "http://proxy:8080"
 ### APIConfig Fields
 
 | Field | Type | Default | Notes |
-|-------|------|---------|-------|
+| ------- | ------ | --------- | --------- | --------- | ------- |
 | `mode` | `Literal` | `"local"` | `"local"`, `"api"`, `"hybrid"` |
 | `genome_build` | `Literal` | `"grch38"` | `"grch37"`, `"grch38"` |
 | `ncbi_api_key` | `str \| None` | `None` | NCBI API key for ClinVar |
@@ -395,7 +395,7 @@ url = ""                              # e.g., "http://proxy:8080"
 ### Environment Variables
 
 | Variable | Overrides |
-|----------|-----------|
+| ------- | --------- | ----------- |
 | `NCBI_API_KEY` | `ncbi_api_key` |
 | `HTTPS_PROXY` | `proxy_url` |
 | `HTTP_PROXY` | `proxy_url` (lower priority than HTTPS_PROXY) |

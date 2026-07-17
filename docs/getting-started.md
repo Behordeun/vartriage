@@ -5,6 +5,7 @@
 - Python 3.10+
 - A VCF file (`.vcf` or `.vcf.gz` with `.tbi` index)
 - Reference files for annotation (gnomAD, gene models, optionally ClinVar) **or** API mode (`pip install vartriage[api]`) which queries remote services instead
+- Reference genome FASTA with index (optional, enables codon-level consequence calling and variant normalization)
 
 ## Installation
 

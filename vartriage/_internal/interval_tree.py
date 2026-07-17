@@ -11,10 +11,14 @@ import bisect
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from vartriage._internal.cache import try_load_cache, try_write_cache
 from vartriage.io.exceptions import ReferenceFileError
+
+if TYPE_CHECKING:
+    from vartriage.annotation.codon_resolver import CodonResolver
+    from vartriage.annotation.transcript_index import TranscriptCDSIndex
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +144,8 @@ class SortedArrayIntervalIndex:
         self._chromosomes: dict[str, _ChromIndex] = {}
         self._loaded: bool = False
         self._exon_boundaries: dict[str, list[tuple[int, int, str]]] = {}
+        self._codon_resolver: Optional["CodonResolver"] = None
+        self._transcript_index: Optional["TranscriptCDSIndex"] = None
 
     def load(self, annotation_path: Path) -> None:
         """Load gene annotation from a GTF/GFF file.
@@ -185,6 +191,10 @@ class SortedArrayIntervalIndex:
 
         for chrom_idx in self._chromosomes.values():
             chrom_idx.finalize()
+
+        # Finalize transcript index for codon resolution
+        if self._transcript_index is not None:
+            self._transcript_index.finalize()
 
         self._loaded = True
 
@@ -250,10 +260,52 @@ class SortedArrayIntervalIndex:
                 self._chromosomes[chrom] = _ChromIndex()
             self._chromosomes[chrom].add(interval)
 
+        if feature_type == "CDS" and transcript_id:
+            self._index_cds_exon(parts, transcript_id, gene_name, chrom, start, end, strand)
+
         if feature_type == "exon":
-            if chrom not in self._exon_boundaries:
-                self._exon_boundaries[chrom] = []
-            self._exon_boundaries[chrom].append((start, end, transcript_id))
+            self._exon_boundaries.setdefault(chrom, []).append((start, end, transcript_id))
+
+    def _index_cds_exon(
+        self,
+        parts: list[str],
+        transcript_id: str,
+        gene_name: str,
+        chrom: str,
+        start: int,
+        end: int,
+        strand: str,
+    ) -> None:
+        """Add a CDS exon to the TranscriptCDSIndex."""
+        if self._transcript_index is None:
+            from vartriage.annotation.transcript_index import TranscriptCDSIndex
+            self._transcript_index = TranscriptCDSIndex()
+        try:
+            frame = int(parts[7]) if parts[7] != "." else 0
+        except (ValueError, IndexError):
+            frame = 0
+        self._transcript_index.add_cds_exon( 
+            transcript_id=transcript_id,
+            gene_name=gene_name,
+            chrom=chrom,
+            start=start,
+            end=end,
+            strand=strand,
+            frame=frame,
+        )
+
+    def set_codon_resolver(self, resolver: CodonResolver) -> None:
+        """Attach a CodonResolver for amino acid-level consequence calling.
+
+        When set, SNVs in CDS regions use proper codon resolution
+        instead of the positional heuristic. Requires a reference FASTA.
+        """
+        self._codon_resolver = resolver
+
+    @property
+    def transcript_index(self) -> Optional[TranscriptCDSIndex]:
+        """Access the TranscriptCDSIndex built during GTF parsing."""
+        return self._transcript_index
 
     def overlap(self, chrom: str, pos: int, ref: str, alt: str) -> list[dict[str, Any]]:
         """Return overlapping gene regions for a variant coordinate.
@@ -304,6 +356,10 @@ class SortedArrayIntervalIndex:
                 alt=alt,
                 feature_type=interval.feature_type,
                 is_splice_site=is_splice,
+                codon_resolver=self._codon_resolver,
+                chrom=chrom,
+                pos=pos,
+                transcript_id=interval.transcript_id,
             )
             results.append(
                 {
@@ -355,16 +411,57 @@ class SortedArrayIntervalIndex:
         return False
 
 
+def _snv_consequence(
+    codon_resolver: object,
+    chrom: str,
+    pos: int,
+    ref: str,
+    alt: str,
+    transcript_id: str,
+) -> str:
+    """Consequence for a coding SNV, using codon resolution when available."""
+    from vartriage.models.variant import FunctionalConsequence
+
+    if codon_resolver is not None and chrom and pos > 0:
+        context = codon_resolver.resolve(chrom, pos, ref, alt, transcript_id or None)  # type: ignore[attr-defined]
+        if context is not None:
+            if context.is_nonsense:
+                return FunctionalConsequence.NONSENSE.value
+            if context.is_synonymous:
+                return FunctionalConsequence.SYNONYMOUS.value
+            return FunctionalConsequence.MISSENSE.value
+    return FunctionalConsequence.MISSENSE.value
+
+
+def _indel_consequence(ref: str, alt: str) -> str:
+    """Consequence for a coding insertion, deletion, or MNV."""
+    from vartriage.models.variant import FunctionalConsequence
+
+    length_diff = len(alt) - len(ref)
+    if length_diff == 0:
+        return FunctionalConsequence.MISSENSE.value
+    if length_diff % 3 != 0:
+        return FunctionalConsequence.FRAMESHIFT.value
+    if length_diff > 0:
+        return FunctionalConsequence.IN_FRAME_INSERTION.value
+    return FunctionalConsequence.IN_FRAME_DELETION.value
+
+
 def _determine_consequence(
     ref: str,
     alt: str,
     feature_type: str,
     is_splice_site: bool,
+    codon_resolver: Optional[CodonResolver] = None,
+    chrom: str = "",
+    pos: int = 0,
+    transcript_id: str = "",
 ) -> str:
     """Determine functional consequence based on variant type and genomic context.
 
-    Uses simplified logic: classifies based on variant type (SNV vs indel)
-    and position relative to gene features (coding region, splice site).
+    When a CodonResolver is provided, SNVs in CDS regions get proper
+    codon-level analysis (checking the actual amino acid change) instead
+    of the simplified positional heuristic.
 
     Parameters
     ----------
@@ -376,6 +473,15 @@ def _determine_consequence(
         GTF feature type of the overlapping region.
     is_splice_site : bool
         Whether the variant is at a splice site.
+    codon_resolver : object, optional
+        CodonResolver instance for amino acid-level consequence calling.
+        When None, falls back to the positional heuristic.
+    chrom : str
+        Chromosome (needed for codon resolution).
+    pos : int
+        1-based position (needed for codon resolution).
+    transcript_id : str
+        Transcript ID for targeted resolution.
 
     Returns
     -------
@@ -384,44 +490,18 @@ def _determine_consequence(
     """
     from vartriage.models.variant import FunctionalConsequence
 
-    # Splice site takes priority if within 2 bases of junction
     if is_splice_site:
         return FunctionalConsequence.SPLICE_SITE.value
 
-    # Only CDS features represent coding regions
-    is_coding = feature_type == "CDS"
-
-    if not is_coding:
-        # Exon but not CDS (e.g., UTR) or transcript-level hit
+    if feature_type != "CDS":
         if feature_type in ("exon", "transcript", "gene"):
             return FunctionalConsequence.SYNONYMOUS.value
         return FunctionalConsequence.INTERGENIC.value
 
-    # In coding region: determine consequence by variant type
-    ref_len = len(ref)
-    alt_len = len(alt)
-    is_snv = ref_len == 1 and alt_len == 1
+    if len(ref) == 1 and len(alt) == 1:
+        return _snv_consequence(codon_resolver, chrom, pos, ref, alt, transcript_id)
 
-    if is_snv:
-        # SNV in coding region - simplified: classify as Missense
-        # (full codon-level analysis would require sequence context)
-        return FunctionalConsequence.MISSENSE.value
-
-    # Insertion or deletion
-    length_diff = alt_len - ref_len
-
-    if length_diff == 0:
-        # MNV (multi-nucleotide variant) in coding region
-        return FunctionalConsequence.MISSENSE.value
-
-    if length_diff % 3 != 0:
-        # Not divisible by 3: frameshift
-        return FunctionalConsequence.FRAMESHIFT.value
-
-    # Divisible by 3: in-frame
-    if length_diff > 0:
-        return FunctionalConsequence.IN_FRAME_INSERTION.value
-    return FunctionalConsequence.IN_FRAME_DELETION.value
+    return _indel_consequence(ref, alt)
 
 
 def _parse_attributes(attr_string: str) -> dict[str, str]:

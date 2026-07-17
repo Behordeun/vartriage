@@ -48,6 +48,7 @@ vartriage \
   --output-format clinical-html \
   --patient-id "DEMO-2026-001" \
   --panel-name "Hereditary Cancer Panel v2" \
+  --reference-fasta refs/GRCh38.fa \
   --gene-annotation refs/gencode.v44.gtf \
   --gnomad refs/gnomad.v4.exomes.tsv \
   --clinvar refs/clinvar.tsv \
@@ -64,6 +65,7 @@ vartriage \
   --vcf synthetic_exome.vcf.gz \
   --output sample_pipeline_output.json \
   --output-format json \
+  --reference-fasta refs/GRCh38.fa \
   --gene-annotation refs/gencode.v44.gtf \
   --gnomad refs/gnomad.v4.exomes.tsv \
   --clinvar refs/clinvar.tsv \

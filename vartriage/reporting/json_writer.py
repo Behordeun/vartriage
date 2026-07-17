@@ -23,6 +23,7 @@ _OUTPUT_FIELDS: tuple[str, ...] = (
     "allele_frequency",
     "revel_score",
     "composite_rank",
+    "prioritization_score",
     "clinvar_assertion",
     "acmg_classification",
     "evidence_tags",
@@ -63,6 +64,7 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
     record["allele_frequency"] = annotated.allele_frequency
     record["revel_score"] = scored.revel_score
     record["composite_rank"] = scored.composite_rank
+    record["prioritization_score"] = scored.prioritization_score
     record["clinvar_assertion"] = clinvar
     record["acmg_classification"] = classification
     record["evidence_tags"] = evidence

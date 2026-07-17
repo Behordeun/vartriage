@@ -100,6 +100,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to SpliceAI score TSV reference file",
     )
     parser.add_argument(
+        "--reference-fasta",
+        type=Path,
+        default=None,
+        help=(
+            "Path to indexed reference genome FASTA (.fa + .fai). "
+            "Enables codon-level consequence calling and variant normalization. "
+            "Without this, the pipeline uses a positional heuristic for consequences."
+        ),
+    )
+    parser.add_argument(
         "--gene-list",
         type=Path,
         default=None,
@@ -310,6 +320,7 @@ def _run_pipeline(
             gene_annotation_path=paths["gene_annotation"],
             gnomad_path=paths["gnomad"],
             clinvar_path=paths["clinvar"],
+            reference_fasta_path=getattr(args, "reference_fasta", None),
         )
 
     prioritization_config = PrioritizationConfig(

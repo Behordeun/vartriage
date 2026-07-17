@@ -77,6 +77,17 @@ class AnnotationEngine:
             config.gene_annotation_path
         )
 
+        # Attach CodonResolver for proper amino acid-level consequence calling
+        if config.reference_fasta_path is not None:
+            self._attach_codon_resolver(config.reference_fasta_path)
+
+        # Initialize normalizer for consistent database lookups
+        self._normalizer: object = None
+        if config.reference_fasta_path is not None:
+            from vartriage._internal.normalizer import VariantNormalizer
+            self._normalizer = VariantNormalizer(config.reference_fasta_path)
+            logger.info("VariantNormalizer active: indels will be left-aligned before lookups")
+
         # Initialize frequency database
         self._frequency_db: FrequencyDatabase = self._build_frequency_db(
             config.gnomad_path
@@ -122,14 +133,22 @@ class AnnotationEngine:
 
     def _annotate_batch(self, batch: list[Variant]) -> list[AnnotatedVariant]:
         """Run consequence + frequency + ClinVar on a single batch."""
-        # Consequence assignment
+        # Consequence assignment (uses original coordinates for overlap)
         consequences = self._consequence_annotator.assign_batch(batch)
 
         # Gene name extraction via overlap queries
         gene_names = self._extract_gene_names(batch)
 
-        # Frequency lookup
+        # Normalize coordinates for database lookups (gnomAD, ClinVar)
+        # Consequence calling uses original coords (GTF overlap is position-based)
+        # but frequency/ClinVar lookups need normalized coords for matching
         variant_keys = [(v.chrom, v.pos, v.ref, v.alt) for v in batch]
+        if self._normalizer is not None:
+            variant_keys = [
+                self._normalizer.normalize(c, p, r, a)  # type: ignore[attr-defined]
+                for c, p, r, a in variant_keys
+            ]
+
         frequencies = self._frequency_db.lookup_batch(variant_keys)
 
         # ClinVar lookup
@@ -244,6 +263,18 @@ class AnnotationEngine:
                 f"ClinVar reference file not found: {config.clinvar_path}"
             )
 
+        if config.reference_fasta_path is not None:
+            if not config.reference_fasta_path.exists():
+                raise FileNotFoundError(
+                    f"Reference FASTA not found: {config.reference_fasta_path}"
+                )
+            fai_path = Path(str(config.reference_fasta_path) + ".fai")
+            if not fai_path.exists():
+                raise FileNotFoundError(
+                    f"FASTA index (.fai) not found: {fai_path}. "
+                    f"Run 'samtools faidx {config.reference_fasta_path}' to create it."
+                )
+
     def _build_consequence_annotator(self, annotation_path: Path) -> IntervalIndex:
         """Pick the best consequence annotator available.
 
@@ -276,6 +307,32 @@ class AnnotationEngine:
 
         logger.info("Using pure-Python backend for consequence annotation")
         return ConsequenceAnnotator(annotation_path)
+
+    def _attach_codon_resolver(self, fasta_path: Path) -> None:
+        """Create and attach a CodonResolver for proper consequence calling.
+
+        Only works with the pure-Python SortedArrayIntervalIndex backend
+        (which exposes set_codon_resolver). The pyranges backend handles
+        consequence differently and doesn't need this.
+        """
+        annotator = self._consequence_annotator
+        if not hasattr(annotator, "set_codon_resolver"):
+            logger.info(
+                "Codon resolver not supported by %s backend, using positional heuristic",
+                type(annotator).__name__,
+            )
+            return
+
+        transcript_index = getattr(annotator, "transcript_index", None)
+        if transcript_index is None:
+            logger.warning("No TranscriptCDSIndex available, skipping codon resolution")
+            return
+
+        from vartriage.annotation.codon_resolver import CodonResolver
+
+        resolver = CodonResolver(fasta_path, transcript_index)
+        annotator.set_codon_resolver(resolver)
+        logger.info("CodonResolver attached: using FASTA-backed consequence calling")
 
     def _build_frequency_db(self, gnomad_path: Path) -> FrequencyDatabase:
         """Pick the best frequency database available.

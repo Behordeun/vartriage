@@ -253,6 +253,15 @@ class ScoredVariant:
     revel_score: Optional[float] = None
     spliceai_score: Optional[float] = None
     composite_rank: Optional[float] = None
+    prioritization_score: Optional[float] = None
+
+    def __post_init__(self) -> None:
+        # Sync: prioritization_score is the canonical field,
+        # composite_rank kept for backward compatibility
+        if self.prioritization_score is None and self.composite_rank is not None:
+            object.__setattr__(self, "prioritization_score", self.composite_rank)
+        elif self.composite_rank is None and self.prioritization_score is not None:
+            object.__setattr__(self, "composite_rank", self.prioritization_score)
 
 
 @dataclass(frozen=True, slots=True)

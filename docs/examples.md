@@ -46,6 +46,7 @@ config = PipelineConfig(
         gene_annotation_path=Path("refs/gencode.v44.gtf"),
         gnomad_path=Path("refs/gnomad.v4.exomes.tsv"),
         clinvar_path=Path("refs/clinvar.tsv"),
+        reference_fasta_path=Path("refs/GRCh38.fa"),  # enables codon-level consequence calling
     ),
     prioritization=PrioritizationConfig(
         max_allele_frequency=0.001,  # 0.1%, strict rare disease threshold
@@ -71,17 +72,19 @@ for vcf in samples/*.vcf.gz; do
   vartriage \
     --vcf "$vcf" \
     --output "results/${sample}.json" \
+    --reference-fasta refs/GRCh38.fa \
     --gene-annotation refs/gencode.v44.gtf \
     --gnomad refs/gnomad.v4.exomes.tsv \
     --clinvar refs/clinvar.tsv \
     --cadd-scores refs/cadd_v1.7.tsv \
     --revel-scores refs/revel_v1.3.tsv \
-    --spliceai-scores refs/spliceai_scores.tsv
+    --spliceai-scores refs/spliceai_scores.tsv \
     --gene-list refs/cardiac_panel.txt
-    --spliceai-scores refs/spliceai_scores.tsv
   echo "Done: $sample"
 done
 ```
+
+The `--reference-fasta` flag enables codon-level consequence calling (correct missense vs synonymous) and left-aligns indels before database lookups. Without it, the pipeline uses a positional heuristic that may miscall some synonymous variants as missense.
 
 Each run is independent. Safe to parallelize with `xargs` or GNU `parallel` if your machine has the RAM for it.
 
@@ -287,6 +290,7 @@ config = PipelineConfig(
         gene_annotation_path=Path("refs/gencode.v44.gtf"),
         gnomad_path=Path("refs/gnomad.v4.exomes.tsv"),
         clinvar_path=Path("refs/clinvar.tsv"),
+        reference_fasta_path=Path("refs/GRCh38.fa"),  # enables codon-level consequence calling
     ),
     prioritization=PrioritizationConfig(
         max_allele_frequency=0.0001,

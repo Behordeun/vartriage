@@ -120,6 +120,10 @@ def test_json_round_trip_preserves_field_values(
         assert (
             record["composite_rank"] == scored.composite_rank
         ), f"Record {i}: composite_rank mismatch"
+
+        assert (
+            record["prioritization_score"] == scored.prioritization_score
+        ), f"Record {i}: prioritization_score mismatch"
         if scored.composite_rank is not None:
             assert isinstance(
                 record["composite_rank"], float
@@ -181,6 +185,7 @@ def test_json_output_field_order(
         "allele_frequency",
         "revel_score",
         "composite_rank",
+        "prioritization_score",
         "clinvar_assertion",
         "acmg_classification",
         "evidence_tags",

@@ -18,7 +18,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from vartriage.exceptions import VarTriageWarning
-from vartriage.models.variant import AnnotatedVariant, ScoredVariant
+from vartriage.models.variant import (
+    AnnotatedVariant,
+    FunctionalConsequence,
+    ScoredVariant,
+)
 from vartriage.models.warnings import MissingDataWarning
 
 REVEL_WEIGHT: float = 0.6
@@ -254,6 +258,28 @@ def _compute_legacy_ranks(
     return result
 
 
+# Base weights for three-score composite: (score_weight, score_index)
+_THREE_SCORE_WEIGHTS: tuple[tuple[float, int], ...] = (
+    (REVEL_WEIGHT_3, 0),
+    (CADD_WEIGHT_3, 1),
+    (SPLICEAI_WEIGHT_3, 2),
+)
+
+
+def _rank_three_scores(
+    revel: Optional[float], cadd: Optional[float], splice: Optional[float]
+) -> Optional[float]:
+    """Compute composite rank for one variant with proportional weight redistribution."""
+    scores = (revel, cadd, splice)
+    present = [(w, s) for (w, _), s in zip(_THREE_SCORE_WEIGHTS, scores) if s is not None]
+    if not present:
+        return None
+    if len(present) == 1:
+        return present[0][1]
+    weight_sum = sum(w for w, _ in present)
+    return float(sum(s * (w / weight_sum) for w, s in present))
+
+
 def _compute_three_score_ranks(
     cadd_normalized: Sequence[Optional[float]],
     revel_scores: Sequence[Optional[float]],
@@ -265,60 +291,10 @@ def _compute_three_score_ranks(
     When one or more scores are missing for a variant, the available scores'
     base weights are rescaled to sum to 1.0.
     """
-    n = len(cadd_normalized)
-
-    result: list[Optional[float]] = []
-
-    for i in range(n):
-        revel = revel_scores[i]
-        cadd = cadd_normalized[i]
-        splice = spliceai_scores[i]
-
-        has_revel = revel is not None
-        has_cadd = cadd is not None
-        has_splice = splice is not None
-
-        available_count = sum([has_revel, has_cadd, has_splice])
-
-        if available_count == 0:
-            result.append(None)
-        elif available_count == 1:
-            # Single score: use it directly (weight = 1.0)
-            if has_revel:
-                result.append(revel)
-            elif has_cadd:
-                result.append(cadd)
-            else:
-                result.append(splice)
-        elif available_count == 3:
-            # All three: base weights
-            rank = (
-                revel * REVEL_WEIGHT_3  # type: ignore[operator]
-                + cadd * CADD_WEIGHT_3  # type: ignore[operator]
-                + splice * SPLICEAI_WEIGHT_3  # type: ignore[operator]
-            )
-            result.append(float(rank))
-        else:
-            # Two scores: proportional redistribution
-            weight_sum = 0.0
-            rank = 0.0
-            if has_revel:
-                weight_sum += REVEL_WEIGHT_3
-            if has_cadd:
-                weight_sum += CADD_WEIGHT_3
-            if has_splice:
-                weight_sum += SPLICEAI_WEIGHT_3
-
-            if has_revel:
-                rank += revel * (REVEL_WEIGHT_3 / weight_sum)  # type: ignore[operator]
-            if has_cadd:
-                rank += cadd * (CADD_WEIGHT_3 / weight_sum)  # type: ignore[operator]
-            if has_splice:
-                rank += splice * (SPLICEAI_WEIGHT_3 / weight_sum)  # type: ignore[operator]
-
-            result.append(float(rank))
-
-    return result
+    return [
+        _rank_three_scores(revel_scores[i], cadd_normalized[i], spliceai_scores[i])
+        for i in range(len(cadd_normalized))
+    ]
 
 
 def score_variants(
@@ -414,6 +390,12 @@ def score_variants(
             revel_score=revel_validated[i],
             spliceai_score=splice_score,
             composite_rank=composite,
+            prioritization_score=compute_prioritization_score(
+                consequence=variant.consequence,
+                revel_score=revel_validated[i],
+                spliceai_score=splice_score,
+                cadd_phred=raw_cadd,
+            ),
         )
         scored.append(scored_variant)
 
@@ -448,3 +430,51 @@ def sort_by_composite_rank(variants: list[ScoredVariant]) -> list[ScoredVariant]
         return (0, -v.composite_rank)
 
     return sorted(variants, key=sort_key)
+
+
+def compute_prioritization_score(
+    consequence: FunctionalConsequence,
+    revel_score: Optional[float],
+    spliceai_score: Optional[float],
+    cadd_phred: Optional[float],
+) -> Optional[float]:
+    """Compute a prioritization score: max across available predictor scores.
+
+    Takes the maximum of all available scores (REVEL, SpliceAI, normalized
+    CADD). The consequence parameter is retained for future use when
+    primary/secondary weighting may differ by variant type.
+
+    Score sources:
+    - REVEL: 0.0-1.0 (literature-validated 0.7 threshold for PP3)
+    - SpliceAI: 0.0-1.0 (literature-validated 0.5 threshold)
+    - CADD: Phred / 60, capped at 1.0 (normalized to same scale)
+
+    The final score is for sorting and triage, not a clinical
+    classification threshold.
+
+    Parameters
+    ----------
+    consequence
+        Functional consequence (reserved for future weighted logic).
+    revel_score
+        Validated REVEL score (0.0-1.0) or None.
+    spliceai_score
+        Validated SpliceAI delta score (0.0-1.0) or None.
+    cadd_phred
+        Raw CADD Phred score or None.
+
+    Returns
+    -------
+    Optional[float]
+        Prioritization score (0.0-1.0), or None if no scores available.
+    """
+    scores: list[float] = []
+
+    if revel_score is not None:
+        scores.append(revel_score)
+    if spliceai_score is not None:
+        scores.append(spliceai_score)
+    if cadd_phred is not None:
+        scores.append(min(cadd_phred / 60.0, 1.0))
+
+    return max(scores) if scores else None
