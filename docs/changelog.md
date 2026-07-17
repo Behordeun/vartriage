@@ -2,6 +2,35 @@
 
 All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.0] - 2026-07-17
+
+### Added
+
+- **Benign evidence criteria**: the pipeline can now classify variants as Benign or Likely Benign for the first time.
+  - BA1: any gnomAD population AF > 5% = standalone Benign
+  - BS1: any population AF > 1% = strong benign evidence
+  - BP4: low computational predictor scores (REVEL < 0.15 for missense, CADD Phred < 10 for non-missense)
+  - BP7: synonymous variant with SpliceAI < 0.1 (no splice impact)
+- **Population-specific frequency model** (`PopulationFrequencies` dataclass): stores per-population gnomAD AFs (AFR, AMR, ASJ, EAS, FIN, NFE, SAS) with `max_population_af`, `any_exceeds()`, and `all_below()` helpers.
+- **Updated combining rules** (ACMG Table 5): BA1 standalone = Benign, 2 BS = Benign, 1 BS + 1 BP = Likely Benign, conflicting pathogenic + benign = VUS.
+- `STANDALONE` strength tier in `EvidenceStrength` enum for BA1.
+- 9 new `EvidenceTag` enum members: PS1, PM1, PM4, PM5 (pathogenic, evaluators planned for v0.9.1), BA1, BS1, BS2, BP4, BP7 (benign, evaluators active).
+- `has_conflicting_evidence()` helper in combining module.
+- `population_frequencies` field on `AnnotatedVariant`.
+- 24 unit tests for benign criteria covering positive/negative/edge cases.
+
+### Changed
+
+- PM2 now checks ALL population-specific frequencies below threshold (not just global AF). Falls back to global AF when per-population data is absent.
+- `EVIDENCE_STRENGTH_MAP` expanded from 4 to 13 entries covering all new tags.
+- `combine_evidence()` rewritten: separates pathogenic and benign evidence, detects conflicts, applies benign combining rules.
+- README links converted to absolute GitHub URLs (fixes dead links on PyPI).
+
+### Notes
+
+- PS1, PM1, PM4, PM5 evaluators are not yet implemented (tags exist in the enum, evaluators planned for v0.9.1 when ClinVar amino acid index and functional domain data are available).
+- BS2 tag exists but evaluator requires gnomAD homozygote count data not currently parsed (planned for v0.9.1).
+
 ## [0.8.0] - 2026-07-16
 
 ### Added
