@@ -247,7 +247,11 @@ class PopulationFrequencies:
         return max_af is not None and max_af > threshold
 
     def all_below(self, threshold: float) -> bool:
-        """True if ALL population AFs are below threshold (or None)."""
+        """True if ALL population AFs are strictly below threshold (or None).
+
+        Uses >= to reject: a value AT the threshold is NOT below it.
+        This matches the global AF path which uses `af < threshold`.
+        """
         for af in (self.afr, self.amr, self.asj, self.eas,
                    self.fin, self.nfe, self.sas, self.global_af):
             if af is not None and af >= threshold:

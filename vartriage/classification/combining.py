@@ -118,7 +118,11 @@ def _classify_benign(benign_tags: frozenset[EvidenceTag]) -> ACMGClassification:
 def _count_pathogenic_strengths(
     tags: frozenset[EvidenceTag],
 ) -> dict[EvidenceStrength, int]:
-    """Tally pathogenic tags by strength tier."""
+    """Tally pathogenic tags by strength tier.
+
+    Only accepts pathogenic tags. Benign tags (STANDALONE strength)
+    should be filtered out before calling this function.
+    """
     counts: dict[EvidenceStrength, int] = {
         EvidenceStrength.VERY_STRONG: 0,
         EvidenceStrength.STRONG: 0,
@@ -127,8 +131,11 @@ def _count_pathogenic_strengths(
     }
     for tag in tags:
         strength = EVIDENCE_STRENGTH_MAP[tag]
-        if strength in counts:
-            counts[strength] += 1
+        if strength == EvidenceStrength.STANDALONE:
+            # Defensive: benign tags should not reach this function.
+            # The caller separates pathogenic from benign before calling.
+            continue
+        counts[strength] += 1
     return counts
 
 
