@@ -18,11 +18,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from vartriage.exceptions import VarTriageWarning
-from vartriage.models.variant import (
-    AnnotatedVariant,
-    FunctionalConsequence,
-    ScoredVariant,
-)
+from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
+                                      ScoredVariant)
 from vartriage.models.warnings import MissingDataWarning
 
 REVEL_WEIGHT: float = 0.6
@@ -271,7 +268,9 @@ def _rank_three_scores(
 ) -> Optional[float]:
     """Compute composite rank for one variant with proportional weight redistribution."""
     scores = (revel, cadd, splice)
-    present = [(w, s) for (w, _), s in zip(_THREE_SCORE_WEIGHTS, scores) if s is not None]
+    present = [
+        (w, s) for (w, _), s in zip(_THREE_SCORE_WEIGHTS, scores) if s is not None
+    ]
     if not present:
         return None
     if len(present) == 1:

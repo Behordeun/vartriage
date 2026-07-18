@@ -294,10 +294,16 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
 
     if pop_freq is not None:
         has_any_data = any(
-            v is not None for v in (
-                pop_freq.afr, pop_freq.amr, pop_freq.asj,
-                pop_freq.eas, pop_freq.fin, pop_freq.nfe,
-                pop_freq.sas, pop_freq.global_af,
+            v is not None
+            for v in (
+                pop_freq.afr,
+                pop_freq.amr,
+                pop_freq.asj,
+                pop_freq.eas,
+                pop_freq.fin,
+                pop_freq.nfe,
+                pop_freq.sas,
+                pop_freq.global_af,
             )
         )
         if has_any_data and pop_freq.all_below(0.0001):
@@ -347,7 +353,10 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
 
     # BP4: computational benign (missense REVEL < 0.15, or non-missense CADD < 10)
     # Does NOT fire for null variants (frameshift/nonsense)
-    if consequence not in (FunctionalConsequence.FRAMESHIFT, FunctionalConsequence.NONSENSE):
+    if consequence not in (
+        FunctionalConsequence.FRAMESHIFT,
+        FunctionalConsequence.NONSENSE,
+    ):
         if consequence == FunctionalConsequence.MISSENSE:
             if revel is not None and revel < 0.15:
                 expected_tags.add(EvidenceTag.BP4)
@@ -477,11 +486,13 @@ def test_combining_rules_match_specification(
             return
 
         bs_count = sum(
-            1 for t in benign_tags
+            1
+            for t in benign_tags
             if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
         )
         bp_count = sum(
-            1 for t in benign_tags
+            1
+            for t in benign_tags
             if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.SUPPORTING
         )
 

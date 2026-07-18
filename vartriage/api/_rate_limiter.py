@@ -121,7 +121,10 @@ class RateLimiter:
                     and self._daily_count >= self._daily_limit
                 ):
                     from datetime import timedelta
-                    tomorrow = (dt.now(timezone.utc) + timedelta(days=1)).date().isoformat()
+
+                    tomorrow = (
+                        (dt.now(timezone.utc) + timedelta(days=1)).date().isoformat()
+                    )
                     raise DailyLimitExhausted(
                         self._service_name, self._daily_limit, f"{tomorrow} UTC"
                     )

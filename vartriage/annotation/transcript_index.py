@@ -169,7 +169,9 @@ class TranscriptCDSIndex:
         for transcript in self._transcripts.values():
             transcript.finalize()
         self._finalized = True
-        logger.debug("TranscriptCDSIndex finalized: %d transcripts", len(self._transcripts))
+        logger.debug(
+            "TranscriptCDSIndex finalized: %d transcripts", len(self._transcripts)
+        )
 
     def get_transcript(self, transcript_id: str) -> Optional[TranscriptCDS]:
         """Look up a transcript by ID."""

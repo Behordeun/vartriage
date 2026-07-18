@@ -191,10 +191,16 @@ class ACMGClassifier:
         if pop_freq is not None:
             # Guard: if all population fields are None, treat as missing data
             has_any_data = any(
-                v is not None for v in (
-                    pop_freq.afr, pop_freq.amr, pop_freq.asj,
-                    pop_freq.eas, pop_freq.fin, pop_freq.nfe,
-                    pop_freq.sas, pop_freq.global_af,
+                v is not None
+                for v in (
+                    pop_freq.afr,
+                    pop_freq.amr,
+                    pop_freq.asj,
+                    pop_freq.eas,
+                    pop_freq.fin,
+                    pop_freq.nfe,
+                    pop_freq.sas,
+                    pop_freq.global_af,
                 )
             )
             if not has_any_data:
@@ -310,7 +316,7 @@ class ACMGClassifier:
         self,
         variant: ScoredVariant,
         tags: set[EvidenceTag],
-        missing_sources: set[str],
+        _missing_sources: set[str],
     ) -> None:
         """Assign BA1 if any population AF exceeds 5%.
 
@@ -335,7 +341,7 @@ class ACMGClassifier:
         self,
         variant: ScoredVariant,
         tags: set[EvidenceTag],
-        missing_sources: set[str],
+        _missing_sources: set[str],
     ) -> None:
         """Assign BS1 if any population AF exceeds 1%.
 
@@ -361,7 +367,7 @@ class ACMGClassifier:
         self,
         variant: ScoredVariant,
         tags: set[EvidenceTag],
-        missing_sources: set[str],
+        _missing_sources: set[str],
     ) -> None:
         """Assign BP4 for computational benign evidence.
 
@@ -394,7 +400,7 @@ class ACMGClassifier:
         self,
         variant: ScoredVariant,
         tags: set[EvidenceTag],
-        missing_sources: set[str],
+        _missing_sources: set[str],
     ) -> None:
         """Assign BP7 for synonymous variants with no splice impact.
 

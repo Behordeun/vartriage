@@ -19,8 +19,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from vartriage._internal.genetic_code import reverse_complement, translate_codon
-from vartriage.annotation.transcript_index import TranscriptCDS, TranscriptCDSIndex
+from vartriage._internal.genetic_code import (reverse_complement,
+                                              translate_codon)
+from vartriage.annotation.transcript_index import (TranscriptCDS,
+                                                   TranscriptCDSIndex)
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +156,9 @@ class CodonResolver:
             variant_base = alt.upper()
 
         # Build the altered codon by substituting at the correct position
-        alt_codon = ref_codon[:codon_position] + variant_base + ref_codon[codon_position + 1:]
+        alt_codon = (
+            ref_codon[:codon_position] + variant_base + ref_codon[codon_position + 1 :]
+        )
 
         # Translate both
         ref_aa = translate_codon(ref_codon)
@@ -193,7 +197,9 @@ class CodonResolver:
         # Pick the transcript with the longest CDS (proxy for canonical)
         return max(overlapping, key=lambda t: t.cds_length)
 
-    def _extract_codon(self, transcript: TranscriptCDS, codon_index: int) -> Optional[str]:
+    def _extract_codon(
+        self, transcript: TranscriptCDS, codon_index: int
+    ) -> Optional[str]:
         """Extract a 3bp codon from the reference genome.
 
         Handles split codons (codon spans an exon-intron junction) by
