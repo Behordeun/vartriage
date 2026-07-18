@@ -118,11 +118,22 @@ class EvidenceTag(Enum):
     PP5 : str
         Supporting evidence: reputable clinical source (ClinVar).
     """
-
+    # Pathogenic evidence
     PVS1 = "PVS1"
+    PS1 = "PS1"
+    PM1 = "PM1"
     PM2 = "PM2"
+    PM4 = "PM4"
+    PM5 = "PM5"
     PP3 = "PP3"
     PP5 = "PP5"
+
+    # Benign evidence
+    BA1 = "BA1"
+    BS1 = "BS1"
+    BS2 = "BS2"
+    BP4 = "BP4"
+    BP7 = "BP7"
 
 
 class EvidenceStrength(Enum):
@@ -140,6 +151,7 @@ class EvidenceStrength(Enum):
         Supporting level of evidence.
     """
 
+    STANDALONE = "Standalone"
     VERY_STRONG = "Very_Strong"
     STRONG = "Strong"
     MODERATE = "Moderate"
@@ -147,10 +159,21 @@ class EvidenceStrength(Enum):
 
 
 EVIDENCE_STRENGTH_MAP: dict[EvidenceTag, EvidenceStrength] = {
+    # Pathogenic evidence
     EvidenceTag.PVS1: EvidenceStrength.VERY_STRONG,
+    EvidenceTag.PS1: EvidenceStrength.STRONG,
+    EvidenceTag.PM1: EvidenceStrength.MODERATE,
     EvidenceTag.PM2: EvidenceStrength.MODERATE,
+    EvidenceTag.PM4: EvidenceStrength.MODERATE,
+    EvidenceTag.PM5: EvidenceStrength.MODERATE,
     EvidenceTag.PP3: EvidenceStrength.SUPPORTING,
     EvidenceTag.PP5: EvidenceStrength.SUPPORTING,
+    # Benign evidence
+    EvidenceTag.BA1: EvidenceStrength.STANDALONE,
+    EvidenceTag.BS1: EvidenceStrength.STRONG,
+    EvidenceTag.BS2: EvidenceStrength.STRONG,
+    EvidenceTag.BP4: EvidenceStrength.SUPPORTING,
+    EvidenceTag.BP7: EvidenceStrength.SUPPORTING,
 }
 """Mapping of evidence tags to their strength tiers.
 
@@ -194,6 +217,49 @@ class Variant:
 
 
 @dataclass(frozen=True, slots=True)
+class PopulationFrequencies:
+    """Per-population gnomAD allele frequencies."""
+
+    global_af: Optional[float] = None
+    afr: Optional[float] = None
+    amr: Optional[float] = None
+    asj: Optional[float] = None
+    eas: Optional[float] = None
+    fin: Optional[float] = None
+    nfe: Optional[float] = None
+    sas: Optional[float] = None
+
+    @property
+    def max_population_af(self) -> Optional[float]:
+        """Highest frequency across all population subgroups."""
+        values = [
+            v for v in (self.afr, self.amr, self.asj, self.eas,
+                        self.fin, self.nfe, self.sas)
+            if v is not None
+        ]
+        if values:
+            return max(values)
+        return self.global_af
+
+    def any_exceeds(self, threshold: float) -> bool:
+        """True if any population-specific AF exceeds the threshold."""
+        max_af = self.max_population_af
+        return max_af is not None and max_af > threshold
+
+    def all_below(self, threshold: float) -> bool:
+        """True if ALL population AFs are strictly below threshold (or None).
+
+        Uses >= to reject: a value AT the threshold is NOT below it.
+        This matches the global AF path which uses `af < threshold`.
+        """
+        for af in (self.afr, self.amr, self.asj, self.eas,
+                   self.fin, self.nfe, self.sas, self.global_af):
+            if af is not None and af >= threshold:
+                return False
+        return True
+
+
+@dataclass(frozen=True, slots=True)
 class AnnotatedVariant:
     """Variant enriched with functional and population annotations.
 
@@ -222,6 +288,7 @@ class AnnotatedVariant:
     frequency_unknown: bool = False
     clinvar_unknown: bool = False
     gene_name: Optional[str] = None
+    population_frequencies: Optional[PopulationFrequencies] = None
 
 
 @dataclass(frozen=True, slots=True)

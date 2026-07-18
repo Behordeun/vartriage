@@ -288,8 +288,21 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
         expected_tags.add(EvidenceTag.PVS1)
 
     # PM2: AF < 0.0001 (skip if AF is None)
+    # PM2: AF < 0.0001 in ALL populations (population-aware)
     af = variant.annotated.allele_frequency
-    if af is not None and af < 0.0001:
+    pop_freq = variant.annotated.population_frequencies
+
+    if pop_freq is not None:
+        has_any_data = any(
+            v is not None for v in (
+                pop_freq.afr, pop_freq.amr, pop_freq.asj,
+                pop_freq.eas, pop_freq.fin, pop_freq.nfe,
+                pop_freq.sas, pop_freq.global_af,
+            )
+        )
+        if has_any_data and pop_freq.all_below(0.0001):
+            expected_tags.add(EvidenceTag.PM2)
+    elif af is not None and af < 0.0001:
         expected_tags.add(EvidenceTag.PM2)
 
     # PP3: REVEL > 0.7 OR SpliceAI > 0.5 on splice-adjacent
@@ -315,6 +328,38 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     assertion = variant.annotated.clinvar_assertion
     if assertion == ClinVarAssertion.PATHOGENIC:
         expected_tags.add(EvidenceTag.PP5)
+
+    # BA1: any population AF > 5% (or global AF > 5% when no population data)
+    pop_freq = variant.annotated.population_frequencies
+    if pop_freq is not None:
+        if pop_freq.any_exceeds(0.05):
+            expected_tags.add(EvidenceTag.BA1)
+    elif af is not None and af > 0.05:
+        expected_tags.add(EvidenceTag.BA1)
+
+    # BS1: any population AF > 1% (only if BA1 not already assigned)
+    if EvidenceTag.BA1 not in expected_tags:
+        if pop_freq is not None:
+            if pop_freq.any_exceeds(0.01):
+                expected_tags.add(EvidenceTag.BS1)
+        elif af is not None and af > 0.01:
+            expected_tags.add(EvidenceTag.BS1)
+
+    # BP4: computational benign (missense REVEL < 0.15, or non-missense CADD < 10)
+    # Does NOT fire for null variants (frameshift/nonsense)
+    if consequence not in (FunctionalConsequence.FRAMESHIFT, FunctionalConsequence.NONSENSE):
+        if consequence == FunctionalConsequence.MISSENSE:
+            if revel is not None and revel < 0.15:
+                expected_tags.add(EvidenceTag.BP4)
+        else:
+            cadd = variant.cadd_phred
+            if cadd is not None and cadd < 10.0:
+                expected_tags.add(EvidenceTag.BP4)
+
+    # BP7: synonymous + SpliceAI < 0.1
+    if consequence == FunctionalConsequence.SYNONYMOUS:
+        if spliceai is not None and spliceai < 0.1:
+            expected_tags.add(EvidenceTag.BP7)
 
     assert classified.evidence_tags == frozenset(
         expected_tags
@@ -407,35 +452,67 @@ def test_combining_rules_match_specification(
 ) -> None:
     """Combining rules produce the correct classification per ACMG/AMP 2015.
 
-    Verifies:
-    - Pathogenic: >=1 VS + >=1 S, OR >=2 S + >=1 Sup, OR >=1 VS + >=2 Sup
-    - Likely Pathogenic: 1 VS + 1 M, OR 1 S + 1-2 M, OR 1 S + >=2 Sup
-    - VUS: default
+    Verifies pathogenic, likely pathogenic, benign, likely benign, and
+    conflicting evidence handling.
     """
+    from vartriage.classification.combining import _BENIGN_TAGS
+
     result = combine_evidence(tags)
 
-    # Compute expected classification from the tag strengths
+    pathogenic_tags = tags - _BENIGN_TAGS
+    benign_tags = tags & _BENIGN_TAGS
+
+    has_pathogenic = len(pathogenic_tags) > 0
+    has_benign = len(benign_tags) > 0
+
+    # Conflicting evidence
+    if has_pathogenic and has_benign:
+        assert result == ACMGClassification.VUS
+        return
+
+    # Pure benign evidence
+    if has_benign and not has_pathogenic:
+        if EvidenceTag.BA1 in benign_tags:
+            assert result == ACMGClassification.BENIGN
+            return
+
+        bs_count = sum(
+            1 for t in benign_tags
+            if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
+        )
+        bp_count = sum(
+            1 for t in benign_tags
+            if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.SUPPORTING
+        )
+
+        if bs_count >= 2:
+            assert result == ACMGClassification.BENIGN
+        elif bs_count >= 1 and bp_count >= 1:
+            assert result == ACMGClassification.LIKELY_BENIGN
+        else:
+            assert result == ACMGClassification.VUS
+        return
+
+    # Pure pathogenic evidence (or empty)
     counts: dict[EvidenceStrength, int] = {
         EvidenceStrength.VERY_STRONG: 0,
         EvidenceStrength.STRONG: 0,
         EvidenceStrength.MODERATE: 0,
         EvidenceStrength.SUPPORTING: 0,
     }
-    for tag in tags:
+    for tag in pathogenic_tags:
         strength = EVIDENCE_STRENGTH_MAP[tag]
-        counts[strength] += 1
+        if strength in counts:
+            counts[strength] += 1
 
     vs = counts[EvidenceStrength.VERY_STRONG]
     s = counts[EvidenceStrength.STRONG]
     m = counts[EvidenceStrength.MODERATE]
     sup = counts[EvidenceStrength.SUPPORTING]
 
-    # Pathogenic rules
     is_pathogenic = (
         (vs >= 1 and s >= 1) or (s >= 2 and sup >= 1) or (vs >= 1 and sup >= 2)
     )
-
-    # Likely Pathogenic rules
     is_likely_pathogenic = (
         (vs >= 1 and m >= 1) or (s >= 1 and 1 <= m <= 2) or (s >= 1 and sup >= 2)
     )
