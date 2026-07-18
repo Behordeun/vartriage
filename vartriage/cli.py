@@ -220,6 +220,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Skip confirmation prompts for large API-mode runs (>1000 variants)",
     )
+    parser.add_argument(
+        "--secondary-findings",
+        action="store_true",
+        default=False,
+        help=(
+            "Flag variants in ACMG Secondary Findings (SF v3.2) genes "
+            "regardless of primary gene panel filter. Adds a dedicated "
+            "section to clinical reports."
+        ),
+    )
 
     return parser
 
