@@ -8,14 +8,18 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE), population frequency lookup (gnomAD), pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP classification, trio inheritance analysis, and clinical report generation with audit trail.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific), pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP classification (pathogenic and benign criteria), trio inheritance analysis, ACMG Secondary Findings screening, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
 - Single Python package, no Java/Perl/Spark dependencies
 - Streams 4M+ variant WGS files under 2 GB RAM
+- Codon-level consequence calling with reference FASTA (correct missense vs synonymous)
+- Benign + pathogenic ACMG criteria: classifies variants across all 5 tiers
 - Trio-aware: de novo, dominant, recessive, compound het, X-linked
+- ACMG Secondary Findings (SF v3.2): screens 71 medically actionable genes
 - Score bundle downloader: `vartriage bundle download --bundle clinvar` fetches and prepares reference files
+- API mode: annotate gene panels via Ensembl VEP + ClinVar with zero local files
 - Outputs: JSON, CSV, PDF, HTML clinical reports, IGV-loadable annotated VCF
 - Typed API with Protocol-based backends
 
@@ -91,6 +95,7 @@ vartriage \
   --vcf sample.vcf.gz \
   --output report.json \
   --output-format json \
+  --reference-fasta GRCh38.fa \
   --gene-annotation gencode.v44.gtf \
   --gnomad gnomad.v4.sites.tsv \
   --clinvar clinvar_20240101.tsv \
@@ -100,7 +105,8 @@ vartriage \
   --gene-list my_panel.txt \
   --regions target_regions.bed \
   --sample PROBAND_01 \
-  --min-gq 20
+  --min-gq 20 \
+  --secondary-findings
 ```
 
 Clinical report options:
@@ -199,13 +205,17 @@ When only two scores are available, weights redistribute proportionally. Single 
 | Tag | Condition |
 | ------ | ---------------------------------------------- |
 | PVS1 | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
-| PM2 | gnomAD AF < 0.0001 |
+| PM2 | All population AFs < 0.0001 (population-aware) |
 | PP3 | REVEL > 0.7 or SpliceAI > 0.5 on splice-adjacent |
 | PP5 | ClinVar Pathogenic without conflicting Benign |
+| BA1 | Any population AF > 5% (standalone Benign) |
+| BS1 | Any population AF > 1% (strong benign) |
+| BP4 | REVEL < 0.15 (missense) or CADD < 10 (non-missense) |
+| BP7 | Synonymous + SpliceAI < 0.1 |
 
-Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources mean the tag is simply omitted.
+Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign. Conflicting pathogenic + benign evidence yields VUS. Missing data sources mean the tag is simply omitted.
 
-**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with per-variant evidence narratives, an executive summary, findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, functional consequence, allele frequency, composite rank, ClinVar assertion, ACMG classification, evidence tags.
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with a computational-only disclaimer (citing ACMG/AMP 2015), per-variant evidence narratives, an executive summary, findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, gene_name, functional consequence, allele frequency, revel_score, composite rank, prioritization_score, ClinVar assertion, ACMG classification, evidence tags.
 
 ## Configuration
 
@@ -222,6 +232,7 @@ Tags combine into Pathogenic, Likely_Pathogenic, or VUS. Missing data sources me
 | gene_annotation_path | Path | required | GTF/GFF |
 | gnomad_path | Path | required | TSV or tabix VCF (.vcf.bgz/.vcf.gz) |
 | clinvar_path | Path | None | TSV |
+| reference_fasta_path | Path | None | Indexed FASTA (.fa + .fai) for codon-level consequence calling |
 | batch_size | int | 10,000 | 1,000-100,000 |
 
 ### PrioritizationConfig
