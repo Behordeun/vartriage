@@ -76,9 +76,7 @@ class VariantNormalizer:
         ref_upper, alt_upper, pos = self._left_trim(ref_upper, alt_upper, pos)
 
         # Step 3: Left-align indels
-        ref_upper, alt_upper, pos = self._left_align(
-            chrom, pos, ref_upper, alt_upper
-        )
+        ref_upper, alt_upper, pos = self._left_align(chrom, pos, ref_upper, alt_upper)
 
         return (chrom, pos, ref_upper, alt_upper)
 

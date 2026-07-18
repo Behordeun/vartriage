@@ -85,8 +85,11 @@ class AnnotationEngine:
         self._normalizer: object = None
         if config.reference_fasta_path is not None:
             from vartriage._internal.normalizer import VariantNormalizer
+
             self._normalizer = VariantNormalizer(config.reference_fasta_path)
-            logger.info("VariantNormalizer active: indels will be left-aligned before lookups")
+            logger.info(
+                "VariantNormalizer active: indels will be left-aligned before lookups"
+            )
 
         # Initialize frequency database
         self._frequency_db: FrequencyDatabase = self._build_frequency_db(

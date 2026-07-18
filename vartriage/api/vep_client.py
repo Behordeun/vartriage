@@ -276,8 +276,12 @@ class VEPClient:
 
         # Match responses back to input variants
         self._store_results(
-            parsed_by_input, vep_notations, uncached_indices,
-            uncached_variants, results, release,
+            parsed_by_input,
+            vep_notations,
+            uncached_indices,
+            uncached_variants,
+            results,
+            release,
         )
         return results
 

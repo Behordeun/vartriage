@@ -26,10 +26,15 @@ from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
                                       EvidenceTag)
 
 # Benign tags are those with STANDALONE, STRONG (benign), or SUPPORTING (benign) strength
-_BENIGN_TAGS: frozenset[EvidenceTag] = frozenset({
-    EvidenceTag.BA1, EvidenceTag.BS1, EvidenceTag.BS2,
-    EvidenceTag.BP4, EvidenceTag.BP7,
-})
+_BENIGN_TAGS: frozenset[EvidenceTag] = frozenset(
+    {
+        EvidenceTag.BA1,
+        EvidenceTag.BS1,
+        EvidenceTag.BS2,
+        EvidenceTag.BP4,
+        EvidenceTag.BP7,
+    }
+)
 
 
 def combine_evidence(
@@ -95,11 +100,11 @@ def _classify_benign(benign_tags: frozenset[EvidenceTag]) -> ACMGClassification:
         return ACMGClassification.BENIGN
 
     bs_count = sum(
-        1 for t in benign_tags
-        if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
+        1 for t in benign_tags if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
     )
     bp_count = sum(
-        1 for t in benign_tags
+        1
+        for t in benign_tags
         if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.SUPPORTING
     )
 

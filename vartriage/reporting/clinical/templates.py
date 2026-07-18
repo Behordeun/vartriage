@@ -111,6 +111,14 @@ tr:nth-child(even) {
         page-break-inside: avoid;
     }
 }
+.disclaimer {
+    background-color: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-size: 0.9em;
+}
 """
 
 # HTML document skeleton with CSS inlined.

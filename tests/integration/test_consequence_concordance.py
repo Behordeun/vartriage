@@ -59,13 +59,10 @@ def vep_client(tmp_path: Path) -> VEPClient:
 class TestConsequenceConcordance:
     """Compare local SO term mapping against live VEP responses."""
 
-    def test_vep_consequence_matches_our_mapping(
-        self, vep_client: VEPClient
-    ) -> None:
+    def test_vep_consequence_matches_our_mapping(self, vep_client: VEPClient) -> None:
         """For known variants, VEP's most_severe_consequence maps correctly."""
         variants = [
-            (chrom, pos, ref, alt)
-            for chrom, pos, ref, alt, _ in _KNOWN_VARIANTS
+            (chrom, pos, ref, alt) for chrom, pos, ref, alt, _ in _KNOWN_VARIANTS
         ]
 
         results = vep_client.annotate_batch(variants)
@@ -91,7 +88,9 @@ class TestConsequenceConcordance:
         total = len(_KNOWN_VARIANTS)
         concordance_rate = concordant / total if total > 0 else 0.0
 
-        print(f"\nConsequence concordance: {concordant}/{total} ({concordance_rate:.0%})")
+        print(
+            f"\nConsequence concordance: {concordant}/{total} ({concordance_rate:.0%})"
+        )
         if discordant:
             print("Discordant calls:")
             for d in discordant:
@@ -109,8 +108,7 @@ class TestConsequenceConcordance:
     ) -> None:
         """Every consequence term VEP returns for our test variants is in our mapping."""
         variants = [
-            (chrom, pos, ref, alt)
-            for chrom, pos, ref, alt, _ in _KNOWN_VARIANTS
+            (chrom, pos, ref, alt) for chrom, pos, ref, alt, _ in _KNOWN_VARIANTS
         ]
 
         results = vep_client.annotate_batch(variants)
@@ -138,6 +136,6 @@ class TestConsequenceConcordance:
         for i, annotation in enumerate(results):
             if annotation is None:
                 continue
-            assert annotation.gene_name is not None, (
-                f"Variant {coding_variants[i]} should have a gene name"
-            )
+            assert (
+                annotation.gene_name is not None
+            ), f"Variant {coding_variants[i]} should have a gene name"

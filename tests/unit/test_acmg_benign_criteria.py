@@ -5,16 +5,11 @@ from __future__ import annotations
 import pytest
 
 from vartriage.classification.acmg import ACMGClassifier
-from vartriage.models.variant import (
-    ACMGClassification,
-    AnnotatedVariant,
-    ClinVarAssertion,
-    EvidenceTag,
-    FunctionalConsequence,
-    PopulationFrequencies,
-    ScoredVariant,
-    Variant,
-)
+from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
+                                      ClinVarAssertion, EvidenceTag,
+                                      FunctionalConsequence,
+                                      PopulationFrequencies, ScoredVariant,
+                                      Variant)
 
 
 def _make_variant(
@@ -27,8 +22,13 @@ def _make_variant(
     clinvar_assertion: ClinVarAssertion | None = None,
 ) -> ScoredVariant:
     raw = Variant(
-        chrom="chr1", pos=100, id=None, ref="A", alt="T",
-        qual=30.0, filter_status="PASS",
+        chrom="chr1",
+        pos=100,
+        id=None,
+        ref="A",
+        alt="T",
+        qual=30.0,
+        filter_status="PASS",
     )
     annotated = AnnotatedVariant(
         variant=raw,
@@ -238,9 +238,7 @@ class TestPopulationAwarePM2:
     """PM2 uses population-specific thresholds."""
 
     def test_fires_when_all_populations_below_threshold(self) -> None:
-        pop = PopulationFrequencies(
-            global_af=0.00005, afr=0.00008, nfe=0.00003
-        )
+        pop = PopulationFrequencies(global_af=0.00005, afr=0.00008, nfe=0.00003)
         sv = _make_variant(
             allele_frequency=0.00005,
             population_frequencies=pop,
@@ -249,9 +247,7 @@ class TestPopulationAwarePM2:
         assert EvidenceTag.PM2 in tags
 
     def test_does_not_fire_when_one_population_exceeds(self) -> None:
-        pop = PopulationFrequencies(
-            global_af=0.00005, afr=0.0005, nfe=0.00003
-        )
+        pop = PopulationFrequencies(global_af=0.00005, afr=0.0005, nfe=0.00003)
         sv = _make_variant(
             allele_frequency=0.00005,
             population_frequencies=pop,

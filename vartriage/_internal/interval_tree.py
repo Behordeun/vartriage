@@ -261,10 +261,14 @@ class SortedArrayIntervalIndex:
             self._chromosomes[chrom].add(interval)
 
         if feature_type == "CDS" and transcript_id:
-            self._index_cds_exon(parts, transcript_id, gene_name, chrom, start, end, strand)
+            self._index_cds_exon(
+                parts, transcript_id, gene_name, chrom, start, end, strand
+            )
 
         if feature_type == "exon":
-            self._exon_boundaries.setdefault(chrom, []).append((start, end, transcript_id))
+            self._exon_boundaries.setdefault(chrom, []).append(
+                (start, end, transcript_id)
+            )
 
     def _index_cds_exon(
         self,
@@ -278,13 +282,15 @@ class SortedArrayIntervalIndex:
     ) -> None:
         """Add a CDS exon to the TranscriptCDSIndex."""
         if self._transcript_index is None:
-            from vartriage.annotation.transcript_index import TranscriptCDSIndex
+            from vartriage.annotation.transcript_index import \
+                TranscriptCDSIndex
+
             self._transcript_index = TranscriptCDSIndex()
         try:
             frame = int(parts[7]) if parts[7] != "." else 0
         except (ValueError, IndexError):
             frame = 0
-        self._transcript_index.add_cds_exon( 
+        self._transcript_index.add_cds_exon(
             transcript_id=transcript_id,
             gene_name=gene_name,
             chrom=chrom,
