@@ -118,6 +118,7 @@ class EvidenceTag(Enum):
     PP5 : str
         Supporting evidence: reputable clinical source (ClinVar).
     """
+
     # Pathogenic evidence
     PVS1 = "PVS1"
     PS1 = "PS1"
@@ -216,6 +217,25 @@ class Variant:
     info: dict[str, Any] = field(default_factory=dict)
 
 
+class Zygosity(Enum):
+    """Genotype zygosity state for a variant in a specific sample."""
+
+    HETEROZYGOUS = "Heterozygous"
+    HOMOZYGOUS_ALT = "Homozygous"
+    HEMIZYGOUS = "Hemizygous"
+    UNKNOWN = "Unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class VariantQualityMetrics:
+    """Per-variant sequencing quality metrics from VCF FORMAT fields."""
+
+    depth: Optional[int] = None
+    genotype_quality: Optional[int] = None
+    allele_balance: Optional[float] = None
+    is_low_confidence: bool = False
+
+
 @dataclass(frozen=True, slots=True)
 class PopulationFrequencies:
     """Per-population gnomAD allele frequencies."""
@@ -233,8 +253,16 @@ class PopulationFrequencies:
     def max_population_af(self) -> Optional[float]:
         """Highest frequency across all population subgroups."""
         values = [
-            v for v in (self.afr, self.amr, self.asj, self.eas,
-                        self.fin, self.nfe, self.sas)
+            v
+            for v in (
+                self.afr,
+                self.amr,
+                self.asj,
+                self.eas,
+                self.fin,
+                self.nfe,
+                self.sas,
+            )
             if v is not None
         ]
         if values:
@@ -252,8 +280,16 @@ class PopulationFrequencies:
         Uses >= to reject: a value AT the threshold is NOT below it.
         This matches the global AF path which uses `af < threshold`.
         """
-        for af in (self.afr, self.amr, self.asj, self.eas,
-                   self.fin, self.nfe, self.sas, self.global_af):
+        for af in (
+            self.afr,
+            self.amr,
+            self.asj,
+            self.eas,
+            self.fin,
+            self.nfe,
+            self.sas,
+            self.global_af,
+        ):
             if af is not None and af >= threshold:
                 return False
         return True
@@ -289,6 +325,8 @@ class AnnotatedVariant:
     clinvar_unknown: bool = False
     gene_name: Optional[str] = None
     population_frequencies: Optional[PopulationFrequencies] = None
+    zygosity: Zygosity = Zygosity.UNKNOWN
+    quality_metrics: Optional[VariantQualityMetrics] = None
 
 
 @dataclass(frozen=True, slots=True)
