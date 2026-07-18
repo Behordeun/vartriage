@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Optional
 
 from vartriage.models.variant import AnnotatedVariant
 
@@ -60,14 +60,18 @@ class SecondaryFindingsFilter:
         return gene_name.upper() in self._genes
 
     def split_stream(
-        self, variants: Iterator[AnnotatedVariant]
+        self, variants: list[AnnotatedVariant]
     ) -> tuple[list[AnnotatedVariant], list[AnnotatedVariant]]:
-        """Split a variant stream into primary and secondary findings.
+        """Split a materialized variant list into primary and secondary findings.
+
+        The clinical report pipeline materializes variants before this
+        point (for sorting by tier). This method operates on the
+        materialized list, not a streaming iterator.
 
         Parameters
         ----------
         variants
-            Input variant stream.
+            Materialized variant list.
 
         Returns
         -------
@@ -87,10 +91,20 @@ class SecondaryFindingsFilter:
         return primary, secondary
 
     def _load_genes(self, path: Path) -> frozenset[str]:
-        """Load gene symbols from file, uppercased for case-insensitive matching."""
+        """Load gene symbols from file, uppercased for case-insensitive matching.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the gene list file does not exist. A missing SF list is
+            a configuration error that could cause clinically relevant
+            variants to be silently excluded.
+        """
         if not path.exists():
-            logger.warning("SF gene list not found: %s", path)
-            return frozenset()
+            raise FileNotFoundError(
+                f"ACMG Secondary Findings gene list not found: {path}. "
+                f"This file is required when --secondary-findings is enabled."
+            )
 
         genes: set[str] = set()
         with open(path, encoding="utf-8") as f:

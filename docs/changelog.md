@@ -1,6 +1,8 @@
 # Changelog
 
-All notable changes to vartriage are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+All notable changes to vartriage are documented here.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.10.0] - 2026-07-18
 
@@ -9,7 +11,7 @@ All notable changes to vartriage are documented here. Format follows [Keep a Cha
 - **Zygosity model**: `Zygosity` enum (HETEROZYGOUS, HOMOZYGOUS_ALT, HEMIZYGOUS, UNKNOWN) and `zygosity` field on `AnnotatedVariant`. Ready for population from VCF FORMAT GT field.
 - **Variant quality metrics**: `VariantQualityMetrics` dataclass (depth, genotype_quality, allele_balance, is_low_confidence) and `quality_metrics` field on `AnnotatedVariant`.
 - **ACMG Secondary Findings (SF v3.2)**: shipped 71-gene list as package data (`vartriage/data/acmg_sf_v3.2.txt`). `SecondaryFindingsFilter` class with `is_secondary_finding()` and `split_stream()`. CLI flag `--secondary-findings`.
-- **Computational-only disclaimer**: clinical reports now display a prominent banner after the header citing ACMG/AMP 2015 (Richards et al.) and stating findings require clinical geneticist review.
+- **Computational-only disclaimer**: clinical reports now display a prominent banner after the header citing ACMG/AMP 2015 (Richards et al.) and stating that all findings require review by a clinical geneticist.
 
 ### Notes
 
