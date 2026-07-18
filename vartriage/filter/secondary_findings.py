@@ -57,7 +57,10 @@ class SecondaryFindingsFilter:
         """
         if gene_name is None:
             return False
-        return gene_name.upper() in self._genes
+        normalized = gene_name.strip().upper()
+        if not normalized:
+            return False
+        return normalized in self._genes
 
     def split_stream(
         self, variants: list[AnnotatedVariant]
@@ -65,20 +68,22 @@ class SecondaryFindingsFilter:
         """Split a materialized variant list into primary and secondary findings.
 
         The clinical report pipeline materializes variants before this
-        point (for sorting by tier). This method operates on the
-        materialized list, not a streaming iterator.
+        point (for sorting by tier). Primary-panel filtering happens
+        earlier in the pipeline via GeneFilter; all variants reaching
+        this method have already passed panel filtering. Secondary
+        findings are variants that additionally match an SF gene.
 
         Parameters
         ----------
         variants
-            Materialized variant list.
+            Materialized variant list (post-panel-filter).
 
         Returns
         -------
         tuple[list, list]
-            (primary_variants, secondary_findings). A variant can
-            appear in both if it matches both the primary panel and
-            an SF gene.
+            (all_variants, secondary_findings). The first list contains
+            all input variants unchanged. The second contains the subset
+            matching SF genes.
         """
         primary: list[AnnotatedVariant] = []
         secondary: list[AnnotatedVariant] = []
@@ -100,9 +105,9 @@ class SecondaryFindingsFilter:
             a configuration error that could cause clinically relevant
             variants to be silently excluded.
         """
-        if not path.exists():
+        if not path.is_file():
             raise FileNotFoundError(
-                f"ACMG Secondary Findings gene list not found: {path}. "
+                f"ACMG Secondary Findings gene list not found or is not a regular file: {path}. "
                 f"This file is required when --secondary-findings is enabled."
             )
 

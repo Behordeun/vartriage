@@ -221,7 +221,7 @@ class Zygosity(Enum):
     """Genotype zygosity state for a variant in a specific sample."""
 
     HETEROZYGOUS = "Heterozygous"
-    HOMOZYGOUS_ALT = "Homozygous"
+    HOMOZYGOUS_ALT = "Homozygous_Alt"
     HEMIZYGOUS = "Hemizygous"
     UNKNOWN = "Unknown"
 
