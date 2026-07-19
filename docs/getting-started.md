@@ -117,5 +117,24 @@ vartriage --help
 | ClinVar file (optional)   | Clinical significance lookup      | [ClinVar FTP](https://ftp.ncbi.nlm.nih.gov/pub/clinvar/)         |
 | CADD scores (optional)    | Pathogenicity scoring             | [CADD download](https://cadd.gs.washington.edu/download)         |
 | REVEL scores (optional)   | Pathogenicity scoring             | [REVEL download](https://sites.google.com/site/revelgenomics/)   |
+| SpliceAI scores (optional)| Splice impact prediction          | [SpliceAI pre-computed](https://basespace.illumina.com/s/otSPW8hnhaZR) |
+| Reference FASTA (optional)| Codon-level consequence calling   | [UCSC or Ensembl](https://hgdownload.soe.ucsc.edu/goldenPath/)   |
+
+Or skip manual downloads entirely using the bundle downloader (v0.6.0+):
+
+```bash
+vartriage bundle download --bundle clinvar
+vartriage bundle download --bundle gnomad-exomes-chr22
+vartriage bundle download --bundle gencode
+vartriage bundle download --bundle revel
+vartriage --vcf sample.vcf.gz --output results.json --use-bundles
+```
+
+Or use API mode (v0.7.0+) for gene panels without any local files:
+
+```bash
+pip install vartriage[api]
+vartriage --vcf panel.vcf --output results.json --mode api
+```
 
 See [Reference Files](reference-files.md) for column format requirements and preparation steps.

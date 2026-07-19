@@ -27,8 +27,9 @@ Paths to reference data and batch size for the annotation engine.
 | Field | Type | Default | Valid range / notes |
 | ------- | ------ | --------- | --------- | ------------------- |
 | `gene_annotation_path` | `Path` | required | GTF or GFF file |
-| `gnomad_path` | `Path` | required | gnomAD TSV |
+| `gnomad_path` | `Path` | required | gnomAD TSV or tabix VCF (.vcf.bgz/.vcf.gz) |
 | `clinvar_path` | `Optional[Path]` | `None` | ClinVar TSV, or None to skip |
+| `reference_fasta_path` | `Optional[Path]` | `None` | Indexed FASTA (.fa + .fai) for codon-level consequence calling |
 | `batch_size` | `int` | `10_000` | 1,000 to 100,000 |
 
 ```python
@@ -39,6 +40,7 @@ config = AnnotationConfig(
     gene_annotation_path=Path("gencode.v44.gtf"),
     gnomad_path=Path("gnomad.v4.sites.tsv"),
     clinvar_path=Path("clinvar_20240101.tsv"),
+    reference_fasta_path=Path("GRCh38.fa"),  # enables codon-level consequence calling
     batch_size=50_000,  # larger batches for faster processing
 )
 ```
@@ -204,6 +206,75 @@ Top-level configuration aggregating all sub-configs.
 | `region_filter` | `Optional[RegionFilterConfig]` | `None` | None skips region filtering |
 | `sample` | `Optional[SampleConfig]` | `None` | None skips sample extraction |
 | `clinical_report` | `Optional[ClinicalReportConfig]` | `None` | Required for clinical formats |
+| `use_bundles` | `bool` | `False` | Auto-resolve reference paths from bundles |
+| `genome_build` | `str` | `"grch38"` | Build for bundle resolution |
+| `api` | `Optional[object]` | `None` | APIConfig for API/hybrid mode |
+
+## RegionFilterConfig
+
+Restricts analysis to variants within BED file intervals.
+
+| Field | Type | Default | Notes |
+| ------- | ------ | --------- | ------- |
+| `bed_path` | `Path` | required | BED file with target genomic intervals |
+
+```python
+from pathlib import Path
+from vartriage.models.config import RegionFilterConfig
+
+config = RegionFilterConfig(bed_path=Path("target_regions.bed"))
+```
+
+## SampleConfig
+
+Extracts a single sample from multi-sample VCFs.
+
+| Field | Type | Default | Notes |
+| ------- | ------ | --------- | ------- |
+| `sample_name` | `str` | required | Sample name from VCF header |
+| `min_gq` | `int \| None` | `None` | Genotype quality threshold (0-99) |
+
+```python
+from vartriage.models.config import SampleConfig
+
+config = SampleConfig(sample_name="PROBAND_01", min_gq=20)
+```
+
+Raises `ValueError` if `min_gq` is not None and outside range [0, 99].
+
+## CohortConfig
+
+Multi-sample cohort analysis configuration. See [Cohort Analysis Guide](cohort-analysis.md) for full usage.
+
+| Field | Type | Default | Notes |
+| ------- | ------ | --------- | ------- |
+| `sample_vcfs` | `list[Path]` | required | At least 2 VCF file paths |
+| `output_path` | `Path` | required | Output directory for reports |
+| `cohort_name` | `str` | `"cohort"` | Identifier for output filenames |
+| `min_recurrence` | `int` | `2` | Minimum samples for recurrence (>= 1) |
+| `output_format` | `Literal` | `"json"` | `"json"` or `"csv"` |
+| `max_af_threshold` | `float` | `0.05` | Max population AF for inclusion (0.0-1.0) |
+| `include_singletons` | `bool` | `True` | Include single-sample variants in output |
+| `sample_labels` | `dict \| None` | `None` | Map file stems to display labels |
+| `parallel` | `bool` | `False` | Process samples concurrently |
+| `max_workers` | `int` | `4` | Thread pool size (>= 1) |
+
+```python
+from pathlib import Path
+from vartriage import CohortConfig
+
+config = CohortConfig(
+    sample_vcfs=[Path("sample1.vcf.gz"), Path("sample2.vcf.gz"), Path("sample3.vcf.gz")],
+    output_path=Path("cohort_results/"),
+    cohort_name="cardiac_study",
+    min_recurrence=2,
+    max_af_threshold=0.01,
+    parallel=True,
+    max_workers=8,
+)
+```
+
+Raises `ValueError` if fewer than 2 samples, min_recurrence < 1, max_af_threshold outside [0.0, 1.0], or max_workers < 1.
 
 ## Example configurations
 
