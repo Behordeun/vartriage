@@ -8,7 +8,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific), pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP classification (pathogenic and benign criteria), trio inheritance analysis, ACMG Secondary Findings screening, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific), pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP classification (pathogenic and benign criteria), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
@@ -87,6 +87,57 @@ vartriage --vcf panel.vcf --output results.json --mode api --api-key YOUR_KEY
 ```
 
 Queries Ensembl VEP, ClinVar, CADD, and SpliceAI. Responses are cached in SQLite for instant re-runs. See [API Mode Guide](https://github.com/Behordeun/vartriage/blob/main/docs/api-mode.md) for configuration and performance details.
+
+### Cohort analysis (new in v0.11.0)
+
+Analyze multiple samples together to find shared variants, compute recurrence frequencies, and generate per-gene burden reports:
+
+```bash
+# Multiple VCF files directly
+vartriage cohort --vcf sample1.vcf.gz sample2.vcf.gz sample3.vcf.gz \
+  --output cohort_results/ --cohort-name "cardiac_cohort"
+
+# From a manifest file (one VCF path per line, optional tab-separated labels)
+vartriage cohort --manifest samples.tsv --output cohort_results/ \
+  --cohort-name "cardiac_cohort" --output-format csv
+
+# With annotation references and gene filtering
+vartriage cohort --manifest samples.tsv --output cohort_results/ \
+  --gene-annotation gencode.v44.gtf --gnomad gnomad.v4.sites.tsv \
+  --clinvar clinvar.tsv --cadd-scores cadd.tsv --revel-scores revel.tsv \
+  --gene-list cardiac_panel.txt --use-bundles
+
+# Parallel processing with custom thresholds
+vartriage cohort --manifest samples.tsv --output cohort_results/ \
+  --parallel --max-workers 8 --min-recurrence 3 --max-af 0.01 --no-singletons
+```
+
+**Manifest format** - plain text, one VCF path per line. Optional tab-separated second column for sample labels:
+
+```text
+# Cardiac cohort 2026
+/data/vcfs/patient_001.vcf.gz	Patient 001
+/data/vcfs/patient_002.vcf.gz	Patient 002
+/data/vcfs/patient_003.vcf.gz	Patient 003
+```
+
+**Output files** - three files per run:
+
+| File | Contents |
+| --- | --- |
+| `{cohort_name}_variants.json` | All cohort variants with recurrence counts, per-sample classifications, and evidence tags |
+| `{cohort_name}_gene_burden.json` | Per-gene statistics: variant count, pathogenic count, penetrance, samples affected |
+| `{cohort_name}_summary.json` | Top-level metrics: total variants, shared/singleton/universal counts, top recurrent genes |
+
+**Key options:**
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--min-recurrence` | 2 | Minimum samples for a variant to count as recurrent |
+| `--max-af` | 0.05 | Exclude variants above this population frequency |
+| `--no-singletons` | false | Drop variants seen in only one sample |
+| `--parallel` | false | Process samples concurrently |
+| `--max-workers` | 4 | Thread pool size for parallel mode |
 
 ### Full options
 
@@ -172,6 +223,49 @@ with VCFParser(Path("input.vcf.gz")) as parser:
     qf = QualityFilter(QualityFilterConfig(min_qual=30.0))
     for variant in qf.apply(iter(parser)):
         print(f"{variant.chrom}:{variant.pos} {variant.ref}>{variant.alt}")
+```
+
+Cohort analysis across multiple samples:
+
+```python
+from pathlib import Path
+from vartriage import CohortPipeline, CohortConfig, PipelineConfig, AnnotationConfig, PrioritizationConfig
+
+cohort_config = CohortConfig(
+    sample_vcfs=[
+        Path("patient_001.vcf.gz"),
+        Path("patient_002.vcf.gz"),
+        Path("patient_003.vcf.gz"),
+    ],
+    output_path=Path("cohort_results/"),
+    cohort_name="cardiac_cohort",
+    min_recurrence=2,
+    max_af_threshold=0.05,
+    output_format="json",
+)
+
+# Optional: shared annotation config applied to all samples
+annotation = AnnotationConfig(
+    gene_annotation_path=Path("gencode.v44.gtf"),
+    gnomad_path=Path("gnomad.v4.sites.tsv"),
+)
+
+pipeline = CohortPipeline(
+    cohort_config=cohort_config,
+    annotation_config=annotation,
+)
+report_paths = pipeline.run()
+
+# Access results programmatically
+for variant in pipeline.variants:
+    if variant.sample_count >= 2:
+        print(f"{variant.gene_name}: {variant.chrom}:{variant.pos} "
+              f"in {variant.sample_count}/{variant.total_samples} samples")
+
+for burden in pipeline.gene_burdens:
+    if burden.pathogenic_count > 0:
+        print(f"{burden.gene_name}: {burden.pathogenic_count} pathogenic, "
+              f"penetrance={burden.penetrance:.0%}")
 ```
 
 ## Pipeline stages
@@ -280,6 +374,21 @@ Constructed automatically when `--output-format` is a `clinical-*` value. Requir
 | --- | --- | --- | --- |
 | sample_name | str | required | Sample name from VCF header |
 | min_gq | int | None | Genotype quality threshold (0-99) |
+
+### CohortConfig
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| sample_vcfs | list[Path] | required | At least 2 VCF file paths |
+| output_path | Path | required | Output directory for reports |
+| cohort_name | str | "cohort" | Identifier for output filenames |
+| min_recurrence | int | 2 | Minimum samples for recurrence |
+| output_format | str | "json" | "json" or "csv" |
+| max_af_threshold | float | 0.05 | Max population AF for inclusion (0.0-1.0) |
+| include_singletons | bool | True | Include variants in only 1 sample |
+| sample_labels | dict | None | Map file stems to display labels |
+| parallel | bool | False | Process samples concurrently |
+| max_workers | int | 4 | Thread pool size (>= 1) |
 
 ## Reference file formats
 
