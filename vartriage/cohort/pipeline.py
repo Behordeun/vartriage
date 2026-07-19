@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import logging
 import tempfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from vartriage.cohort.aggregator import CohortAggregator
 from vartriage.cohort.report import CohortReportGenerator
@@ -31,6 +31,9 @@ from vartriage.models.config import (
     ReportConfig,
 )
 from vartriage.models.variant import ClassifiedVariant
+
+if TYPE_CHECKING:
+    from vartriage.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +171,7 @@ class CohortPipeline:
         pipeline is I/O-bound (VCF parsing, reference file reads).
         """
         max_workers = self._cohort_config.max_workers
-        futures_map: dict[object, tuple[str, Path]] = {}
+        futures_map: dict[Future[list[ClassifiedVariant]], tuple[str, Path]] = {}
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for vcf_path in self._cohort_config.sample_vcfs:
@@ -181,15 +184,14 @@ class CohortPipeline:
             for future in as_completed(futures_map):
                 sample_id, vcf_path = futures_map[future]
                 try:
-                    classified = future.result()
+                    classified: list[ClassifiedVariant] = future.result()
                     self._aggregator.add_sample(sample_id, vcf_path, classified)
                     self._samples_processed.append(sample_id)
-                except Exception as exc:
-                    logger.error(
-                        "Failed to process sample '%s' (%s): %s",
+                except Exception:
+                    logger.exception(
+                        "Failed to process sample '%s' (%s)",
                         sample_id,
                         vcf_path,
-                        exc,
                     )
                     raise
 
@@ -277,7 +279,8 @@ class CohortPipeline:
         sample's VCF path. Otherwise builds a minimal config.
         """
         # Use a temp path for output since we don't write reports per-sample
-        tmp_output = Path(tempfile.mktemp(suffix=".json"))
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+            tmp_output = Path(tmp.name)
 
         if self._base_pipeline_config is not None:
             # Clone the base config with this sample's VCF path
