@@ -242,10 +242,13 @@ def main(argv: Optional[list[str]] = None) -> None:
     argv : list[str], optional
         Arguments to parse. Uses sys.argv[1:] when None.
     """
-    # Intercept 'bundle' subcommand before main parser
+    # Intercept subcommands before main parser
     effective_argv = argv if argv is not None else sys.argv[1:]
     if effective_argv and effective_argv[0] == "bundle":
         _run_bundle_cli(effective_argv[1:])
+        return
+    if effective_argv and effective_argv[0] == "cohort":
+        _run_cohort_cli(effective_argv[1:])
         return
 
     parser = _build_parser()
@@ -549,3 +552,326 @@ def _run_bundle_cli(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     exit_code = run_bundle_command(args)
     sys.exit(exit_code)
+
+
+def _run_cohort_cli(argv: list[str]) -> None:
+    """Handle the 'vartriage cohort' subcommand.
+
+    Provides multi-sample cohort analysis: processes multiple VCF files,
+    aggregates variants across samples, computes recurrence frequencies
+    and per-gene burden, then writes cohort-level reports.
+    """
+    parser = argparse.ArgumentParser(
+        prog="vartriage cohort",
+        description=(
+            "Multi-sample cohort analysis. Processes multiple VCF files "
+            "through the standard pipeline, then aggregates variants "
+            "across samples to identify shared mutations, compute "
+            "recurrence frequencies, and generate cohort-level reports."
+        ),
+    )
+
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a manifest file listing sample VCFs (one path per line). "
+            "Lines starting with '#' are comments. Optional second column "
+            "(tab-separated) provides a sample label."
+        ),
+    )
+    input_group.add_argument(
+        "--vcf",
+        type=Path,
+        nargs="+",
+        default=None,
+        help="Two or more VCF file paths to include in the cohort",
+    )
+
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Output directory for cohort report files",
+    )
+    parser.add_argument(
+        "--cohort-name",
+        type=str,
+        default="cohort",
+        help="Cohort identifier used in output filenames (default: cohort)",
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "csv"],
+        default="json",
+        help="Output format for cohort reports (default: json)",
+    )
+    parser.add_argument(
+        "--min-recurrence",
+        type=int,
+        default=2,
+        help=(
+            "Minimum number of samples a variant must appear in "
+            "to be highlighted as recurrent (default: 2)"
+        ),
+    )
+    parser.add_argument(
+        "--max-af",
+        type=float,
+        default=0.05,
+        help=(
+            "Maximum population allele frequency threshold for "
+            "cohort inclusion (default: 0.05)"
+        ),
+    )
+    parser.add_argument(
+        "--include-singletons",
+        action="store_true",
+        default=True,
+        help="Include singleton variants in output (default: true)",
+    )
+    parser.add_argument(
+        "--no-singletons",
+        action="store_true",
+        default=False,
+        help="Exclude singleton variants from output",
+    )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        default=False,
+        help="Process samples concurrently using a thread pool",
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=4,
+        help="Maximum parallel workers when --parallel is set (default: 4)",
+    )
+
+    # Reference file options (shared across all samples)
+    parser.add_argument(
+        "--gene-annotation",
+        type=Path,
+        default=None,
+        help="Path to GTF/GFF gene annotation reference file",
+    )
+    parser.add_argument(
+        "--gnomad",
+        type=Path,
+        default=None,
+        help="Path to gnomAD population frequency reference file",
+    )
+    parser.add_argument(
+        "--clinvar",
+        type=Path,
+        default=None,
+        help="Path to ClinVar clinical significance reference file",
+    )
+    parser.add_argument(
+        "--cadd-scores",
+        type=Path,
+        default=None,
+        help="Path to CADD Phred score TSV reference file",
+    )
+    parser.add_argument(
+        "--revel-scores",
+        type=Path,
+        default=None,
+        help="Path to REVEL score TSV reference file",
+    )
+    parser.add_argument(
+        "--spliceai-scores",
+        type=Path,
+        default=None,
+        help="Path to SpliceAI score TSV reference file",
+    )
+    parser.add_argument(
+        "--gene-list",
+        type=Path,
+        default=None,
+        help="Path to a gene list file for gene-based filtering",
+    )
+    parser.add_argument(
+        "--use-bundles",
+        action="store_true",
+        default=False,
+        help="Auto-resolve reference file paths from installed bundles",
+    )
+    parser.add_argument(
+        "--genome-build",
+        type=str,
+        default="grch38",
+        help="Genome build for bundle resolution (default: grch38)",
+    )
+
+    args = parser.parse_args(argv)
+
+    # Resolve sample VCF list
+    sample_vcfs: list[Path]
+    sample_labels: dict[str, str] | None = None
+
+    if args.manifest is not None:
+        sample_vcfs, sample_labels = _parse_manifest(args.manifest)
+    else:
+        sample_vcfs = args.vcf
+
+    if len(sample_vcfs) < 2:
+        print(
+            "Error: cohort analysis requires at least 2 sample VCFs",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    # Validate VCF files exist
+    for vcf_path in sample_vcfs:
+        if not vcf_path.exists():
+            print(f"Error: VCF file not found: {vcf_path}", file=sys.stderr)
+            sys.exit(1)
+
+    include_singletons = not args.no_singletons
+
+    try:
+        report_paths = _execute_cohort(
+            sample_vcfs=sample_vcfs,
+            sample_labels=sample_labels,
+            args=args,
+            include_singletons=include_singletons,
+        )
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as exc:
+        print(f"Error: cohort analysis failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    for p in report_paths:
+        print(str(p))
+    sys.exit(0)
+
+
+def _execute_cohort(
+    sample_vcfs: list[Path],
+    sample_labels: dict[str, str] | None,
+    args: argparse.Namespace,
+    include_singletons: bool,
+) -> list[Path]:
+    """Build cohort config and run the cohort pipeline.
+
+    Separated from _run_cohort_cli for testability.
+    """
+    from vartriage.cohort.pipeline import CohortPipeline
+    from vartriage.models.cohort import CohortConfig
+    from vartriage.models.config import (
+        AnnotationConfig,
+        GeneFilterConfig,
+        PipelineConfig,
+        PrioritizationConfig,
+        ReportConfig,
+    )
+
+    cohort_config = CohortConfig(
+        sample_vcfs=sample_vcfs,
+        output_path=args.output,
+        cohort_name=args.cohort_name,
+        min_recurrence=args.min_recurrence,
+        output_format=args.output_format,
+        max_af_threshold=args.max_af,
+        include_singletons=include_singletons,
+        sample_labels=sample_labels,
+        parallel=args.parallel,
+        max_workers=args.max_workers,
+    )
+
+    # Build shared annotation config
+    use_bundles: bool = getattr(args, "use_bundles", False)
+    genome_build: str = getattr(args, "genome_build", "grch38")
+    paths = _resolve_reference_paths(args, use_bundles, genome_build)
+
+    annotation_config: Optional[AnnotationConfig] = None
+    if paths["gene_annotation"] is not None and paths["gnomad"] is not None:
+        annotation_config = AnnotationConfig(
+            gene_annotation_path=paths["gene_annotation"],
+            gnomad_path=paths["gnomad"],
+            clinvar_path=paths["clinvar"],
+        )
+
+    prioritization_config = PrioritizationConfig(
+        cadd_scores_path=paths["cadd_scores"],
+        revel_scores_path=paths["revel_scores"],
+        spliceai_scores_path=paths["spliceai_scores"],
+    )
+
+    # Build base pipeline config with gene filter if specified
+    gene_filter_config = None
+    if args.gene_list is not None:
+        gene_filter_config = GeneFilterConfig(gene_list_path=args.gene_list)
+
+    base_pipeline_config = PipelineConfig(
+        vcf_path=sample_vcfs[0],  # placeholder, overridden per sample
+        output_path=args.output / "tmp.json",  # placeholder
+        annotation=annotation_config,
+        prioritization=prioritization_config,
+        report=ReportConfig(output_format="json"),
+        gene_filter=gene_filter_config,
+    )
+
+    pipeline = CohortPipeline(
+        cohort_config=cohort_config,
+        pipeline_config=base_pipeline_config,
+        annotation_config=annotation_config,
+        prioritization_config=prioritization_config,
+    )
+    return pipeline.run()
+
+
+def _parse_manifest(manifest_path: Path) -> tuple[list[Path], dict[str, str] | None]:
+    """Parse a cohort manifest file.
+
+    Format: one VCF path per line. Optional tab-separated second column
+    provides a human-readable sample label. Lines starting with '#' are
+    comments. Blank lines are skipped.
+
+    Returns
+    -------
+    tuple[list[Path], dict[str, str] | None]
+        (list of VCF paths, optional label mapping keyed by file stem)
+    """
+    if not manifest_path.exists():
+        print(f"Error: manifest file not found: {manifest_path}", file=sys.stderr)
+        sys.exit(1)
+
+    vcf_paths: list[Path] = []
+    labels: dict[str, str] = {}
+    has_labels = False
+
+    with open(manifest_path, encoding="utf-8") as f:
+        for line_num, raw_line in enumerate(f, start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            parts = line.split("\t")
+            vcf_path = Path(parts[0].strip())
+
+            if not vcf_path.is_absolute():
+                # Resolve relative to manifest file's directory
+                vcf_path = manifest_path.parent / vcf_path
+
+            vcf_paths.append(vcf_path)
+
+            if len(parts) >= 2:
+                label = parts[1].strip()
+                if label:
+                    stem = vcf_path.stem
+                    if stem.endswith(".vcf"):
+                        stem = stem[:-4]
+                    labels[stem] = label
+                    has_labels = True
+
+    return vcf_paths, labels if has_labels else None
