@@ -34,16 +34,37 @@ from vartriage.pipeline import Pipeline
 from vartriage.prioritization.engine import PrioritizationEngine
 from vartriage.reporting.generator import ReportGenerator
 
+# Cohort analysis (v0.11.0)
+from vartriage.cohort.aggregator import CohortAggregator
+from vartriage.cohort.pipeline import CohortPipeline
+from vartriage.cohort.report import CohortReportGenerator
+from vartriage.cohort.statistics import CohortStatistics
+from vartriage.models.cohort import (
+    CohortConfig,
+    CohortSummary,
+    CohortVariant,
+    GeneBurden,
+)
+
 try:
     from importlib.metadata import version as _get_version
 
     __version__ = _get_version("vartriage")
 except Exception:
-    __version__ = "0.10.0"
+    __version__ = "0.11.0"
 
 __all__ = [
     # Pipeline orchestrator
     "Pipeline",
+    # Cohort analysis
+    "CohortPipeline",
+    "CohortAggregator",
+    "CohortReportGenerator",
+    "CohortStatistics",
+    "CohortConfig",
+    "CohortVariant",
+    "CohortSummary",
+    "GeneBurden",
     # Processing stages
     "VCFParser",
     "QualityFilter",
