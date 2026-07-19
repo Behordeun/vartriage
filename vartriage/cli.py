@@ -614,7 +614,8 @@ def _run_cohort_cli(argv: list[str]) -> None:
         default=2,
         help=(
             "Minimum number of samples a variant must appear in "
-            "to be highlighted as recurrent (default: 2)"
+            "to be included in the output (default: 2). Variants "
+            "below this threshold are excluded."
         ),
     )
     parser.add_argument(
@@ -704,11 +705,19 @@ def _run_cohort_cli(argv: list[str]) -> None:
     args = parser.parse_args(argv)
 
     # Resolve sample VCF list
+    from vartriage.cohort.runner import CohortCLIConfig, parse_cohort_manifest, run_cohort
+
     sample_vcfs: list[Path]
     sample_labels: dict[str, str] | None = None
 
     if args.manifest is not None:
-        sample_vcfs, sample_labels = _parse_cohort_file(args.manifest)
+        if not args.manifest.exists():
+            print(
+                f"Error: manifest file not found: {args.manifest}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        sample_vcfs, sample_labels = parse_cohort_manifest(args.manifest)
     else:
         sample_vcfs = args.vcf
 
@@ -719,21 +728,35 @@ def _run_cohort_cli(argv: list[str]) -> None:
         )
         sys.exit(2)
 
-    # Validate VCF files exist
     for vcf_path in sample_vcfs:
         if not vcf_path.exists():
             print(f"Error: VCF file not found: {vcf_path}", file=sys.stderr)
             sys.exit(1)
 
-    include_singletons = not args.no_singletons
+    config = CohortCLIConfig(
+        sample_vcfs=sample_vcfs,
+        output=args.output,
+        cohort_name=args.cohort_name,
+        output_format=args.output_format,
+        min_recurrence=args.min_recurrence,
+        max_af=args.max_af,
+        include_singletons=not args.no_singletons,
+        parallel=args.parallel,
+        max_workers=args.max_workers,
+        use_bundles=getattr(args, "use_bundles", False),
+        genome_build=getattr(args, "genome_build", "grch38"),
+        gene_list=args.gene_list,
+        gene_annotation=args.gene_annotation,
+        gnomad=args.gnomad,
+        clinvar=args.clinvar,
+        cadd_scores=args.cadd_scores,
+        revel_scores=args.revel_scores,
+        spliceai_scores=args.spliceai_scores,
+        sample_labels=sample_labels,
+    )
 
     try:
-        report_paths = _execute_cohort(
-            sample_vcfs=sample_vcfs,
-            sample_labels=sample_labels,
-            args=args,
-            include_singletons=include_singletons,
-        )
+        report_paths = run_cohort(config)
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -747,125 +770,3 @@ def _run_cohort_cli(argv: list[str]) -> None:
     for p in report_paths:
         print(str(p))
     sys.exit(0)
-
-
-def _execute_cohort(
-    sample_vcfs: list[Path],
-    sample_labels: dict[str, str] | None,
-    args: argparse.Namespace,
-    include_singletons: bool,
-) -> list[Path]:
-    """Build cohort config and run the cohort pipeline.
-
-    Separated from _run_cohort_cli for testability.
-    """
-    from vartriage.cohort.pipeline import CohortPipeline
-    from vartriage.models.cohort import CohortConfig
-    from vartriage.models.config import (
-        AnnotationConfig,
-        GeneFilterConfig,
-        PipelineConfig,
-        PrioritizationConfig,
-        ReportConfig,
-    )
-
-    cohort_config = CohortConfig(
-        sample_vcfs=sample_vcfs,
-        output_path=args.output,
-        cohort_name=args.cohort_name,
-        min_recurrence=args.min_recurrence,
-        output_format=args.output_format,
-        max_af_threshold=args.max_af,
-        include_singletons=include_singletons,
-        sample_labels=sample_labels,
-        parallel=args.parallel,
-        max_workers=args.max_workers,
-    )
-
-    # Build shared annotation config
-    use_bundles: bool = getattr(args, "use_bundles", False)
-    genome_build: str = getattr(args, "genome_build", "grch38")
-    paths = _resolve_reference_paths(args, use_bundles, genome_build)
-
-    annotation_config: Optional[AnnotationConfig] = None
-    if paths["gene_annotation"] is not None and paths["gnomad"] is not None:
-        annotation_config = AnnotationConfig(
-            gene_annotation_path=paths["gene_annotation"],
-            gnomad_path=paths["gnomad"],
-            clinvar_path=paths["clinvar"],
-        )
-
-    prioritization_config = PrioritizationConfig(
-        cadd_scores_path=paths["cadd_scores"],
-        revel_scores_path=paths["revel_scores"],
-        spliceai_scores_path=paths["spliceai_scores"],
-    )
-
-    # Build base pipeline config with gene filter if specified
-    gene_filter_config = None
-    if args.gene_list is not None:
-        gene_filter_config = GeneFilterConfig(gene_list_path=args.gene_list)
-
-    base_pipeline_config = PipelineConfig(
-        vcf_path=sample_vcfs[0],  # placeholder, overridden per sample
-        output_path=args.output / "tmp.json",  # placeholder
-        annotation=annotation_config,
-        prioritization=prioritization_config,
-        report=ReportConfig(output_format="json"),
-        gene_filter=gene_filter_config,
-    )
-
-    pipeline = CohortPipeline(
-        cohort_config=cohort_config,
-        pipeline_config=base_pipeline_config,
-        annotation_config=annotation_config,
-        prioritization_config=prioritization_config,
-    )
-    return pipeline.run()
-
-
-def _stem_from_path(vcf_path: Path) -> str:
-    """Return the file stem, stripping a trailing '.vcf' if present."""
-    stem = vcf_path.stem
-    return stem[:-4] if stem.endswith(".vcf") else stem
-
-
-def _parse_cohort_file(manifest_path: Path) -> tuple[list[Path], dict[str, str] | None]:
-    """Parse a cohort manifest file.
-
-    Format: one VCF path per line. Optional tab-separated second column
-    provides a human-readable sample label. Lines starting with '#' are
-    comments. Blank lines are skipped.
-
-    Returns
-    -------
-    tuple[list[Path], dict[str, str] | None]
-        (list of VCF paths, optional label mapping keyed by file stem)
-    """
-    if not manifest_path.exists():
-        print(f"Error: manifest file not found: {manifest_path}", file=sys.stderr)
-        sys.exit(1)
-
-    vcf_paths: list[Path] = []
-    labels: dict[str, str] = {}
-    has_labels = False
-
-    with open(manifest_path, encoding="utf-8") as f:
-        for _line_num, raw_line in enumerate(f, start=1):
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-
-            parts = line.split("\t")
-            vcf_path = Path(parts[0].strip())
-            if not vcf_path.is_absolute():
-                vcf_path = manifest_path.parent / vcf_path
-            vcf_paths.append(vcf_path)
-
-            if len(parts) >= 2:
-                label = parts[1].strip()
-                if label:
-                    labels[_stem_from_path(vcf_path)] = label
-                    has_labels = True
-
-    return vcf_paths, labels if has_labels else None

@@ -179,11 +179,15 @@ class CohortAggregator:
         """Produce merged cohort variants from all ingested samples.
 
         Filtering logic:
-        - Variants with sample_count >= min_recurrence always pass.
-        - Singletons (sample_count == 1) pass only when include_singletons
-          is True.
-        - Variants with 1 < sample_count < min_recurrence are included
-          (they are shared but below the recurrence highlight threshold).
+        - Variants with sample_count >= min_recurrence are included.
+        - Singletons (sample_count == 1) are included only when
+          include_singletons is True.
+        - Variants with 1 < sample_count < min_recurrence are excluded.
+
+        This means min_recurrence acts as a hard inclusion threshold,
+        not just a highlight marker. Set min_recurrence=1 with
+        include_singletons=True to get all variants regardless of
+        recurrence.
 
         Results are sorted by sample_count descending, then by genomic
         coordinate.
