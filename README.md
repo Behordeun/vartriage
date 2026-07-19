@@ -133,7 +133,7 @@ vartriage cohort --manifest samples.tsv --output cohort_results/ \
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--min-recurrence` | 2 | Minimum samples for a variant to count as recurrent |
+| `--min-recurrence` | 2 | Exclude variants appearing in fewer than this many samples |
 | `--max-af` | 0.05 | Exclude variants above this population frequency |
 | `--no-singletons` | false | Drop variants seen in only one sample |
 | `--parallel` | false | Process samples concurrently |

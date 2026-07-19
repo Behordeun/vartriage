@@ -16,7 +16,10 @@ from vartriage.models.cohort import (
     CohortVariant,
     GeneBurden,
 )
-from vartriage.models.variant import ACMGClassification
+from vartriage.models.variant import (
+    ACMGClassification,
+    CLASSIFICATION_SEVERITY_ORDER,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -238,19 +241,12 @@ class CohortStatistics:
     @staticmethod
     def _gene_most_severe(variants: list[CohortVariant]) -> ACMGClassification:
         """Find the most severe classification across gene variants."""
-        severity_order = [
-            ACMGClassification.PATHOGENIC,
-            ACMGClassification.LIKELY_PATHOGENIC,
-            ACMGClassification.VUS,
-            ACMGClassification.LIKELY_BENIGN,
-            ACMGClassification.BENIGN,
-        ]
-        best_idx = len(severity_order) - 1
+        best_idx = len(CLASSIFICATION_SEVERITY_ORDER) - 1
         for v in variants:
             try:
-                idx = severity_order.index(v.max_classification)
+                idx = CLASSIFICATION_SEVERITY_ORDER.index(v.max_classification)
             except ValueError:
                 continue
             if idx < best_idx:
                 best_idx = idx
-        return severity_order[best_idx]
+        return CLASSIFICATION_SEVERITY_ORDER[best_idx]

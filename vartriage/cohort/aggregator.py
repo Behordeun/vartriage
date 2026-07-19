@@ -21,21 +21,13 @@ from vartriage.models.cohort import (
 )
 from vartriage.models.variant import (
     ACMGClassification,
+    CLASSIFICATION_SEVERITY_ORDER,
     ClassifiedVariant,
     EvidenceTag,
     FunctionalConsequence,
 )
 
 logger = logging.getLogger(__name__)
-
-# Severity ordering for ACMG classifications (index 0 = most severe)
-_CLASSIFICATION_SEVERITY: list[ACMGClassification] = [
-    ACMGClassification.PATHOGENIC,
-    ACMGClassification.LIKELY_PATHOGENIC,
-    ACMGClassification.VUS,
-    ACMGClassification.LIKELY_BENIGN,
-    ACMGClassification.BENIGN,
-]
 
 # Consequence severity (mirrors models/variant.py ordering)
 _CONSEQUENCE_SEVERITY: list[FunctionalConsequence] = [
@@ -60,18 +52,18 @@ def _most_severe_classification(
     if not classifications:
         return ACMGClassification.VUS
 
-    best_idx = len(_CLASSIFICATION_SEVERITY)
+    best_idx = len(CLASSIFICATION_SEVERITY_ORDER)
     for cls in classifications:
         try:
-            idx = _CLASSIFICATION_SEVERITY.index(cls)
+            idx = CLASSIFICATION_SEVERITY_ORDER.index(cls)
         except ValueError:
             continue
         if idx < best_idx:
             best_idx = idx
 
-    if best_idx >= len(_CLASSIFICATION_SEVERITY):
+    if best_idx >= len(CLASSIFICATION_SEVERITY_ORDER):
         return ACMGClassification.VUS
-    return _CLASSIFICATION_SEVERITY[best_idx]
+    return CLASSIFICATION_SEVERITY_ORDER[best_idx]
 
 
 def _most_severe_consequence(

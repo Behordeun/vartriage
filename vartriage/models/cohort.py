@@ -36,8 +36,10 @@ class CohortConfig:
         Human-readable cohort identifier used in report headers.
     min_recurrence : int
         Minimum number of samples a variant must appear in to be
-        included in the cohort report. Must be >= 1.
-        Default is 2 (shared by at least two samples).
+        included in the cohort output. Variants below this count
+        are excluded. Exception: singletons (count == 1) bypass this
+        threshold when include_singletons is True.
+        Must be >= 1. Default is 2.
     output_format : str
         Report output format. Default is "json".
     max_af_threshold : float
@@ -46,9 +48,8 @@ class CohortConfig:
         aggregation. Range [0.0, 1.0]. Default is 0.05.
     include_singletons : bool
         When True, variants appearing in only one sample are included
-        in the full output (marked as singletons). When False, only
-        recurrent variants (count >= min_recurrence) appear.
-        Default is True.
+        in output even when min_recurrence > 1. When False, singletons
+        are always excluded. Default is True.
     sample_labels : dict[str, str] | None
         Optional mapping of VCF file stems to human-readable sample
         labels for reports. Keys are Path.stem values.

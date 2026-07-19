@@ -69,7 +69,6 @@ class CohortPipeline:
         self._annotation_config = annotation_config
         self._prioritization_config = prioritization_config
         self._aggregator = CohortAggregator(cohort_config)
-        self._tmp_dir: Optional[tempfile.TemporaryDirectory[str]] = None
 
         # Results populated after run()
         self._variants: list[CohortVariant] = []
@@ -124,14 +123,23 @@ class CohortPipeline:
                     f"Sample VCF not found: {vcf_path}"
                 )
 
-        # Process samples
-        if self._cohort_config.parallel:
-            self._process_parallel()
-        else:
-            self._process_sequential()
+        # TemporaryDirectory context manager guarantees cleanup on
+        # success, failure, or keyboard interrupt.
+        with tempfile.TemporaryDirectory(
+            prefix="vartriage_cohort_"
+        ) as tmp_dir:
+            tmp_path = Path(tmp_dir)
+
+            if self._cohort_config.parallel:
+                self._process_parallel(tmp_path)
+            else:
+                self._process_sequential(tmp_path)
 
         # Aggregate
-        logger.info("Aggregating variants across %d samples", len(self._samples_processed))
+        logger.info(
+            "Aggregating variants across %d samples",
+            len(self._samples_processed),
+        )
         self._variants = self._aggregator.aggregate()
 
         # Statistics
@@ -152,43 +160,50 @@ class CohortPipeline:
             self._summary.genes_affected,
         )
 
-        # Clean up temporary directory used for placeholder output paths
-        if self._tmp_dir is not None:
-            self._tmp_dir.cleanup()
-            self._tmp_dir = None
-
         return report_paths
 
-    def _process_sequential(self) -> None:
+    def _process_sequential(self, tmp_output_dir: Path) -> None:
         """Process each sample VCF sequentially."""
         for vcf_path in self._cohort_config.sample_vcfs:
             sample_id = self._cohort_config.label_for(vcf_path)
-            classified = self._run_single_sample(vcf_path, sample_id)
+            classified = self._run_single_sample(
+                vcf_path, sample_id, tmp_output_dir
+            )
             self._aggregator.add_sample(sample_id, vcf_path, classified)
             self._samples_processed.append(sample_id)
 
-    def _process_parallel(self) -> None:
+    def _process_parallel(self, tmp_output_dir: Path) -> None:
         """Process sample VCFs concurrently using a thread pool.
 
         Thread-based parallelism works here because the per-sample
-        pipeline is I/O-bound (VCF parsing, reference file reads).
+        pipeline is I/O-bound (VCF parsing, reference file reads via
+        pysam which releases the GIL during C-level I/O).
         """
         max_workers = self._cohort_config.max_workers
-        futures_map: dict[Future[list[ClassifiedVariant]], tuple[str, Path]] = {}
+        futures_map: dict[
+            Future[list[ClassifiedVariant]], tuple[str, Path]
+        ] = {}
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for vcf_path in self._cohort_config.sample_vcfs:
                 sample_id = self._cohort_config.label_for(vcf_path)
                 future = executor.submit(
-                    self._run_single_sample, vcf_path, sample_id
+                    self._run_single_sample,
+                    vcf_path,
+                    sample_id,
+                    tmp_output_dir,
                 )
                 futures_map[future] = (sample_id, vcf_path)
 
             for future in as_completed(futures_map):
                 sample_id, vcf_path = futures_map[future]
                 try:
-                    classified: list[ClassifiedVariant] = future.result()
-                    self._aggregator.add_sample(sample_id, vcf_path, classified)
+                    classified: list[ClassifiedVariant] = (
+                        future.result()
+                    )
+                    self._aggregator.add_sample(
+                        sample_id, vcf_path, classified
+                    )
                     self._samples_processed.append(sample_id)
                 except Exception:
                     logger.exception(
@@ -199,7 +214,7 @@ class CohortPipeline:
                     raise
 
     def _run_single_sample(
-        self, vcf_path: Path, sample_id: str
+        self, vcf_path: Path, sample_id: str, tmp_output_dir: Path
     ) -> list[ClassifiedVariant]:
         """Run the standard pipeline on a single VCF and collect results.
 
@@ -213,6 +228,8 @@ class CohortPipeline:
             Path to the sample's VCF file.
         sample_id : str
             Sample identifier for logging.
+        tmp_output_dir : Path
+            Temporary directory for placeholder output paths.
 
         Returns
         -------
@@ -223,7 +240,7 @@ class CohortPipeline:
 
         logger.info("Processing sample '%s': %s", sample_id, vcf_path)
 
-        config = self._build_sample_config(vcf_path)
+        config = self._build_sample_config(vcf_path, tmp_output_dir)
         pipeline = Pipeline(config)
         classified = list(pipeline.run_to_classification(vcf_path))
 
@@ -234,30 +251,19 @@ class CohortPipeline:
         )
         return classified
 
-    def _build_sample_config(self, vcf_path: Path) -> PipelineConfig:
+    def _build_sample_config(
+        self, vcf_path: Path, tmp_output_dir: Path
+    ) -> PipelineConfig:
         """Build a PipelineConfig for a single sample.
 
         If a base pipeline_config was provided, clones it with the
         sample's VCF path. Otherwise builds a minimal config.
         """
-        # Placeholder output path (run_to_classification never writes to it)
-        if self._tmp_dir is None:
-            self._tmp_dir = tempfile.TemporaryDirectory(prefix="vartriage_cohort_")
-        tmp_output = Path(self._tmp_dir.name) / f"{vcf_path.stem}_output.json"
+        tmp_output = tmp_output_dir / f"{vcf_path.stem}_output.json"
 
         if self._base_pipeline_config is not None:
-            # Clone the base config with this sample's VCF path
-            base = self._base_pipeline_config
-            return PipelineConfig(
-                vcf_path=vcf_path,
-                output_path=tmp_output,
-                quality_filter=base.quality_filter,
-                annotation=self._annotation_config or base.annotation,
-                prioritization=self._prioritization_config or base.prioritization,
-                report=ReportConfig(output_format="json"),
-                missing_data=base.missing_data,
-                gene_filter=base.gene_filter,
-                region_filter=base.region_filter,
+            return self._clone_base_config(
+                self._base_pipeline_config, vcf_path, tmp_output
             )
 
         # Minimal config when no base is provided
@@ -269,4 +275,24 @@ class CohortPipeline:
                 self._prioritization_config or PrioritizationConfig()
             ),
             report=ReportConfig(output_format="json"),
+        )
+
+    def _clone_base_config(
+        self, base: PipelineConfig, vcf_path: Path, output_path: Path
+    ) -> PipelineConfig:
+        """Clone a base PipelineConfig with per-sample overrides.
+
+        Centralizes the field mapping so new PipelineConfig fields only
+        need updating in one place for cohort mode.
+        """
+        return PipelineConfig(
+            vcf_path=vcf_path,
+            output_path=output_path,
+            quality_filter=base.quality_filter,
+            annotation=self._annotation_config or base.annotation,
+            prioritization=self._prioritization_config or base.prioritization,
+            report=ReportConfig(output_format="json"),
+            missing_data=base.missing_data,
+            gene_filter=base.gene_filter,
+            region_filter=base.region_filter,
         )

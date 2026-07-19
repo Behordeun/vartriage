@@ -87,7 +87,7 @@ vartriage cohort \
 
 | Flag | Default | Effect |
 | --- | --- | --- |
-| `--min-recurrence` | 2 | Variants below this sample count are still output but not flagged as recurrent |
+| `--min-recurrence` | 2 | Variants appearing in fewer samples are excluded from output |
 | `--max-af` | 0.05 | Variants with gnomAD AF above this are excluded from aggregation entirely |
 | `--no-singletons` | false | Drop variants appearing in only one sample from the output |
 | `--output-format` | json | Choose `json` or `csv` |
@@ -284,7 +284,7 @@ Array of objects, one per distinct variant coordinate:
 | sample_vcfs | list[Path] | required | At least 2 paths |
 | output_path | Path | required | Directory (created if missing) |
 | cohort_name | str | "cohort" | Used in output filenames |
-| min_recurrence | int | 2 | >= 1 |
+| min_recurrence | int | 2 | >= 1, excludes variants below this count (singletons bypass when include_singletons=True) |
 | output_format | str | "json" | "json" or "csv" |
 | max_af_threshold | float | 0.05 | 0.0 to 1.0 |
 | include_singletons | bool | True | Include single-sample variants |
@@ -297,12 +297,16 @@ Array of objects, one per distinct variant coordinate:
 1. Each sample VCF runs through the standard pipeline (parse, filter, annotate, score, classify).
 2. Classified variants from all samples are grouped by coordinate key `(chrom, pos, ref, alt)`.
 3. Variants with population AF above `max_af_threshold` are excluded before grouping.
-4. For each coordinate group, the aggregator picks:
+4. After grouping, variants are filtered by recurrence:
+   - Variants appearing in >= `min_recurrence` samples are included.
+   - Singletons (count == 1) are included only when `include_singletons` is True.
+   - Variants with 1 < count < `min_recurrence` are excluded.
+5. For each surviving coordinate group, the aggregator picks:
    - The most severe ACMG classification across samples
    - The most severe functional consequence across samples
    - The union of all evidence tags
    - The first non-null gene name and allele frequency
-5. The resulting `CohortVariant` records include per-sample detail so you can trace which samples contributed what evidence.
+6. The resulting `CohortVariant` records include per-sample detail so you can trace which samples contributed what evidence.
 
 ## Performance considerations
 

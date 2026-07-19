@@ -233,9 +233,9 @@ class TranscriptCDSIndex:
                 gene_name=str(info.get("gene_name", "")),
                 chrom=str(info.get("chrom", "")),
                 strand=str(info.get("strand", "+")),
-                frame_offset=int(info.get("frame_offset", 0)),  # type: ignore[arg-type]
+                frame_offset=int(info.get("frame_offset", 0)),
             )
-            for exon_tuple in info.get("cds_exons", []):  # type: ignore[union-attr]
+            for exon_tuple in info.get("cds_exons", []):
                 if isinstance(exon_tuple, (list, tuple)) and len(exon_tuple) == 2:
                     tc.cds_exons.append(CDSExon(start=exon_tuple[0], end=exon_tuple[1]))
             index._transcripts[tid] = tc
