@@ -627,16 +627,10 @@ def _run_cohort_cli(argv: list[str]) -> None:
         ),
     )
     parser.add_argument(
-        "--include-singletons",
-        action="store_true",
-        default=True,
-        help="Include singleton variants in output (default: true)",
-    )
-    parser.add_argument(
         "--no-singletons",
         action="store_true",
         default=False,
-        help="Exclude singleton variants from output",
+        help="Exclude singleton variants (appearing in only one sample) from output",
     )
     parser.add_argument(
         "--parallel",
@@ -714,7 +708,7 @@ def _run_cohort_cli(argv: list[str]) -> None:
     sample_labels: dict[str, str] | None = None
 
     if args.manifest is not None:
-        sample_vcfs, sample_labels = _parse_manifest(args.manifest)
+        sample_vcfs, sample_labels = _parse_cohort_file(args.manifest)
     else:
         sample_vcfs = args.vcf
 
@@ -830,7 +824,13 @@ def _execute_cohort(
     return pipeline.run()
 
 
-def _parse_manifest(manifest_path: Path) -> tuple[list[Path], dict[str, str] | None]:
+def _stem_from_path(vcf_path: Path) -> str:
+    """Return the file stem, stripping a trailing '.vcf' if present."""
+    stem = vcf_path.stem
+    return stem[:-4] if stem.endswith(".vcf") else stem
+
+
+def _parse_cohort_file(manifest_path: Path) -> tuple[list[Path], dict[str, str] | None]:
     """Parse a cohort manifest file.
 
     Format: one VCF path per line. Optional tab-separated second column
@@ -851,27 +851,21 @@ def _parse_manifest(manifest_path: Path) -> tuple[list[Path], dict[str, str] | N
     has_labels = False
 
     with open(manifest_path, encoding="utf-8") as f:
-        for line_num, raw_line in enumerate(f, start=1):
+        for _line_num, raw_line in enumerate(f, start=1):
             line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
 
             parts = line.split("\t")
             vcf_path = Path(parts[0].strip())
-
             if not vcf_path.is_absolute():
-                # Resolve relative to manifest file's directory
                 vcf_path = manifest_path.parent / vcf_path
-
             vcf_paths.append(vcf_path)
 
             if len(parts) >= 2:
                 label = parts[1].strip()
                 if label:
-                    stem = vcf_path.stem
-                    if stem.endswith(".vcf"):
-                        stem = stem[:-4]
-                    labels[stem] = label
+                    labels[_stem_from_path(vcf_path)] = label
                     has_labels = True
 
     return vcf_paths, labels if has_labels else None

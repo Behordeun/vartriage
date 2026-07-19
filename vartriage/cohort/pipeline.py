@@ -12,7 +12,7 @@ import logging
 import tempfile
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from vartriage.cohort.aggregator import CohortAggregator
 from vartriage.cohort.report import CohortReportGenerator
@@ -27,13 +27,9 @@ from vartriage.models.config import (
     AnnotationConfig,
     PipelineConfig,
     PrioritizationConfig,
-    QualityFilterConfig,
     ReportConfig,
 )
 from vartriage.models.variant import ClassifiedVariant
-
-if TYPE_CHECKING:
-    from vartriage.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +69,7 @@ class CohortPipeline:
         self._annotation_config = annotation_config
         self._prioritization_config = prioritization_config
         self._aggregator = CohortAggregator(cohort_config)
+        self._tmp_dir: Optional[tempfile.TemporaryDirectory[str]] = None
 
         # Results populated after run()
         self._variants: list[CohortVariant] = []
@@ -154,6 +151,12 @@ class CohortPipeline:
             self._summary.shared_variants,
             self._summary.genes_affected,
         )
+
+        # Clean up temporary directory used for placeholder output paths
+        if self._tmp_dir is not None:
+            self._tmp_dir.cleanup()
+            self._tmp_dir = None
+
         return report_paths
 
     def _process_sequential(self) -> None:
@@ -200,8 +203,9 @@ class CohortPipeline:
     ) -> list[ClassifiedVariant]:
         """Run the standard pipeline on a single VCF and collect results.
 
-        Uses a temporary file for the per-sample output since we only
-        need the in-memory classified variants, not the report file.
+        Delegates to Pipeline.run_to_classification() which executes
+        all stages up through ACMG classification without writing a
+        report file.
 
         Parameters
         ----------
@@ -221,10 +225,7 @@ class CohortPipeline:
 
         config = self._build_sample_config(vcf_path)
         pipeline = Pipeline(config)
-
-        # Collect classified variants by running internal stages directly
-        # rather than generating a throw-away report file
-        classified = self._collect_classified(pipeline, vcf_path)
+        classified = list(pipeline.run_to_classification(vcf_path))
 
         logger.info(
             "Sample '%s' yielded %d classified variants",
@@ -233,54 +234,16 @@ class CohortPipeline:
         )
         return classified
 
-    def _collect_classified(
-        self, pipeline: "Pipeline", vcf_path: Path
-    ) -> list[ClassifiedVariant]:
-        """Run pipeline stages and collect ClassifiedVariant objects.
-
-        Avoids writing a report file by directly executing the
-        pipeline's internal processing chain up through classification.
-        """
-        from vartriage.classification.acmg import ACMGClassifier
-        from vartriage.filter.quality_filter import QualityFilter
-        from vartriage.io.vcf_parser import VCFParser
-        from vartriage.prioritization.engine import PrioritizationEngine
-
-        config = pipeline._config
-
-        quality_filter = QualityFilter(config.quality_filter)
-
-        annotation_engine = None
-        if config.annotation is not None:
-            from vartriage.annotation.engine import AnnotationEngine
-
-            annotation_engine = AnnotationEngine(config.annotation)
-
-        prioritization_engine = PrioritizationEngine(config.prioritization)
-        acmg_classifier = ACMGClassifier()
-
-        with VCFParser(vcf_path) as parser:
-            stream = iter(parser)
-            filtered = quality_filter.apply(stream)
-
-            if annotation_engine is not None:
-                annotated = annotation_engine.annotate(filtered)
-            else:
-                annotated = pipeline._passthrough_annotation(filtered)
-
-            scored = prioritization_engine.prioritize(annotated)
-            classified_iter = acmg_classifier.classify(scored)
-            return list(classified_iter)
-
     def _build_sample_config(self, vcf_path: Path) -> PipelineConfig:
         """Build a PipelineConfig for a single sample.
 
         If a base pipeline_config was provided, clones it with the
         sample's VCF path. Otherwise builds a minimal config.
         """
-        # Use a temp path for output since we don't write reports per-sample
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
-            tmp_output = Path(tmp.name)
+        # Placeholder output path (run_to_classification never writes to it)
+        if self._tmp_dir is None:
+            self._tmp_dir = tempfile.TemporaryDirectory(prefix="vartriage_cohort_")
+        tmp_output = Path(self._tmp_dir.name) / f"{vcf_path.stem}_output.json"
 
         if self._base_pipeline_config is not None:
             # Clone the base config with this sample's VCF path

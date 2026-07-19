@@ -178,14 +178,20 @@ class CohortAggregator:
     def aggregate(self) -> list[CohortVariant]:
         """Produce merged cohort variants from all ingested samples.
 
-        Applies min_recurrence filtering and optionally excludes
-        singletons based on config. Results are sorted by sample_count
-        descending, then by genomic coordinate.
+        Filtering logic:
+        - Variants with sample_count >= min_recurrence always pass.
+        - Singletons (sample_count == 1) pass only when include_singletons
+          is True.
+        - Variants with 1 < sample_count < min_recurrence are included
+          (they are shared but below the recurrence highlight threshold).
+
+        Results are sorted by sample_count descending, then by genomic
+        coordinate.
 
         Returns
         -------
         list[CohortVariant]
-            Cohort-level variant records meeting recurrence criteria.
+            Cohort-level variant records meeting inclusion criteria.
         """
         total_samples = self._config.sample_count
         min_rec = self._config.min_recurrence
@@ -196,8 +202,13 @@ class CohortAggregator:
         for key, occurrences in self._variant_map.items():
             sample_count = len(occurrences)
 
-            # Apply recurrence filter
-            if not include_singletons and sample_count < min_rec:
+            # Singletons are excluded unless explicitly included
+            if sample_count == 1 and not include_singletons:
+                continue
+
+            # Variants below min_recurrence are excluded (unless they
+            # are singletons that passed the check above)
+            if sample_count < min_rec and sample_count > 1:
                 continue
 
             cohort_variant = self._build_cohort_variant(
