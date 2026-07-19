@@ -116,9 +116,9 @@ vartriage cohort --manifest samples.tsv --output cohort_results/ \
 
 ```text
 # Cardiac cohort 2026
-/data/vcfs/patient_001.vcf.gz	Patient 001
-/data/vcfs/patient_002.vcf.gz	Patient 002
-/data/vcfs/patient_003.vcf.gz	Patient 003
+/data/vcfs/patient_001.vcf.gz   Patient 001
+/data/vcfs/patient_002.vcf.gz   Patient 002
+/data/vcfs/patient_003.vcf.gz   Patient 003
 ```
 
 **Output files** - three files per run:

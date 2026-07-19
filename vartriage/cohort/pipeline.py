@@ -282,17 +282,32 @@ class CohortPipeline:
     ) -> PipelineConfig:
         """Clone a base PipelineConfig with per-sample overrides.
 
-        Centralizes the field mapping so new PipelineConfig fields only
-        need updating in one place for cohort mode.
+        Propagates all base config fields so cohort samples behave
+        consistently with the single-sample pipeline. Only vcf_path,
+        output_path, and report format are overridden per-sample.
+
+        Note: sample, inheritance, and clinical_report are intentionally
+        passed through from the base config. run_to_classification()
+        does not apply SampleExtractor or InheritanceFilter (those are
+        single-sample concerns handled by the full run() path), but
+        passing them preserves config integrity for future use.
         """
         return PipelineConfig(
             vcf_path=vcf_path,
             output_path=output_path,
             quality_filter=base.quality_filter,
             annotation=self._annotation_config or base.annotation,
-            prioritization=self._prioritization_config or base.prioritization,
+            prioritization=(
+                self._prioritization_config or base.prioritization
+            ),
             report=ReportConfig(output_format="json"),
             missing_data=base.missing_data,
             gene_filter=base.gene_filter,
             region_filter=base.region_filter,
+            sample=base.sample,
+            inheritance=base.inheritance,
+            clinical_report=None,
+            use_bundles=base.use_bundles,
+            genome_build=base.genome_build,
+            api=base.api,
         )

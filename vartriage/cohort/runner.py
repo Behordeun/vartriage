@@ -7,6 +7,7 @@ through argparse or sys.exit.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Optional
@@ -20,6 +21,8 @@ from vartriage.models.config import (
     PrioritizationConfig,
     ReportConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -74,10 +77,29 @@ def run_cohort(config: CohortCLIConfig) -> list[Path]:
     paths = _resolve_paths(config)
 
     annotation_config: Optional[AnnotationConfig] = None
-    if paths["gene_annotation"] is not None and paths["gnomad"] is not None:
+    gene_annotation_path = paths["gene_annotation"]
+    gnomad_path = paths["gnomad"]
+
+    # Annotation requires both gene_annotation and gnomad. Reject
+    # partial input so users don't silently lose annotation.
+    if (gene_annotation_path is None) != (gnomad_path is None):
+        missing = (
+            "gene_annotation" if gene_annotation_path is None
+            else "gnomad"
+        )
+        provided = (
+            "gnomad" if gene_annotation_path is None
+            else "gene_annotation"
+        )
+        raise ValueError(
+            f"Incomplete annotation config: --{provided} was provided "
+            f"without --{missing}. Both are required for annotation."
+        )
+
+    if gene_annotation_path is not None and gnomad_path is not None:
         annotation_config = AnnotationConfig(
-            gene_annotation_path=paths["gene_annotation"],
-            gnomad_path=paths["gnomad"],
+            gene_annotation_path=gene_annotation_path,
+            gnomad_path=gnomad_path,
             clinvar_path=paths["clinvar"],
         )
 
@@ -186,7 +208,11 @@ def _stem_from_path(vcf_path: Path) -> str:
 
 
 def _resolve_paths(config: CohortCLIConfig) -> dict[str, Optional[Path]]:
-    """Resolve reference file paths, filling from bundles if enabled."""
+    """Resolve reference file paths, filling from bundles if enabled.
+
+    When use_bundles is True, attempts to resolve missing paths from
+    installed bundles. Logs warnings for bundles that cannot be resolved.
+    """
     paths: dict[str, Optional[Path]] = {
         "gene_annotation": config.gene_annotation,
         "gnomad": config.gnomad,
@@ -213,9 +239,19 @@ def _resolve_paths(config: CohortCLIConfig) -> dict[str, Optional[Path]]:
     }
 
     for key, bundle_name in bundle_names.items():
-        if paths[key] is None:
-            resolved = storage.resolve_path(config.genome_build, bundle_name)
-            if resolved:
-                paths[key] = resolved
+        if paths[key] is not None:
+            continue
+        resolved = storage.resolve_path(config.genome_build, bundle_name)
+        if resolved is not None:
+            paths[key] = resolved
+        else:
+            logger.warning(
+                "Bundle '%s' for reference '%s' not installed; "
+                "this annotation source will be unavailable. "
+                "Install with: vartriage bundle download --bundle %s",
+                bundle_name,
+                key,
+                bundle_name,
+            )
 
     return paths

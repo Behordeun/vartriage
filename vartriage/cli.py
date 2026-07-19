@@ -25,6 +25,78 @@ def _get_version() -> str:
         return __version__
 
 
+def _add_reference_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add shared reference file and bundle arguments to a parser.
+
+    Used by both the main parser and the cohort subcommand to keep
+    argument definitions, defaults, and help text in sync.
+    """
+    parser.add_argument(
+        "--gene-annotation",
+        type=Path,
+        default=None,
+        help=(
+            "Path to GTF/GFF gene annotation reference file. "
+            "Required together with --gnomad for annotation."
+        ),
+    )
+    parser.add_argument(
+        "--gnomad",
+        type=Path,
+        default=None,
+        help=(
+            "Path to gnomAD population frequency reference file. "
+            "Required together with --gene-annotation for annotation."
+        ),
+    )
+    parser.add_argument(
+        "--clinvar",
+        type=Path,
+        default=None,
+        help="Path to ClinVar clinical significance reference file",
+    )
+    parser.add_argument(
+        "--cadd-scores",
+        type=Path,
+        default=None,
+        help="Path to CADD Phred score TSV reference file",
+    )
+    parser.add_argument(
+        "--revel-scores",
+        type=Path,
+        default=None,
+        help="Path to REVEL score TSV reference file",
+    )
+    parser.add_argument(
+        "--spliceai-scores",
+        type=Path,
+        default=None,
+        help="Path to SpliceAI score TSV reference file",
+    )
+    parser.add_argument(
+        "--gene-list",
+        type=Path,
+        default=None,
+        help="Path to a gene list file for gene-based filtering",
+    )
+    parser.add_argument(
+        "--use-bundles",
+        action="store_true",
+        default=False,
+        help=(
+            "Auto-resolve reference file paths from installed bundles "
+            "(~/.vartriage/bundles/). Paths explicitly passed via "
+            "--gnomad, --clinvar, etc. take precedence."
+        ),
+    )
+    parser.add_argument(
+        "--genome-build",
+        type=str,
+        default="grch38",
+        help="Genome build for bundle resolution (default: grch38)",
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser with all CLI options."""
     parser = argparse.ArgumentParser(
@@ -63,42 +135,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default="json",
         help="Output report format (default: json)",
     )
-    parser.add_argument(
-        "--gene-annotation",
-        type=Path,
-        default=None,
-        help="Path to GTF/GFF gene annotation reference file",
-    )
-    parser.add_argument(
-        "--gnomad",
-        type=Path,
-        default=None,
-        help="Path to gnomAD population frequency reference file",
-    )
-    parser.add_argument(
-        "--clinvar",
-        type=Path,
-        default=None,
-        help="Path to ClinVar clinical significance reference file",
-    )
-    parser.add_argument(
-        "--cadd-scores",
-        type=Path,
-        default=None,
-        help="Path to CADD Phred score TSV reference file",
-    )
-    parser.add_argument(
-        "--revel-scores",
-        type=Path,
-        default=None,
-        help="Path to REVEL score TSV reference file",
-    )
-    parser.add_argument(
-        "--spliceai-scores",
-        type=Path,
-        default=None,
-        help="Path to SpliceAI score TSV reference file",
-    )
+    _add_reference_arguments(parser)
+
     parser.add_argument(
         "--reference-fasta",
         type=Path,
@@ -108,12 +146,6 @@ def _build_parser() -> argparse.ArgumentParser:
             "Enables codon-level consequence calling and variant normalization. "
             "Without this, the pipeline uses a positional heuristic for consequences."
         ),
-    )
-    parser.add_argument(
-        "--gene-list",
-        type=Path,
-        default=None,
-        help="Path to a gene list file for gene-based filtering",
     )
     parser.add_argument(
         "--version",
@@ -180,22 +212,6 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Gene panel name for clinical reports",
-    )
-    parser.add_argument(
-        "--use-bundles",
-        action="store_true",
-        default=False,
-        help=(
-            "Auto-resolve reference file paths from installed bundles "
-            "(~/.vartriage/bundles/). Paths explicitly passed via "
-            "--gnomad, --clinvar, etc. take precedence."
-        ),
-    )
-    parser.add_argument(
-        "--genome-build",
-        type=str,
-        default="grch38",
-        help="Genome build for bundle resolution (default: grch38)",
     )
     parser.add_argument(
         "--mode",
@@ -646,61 +662,8 @@ def _run_cohort_cli(argv: list[str]) -> None:
         help="Maximum parallel workers when --parallel is set (default: 4)",
     )
 
-    # Reference file options (shared across all samples)
-    parser.add_argument(
-        "--gene-annotation",
-        type=Path,
-        default=None,
-        help="Path to GTF/GFF gene annotation reference file",
-    )
-    parser.add_argument(
-        "--gnomad",
-        type=Path,
-        default=None,
-        help="Path to gnomAD population frequency reference file",
-    )
-    parser.add_argument(
-        "--clinvar",
-        type=Path,
-        default=None,
-        help="Path to ClinVar clinical significance reference file",
-    )
-    parser.add_argument(
-        "--cadd-scores",
-        type=Path,
-        default=None,
-        help="Path to CADD Phred score TSV reference file",
-    )
-    parser.add_argument(
-        "--revel-scores",
-        type=Path,
-        default=None,
-        help="Path to REVEL score TSV reference file",
-    )
-    parser.add_argument(
-        "--spliceai-scores",
-        type=Path,
-        default=None,
-        help="Path to SpliceAI score TSV reference file",
-    )
-    parser.add_argument(
-        "--gene-list",
-        type=Path,
-        default=None,
-        help="Path to a gene list file for gene-based filtering",
-    )
-    parser.add_argument(
-        "--use-bundles",
-        action="store_true",
-        default=False,
-        help="Auto-resolve reference file paths from installed bundles",
-    )
-    parser.add_argument(
-        "--genome-build",
-        type=str,
-        default="grch38",
-        help="Genome build for bundle resolution (default: grch38)",
-    )
+    # Reference file and bundle options (shared definition)
+    _add_reference_arguments(parser)
 
     args = parser.parse_args(argv)
 

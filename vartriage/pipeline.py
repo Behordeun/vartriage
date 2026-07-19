@@ -198,6 +198,21 @@ class Pipeline:
         report writing entirely. Used by CohortPipeline to collect per-sample
         results without generating throw-away files.
 
+        Stage limitations vs full run():
+            - SampleExtractor is not applied (cohort mode processes
+              each VCF as a single-sample file already).
+            - InheritanceFilter is not applied (trio analysis is a
+              single-proband concern, not meaningful per-sample in a
+              cohort where each VCF represents one individual).
+            - SecondaryFindingsFilter is not applied (cohort mode
+              aggregates by variant, not by clinical reporting context).
+
+        These stages are intentionally excluded because cohort analysis
+        operates on pre-separated per-sample VCFs. If your workflow
+        requires sample extraction or inheritance filtering, run the
+        full single-sample pipeline first and feed ClassifiedVariant
+        results to CohortAggregator directly.
+
         Parameters
         ----------
         vcf_path : Path, optional
