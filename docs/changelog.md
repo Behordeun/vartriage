@@ -4,6 +4,28 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-07-19
+
+### Added
+
+- **Multi-sample cohort analysis** (`vartriage cohort`): process multiple VCF files together to find shared variants, compute cross-sample recurrence frequencies, and produce per-gene burden tables.
+  - `CohortConfig` dataclass with validation (min 2 samples, AF threshold, recurrence threshold, parallel options).
+  - `CohortAggregator`: merges classified variants by coordinate `(chrom, pos, ref, alt)` across samples. Filters by population AF before aggregation. Resolves most-severe classification and consequence when a variant appears in multiple samples.
+  - `CohortStatistics`: per-gene burden (variant count, pathogenic count, penetrance), recurrence distribution, per-sample counts, classification and consequence breakdowns.
+  - `CohortReportGenerator`: writes three output files per run (variants, gene burden, summary) in JSON or CSV format.
+  - `CohortPipeline`: orchestrates per-sample Pipeline execution then aggregates. Supports sequential and parallel (ThreadPoolExecutor) processing modes.
+- CLI subcommand `vartriage cohort` with `--manifest` (tab-separated, optional labels column) or `--vcf` (multiple paths). Options: `--min-recurrence`, `--max-af`, `--no-singletons`, `--parallel`, `--max-workers`, `--cohort-name`, `--output-format`. Accepts all standard reference file flags.
+- `CohortVariant` dataclass with `cohort_frequency`, `is_singleton`, `is_universal` computed properties.
+- `GeneBurden` dataclass with `penetrance` property (fraction of cohort samples affected).
+- `CohortSummary` dataclass aggregating top-level cohort metrics.
+- Public API exports: `CohortPipeline`, `CohortAggregator`, `CohortReportGenerator`, `CohortStatistics`, `CohortConfig`, `CohortVariant`, `CohortSummary`, `GeneBurden`.
+
+### Changed
+
+- Package version bumped to 0.11.0.
+- `__init__.py` exports expanded with all cohort public classes.
+- README updated with cohort CLI usage, Python API examples, and `CohortConfig` reference table.
+
 ## [0.10.0] - 2026-07-18
 
 ### Added
