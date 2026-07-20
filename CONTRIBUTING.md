@@ -107,12 +107,19 @@ Use the following prefixes for your branches:
 
 ```text
 vartriage/
-├── annotation/       # Variant annotation engine
+├── annotation/       # Variant annotation engine (consequence, frequency, ClinVar)
+├── api/              # Remote annotation backend (Ensembl VEP, ClinVar, CADD, SpliceAI)
+├── bundle/           # Reference file downloader and manager
 ├── classification/   # ACMG classification and combining rules
-├── models/           # Data models (Variant, AnnotatedVariant, etc.)
+├── cohort/           # Multi-sample cohort analysis
+├── filter/           # Quality, region, gene, sample, inheritance, secondary findings
+├── io/               # VCF parser and error hierarchy
+├── models/           # Data models (Variant, AnnotatedVariant, CohortVariant, configs)
 ├── prioritization/   # Scoring and prioritization engine
-├── reporting/        # Report generation (JSON, CSV, PDF)
-├── _internal/        # Internal utilities
+├── reporting/        # Report generation (JSON, CSV, PDF, VCF, clinical)
+├── data/             # Package data (ACMG SF gene list)
+├── _internal/        # Internal utilities (cache, normalization, genetic code)
+├── pipeline.py       # Top-level orchestrator
 ├── protocols.py      # Protocol interfaces
 ├── exceptions.py     # Warning and exception hierarchy
 ├── cli.py            # Command-line interface

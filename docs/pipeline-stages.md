@@ -3,10 +3,16 @@
 ## Data flow
 
 ```text
-VCFParser → QualityFilter → AnnotationEngine → [GeneFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
+VCFParser → [SampleExtractor|InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
 
-Stages in brackets are optional. GeneFilter activates when `--gene-list` is provided.
+Stages in brackets are optional. They activate based on configuration:
+
+- `SampleExtractor` activates with `--sample` (mutually exclusive with InheritanceFilter)
+- `InheritanceFilter` activates with `--proband/--mother/--father`
+- `RegionFilter` activates with `--regions`
+- `GeneFilter` activates with `--gene-list`
+- `SecondaryFindingsFilter` activates with `--secondary-findings`
 
 Each stage consumes an iterator and yields an iterator. Only one batch lives in memory at a time.
 
@@ -32,6 +38,60 @@ Streams `Variant` records from `.vcf` or `.vcf.gz` files using pysam (htslib wra
 
 - `FileNotFoundError` if VCF or `.tbi` index missing
 - `ParseError` on malformed headers or data lines
+
+## Sample Extraction (optional, v0.3.0+)
+
+**Class:** `SampleExtractor`
+
+Extracts a single sample from multi-sample VCFs, keeping only variants where the named sample carries an alternate allele.
+
+**Input:** Iterator of `Variant` (with `_pysam_samples` in info dict).
+
+**Output:** Iterator of `Variant` (subset, with `sample_gt` and `sample_name` in info dict).
+
+**Behavior:**
+
+- Looks up the named sample in the VCF header
+- Filters to variants where the sample's genotype contains at least one alt allele
+- Optionally applies a genotype quality (GQ) threshold
+- Variants below GQ threshold are dropped
+- Populates `zygosity` and `quality_metrics` on downstream `AnnotatedVariant` (v0.10.0+)
+
+**Errors:**
+
+- `ValueError` if the sample name does not exist in the VCF header
+
+**Configuration:** `SampleConfig(sample_name="PROBAND_01", min_gq=20)`
+
+**CLI:** `--sample PROBAND_01 --min-gq 20`
+
+Mutually exclusive with trio arguments (`--proband/--mother/--father`).
+
+## Region Filtering (optional, v0.3.0+)
+
+**Class:** `RegionFilter`
+
+Restricts analysis to variants overlapping genomic intervals from a BED file.
+
+**Input:** Iterator of `Variant`.
+
+**Output:** Iterator of `Variant` (subset overlapping at least one BED interval).
+
+**Behavior:**
+
+- Parses BED file at construction (0-based half-open intervals)
+- Builds an interval index per chromosome
+- Each variant is checked for overlap with any target interval
+- Variants outside all intervals are dropped
+
+**Errors:**
+
+- `FileNotFoundError` if BED file does not exist
+- `ValueError` if BED file is malformed (fewer than 3 columns, non-numeric coordinates)
+
+**Configuration:** `RegionFilterConfig(bed_path=Path("target_regions.bed"))`
+
+**CLI:** `--regions target_regions.bed`
 
 ## Quality Filtering
 
@@ -105,10 +165,22 @@ Enriches each variant with three annotations, processed in configurable batches 
 The engine picks the fastest available backend at construction:
 
 - Consequence: PyRanges (if installed) or pure-Python sorted interval tree
-- Frequency: Polars (if installed) or dict-based lookup
+- Frequency: Polars (if installed) or dict-based lookup; tabix VCF (zero-memory) for `.vcf.bgz`/`.vcf.gz` gnomAD files
 - ClinVar: Polars (if installed) or dict-based lookup
 
 Both produce the same results. The accelerated backends run faster on large reference files.
+
+**Codon-level consequence calling (v0.8.0+):**
+
+When `reference_fasta_path` is configured, the engine uses actual amino acid comparison for SNVs in CDS regions instead of the positional heuristic. `TranscriptCDSIndex` maps genomic coordinates to CDS positions via the GTF, then `CodonResolver` extracts the reference codon from FASTA, substitutes the variant base, translates both, and compares. Correctly distinguishes synonymous, missense, and nonsense. Without FASTA, the fallback heuristic ("SNV in CDS = Missense") is used.
+
+**Variant normalization (v0.8.0+):**
+
+When a reference FASTA is available, indels are left-aligned and trimmed before database lookups. This reduces silent lookup failures from representation differences between callers and databases. The algorithm follows Tan et al. 2015 with a 1000-iteration safety cap.
+
+**Population-specific frequencies (v0.9.0+):**
+
+When gnomAD data includes per-population columns (AFR, AMR, ASJ, EAS, FIN, NFE, SAS), these are stored in `PopulationFrequencies` on `AnnotatedVariant`. PM2 checks ALL populations below threshold. BA1/BS1 check if ANY population exceeds threshold.
 
 **Missing data handling:**
 
@@ -142,6 +214,28 @@ Restricts the annotated variant stream to only those variants whose gene symbol 
 
 **Configuration:** `GeneFilterConfig(gene_list_path=Path("my_panel.txt"))`
 
+## Secondary Findings Screening (optional, v0.10.0+)
+
+**Class:** `SecondaryFindingsFilter`
+
+Flags variants in the 71 ACMG Secondary Findings (SF v3.2) medically actionable genes, regardless of whether they pass the primary gene panel filter.
+
+**Input:** Iterator of `AnnotatedVariant`.
+
+**Output:** Iterator of `AnnotatedVariant` (unchanged, but flagged variants are tracked internally).
+
+**Behavior:**
+
+- Loads the built-in gene list from `vartriage/data/acmg_sf_v3.2.txt` (shipped as package data)
+- Checks each variant's `gene_name` against the 71-gene set
+- Does not remove any variants from the stream
+- `is_secondary_finding(gene_name)` method for point queries
+- `split_stream()` method separates the variant stream into primary and secondary finding subsets
+
+Clinical reports include a dedicated secondary findings section when this filter is active.
+
+**CLI:** `--secondary-findings`
+
 ## Prioritization
 
 **Class:** `PrioritizationEngine`
@@ -166,6 +260,15 @@ Filters by allele frequency and computes composite pathogenicity scores.
 
 **Memory safety:** On `MemoryError`, automatically retries with smaller chunk sizes (capped at 500,000 per chunk).
 
+**Prioritization score (v0.8.0+):**
+
+A separate `prioritization_score` field uses literature-validated scoring:
+- Missense variants: REVEL score directly (threshold 0.7 validated against ClinGen)
+- Splice-adjacent variants: SpliceAI delta score
+- Non-missense: CADD Phred / 60
+
+This is the recommended ranking method. `composite_rank` (legacy weighted average) is kept for backward compatibility but deprecated. Both are present in output; `composite_rank` will be removed in v1.0.0.
+
 **Configuration:** `PrioritizationConfig(max_allele_frequency=0.01, cadd_scores_path=None, revel_scores_path=None, spliceai_scores_path=None, batch_size=10_000)`
 
 ## ACMG Classification
@@ -180,20 +283,33 @@ Assigns ACMG/AMP 2015 evidence tags and determines final classification.
 
 **Evidence criteria evaluated:**
 
+Pathogenic criteria:
+
 | Tag | Strength | Condition |
 | ----- | ---------- | ----------- |
 | PVS1 | Very Strong | Consequence is Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
-| PM2 | Moderate | gnomAD AF < 0.0001 |
+| PM2 | Moderate | All population AFs < 0.0001 (population-specific when available) |
 | PP3 | Supporting | REVEL score > 0.7, or SpliceAI > 0.5 on splice-adjacent variant |
 | PP5 | Supporting | ClinVar Pathogenic, no conflicting Benign/Likely_Benign |
 
+Benign criteria (v0.9.0+):
+
+| Tag | Strength | Condition |
+| ----- | ---------- | ----------- |
+| BA1 | Standalone | Any population AF > 5% |
+| BS1 | Strong | Any population AF > 1% (only when BA1 not already assigned) |
+| BP4 | Supporting | Missense with REVEL < 0.15, or non-missense with CADD Phred < 10 |
+| BP7 | Supporting | Synonymous with SpliceAI < 0.1 |
+
 **Combining rules:**
 
-Tags combine into a final classification:
+Tags combine into a final classification across all five ACMG tiers:
 
 - **Pathogenic:** 1 Very Strong + 1 Moderate, or 1 Very Strong + 2 Supporting
 - **Likely_Pathogenic:** 1 Very Strong + 1 Supporting, or 1 Moderate + 2 Supporting
-- **VUS:** Everything else
+- **VUS:** Insufficient evidence for either direction, or conflicting pathogenic + benign evidence
+- **Likely_Benign:** 1 Strong benign + 1 Supporting benign
+- **Benign:** BA1 alone (standalone), or 2 Strong benign
 
 When a required data source is unavailable for a criterion, that tag is omitted and the source name is recorded in `missing_data_sources`.
 

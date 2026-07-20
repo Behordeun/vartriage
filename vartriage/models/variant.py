@@ -100,6 +100,18 @@ class ACMGClassification(Enum):
     BENIGN = "Benign"
 
 
+# Classification severity ordering: index 0 is most severe.
+# Used by cohort aggregation and gene burden to resolve the
+# most clinically significant classification across samples.
+CLASSIFICATION_SEVERITY_ORDER: list[ACMGClassification] = [
+    ACMGClassification.PATHOGENIC,
+    ACMGClassification.LIKELY_PATHOGENIC,
+    ACMGClassification.VUS,
+    ACMGClassification.LIKELY_BENIGN,
+    ACMGClassification.BENIGN,
+]
+
+
 class EvidenceTag(Enum):
     """ACMG/AMP evidence tags assigned during classification.
 

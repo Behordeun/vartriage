@@ -25,6 +25,78 @@ def _get_version() -> str:
         return __version__
 
 
+def _add_reference_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add shared reference file and bundle arguments to a parser.
+
+    Used by both the main parser and the cohort subcommand to keep
+    argument definitions, defaults, and help text in sync.
+    """
+    parser.add_argument(
+        "--gene-annotation",
+        type=Path,
+        default=None,
+        help=(
+            "Path to GTF/GFF gene annotation reference file. "
+            "Required together with --gnomad for annotation."
+        ),
+    )
+    parser.add_argument(
+        "--gnomad",
+        type=Path,
+        default=None,
+        help=(
+            "Path to gnomAD population frequency reference file. "
+            "Required together with --gene-annotation for annotation."
+        ),
+    )
+    parser.add_argument(
+        "--clinvar",
+        type=Path,
+        default=None,
+        help="Path to ClinVar clinical significance reference file",
+    )
+    parser.add_argument(
+        "--cadd-scores",
+        type=Path,
+        default=None,
+        help="Path to CADD Phred score TSV reference file",
+    )
+    parser.add_argument(
+        "--revel-scores",
+        type=Path,
+        default=None,
+        help="Path to REVEL score TSV reference file",
+    )
+    parser.add_argument(
+        "--spliceai-scores",
+        type=Path,
+        default=None,
+        help="Path to SpliceAI score TSV reference file",
+    )
+    parser.add_argument(
+        "--gene-list",
+        type=Path,
+        default=None,
+        help="Path to a gene list file for gene-based filtering",
+    )
+    parser.add_argument(
+        "--use-bundles",
+        action="store_true",
+        default=False,
+        help=(
+            "Auto-resolve reference file paths from installed bundles "
+            "(~/.vartriage/bundles/). Paths explicitly passed via "
+            "--gnomad, --clinvar, etc. take precedence."
+        ),
+    )
+    parser.add_argument(
+        "--genome-build",
+        type=str,
+        default="grch38",
+        help="Genome build for bundle resolution (default: grch38)",
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser with all CLI options."""
     parser = argparse.ArgumentParser(
@@ -63,42 +135,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default="json",
         help="Output report format (default: json)",
     )
-    parser.add_argument(
-        "--gene-annotation",
-        type=Path,
-        default=None,
-        help="Path to GTF/GFF gene annotation reference file",
-    )
-    parser.add_argument(
-        "--gnomad",
-        type=Path,
-        default=None,
-        help="Path to gnomAD population frequency reference file",
-    )
-    parser.add_argument(
-        "--clinvar",
-        type=Path,
-        default=None,
-        help="Path to ClinVar clinical significance reference file",
-    )
-    parser.add_argument(
-        "--cadd-scores",
-        type=Path,
-        default=None,
-        help="Path to CADD Phred score TSV reference file",
-    )
-    parser.add_argument(
-        "--revel-scores",
-        type=Path,
-        default=None,
-        help="Path to REVEL score TSV reference file",
-    )
-    parser.add_argument(
-        "--spliceai-scores",
-        type=Path,
-        default=None,
-        help="Path to SpliceAI score TSV reference file",
-    )
+    _add_reference_arguments(parser)
+
     parser.add_argument(
         "--reference-fasta",
         type=Path,
@@ -108,12 +146,6 @@ def _build_parser() -> argparse.ArgumentParser:
             "Enables codon-level consequence calling and variant normalization. "
             "Without this, the pipeline uses a positional heuristic for consequences."
         ),
-    )
-    parser.add_argument(
-        "--gene-list",
-        type=Path,
-        default=None,
-        help="Path to a gene list file for gene-based filtering",
     )
     parser.add_argument(
         "--version",
@@ -182,22 +214,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Gene panel name for clinical reports",
     )
     parser.add_argument(
-        "--use-bundles",
-        action="store_true",
-        default=False,
-        help=(
-            "Auto-resolve reference file paths from installed bundles "
-            "(~/.vartriage/bundles/). Paths explicitly passed via "
-            "--gnomad, --clinvar, etc. take precedence."
-        ),
-    )
-    parser.add_argument(
-        "--genome-build",
-        type=str,
-        default="grch38",
-        help="Genome build for bundle resolution (default: grch38)",
-    )
-    parser.add_argument(
         "--mode",
         choices=["local", "api", "hybrid"],
         default="local",
@@ -242,10 +258,13 @@ def main(argv: Optional[list[str]] = None) -> None:
     argv : list[str], optional
         Arguments to parse. Uses sys.argv[1:] when None.
     """
-    # Intercept 'bundle' subcommand before main parser
+    # Intercept subcommands before main parser
     effective_argv = argv if argv is not None else sys.argv[1:]
     if effective_argv and effective_argv[0] == "bundle":
         _run_bundle_cli(effective_argv[1:])
+        return
+    if effective_argv and effective_argv[0] == "cohort":
+        _run_cohort_cli(effective_argv[1:])
         return
 
     parser = _build_parser()
@@ -549,3 +568,168 @@ def _run_bundle_cli(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     exit_code = run_bundle_command(args)
     sys.exit(exit_code)
+
+
+def _run_cohort_cli(argv: list[str]) -> None:
+    """Handle the 'vartriage cohort' subcommand.
+
+    Provides multi-sample cohort analysis: processes multiple VCF files,
+    aggregates variants across samples, computes recurrence frequencies
+    and per-gene burden, then writes cohort-level reports.
+    """
+    parser = argparse.ArgumentParser(
+        prog="vartriage cohort",
+        description=(
+            "Multi-sample cohort analysis. Processes multiple VCF files "
+            "through the standard pipeline, then aggregates variants "
+            "across samples to identify shared mutations, compute "
+            "recurrence frequencies, and generate cohort-level reports."
+        ),
+    )
+
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a manifest file listing sample VCFs (one path per line). "
+            "Lines starting with '#' are comments. Optional second column "
+            "(tab-separated) provides a sample label."
+        ),
+    )
+    input_group.add_argument(
+        "--vcf",
+        type=Path,
+        nargs="+",
+        default=None,
+        help="Two or more VCF file paths to include in the cohort",
+    )
+
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Output directory for cohort report files",
+    )
+    parser.add_argument(
+        "--cohort-name",
+        type=str,
+        default="cohort",
+        help="Cohort identifier used in output filenames (default: cohort)",
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "csv"],
+        default="json",
+        help="Output format for cohort reports (default: json)",
+    )
+    parser.add_argument(
+        "--min-recurrence",
+        type=int,
+        default=2,
+        help=(
+            "Minimum number of samples a variant must appear in "
+            "to be included in the output (default: 2). Variants "
+            "below this threshold are excluded."
+        ),
+    )
+    parser.add_argument(
+        "--max-af",
+        type=float,
+        default=0.05,
+        help=(
+            "Maximum population allele frequency threshold for "
+            "cohort inclusion (default: 0.05)"
+        ),
+    )
+    parser.add_argument(
+        "--no-singletons",
+        action="store_true",
+        default=False,
+        help="Exclude singleton variants (appearing in only one sample) from output",
+    )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        default=False,
+        help="Process samples concurrently using a thread pool",
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=4,
+        help="Maximum parallel workers when --parallel is set (default: 4)",
+    )
+
+    # Reference file and bundle options (shared definition)
+    _add_reference_arguments(parser)
+
+    args = parser.parse_args(argv)
+
+    # Resolve sample VCF list
+    from vartriage.cohort.runner import CohortCLIConfig, parse_cohort_manifest, run_cohort
+
+    sample_vcfs: list[Path]
+    sample_labels: dict[str, str] | None = None
+
+    if args.manifest is not None:
+        if not args.manifest.exists():
+            print(
+                f"Error: manifest file not found: {args.manifest}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        sample_vcfs, sample_labels = parse_cohort_manifest(args.manifest)
+    else:
+        sample_vcfs = args.vcf
+
+    if len(sample_vcfs) < 2:
+        print(
+            "Error: cohort analysis requires at least 2 sample VCFs",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    for vcf_path in sample_vcfs:
+        if not vcf_path.exists():
+            print(f"Error: VCF file not found: {vcf_path}", file=sys.stderr)
+            sys.exit(1)
+
+    config = CohortCLIConfig(
+        sample_vcfs=sample_vcfs,
+        output=args.output,
+        cohort_name=args.cohort_name,
+        output_format=args.output_format,
+        min_recurrence=args.min_recurrence,
+        max_af=args.max_af,
+        include_singletons=not args.no_singletons,
+        parallel=args.parallel,
+        max_workers=args.max_workers,
+        use_bundles=getattr(args, "use_bundles", False),
+        genome_build=getattr(args, "genome_build", "grch38"),
+        gene_list=args.gene_list,
+        gene_annotation=args.gene_annotation,
+        gnomad=args.gnomad,
+        clinvar=args.clinvar,
+        cadd_scores=args.cadd_scores,
+        revel_scores=args.revel_scores,
+        spliceai_scores=args.spliceai_scores,
+        sample_labels=sample_labels,
+    )
+
+    try:
+        report_paths = run_cohort(config)
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as exc:
+        print(f"Error: cohort analysis failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    for p in report_paths:
+        print(str(p))
+    sys.exit(0)

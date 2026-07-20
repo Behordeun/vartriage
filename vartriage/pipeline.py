@@ -19,7 +19,7 @@ from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
 from vartriage.models.config import (AnnotationConfig, PipelineConfig,
                                      PrioritizationConfig)
-from vartriage.models.variant import AnnotatedVariant, Variant
+from vartriage.models.variant import AnnotatedVariant, ClassifiedVariant, Variant
 from vartriage.prioritization.engine import PrioritizationEngine
 from vartriage.reporting.generator import ReportGenerator
 
@@ -187,6 +187,77 @@ class Pipeline:
 
         logger.info("Report written to: %s", result_path)
         return result_path
+
+    def run_to_classification(
+        self, vcf_path: Optional[Path] = None
+    ) -> Iterator[ClassifiedVariant]:
+        """Execute the pipeline through classification without report generation.
+
+        Runs VCF parsing, quality filtering, annotation, prioritization,
+        and ACMG classification, yielding ClassifiedVariant objects. Skips
+        report writing entirely. Used by CohortPipeline to collect per-sample
+        results without generating throw-away files.
+
+        Stage limitations vs full run():
+            - SampleExtractor is not applied (cohort mode processes
+              each VCF as a single-sample file already).
+            - InheritanceFilter is not applied (trio analysis is a
+              single-proband concern, not meaningful per-sample in a
+              cohort where each VCF represents one individual).
+            - SecondaryFindingsFilter is not applied (cohort mode
+              aggregates by variant, not by clinical reporting context).
+
+        These stages are intentionally excluded because cohort analysis
+        operates on pre-separated per-sample VCFs. If your workflow
+        requires sample extraction or inheritance filtering, run the
+        full single-sample pipeline first and feed ClassifiedVariant
+        results to CohortAggregator directly.
+
+        Parameters
+        ----------
+        vcf_path : Path, optional
+            Path to the input VCF file. If None, uses the path from config.
+
+        Yields
+        ------
+        ClassifiedVariant
+            Classified variants from the pipeline stages.
+        """
+        effective_vcf_path = vcf_path or self._config.vcf_path
+
+        quality_filter = QualityFilter(self._config.quality_filter)
+
+        annotation_engine: Optional[AnnotationEngine] = None
+        if self._config.annotation is not None:
+            annotation_engine = AnnotationEngine(self._config.annotation)
+
+        prioritization_engine = PrioritizationEngine(self._config.prioritization)
+        acmg_classifier = ACMGClassifier()
+
+        with VCFParser(effective_vcf_path) as parser:
+            stream: Iterator[Variant] = iter(parser)
+
+            if self._config.region_filter is not None:
+                from vartriage.filter.region_filter import RegionFilter
+
+                region_filter = RegionFilter(self._config.region_filter)
+                stream = region_filter.apply(stream)
+
+            filtered = quality_filter.apply(stream)
+
+            if annotation_engine is not None:
+                annotated = annotation_engine.annotate(filtered)
+            else:
+                annotated = self._passthrough_annotation(filtered)
+
+            if self._config.gene_filter is not None:
+                from vartriage.filter.gene_filter import GeneFilter
+
+                gene_filter = GeneFilter(self._config.gene_filter)
+                annotated = gene_filter.apply(annotated)
+
+            scored = prioritization_engine.prioritize(annotated)
+            yield from acmg_classifier.classify(scored)
 
     def _check_reference_checksums(self) -> None:
         """Log reference file checksums using AuditTrailWriter.

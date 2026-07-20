@@ -88,6 +88,65 @@ The `--reference-fasta` flag enables codon-level consequence calling (correct mi
 
 Each run is independent. Safe to parallelize with `xargs` or GNU `parallel` if your machine has the RAM for it.
 
+## Trio inheritance analysis
+
+Identify de novo, dominant, recessive, compound het, and X-linked variants from a proband-mother-father trio:
+
+```bash
+vartriage \
+  --vcf trio_merged.vcf.gz \
+  --output trio_results.json \
+  --proband CHILD_01 \
+  --mother MOTHER_01 \
+  --father FATHER_01 \
+  --inheritance-pattern de_novo \
+  --inheritance-pattern recessive \
+  --gene-annotation refs/gencode.v44.gtf \
+  --gnomad refs/gnomad.v4.exomes.tsv \
+  --clinvar refs/clinvar.tsv \
+  --cadd-scores refs/cadd.tsv \
+  --revel-scores refs/revel.tsv \
+  --spliceai-scores refs/spliceai.tsv
+```
+
+Or run all patterns (the default when trio args are provided but no `--inheritance-pattern` specified):
+
+```bash
+vartriage \
+  --vcf trio_merged.vcf.gz \
+  --output trio_results.json \
+  --proband CHILD_01 \
+  --mother MOTHER_01 \
+  --father FATHER_01 \
+  --use-bundles
+```
+
+Python API:
+
+```python
+from pathlib import Path
+from vartriage import Pipeline, PipelineConfig, ReportConfig
+from vartriage.models.config import InheritanceConfig
+
+config = PipelineConfig(
+    vcf_path=Path("trio_merged.vcf.gz"),
+    output_path=Path("trio_results.json"),
+    inheritance=InheritanceConfig(
+        proband="CHILD_01",
+        mother="MOTHER_01",
+        father="FATHER_01",
+        patterns=["de_novo", "recessive", "compound_het"],
+    ),
+    report=ReportConfig(output_format="json"),
+    use_bundles=True,
+)
+
+pipeline = Pipeline(config)
+pipeline.run()
+```
+
+The `--proband/--mother/--father` flags are mutually exclusive with `--sample`. Compound het detection requires annotation (gene names needed for grouping), so provide annotation references when using that pattern.
+
 ## Accessing individual stages
 
 You don't have to run the full pipeline. Each stage is a standalone component.
@@ -362,6 +421,113 @@ done
 ```
 
 Each run produces a report file and its audit sidecar. Safe to parallelize.
+
+## Cohort analysis
+
+### Basic multi-sample comparison
+
+Find shared variants across a group of patients:
+
+```bash
+vartriage cohort \
+  --vcf samples/patient_001.vcf.gz samples/patient_002.vcf.gz samples/patient_003.vcf.gz \
+  --output cohort_results/ \
+  --cohort-name "cardiac_study" \
+  --use-bundles \
+  --gene-list refs/cardiac_panel.txt
+```
+
+Output lands in `cohort_results/`: three files (variants, gene burden, summary).
+
+### Manifest-driven cohort
+
+For larger studies, use a manifest file instead of listing VCFs on the command line:
+
+```text
+# samples.tsv
+/data/vcfs/patient_001.vcf.gz   Patient 001
+/data/vcfs/patient_002.vcf.gz   Patient 002
+/data/vcfs/patient_003.vcf.gz   Patient 003
+/data/vcfs/patient_004.vcf.gz   Patient 004
+```
+
+```bash
+vartriage cohort \
+  --manifest samples.tsv \
+  --output cohort_results/ \
+  --cohort-name "rare_disease_arm_a" \
+  --min-recurrence 3 \
+  --max-af 0.001 \
+  --no-singletons \
+  --parallel --max-workers 8 \
+  --use-bundles
+```
+
+Only variants shared by at least 3 samples with population AF below 0.1% show up in the output.
+
+### Python API cohort workflow
+
+```python
+from pathlib import Path
+from vartriage import (
+    CohortPipeline, CohortConfig,
+    AnnotationConfig, PrioritizationConfig,
+)
+
+vcf_dir = Path("samples/")
+vcf_files = sorted(vcf_dir.glob("*.vcf.gz"))
+
+cohort_config = CohortConfig(
+    sample_vcfs=vcf_files,
+    output_path=Path("cohort_results/"),
+    cohort_name="study_2026",
+    min_recurrence=2,
+    max_af_threshold=0.01,
+    parallel=True,
+    max_workers=4,
+)
+
+annotation = AnnotationConfig(
+    gene_annotation_path=Path("refs/gencode.v44.gtf"),
+    gnomad_path=Path("refs/gnomad.v4.exomes.tsv"),
+    clinvar_path=Path("refs/clinvar.tsv"),
+)
+
+pipeline = CohortPipeline(
+    cohort_config=cohort_config,
+    annotation_config=annotation,
+)
+pipeline.run()
+
+# Print top recurrent genes
+for burden in pipeline.gene_burdens[:10]:
+    print(f"{burden.gene_name}: {burden.pathogenic_count} pathogenic, "
+          f"{burden.samples_affected}/{cohort_config.sample_count} samples")
+```
+
+### Post-hoc filtering of cohort results
+
+Load a previous cohort run and drill into specific genes:
+
+```python
+import json
+from pathlib import Path
+
+variants = json.loads(
+    Path("cohort_results/study_2026_variants.json").read_text()
+)
+
+# Filter to MYBPC3 variants shared by 3+ samples
+mybpc3_shared = [
+    v for v in variants
+    if v["gene_name"] == "MYBPC3" and v["sample_count"] >= 3
+]
+
+for v in mybpc3_shared:
+    samples = ", ".join(s["sample_id"] for s in v["samples"])
+    print(f"  {v['chrom']}:{v['pos']} {v['ref']}>{v['alt']} "
+          f"({v['max_classification']}) in: {samples}")
+```
 
 ## Score bundle downloader
 
