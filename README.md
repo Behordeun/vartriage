@@ -139,6 +139,8 @@ vartriage cohort --manifest samples.tsv --output cohort_results/ \
 | `--parallel` | false | Process samples concurrently |
 | `--max-workers` | 4 | Thread pool size for parallel mode |
 
+Parallel mode uses `ThreadPoolExecutor`. Per-sample work is I/O-bound (pysam releases the GIL during C-level VCF parsing), so threads are effective here without needing multiprocessing.
+
 ### Full options
 
 ```bash
@@ -225,6 +227,30 @@ with VCFParser(Path("input.vcf.gz")) as parser:
         print(f"{variant.chrom}:{variant.pos} {variant.ref}>{variant.alt}")
 ```
 
+API mode (no local reference files needed):
+
+```python
+from pathlib import Path
+from vartriage import Pipeline, PipelineConfig, ReportConfig
+from vartriage.api.config import APIConfig
+
+api_config = APIConfig.load(
+    mode="api",
+    genome_build="grch38",
+    ncbi_api_key="your-key-here",  # or set NCBI_API_KEY env var
+)
+
+config = PipelineConfig(
+    vcf_path=Path("panel.vcf"),
+    output_path=Path("results.json"),
+    report=ReportConfig(output_format="json"),
+    api=api_config,
+)
+
+pipeline = Pipeline(config)
+pipeline.run()
+```
+
 Cohort analysis across multiple samples:
 
 ```python
@@ -292,20 +318,22 @@ Stages in brackets are optional and activate based on config.
 composite = (REVEL × 0.5) + (CADD_normalized × 0.3) + (SpliceAI × 0.2)
 ```
 
+CADD normalization: Phred score divided by 99.0, capped at 1.0. The separate `prioritization_score` field uses Phred / 60.0 (capped at 1.0) for triage ranking. REVEL and SpliceAI are already bounded 0.0–1.0 and used directly without rescaling.
+
 When only two scores are available, weights redistribute proportionally. Single available score is used directly. Falls back to the legacy two-score formula (0.6/0.4) when SpliceAI is not configured.
 
 **ACMG classification** - Tags evidence per ACMG/AMP 2015 guidelines:
 
-| Tag | Condition |
-| ------ | ---------------------------------------------- |
-| PVS1 | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
-| PM2 | All population AFs < 0.0001 (population-aware) |
-| PP3 | REVEL > 0.7 or SpliceAI > 0.5 on splice-adjacent |
-| PP5 | ClinVar Pathogenic without conflicting Benign |
-| BA1 | Any population AF > 5% (standalone Benign) |
-| BS1 | Any population AF > 1% (strong benign) |
-| BP4 | REVEL < 0.15 (missense) or CADD < 10 (non-missense) |
-| BP7 | Synonymous + SpliceAI < 0.1 |
+| Tag | Strength | Condition |
+| ------ | ------------ | ---------------------------------------------- |
+| PVS1 | Very Strong | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
+| PM2 | Moderate | All population AFs < 0.0001 (population-aware) |
+| PP3 | Supporting | REVEL > 0.7 or SpliceAI > 0.5 on splice-adjacent |
+| PP5 | Supporting | ClinVar Pathogenic without conflicting Benign |
+| BA1 | Standalone | Any population AF > 5% (standalone Benign) |
+| BS1 | Strong | Any population AF > 1% (strong benign) |
+| BP4 | Supporting | REVEL < 0.15 (missense) or CADD < 10 (non-missense) |
+| BP7 | Supporting | Synonymous + SpliceAI < 0.1 |
 
 Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign. Conflicting pathogenic + benign evidence yields VUS. Missing data sources mean the tag is simply omitted.
 
