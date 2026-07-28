@@ -4,6 +4,15 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-07-28
+
+### Documentation
+
+- Document CADD score normalization: composite uses Phred/99.0, prioritization_score uses Phred/60.0, both capped at 1.0.
+- Add ACMG evidence strength column (Very Strong, Moderate, Supporting, Standalone, Strong) to classification table.
+- Clarify cohort parallel mode uses ThreadPoolExecutor with GIL-releasing pysam I/O.
+- Add API mode Python snippet showing programmatic `APIConfig.load()` usage.
+
 ## [0.11.0] - 2026-07-19
 
 ### Added
