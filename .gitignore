@@ -50,7 +50,7 @@ data/
 
 # Validation output (large downloaded reference data)
 validation_results/
-
+vt_cohort_test/
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
