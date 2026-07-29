@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from vartriage.knowledge.models import GeneContext
 
 
 class FunctionalConsequence(Enum):
@@ -339,6 +342,7 @@ class AnnotatedVariant:
     population_frequencies: Optional[PopulationFrequencies] = None
     zygosity: Zygosity = Zygosity.UNKNOWN
     quality_metrics: Optional[VariantQualityMetrics] = None
+    gene_context: Optional[GeneContext] = None
 
 
 @dataclass(frozen=True, slots=True)

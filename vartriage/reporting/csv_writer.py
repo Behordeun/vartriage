@@ -29,6 +29,13 @@ CSV_FIELDS: list[str] = [
     "clinvar_assertion",
     "acmg_classification",
     "evidence_tags",
+    "disease_associations",
+    "clingen_validity",
+    "gene_constraint_pli",
+    "gene_constraint_loeuf",
+    "gene_constraint_mis_z",
+    "is_actionable",
+    "phenotype_match_score",
 ]
 """Output field names in the order specified by the report schema."""
 
@@ -50,6 +57,40 @@ def _format_field(value: object) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def _format_disease_associations(annotated: object) -> str | None:
+    """Format disease associations as semicolon-separated string.
+
+    Includes disease_name, mim_number, and inheritance_mode to match
+    JSON output, e.g. "Disease name [MIM:123456] (AD)".
+    """
+    ctx = getattr(annotated, "gene_context", None)
+    if ctx is None or not ctx.disease_associations:
+        return None
+    parts = []
+    for a in ctx.disease_associations:
+        name = a.disease_name or ""
+        mim = f" [MIM:{a.mim_number}]" if a.mim_number else ""
+        mode = f" ({a.inheritance_mode})" if a.inheritance_mode else ""
+        parts.append(f"{name}{mim}{mode}")
+    return ";".join(parts) if parts else None
+
+
+def _get_gene_context_field(annotated: object, field_name: str) -> object:
+    """Extract a field from gene_context, returning None if absent."""
+    ctx = getattr(annotated, "gene_context", None)
+    if ctx is None:
+        return None
+    return getattr(ctx, field_name, None)
+
+
+def _get_constraint_field(annotated: object, field_name: str) -> object:
+    """Extract a constraint sub-field from gene_context."""
+    ctx = getattr(annotated, "gene_context", None)
+    if ctx is None or ctx.constraint is None:
+        return None
+    return getattr(ctx.constraint, field_name, None)
 
 
 def _variant_to_row(variant: ClassifiedVariant) -> list[str]:
@@ -102,6 +143,13 @@ def _variant_to_row(variant: ClassifiedVariant) -> list[str]:
         _format_field(clinvar_value),
         _format_field(classification_value),
         _format_field(evidence_tags_value),
+        _format_field(_format_disease_associations(annotated)),
+        _format_field(_get_gene_context_field(annotated, "clingen_validity")),
+        _format_field(_get_constraint_field(annotated, "pli")),
+        _format_field(_get_constraint_field(annotated, "loeuf")),
+        _format_field(_get_constraint_field(annotated, "mis_z")),
+        _format_field(_get_gene_context_field(annotated, "is_actionable")),
+        _format_field(_get_gene_context_field(annotated, "phenotype_match_score")),
     ]
 
 

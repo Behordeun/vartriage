@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vartriage._internal.warning_accumulator import WarningAccumulator
 from vartriage.annotation.engine import AnnotationEngine
@@ -19,6 +19,9 @@ from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
 from vartriage.models.config import (AnnotationConfig, PipelineConfig,
                                      PrioritizationConfig)
+
+if TYPE_CHECKING:
+    from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
 from vartriage.models.variant import AnnotatedVariant, ClassifiedVariant, Variant
 from vartriage.prioritization.engine import PrioritizationEngine
 from vartriage.reporting.generator import ReportGenerator
@@ -56,6 +59,15 @@ class Pipeline:
         self._config = config
         self._warning_accumulator = WarningAccumulator(config.missing_data)
         self._validate_config(config)
+
+        # Gene-disease linkage annotator: constructed once, reused across runs
+        self._gene_knowledge_annotator: Optional["GeneKnowledgeAnnotator"] = None
+        if config.knowledge is not None:
+            from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
+
+            self._gene_knowledge_annotator = GeneKnowledgeAnnotator(
+                config.knowledge  # type: ignore[arg-type]
+            )
 
     @property
     def warning_accumulator(self) -> WarningAccumulator:
@@ -161,7 +173,15 @@ class Pipeline:
                 gene_filter = GeneFilter(self._config.gene_filter)
                 annotated = gene_filter.apply(annotated)
 
+            # Gene-disease linkage: attach gene context and phenotype scores
+            if self._gene_knowledge_annotator is not None:
+                annotated = self._gene_knowledge_annotator.annotate(annotated)
+
             scored = prioritization_engine.prioritize(annotated)
+
+            # Apply phenotype boost to prioritization scores when HPO active
+            if self._gene_knowledge_annotator is not None:
+                scored = self._gene_knowledge_annotator.boost_scores(scored)
 
             classified = acmg_classifier.classify(scored)
 
@@ -256,7 +276,16 @@ class Pipeline:
                 gene_filter = GeneFilter(self._config.gene_filter)
                 annotated = gene_filter.apply(annotated)
 
+            # Gene-disease linkage in run_to_classification path
+            if self._gene_knowledge_annotator is not None:
+                annotated = self._gene_knowledge_annotator.annotate(annotated)
+
             scored = prioritization_engine.prioritize(annotated)
+
+            # Apply phenotype boost in classification path too
+            if self._gene_knowledge_annotator is not None:
+                scored = self._gene_knowledge_annotator.boost_scores(scored)
+
             yield from acmg_classifier.classify(scored)
 
     def _check_reference_checksums(self) -> None:

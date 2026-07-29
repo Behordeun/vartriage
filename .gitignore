@@ -47,6 +47,7 @@ test_*.tmp.py
 .vscode
 
 data/
+!vartriage/data/
 
 # Validation output (large downloaded reference data)
 validation_results/

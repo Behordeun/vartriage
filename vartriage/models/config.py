@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
+
+if TYPE_CHECKING:
+    from vartriage.knowledge.config import KnowledgeBaseConfig
 
 
 @dataclass(frozen=True)
@@ -361,6 +364,7 @@ class PipelineConfig:
     use_bundles: bool = False
     genome_build: str = "grch38"
     api: "object | None" = field(default=None)
+    knowledge: "KnowledgeBaseConfig | None" = field(default=None)
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format

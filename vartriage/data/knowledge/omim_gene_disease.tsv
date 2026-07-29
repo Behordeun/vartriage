@@ -1,0 +1,31 @@
+gene_symbol	disease_name	mim_number	inheritance_mode
+BRCA1	Breast-ovarian cancer, familial, 1	604370	AD
+BRCA1	Fanconi anemia, complementation group S	617883	AR
+BRCA2	Breast-ovarian cancer, familial, 2	612555	AD
+BRCA2	Fanconi anemia, complementation group D1	605724	AR
+TP53	Li-Fraumeni syndrome	151623	AD
+CFTR	Cystic fibrosis	219700	AR
+CFTR	Congenital bilateral absence of vas deferens	277180	AR
+MLH1	Lynch syndrome 2	609310	AD
+MSH2	Lynch syndrome 1	120435	AD
+PTEN	Cowden syndrome 1	158350	AD
+RB1	Retinoblastoma	180200	AD
+SCN1A	Dravet syndrome	607208	AD
+SCN1A	Generalized epilepsy with febrile seizures plus, type 2	604403	AD
+MECP2	Rett syndrome	312750	XLD
+DMD	Duchenne muscular dystrophy	310200	XLR
+DMD	Becker muscular dystrophy	300376	XLR
+HEXA	Tay-Sachs disease	272800	AR
+PKD1	Polycystic kidney disease 1	173900	AD
+LMNA	Emery-Dreifuss muscular dystrophy 2	181350	AD
+LMNA	Dilated cardiomyopathy 1A	115200	AD
+MYH7	Hypertrophic cardiomyopathy 1	192600	AD
+MYBPC3	Hypertrophic cardiomyopathy 4	115197	AD
+KCNQ1	Long QT syndrome 1	192500	AD
+SCN5A	Long QT syndrome 3	603830	AD
+SCN5A	Brugada syndrome 1	601144	AD
+RET	Multiple endocrine neoplasia 2A	171400	AD
+RET	Hirschsprung disease 1	142623	AD
+VHL	Von Hippel-Lindau syndrome	193300	AD
+APC	Familial adenomatous polyposis 1	175100	AD
+LDLR	Familial hypercholesterolemia	143890	AD

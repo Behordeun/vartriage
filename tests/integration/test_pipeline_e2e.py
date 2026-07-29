@@ -688,6 +688,13 @@ class TestCSVOutput:
             "clinvar_assertion",
             "acmg_classification",
             "evidence_tags",
+            "disease_associations",
+            "clingen_validity",
+            "gene_constraint_pli",
+            "gene_constraint_loeuf",
+            "gene_constraint_mis_z",
+            "is_actionable",
+            "phenotype_match_score",
         ]
         assert header == expected_header
 
