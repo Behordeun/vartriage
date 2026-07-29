@@ -67,9 +67,11 @@ def cache_path_for(source_path: Path) -> Path:
     Returns
     -------
     Path
-        source_path with '.vartriage.cache' appended.
+        A sibling file in the same directory with '.vartriage.cache' appended
+        to the source filename.
     """
-    return Path(str(source_path) + ".vartriage.cache")
+    resolved = source_path.resolve()
+    return resolved.parent / (resolved.name + ".vartriage.cache")
 
 
 def try_load_cache(source_path: Path) -> Optional[Any]:
@@ -103,11 +105,11 @@ def try_load_cache(source_path: Path) -> Optional[Any]:
     try:
         with open(cp, "rb") as f:
             envelope: CacheEnvelope = pickle.load(f)  # noqa: S301
-    except (OSError, PermissionError) as exc:
+    except OSError as exc:
         logger.warning("Cannot read cache file %s: %s", cp, exc)
         _delete_cache(cp)
         return None
-    except (pickle.UnpicklingError, Exception) as exc:
+    except Exception as exc:
         logger.warning("Failed to deserialize cache %s: %s", cp, exc)
         _delete_cache(cp)
         return None
