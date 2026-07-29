@@ -25,44 +25,53 @@ def resolve_path(path: Path) -> Path:
     -------
     Path
         Canonicalized absolute path.
+
+    Raises
+    ------
+    ValueError
+        If the original path contains '..' traversal sequences.
     """
+    _reject_traversal(path)
     return path.resolve()
 
 
-def validate_readable_path(path: Path, label: str = "File") -> Path:
-    """Resolve path and verify it exists and is a regular file.
+def safe_read_path(path: Path, label: str = "File") -> Path:
+    """Validate and resolve a path for reading.
+
+    Rejects traversal sequences, resolves to absolute, and verifies
+    existence. Use before every open(..., 'r') on user-provided paths.
 
     Parameters
     ----------
     path : Path
         Path to validate.
     label : str
-        Description for error messages (e.g., "GTF annotation").
+        Description for error messages.
 
     Returns
     -------
     Path
-        Resolved, validated path.
+        Resolved, validated path safe to open for reading.
 
     Raises
     ------
     FileNotFoundError
-        If the resolved path does not exist or is not a file.
+        If the resolved path does not exist.
     ValueError
         If the path contains traversal sequences.
     """
-    if ".." in path.parts:
-        raise ValueError(f"{label} path contains traversal: {path}")
+    _reject_traversal(path)
     resolved = path.resolve()
     if not resolved.exists():
         raise FileNotFoundError(f"{label} not found: {path}")
-    if not resolved.is_file():
-        raise FileNotFoundError(f"{label} is not a file: {path}")
     return resolved
 
 
-def validate_writable_path(path: Path, label: str = "Output") -> Path:
-    """Resolve path for writing, creating parent directories as needed.
+def safe_write_path(path: Path, label: str = "Output") -> Path:
+    """Validate and resolve a path for writing.
+
+    Rejects traversal sequences, resolves to absolute, creates parent
+    directories. Use before every open(..., 'w') on user-provided paths.
 
     Parameters
     ----------
@@ -81,8 +90,21 @@ def validate_writable_path(path: Path, label: str = "Output") -> Path:
     ValueError
         If the path contains traversal sequences.
     """
-    if ".." in path.parts:
-        raise ValueError(f"{label} path contains traversal: {path}")
+    _reject_traversal(path)
     resolved = path.resolve()
     resolved.parent.mkdir(parents=True, exist_ok=True)
     return resolved
+
+
+# Keep old names for backward compatibility
+validate_readable_path = safe_read_path
+validate_writable_path = safe_write_path
+
+
+def _reject_traversal(path: Path) -> None:
+    """Raise ValueError if path contains directory traversal."""
+    path_str = str(path)
+    if ".." in path.parts or "/.." in path_str or "\\.." in path_str:
+        raise ValueError(
+            f"Path contains directory traversal sequence: {path}"
+        )

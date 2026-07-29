@@ -15,6 +15,9 @@ from pathlib import Path
 from typing import Optional, Protocol, Sequence
 
 
+from vartriage._internal.path_safety import safe_write_path
+
+
 def _validate_source_path(source: Path) -> Path:
     """Validate and resolve a source path before passing to subprocess.
 
@@ -127,8 +130,7 @@ class VcfToTsvTransformer:
             str(source),
         ]
 
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write(self._header + "\n")
@@ -160,8 +162,7 @@ class VcfToTsvTransformer:
                 "Install bcftools or run: pip install pysam"
             ) from exc
 
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
@@ -220,8 +221,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
             str(source),
         ]
 
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         with open(dest, "w", encoding="utf-8") as out:
@@ -281,8 +281,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
                 "Neither bcftools nor pysam available for ClinVar transformation."
             ) from exc
 
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
@@ -357,8 +356,7 @@ class CsvToTsvTransformer:
 
     def transform(self, source: Path, dest: Path, _build: str) -> TransformResult:
         """Transform CSV to TSV with column renaming."""
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         opener = gzip.open if source.suffix == ".gz" else open
@@ -438,8 +436,7 @@ class SpliceAIExtractor:
             str(source),
         ]
 
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         with open(dest, "w", encoding="utf-8") as out:
@@ -481,8 +478,7 @@ class SpliceAIExtractor:
                 "Neither bcftools nor pysam available for SpliceAI extraction."
             ) from exc
 
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
@@ -539,8 +535,7 @@ class PassthroughTransformer:
 
     def transform(self, source: Path, dest: Path, _build: str) -> TransformResult:
         """Copy or decompress source to dest."""
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
 
         if source.suffix == ".gz":
             with gzip.open(source, "rb") as f_in, open(dest, "wb") as f_out:

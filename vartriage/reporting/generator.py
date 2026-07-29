@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 from typing import Iterator, Optional, Sequence, Union
 
+from vartriage._internal.path_safety import safe_write_path
 from vartriage.models.config import ClinicalReportConfig, ReportConfig
 from vartriage.models.variant import ClassifiedVariant
 from vartriage.reporting.csv_writer import write_csv
@@ -93,8 +94,7 @@ class ReportGenerator:
             On write or encoding failure, or if format is "vcf"
             and ``source_vcf_path`` is None.
         """
-        output_path = Path(output_path).resolve()
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path = safe_write_path(Path(output_path), "Report output")
 
         fmt = self._config.output_format
 

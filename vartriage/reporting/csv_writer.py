@@ -14,6 +14,7 @@ import csv
 from pathlib import Path
 from typing import Iterator, Sequence, Union
 
+from vartriage._internal.path_safety import safe_write_path
 from vartriage.models.variant import ClassifiedVariant
 
 CSV_FIELDS: list[str] = [
@@ -177,7 +178,7 @@ def write_csv(
     IOError
         If the file cannot be written due to filesystem or encoding errors.
     """
-    with open(output_path.resolve(), "w", newline="", encoding="utf-8") as csvfile:
+    with open(safe_write_path(output_path, "CSV report"), "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile, delimiter=",", quoting=csv.QUOTE_MINIMAL)
         writer.writerow(CSV_FIELDS)
         for variant in variants:

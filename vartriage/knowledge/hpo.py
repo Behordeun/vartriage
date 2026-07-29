@@ -13,6 +13,8 @@ import csv
 import logging
 from pathlib import Path
 
+from vartriage._internal.path_safety import safe_read_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +37,7 @@ class HPODatabase:
             logger.warning("HPO annotations file not found: %s", tsv_path)
             return
 
-        tsv_path = tsv_path.resolve()
+        tsv_path = safe_read_path(tsv_path, "HPO data")
         with open(tsv_path, newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh, delimiter="\t")
             for row in reader:

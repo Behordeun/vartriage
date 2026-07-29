@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pysam
 
+from vartriage._internal.path_safety import safe_write_path
 from vartriage.models.variant import ClassifiedVariant
 
 LookupKey = tuple[str, int, str, str]
@@ -170,7 +171,7 @@ def write_vcf(
         If writing or indexing fails.
     """
     lookup = _build_lookup(variants)
-    output_path = output_path.resolve()
+    output_path = safe_write_path(output_path, "VCF report")
     tmp_path = output_path.with_suffix(".vcf.gz.tmp")
     tmp_tbi_path = Path(str(tmp_path) + ".tbi")
 

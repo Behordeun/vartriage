@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from vartriage._internal.path_safety import safe_read_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -101,6 +103,7 @@ def try_load_cache(source_path: Path) -> Optional[Any]:
         return None
 
     try:
+        cp = safe_read_path(cp, "Cache file")
         with open(cp, "rb") as f:
             envelope: CacheEnvelope = pickle.load(f)  # noqa: S301
     except (OSError, PermissionError) as exc:

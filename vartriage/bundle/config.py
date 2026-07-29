@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from vartriage._internal.path_safety import safe_read_path
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:
@@ -89,7 +91,7 @@ class BundleConfig:
     def _apply_toml(self, path: Path) -> None:
         """Parse TOML file and apply values to config."""
         try:
-            path = path.resolve()
+            path = safe_read_path(path, "Bundle config")
             with open(path, "rb") as f:
                 data = tomllib.load(f)
         except (OSError, ValueError):

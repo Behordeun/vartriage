@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from vartriage._internal.path_safety import safe_read_path
+
 
 def compute_sha256(path: Path, chunk_size: int = 65536) -> str:
     """Compute SHA-256 hex digest for a file.
@@ -29,7 +31,7 @@ def compute_sha256(path: Path, chunk_size: int = 65536) -> str:
         If the file cannot be read.
     """
     sha256 = hashlib.sha256()
-    path = path.resolve()
+    path = safe_read_path(path, "Checksum target")
     with open(path, "rb") as f:
         while True:
             chunk = f.read(chunk_size)

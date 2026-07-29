@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from vartriage._internal.path_safety import safe_read_path, safe_write_path
 from vartriage.models.config import ClinicalReportConfig
 from vartriage.models.variant import ClassifiedVariant, EvidenceTag
 
@@ -67,7 +68,9 @@ class AuditTrailWriter:
             If the sidecar file cannot be written due to filesystem
             errors.
         """
-        sidecar_path = Path(str(output_path.resolve()) + ".audit.json")
+        sidecar_path = safe_write_path(
+            Path(str(output_path.resolve()) + ".audit.json"), "Audit sidecar"
+        )
 
         audit_data = {
             "run_manifest": self._build_run_manifest(
@@ -80,7 +83,6 @@ class AuditTrailWriter:
         }
 
         try:
-            sidecar_path.parent.mkdir(parents=True, exist_ok=True)
             # Clinical audit trails intentionally store patient identifiers
             # in plain text as the file's core purpose. File permissions
             # are restricted to owner-only (0o600) to limit access.
@@ -116,7 +118,7 @@ class AuditTrailWriter:
         """
         sha256 = hashlib.sha256()
         try:
-            path = path.resolve()
+            path = safe_read_path(path, "Checksum target")
             with open(path, "rb") as f:
                 while True:
                     chunk = f.read(65536)

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Optional
 
+from vartriage._internal.path_safety import safe_read_path
 from vartriage.cohort.pipeline import CohortPipeline
 from vartriage.models.cohort import CohortConfig
 from vartriage.models.config import (
@@ -175,7 +176,7 @@ def parse_cohort_manifest(
     labels: dict[str, str] = {}
     has_labels = False
 
-    with open(manifest_path.resolve(), encoding="utf-8") as f:
+    with open(safe_read_path(manifest_path, "Cohort manifest"), encoding="utf-8") as f:
         for raw_line in f:
             line = raw_line.strip()
             if not line or line.startswith("#"):

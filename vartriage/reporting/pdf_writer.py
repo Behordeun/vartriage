@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from vartriage._internal.path_safety import safe_write_path
+
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
@@ -154,8 +156,7 @@ class ReportlabPDFRenderer:
         IOError
             If the file cannot be written to the specified path.
         """
-        output_path = Path(output_path).resolve()
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path = safe_write_path(Path(output_path), "PDF report")
 
         doc = SimpleDocTemplate(
             str(output_path),
