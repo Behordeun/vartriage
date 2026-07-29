@@ -400,17 +400,17 @@ class TestCLIParsing:
         assert args.min_gq == 30
         assert args.sample is None
 
-        with pytest.raises(SystemExit) as exc_info:
-            from vartriage.cli import _run_pipeline
+        from vartriage.cli import _run_pipeline
 
-            with tempfile.NamedTemporaryFile(suffix=".vcf", delete=False) as f:
-                f.write(b"##fileformat=VCFv4.2\n")
-                vcf_path = Path(f.name)
+        with tempfile.NamedTemporaryFile(suffix=".vcf", delete=False) as f:
+            f.write(b"##fileformat=VCFv4.2\n")
+            vcf_path = Path(f.name)
 
-            try:
+        try:
+            with pytest.raises(SystemExit) as exc_info:
                 _run_pipeline(args, vcf_path)
-            finally:
-                vcf_path.unlink(missing_ok=True)
+        finally:
+            vcf_path.unlink(missing_ok=True)
 
         assert exc_info.value.code == 2
         captured = capsys.readouterr()

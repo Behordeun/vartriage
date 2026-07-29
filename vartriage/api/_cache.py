@@ -65,7 +65,7 @@ class ResponseCache:
     """
 
     def __init__(self, db_path: Path, default_ttl_days: int = 7) -> None:
-        self._db_path = safe_write_path(Path(db_path).expanduser(), "Cache database")
+        self._db_path = Path(db_path).expanduser()
         self._default_ttl_days = default_ttl_days
         self._lock = threading.Lock()
         self._conn: sqlite3.Connection | None = None
@@ -241,7 +241,9 @@ class ResponseCache:
         if self._conn is not None:
             return self._conn
 
-        self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        # Defer directory creation to first actual use
+        resolved = safe_write_path(self._db_path, "Cache database")
+        self._conn = sqlite3.connect(str(resolved), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(_SCHEMA_SQL)

@@ -106,11 +106,11 @@ def try_load_cache(source_path: Path) -> Optional[Any]:
         cp = safe_read_path(cp, "Cache file")
         with open(cp, "rb") as f:
             envelope: CacheEnvelope = pickle.load(f)  # noqa: S301
-    except (OSError, PermissionError) as exc:
+    except OSError as exc:
         logger.warning("Cannot read cache file %s: %s", cp, exc)
         _delete_cache(cp)
         return None
-    except (pickle.UnpicklingError, Exception) as exc:
+    except Exception as exc:
         logger.warning("Failed to deserialize cache %s: %s", cp, exc)
         _delete_cache(cp)
         return None

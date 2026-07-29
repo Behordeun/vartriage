@@ -1,14 +1,24 @@
 """Path validation utilities for preventing path traversal (CWE-22).
 
-Two levels of safety:
+Two levels of safety depending on trust level of the input:
 
 - resolve_path(): for CLI/user-supplied paths. Resolves to canonical absolute
   form (symlinks followed, '..' normalized). Does NOT reject '..' — users
-  legitimately pass relative paths like '../sample.vcf'.
+  legitimately pass relative paths like '../sample.vcf'. Use this for any
+  path that comes from argparse or config files.
 
 - safe_read_path() / safe_write_path(): for untrusted programmatic inputs
-  (e.g. filenames derived from URLs, API responses). Rejects '..' traversal
-  sequences before resolving.
+  (e.g. filenames derived from URLs, API responses, bundle downloads).
+  Rejects '..' traversal sequences before resolving. Use these whenever
+  the path component is computed from external data rather than typed by
+  the user.
+
+Usage guidelines:
+  CLI args (--vcf, --output, etc.)     -> resolve_path()
+  Bundle storage paths from user       -> _resolve_storage_path() in bundle/cli.py
+  Filenames from URL splits            -> _sanitize_filename() in bundle/cli.py
+  Transformer source/dest              -> safe_read_path() / safe_write_path()
+  Cache file paths (internal)          -> safe_read_path() / safe_write_path()
 """
 
 from __future__ import annotations
