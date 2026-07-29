@@ -60,14 +60,21 @@ def _format_field(value: object) -> str:
 
 
 def _format_disease_associations(annotated: object) -> str | None:
-    """Format disease associations as semicolon-separated string."""
+    """Format disease associations as semicolon-separated string.
+
+    Includes disease_name, mim_number, and inheritance_mode to match
+    JSON output, e.g. "Disease name [MIM:123456] (AD)".
+    """
     ctx = getattr(annotated, "gene_context", None)
     if ctx is None or not ctx.disease_associations:
         return None
-    return ";".join(
-        f"{a.disease_name} ({a.inheritance_mode})"
-        for a in ctx.disease_associations
-    )
+    parts = []
+    for a in ctx.disease_associations:
+        name = a.disease_name or ""
+        mim = f" [MIM:{a.mim_number}]" if a.mim_number else ""
+        mode = f" ({a.inheritance_mode})" if a.inheritance_mode else ""
+        parts.append(f"{name}{mim}{mode}")
+    return ";".join(parts) if parts else None
 
 
 def _get_gene_context_field(annotated: object, field_name: str) -> object:

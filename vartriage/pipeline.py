@@ -22,7 +22,6 @@ from vartriage.models.config import (AnnotationConfig, PipelineConfig,
 
 if TYPE_CHECKING:
     from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
-    from vartriage.models.variant import ScoredVariant
 from vartriage.models.variant import AnnotatedVariant, ClassifiedVariant, Variant
 from vartriage.prioritization.engine import PrioritizationEngine
 from vartriage.reporting.generator import ReportGenerator
@@ -182,7 +181,7 @@ class Pipeline:
 
             # Apply phenotype boost to prioritization scores when HPO active
             if self._gene_knowledge_annotator is not None:
-                scored = self._apply_phenotype_boost(scored)
+                scored = self._gene_knowledge_annotator.boost_scores(scored)
 
             classified = acmg_classifier.classify(scored)
 
@@ -285,33 +284,9 @@ class Pipeline:
 
             # Apply phenotype boost in classification path too
             if self._gene_knowledge_annotator is not None:
-                scored = self._apply_phenotype_boost(scored)
+                scored = self._gene_knowledge_annotator.boost_scores(scored)
 
             yield from acmg_classifier.classify(scored)
-
-    def _apply_phenotype_boost(
-        self, scored: Iterator["ScoredVariant"]
-    ) -> Iterator["ScoredVariant"]:
-        """Multiply prioritization_score by phenotype boost factor.
-
-        Uses the gene_context.phenotype_match_score already attached
-        to each variant. Boost is (1 + overlap), ranging from 1.0
-        (no effect) to 2.0 (perfect phenotype match).
-        """
-        from dataclasses import replace
-
-        from vartriage.knowledge.registry import apply_phenotype_boost
-
-        for variant in scored:
-            ctx = variant.annotated.gene_context
-            if ctx is None or ctx.phenotype_match_score <= 0.0:
-                yield variant
-                continue
-
-            boosted = apply_phenotype_boost(
-                variant.prioritization_score, ctx.phenotype_match_score
-            )
-            yield replace(variant, prioritization_score=boosted)
 
     def _check_reference_checksums(self) -> None:
         """Log reference file checksums using AuditTrailWriter.
