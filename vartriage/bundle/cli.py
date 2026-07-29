@@ -89,7 +89,23 @@ def run_bundle_command(args: argparse.Namespace) -> int:
         return 1
 
 
-def _sanitize_filename(raw_name: str) -> str:
+def _resolve_storage_path(raw: str | None, default: Path) -> Path:
+    """Resolve a user-supplied storage directory, preventing path traversal.
+
+    Raises
+    ------
+    ValueError
+        If the resolved path contains traversal sequences.
+    """
+    if not raw:
+        return default
+    resolved = Path(raw).resolve()
+    # Reject paths that resolve to filesystem root or contain null bytes
+    if "\x00" in str(resolved):
+        raise ValueError(f"Invalid storage path: {raw!r}")
+    return resolved
+
+
     """Sanitize a filename extracted from a URL to prevent path traversal.
 
     Raises
@@ -104,7 +120,11 @@ def _sanitize_filename(raw_name: str) -> str:
     return name
 
 
-def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) -> int:
+def _cmd_download(
+    args: "argparse.Namespace",
+    config: BundleConfig,
+    build: str,
+) -> int:
     """Handle 'vartriage bundle download'."""
     registry = BundleRegistry.load()
     bundle_name = getattr(args, "bundle", None)
@@ -144,8 +164,10 @@ def _cmd_download(args: argparse.Namespace, config: BundleConfig, build: str) ->
         return 1
 
     # Set up storage
-    dest_path = Path(args.dest) if args.dest else config.storage_path
-    storage = BundleStorage(dest_path)
+    storage_path = _resolve_storage_path(
+        getattr(args, "dest", None), config.storage_path
+    )
+    storage = BundleStorage(storage_path)
     storage.ensure_dirs(build, bundle_name)
 
     # Determine raw file destination
@@ -245,8 +267,10 @@ def _cmd_download_all(
         print(f"No bundles available for {build}.", file=sys.stderr)
         return 1
 
-    dest_path = Path(args.dest) if args.dest else config.storage_path
-    storage = BundleStorage(dest_path)
+    storage_path = _resolve_storage_path(
+        getattr(args, "dest", None), config.storage_path
+    )
+    storage = BundleStorage(storage_path)
     show_progress = not getattr(args, "no_progress", False)
 
     requests = _build_download_requests(available, storage, build)

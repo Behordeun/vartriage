@@ -136,11 +136,8 @@ def _count_pathogenic_strengths(
     }
     for tag in tags:
         strength = EVIDENCE_STRENGTH_MAP[tag]
-        if strength == EvidenceStrength.STANDALONE:
-            # Defensive: benign tags should not reach this function.
-            # The caller separates pathogenic from benign before calling.
-            continue
-        counts[strength] += 1
+        if strength in counts:
+            counts[strength] += 1
     return counts
 
 
