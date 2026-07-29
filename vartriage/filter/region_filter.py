@@ -6,7 +6,7 @@ import bisect
 from pathlib import Path
 from typing import Iterator
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ParseError
 from vartriage.models.config import RegionFilterConfig
 from vartriage.models.variant import Variant
@@ -117,7 +117,7 @@ class RegionFilter:
         if not bed_path.exists():
             raise FileNotFoundError(f"BED file not found: {bed_path}")
 
-        bed_path = safe_read_path(bed_path, "BED regions")
+        bed_path = resolve_path(bed_path)
         with open(bed_path, "r") as fh:
             for line_num, raw_line in enumerate(fh, start=1):
                 line = raw_line.strip()

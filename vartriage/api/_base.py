@@ -150,7 +150,6 @@ class BaseAPIClient:
 
     def _handle_retry_after(self, response: Any) -> bool:
         """Sleep for Retry-After duration on 429 if within bounds. Returns True if slept."""
-        import httpx  # noqa: F401 — imported for type context only
         retry_after = self._parse_retry_after(response)
         if retry_after and retry_after < 120:
             logger.info(

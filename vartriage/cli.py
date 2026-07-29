@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, cast
 
-from vartriage._internal.path_safety import resolve_path, safe_read_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
 
 if TYPE_CHECKING:

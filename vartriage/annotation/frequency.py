@@ -11,7 +11,7 @@ import csv
 from pathlib import Path
 from typing import Optional
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ReferenceFileError
 from vartriage.models.warnings import MissingDataWarning
 
@@ -69,7 +69,7 @@ class DictFrequencyDatabase:
             raise ReferenceFileError(f"{reference_path}: not a regular file")
 
         try:
-            reference_path = safe_read_path(reference_path, "Frequency reference")
+            reference_path = resolve_path(reference_path)
             with open(reference_path, "r", newline="") as fh:
                 reader = csv.reader(fh, delimiter="\t")
                 header = next(reader, None)

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pysam
 
-from vartriage._internal.path_safety import safe_write_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import ClassifiedVariant
 
 LookupKey = tuple[str, int, str, str]
@@ -135,6 +135,66 @@ def _inject_info_fields(
         record.info["VARTRIAGE_TAGS"] = tags_str
 
 
+def _copy_info(
+    src_record: pysam.VariantRecord,
+    dst_record: pysam.VariantRecord,
+) -> None:
+    """Copy all INFO fields from src to dst."""
+    for key in src_record.info:
+        dst_record.info[key] = src_record.info[key]
+
+
+def _copy_samples(
+    src_record: pysam.VariantRecord,
+    dst_record: pysam.VariantRecord,
+) -> None:
+    """Copy all FORMAT/sample data from src to dst."""
+    for sample in src_record.samples:
+        for fmt_key in src_record.samples[sample]:
+            dst_record.samples[sample][fmt_key] = src_record.samples[sample][fmt_key]
+
+
+def _find_classified(
+    record: pysam.VariantRecord,
+    lookup: dict[LookupKey, ClassifiedVariant],
+) -> ClassifiedVariant | None:
+    """Return the first matching ClassifiedVariant for any ALT allele, or None."""
+    alts = record.alts
+    if not alts or record.ref is None:
+        return None
+    for alt_allele in alts:
+        if alt_allele is None:
+            continue
+        key: LookupKey = (record.chrom, record.pos, str(record.ref), str(alt_allele))
+        if key in lookup:
+            return lookup[key]
+    return None
+
+
+def _write_records(
+    src: pysam.VariantFile,
+    out: pysam.VariantFile,
+    lookup: dict[LookupKey, ClassifiedVariant],
+) -> None:
+    """Copy all records from src to out, injecting VARTRIAGE_* fields on matches."""
+    for record in src:
+        new_rec = out.new_record(
+            contig=record.chrom,
+            start=record.start,
+            stop=record.stop,
+            alleles=record.alleles,
+            id=record.id,
+            qual=record.qual,
+            filter=record.filter,
+        )
+        _copy_info(record, new_rec)
+        _copy_samples(record, new_rec)
+        classified = _find_classified(record, lookup)
+        if classified is not None:
+            _inject_info_fields(new_rec, classified)
+        out.write(new_rec)
+
+
 def write_vcf(
     variants: Sequence[ClassifiedVariant],
     source_vcf_path: Path,
@@ -171,58 +231,16 @@ def write_vcf(
         If writing or indexing fails.
     """
     lookup = _build_lookup(variants)
-    output_path = safe_write_path(output_path, "VCF report")
+    output_path = resolve_path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = output_path.with_suffix(".vcf.gz.tmp")
     tmp_tbi_path = Path(str(tmp_path) + ".tbi")
 
     try:
         with pysam.VariantFile(str(source_vcf_path), "r") as src:
             new_header = _add_info_headers(src.header.copy())
-
             with pysam.VariantFile(str(tmp_path), "wz", header=new_header) as out:
-                for record in src:
-                    # Build a new record in the output header context
-                    new_rec = out.new_record(
-                        contig=record.chrom,
-                        start=record.start,
-                        stop=record.stop,
-                        alleles=record.alleles,
-                        id=record.id,
-                        qual=record.qual,
-                        filter=record.filter,
-                    )
-
-                    # Copy existing INFO fields
-                    for info_key in record.info:
-                        new_rec.info[info_key] = record.info[info_key]
-
-                    # Copy FORMAT/sample data
-                    for sample in record.samples:
-                        for fmt_key in record.samples[sample]:
-                            new_rec.samples[sample][fmt_key] = record.samples[sample][
-                                fmt_key
-                            ]
-
-                    # Inject VARTRIAGE_* fields for matched variants.
-                    # Check all ALT alleles since source VCF may have
-                    # multiallelic lines that were split during pipeline
-                    # processing.
-                    alts = record.alts
-                    if alts and record.ref is not None:
-                        for alt_allele in alts:
-                            if alt_allele is None:
-                                continue
-                            key: LookupKey = (
-                                record.chrom,
-                                record.pos,
-                                str(record.ref),
-                                str(alt_allele),
-                            )
-                            if key in lookup:
-                                _inject_info_fields(new_rec, lookup[key])
-                                break  # one annotation per record
-
-                    out.write(new_rec)
+                _write_records(src, out, lookup)
 
         # Build tabix index against temp file before moving anything.
         pysam.tabix_index(str(tmp_path), preset="vcf", force=True)

@@ -13,7 +13,7 @@ from itertools import islice
 from pathlib import Path
 from typing import Iterator, Optional
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import AnnotationConfig
 from vartriage.models.variant import (AnnotatedVariant, ClinVarAssertion,
                                       Variant)
@@ -294,7 +294,7 @@ class AnnotationEngine:
         IntervalIndex
             Loaded consequence annotator.
         """
-        annotation_path = safe_read_path(annotation_path, "Gene annotation")
+        annotation_path = resolve_path(annotation_path)
         if _pyranges_available():
             try:
                 from vartriage.annotation.consequence_pyranges import \

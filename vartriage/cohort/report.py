@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from vartriage._internal.path_safety import safe_write_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.cohort import (
     CohortConfig,
     CohortSummary,
@@ -149,7 +149,9 @@ class CohortReportGenerator:
             "samples",
         ]
 
-        with open(safe_write_path(path, "Cohort variants CSV"), "w", newline="", encoding="utf-8") as f:
+        resolved = resolve_path(path)
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        with open(resolved, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for v in variants:
@@ -191,7 +193,9 @@ class CohortReportGenerator:
             "most_severe",
         ]
 
-        with open(safe_write_path(path, "Cohort burden CSV"), "w", newline="", encoding="utf-8") as f:
+        resolved = resolve_path(path)
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        with open(resolved, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for b in burdens:
@@ -210,7 +214,9 @@ class CohortReportGenerator:
     @staticmethod
     def _write_json_file(path: Path, data: Any) -> None:
         """Write data to a JSON file with consistent formatting."""
-        with open(safe_write_path(path, "Cohort JSON"), "w", encoding="utf-8") as f:
+        resolved = resolve_path(path)
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        with open(resolved, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
             f.write("\n")
 

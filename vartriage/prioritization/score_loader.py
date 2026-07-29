@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import resolve_path
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +144,7 @@ class ScoreLoader:
         self._validate_path(path)
 
         scores: dict[CoordinateKey, float] = {}
-        path = safe_read_path(path, "Score file")
+        path = resolve_path(path)
 
         with open(path, encoding="utf-8") as fh:
             for lineno, line in enumerate(fh, start=1):

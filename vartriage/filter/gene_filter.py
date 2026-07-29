@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Iterator
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import GeneFilterConfig
 from vartriage.models.variant import AnnotatedVariant
 
@@ -137,7 +137,7 @@ class GeneFilter:
             raise FileNotFoundError(f"Gene list file not found: {path}")
 
         genes: set[str] = set()
-        path = safe_read_path(path, "Gene list")
+        path = resolve_path(path)
         with open(path, "r") as fh:
             for line in fh:
                 stripped = line.strip()

@@ -20,7 +20,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ReferenceFileError
 from vartriage.models.variant import ClinVarAssertion
 
@@ -127,7 +127,7 @@ class DictClinVarDatabase:
             unrecognized clinical significance value.
         """
         data: dict[tuple[str, int, str, str], ClinVarAssertion] = {}
-        path = safe_read_path(path, "ClinVar reference")
+        path = resolve_path(path)
 
         with open(path, encoding="utf-8") as fh:
             for line_num, line in enumerate(fh, start=1):

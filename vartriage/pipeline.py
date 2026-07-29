@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Optional
 
+from vartriage._internal.path_safety import resolve_path
 from vartriage._internal.warning_accumulator import WarningAccumulator
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
@@ -681,11 +682,7 @@ class Pipeline:
         ------
         FileNotFoundError
             If the path does not exist.
-        ValueError
-            If the path contains traversal sequences.
         """
-        if ".." in path.parts:
-            raise ValueError(f"{label} path contains traversal: {path}")
-        resolved = path.resolve()
+        resolved = resolve_path(path)
         if not resolved.exists():
             raise FileNotFoundError(f"{label} not found: {path}")

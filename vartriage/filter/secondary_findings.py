@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import AnnotatedVariant
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ class SecondaryFindingsFilter:
             )
 
         genes: set[str] = set()
-        path = safe_read_path(path, "Secondary findings genes")
+        path = resolve_path(path)
         with open(path, encoding="utf-8") as f:
             for line in f:
                 stripped = line.strip()

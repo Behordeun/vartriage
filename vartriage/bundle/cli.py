@@ -112,6 +112,7 @@ def _resolve_storage_path(raw: str | None, default: Path) -> Path:
     if candidate.is_absolute():
         raise ValueError(f"Absolute storage paths not allowed: {raw!r}")
     resolved = (base / candidate).resolve()
+    # is_relative_to requires Python 3.9+; project minimum is 3.10
     if not resolved.is_relative_to(base):
         raise ValueError(f"Path traversal detected for storage path: {raw!r}")
     return resolved

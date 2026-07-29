@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterator, Sequence, Union
 
-from vartriage._internal.path_safety import safe_write_path
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import ClassifiedVariant
 
 # Output field order as specified in requirements
@@ -120,7 +120,8 @@ def write_json(
         If the write fails (filesystem or encoding error).
     """
     try:
-        output_path = safe_write_path(output_path, "JSON report")
+        output_path = resolve_path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("[\n")
             first = True

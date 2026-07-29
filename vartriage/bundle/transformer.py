@@ -21,20 +21,22 @@ from vartriage._internal.path_safety import safe_write_path
 def _validate_source_path(source: Path) -> Path:
     """Validate and resolve a source path before passing to subprocess.
 
-    Ensures the path exists, resolves to an absolute canonical path,
-    and does not contain traversal components. Returns the resolved path.
+    Ensures the path exists and resolves to a canonical absolute path.
+    Does not reject '..' in the raw input since relative paths like
+    '../data/clinvar.vcf.gz' are valid user input. Resolution via
+    Path.resolve() normalizes traversal safely.
 
     Raises
     ------
-    ValueError
-        If the path contains suspicious components.
     FileNotFoundError
-        If the path doesn't exist.
+        If the resolved path doesn't exist.
+    ValueError
+        If the resolved path has no filename component.
     """
     resolved = source.resolve()
     if not resolved.exists():
         raise FileNotFoundError(f"Source file not found: {source}")
-    if ".." in str(source) or not resolved.name:
+    if not resolved.name:
         raise ValueError(f"Invalid source path: {source}")
     return resolved
 
