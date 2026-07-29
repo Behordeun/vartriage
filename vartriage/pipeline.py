@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vartriage._internal.warning_accumulator import WarningAccumulator
 from vartriage.annotation.engine import AnnotationEngine
@@ -19,6 +19,10 @@ from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
 from vartriage.models.config import (AnnotationConfig, PipelineConfig,
                                      PrioritizationConfig)
+
+if TYPE_CHECKING:
+    from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
+    from vartriage.models.variant import ScoredVariant
 from vartriage.models.variant import AnnotatedVariant, ClassifiedVariant, Variant
 from vartriage.prioritization.engine import PrioritizationEngine
 from vartriage.reporting.generator import ReportGenerator
@@ -56,6 +60,15 @@ class Pipeline:
         self._config = config
         self._warning_accumulator = WarningAccumulator(config.missing_data)
         self._validate_config(config)
+
+        # Gene-disease linkage annotator: constructed once, reused across runs
+        self._gene_knowledge_annotator: Optional["GeneKnowledgeAnnotator"] = None
+        if config.knowledge is not None:
+            from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
+
+            self._gene_knowledge_annotator = GeneKnowledgeAnnotator(
+                config.knowledge  # type: ignore[arg-type]
+            )
 
     @property
     def warning_accumulator(self) -> WarningAccumulator:
@@ -162,15 +175,14 @@ class Pipeline:
                 annotated = gene_filter.apply(annotated)
 
             # Gene-disease linkage: attach gene context and phenotype scores
-            if self._config.knowledge is not None:
-                from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
-
-                gene_knowledge_annotator = GeneKnowledgeAnnotator(
-                    self._config.knowledge  # type: ignore[arg-type]
-                )
-                annotated = gene_knowledge_annotator.annotate(annotated)
+            if self._gene_knowledge_annotator is not None:
+                annotated = self._gene_knowledge_annotator.annotate(annotated)
 
             scored = prioritization_engine.prioritize(annotated)
+
+            # Apply phenotype boost to prioritization scores when HPO active
+            if self._gene_knowledge_annotator is not None:
+                scored = self._apply_phenotype_boost(scored)
 
             classified = acmg_classifier.classify(scored)
 
@@ -266,16 +278,40 @@ class Pipeline:
                 annotated = gene_filter.apply(annotated)
 
             # Gene-disease linkage in run_to_classification path
-            if self._config.knowledge is not None:
-                from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
-
-                gene_knowledge_annotator = GeneKnowledgeAnnotator(
-                    self._config.knowledge  # type: ignore[arg-type]
-                )
-                annotated = gene_knowledge_annotator.annotate(annotated)
+            if self._gene_knowledge_annotator is not None:
+                annotated = self._gene_knowledge_annotator.annotate(annotated)
 
             scored = prioritization_engine.prioritize(annotated)
+
+            # Apply phenotype boost in classification path too
+            if self._gene_knowledge_annotator is not None:
+                scored = self._apply_phenotype_boost(scored)
+
             yield from acmg_classifier.classify(scored)
+
+    def _apply_phenotype_boost(
+        self, scored: Iterator["ScoredVariant"]
+    ) -> Iterator["ScoredVariant"]:
+        """Multiply prioritization_score by phenotype boost factor.
+
+        Uses the gene_context.phenotype_match_score already attached
+        to each variant. Boost is (1 + overlap), ranging from 1.0
+        (no effect) to 2.0 (perfect phenotype match).
+        """
+        from dataclasses import replace
+
+        from vartriage.knowledge.registry import apply_phenotype_boost
+
+        for variant in scored:
+            ctx = variant.annotated.gene_context
+            if ctx is None or ctx.phenotype_match_score <= 0.0:
+                yield variant
+                continue
+
+            boosted = apply_phenotype_boost(
+                variant.prioritization_score, ctx.phenotype_match_score
+            )
+            yield replace(variant, prioritization_score=boosted)
 
     def _check_reference_checksums(self) -> None:
         """Log reference file checksums using AuditTrailWriter.

@@ -264,8 +264,9 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help=(
-            "Filter variants by gene-level inheritance mode (AD, AR, XL). "
-            "Only variants in genes matching this mode are retained."
+            "Filter variants to genes matching this inheritance mode "
+            "(AD, AR, XL, XLD, XLR, MT). Genes without OMIM data or "
+            "intergenic variants pass through unfiltered."
         ),
     )
     parser.add_argument(
@@ -566,6 +567,8 @@ def _build_knowledge_config(
     return KnowledgeBaseConfig(
         data_dir=knowledge_dir,
         hpo_terms=hpo_terms,
+        inheritance_mode=inheritance_mode,
+        flag_actionable=flag_actionable,
     )
 
 

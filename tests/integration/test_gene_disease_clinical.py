@@ -412,20 +412,18 @@ class TestPhenotypeBoostLogic:
         self, clinical_setup: dict[str, object]
     ) -> None:
         """score * (1 + 1.0) = score * 2.0 for perfect phenotype match."""
-        annotator: GeneKnowledgeAnnotator = clinical_setup["annotator"]  # type: ignore[assignment]
-        ranker = annotator.phenotype_ranker
+        from vartriage.knowledge.registry import apply_phenotype_boost
 
-        boosted = ranker.boost_score(10.0, 1.0)
+        boosted = apply_phenotype_boost(10.0, 1.0)
         assert boosted == pytest.approx(20.0)
 
     def test_boost_factor_for_no_match_is_one(
         self, clinical_setup: dict[str, object]
     ) -> None:
         """score * (1 + 0.0) = score * 1.0 when no HPO overlap."""
-        annotator: GeneKnowledgeAnnotator = clinical_setup["annotator"]  # type: ignore[assignment]
-        ranker = annotator.phenotype_ranker
+        from vartriage.knowledge.registry import apply_phenotype_boost
 
-        boosted = ranker.boost_score(10.0, 0.0)
+        boosted = apply_phenotype_boost(10.0, 0.0)
         assert boosted == pytest.approx(10.0)
 
     def test_scn1a_would_outrank_brca1_after_boost(
@@ -437,18 +435,20 @@ class TestPhenotypeBoostLogic:
         base score should not outrank a Pathogenic SCN1A after phenotype
         boost within the same classification tier.
         """
+        from vartriage.knowledge.registry import apply_phenotype_boost
+
         annotator: GeneKnowledgeAnnotator = clinical_setup["annotator"]  # type: ignore[assignment]
-        ranker = annotator.phenotype_ranker
+        registry = annotator.registry
 
         # Hypothetical: BRCA1 has higher base score
         brca1_base = 15.0
         scn1a_base = 12.0
 
-        brca1_overlap = ranker.compute_overlap("BRCA1")
-        scn1a_overlap = ranker.compute_overlap("SCN1A")
+        brca1_overlap = registry.phenotype_overlap("BRCA1")
+        scn1a_overlap = registry.phenotype_overlap("SCN1A")
 
-        brca1_boosted = ranker.boost_score(brca1_base, brca1_overlap)
-        scn1a_boosted = ranker.boost_score(scn1a_base, scn1a_overlap)
+        brca1_boosted = apply_phenotype_boost(brca1_base, brca1_overlap)
+        scn1a_boosted = apply_phenotype_boost(scn1a_base, scn1a_overlap)
 
         # BRCA1: 15 * (1+0) = 15
         # SCN1A: 12 * (1+1) = 24

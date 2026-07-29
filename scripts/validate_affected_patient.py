@@ -205,6 +205,18 @@ def _print_variant_detail(v: dict) -> None:  # type: ignore[type-arg]
         print(f"    Disease: {d['disease_name']} ({d['inheritance_mode']})")
 
 
+def _format_nf2_summary(v: dict) -> str:  # type: ignore[type-arg]
+    """Format a single NF2 variant as a compact one-line summary."""
+    return (
+        f"chr22:{v.get('position')} "
+        f"{v.get('ref_allele')}>{v.get('alt_allele')} | "
+        f"{v.get('functional_consequence')} | "
+        f"{v.get('acmg_classification')} | "
+        f"ClinVar:{v.get('clinvar_assertion')} | "
+        f"HPO:{v.get('phenotype_match_score')}"
+    )
+
+
 def analyze_results(output_path: Path) -> None:
     """Analyze pipeline output and validate NF2 variants surfaced correctly."""
     with open(output_path) as f:
@@ -215,19 +227,14 @@ def analyze_results(output_path: Path) -> None:
     print(f"{'='*70}")
     print(f"Total classified variants: {len(results)}")
 
-    # Find variants with gene context
     with_context = [r for r in results if "disease_associations" in r]
     print(f"Variants with gene-disease context: {len(with_context)}")
 
-    # Find NF2 variants
-    nf2_variants = [
-        r for r in results
-        if r.get("gene_name") == "NF2"
-    ]
+    nf2_variants = [r for r in results if r.get("gene_name") == "NF2"]
     print(f"NF2 variants found: {len(nf2_variants)}")
 
     # Classification distribution
-    classifications = {}
+    classifications: dict[str, int] = {}
     for r in results:
         cls = r.get("acmg_classification", "Unknown")
         classifications[cls] = classifications.get(cls, 0) + 1
@@ -235,7 +242,7 @@ def analyze_results(output_path: Path) -> None:
     for cls, count in sorted(classifications.items()):
         print(f"  {cls}: {count}")
 
-    # Show top pathogenic/LP variants
+    # Pathogenic findings
     pathogenic = [
         r for r in results
         if r.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
@@ -243,68 +250,56 @@ def analyze_results(output_path: Path) -> None:
     print(f"\n{'='*70}")
     print(f"PATHOGENIC / LIKELY PATHOGENIC FINDINGS: {len(pathogenic)}")
     print(f"{'='*70}")
-
     for v in pathogenic[:10]:
         _print_variant_detail(v)
 
-    # Show NF2 specifically
+    # NF2 detail
     if nf2_variants:
         print(f"\n{'='*70}")
         print("NF2 VARIANTS DETAIL")
         print(f"{'='*70}")
         for v in nf2_variants:
-            pos = v.get("position")
-            ref = v.get("ref_allele")
-            alt = v.get("alt_allele")
-            cls = v.get("acmg_classification")
-            consequence = v.get("functional_consequence")
-            clinvar = v.get("clinvar_assertion")
-            score = v.get("phenotype_match_score")
-            print(f"  chr22:{pos} {ref}>{alt} | {consequence} | {cls} | ClinVar:{clinvar} | HPO:{score}")
+            print(f"  {_format_nf2_summary(v)}")
 
-    # Validation checks
-    print(f"\n{'='*70}")
-    print("VALIDATION")
-    print(f"{'='*70}")
-
-    checks_passed = 0
-    total_checks = 5
-
-    checks_passed += _print_check(
-        "NF2 variants detected in output", "No NF2 variants found",
-        len(nf2_variants) > 0,
-    )
-
+    # Validation checks — declarative list
     nf2_with_disease = [v for v in nf2_variants if v.get("disease_associations")]
-    checks_passed += _print_check(
-        "NF2 variants have disease associations attached",
-        "NF2 variants missing disease associations",
-        bool(nf2_with_disease),
-    )
-
     nf2_with_pheno = [
         v for v in nf2_variants
         if v.get("phenotype_match_score") and v["phenotype_match_score"] > 0
     ]
-    score_str = f" ({nf2_with_pheno[0]['phenotype_match_score']:.2f})" if nf2_with_pheno else ""
-    checks_passed += _print_check(
-        f"NF2 variants have phenotype match score > 0{score_str}",
-        "NF2 variants have zero phenotype match",
-        bool(nf2_with_pheno),
-    )
-
     nf2_actionable = [v for v in nf2_variants if v.get("is_actionable")]
-    checks_passed += _print_check(
-        "NF2 variants flagged as actionable", "NF2 variants not flagged actionable",
-        bool(nf2_actionable),
-    )
-
     nf2_constrained = [v for v in nf2_variants if v.get("gene_constraint")]
-    pli_str = f" (pLI={nf2_constrained[0]['gene_constraint']['pli']})" if nf2_constrained else ""
-    checks_passed += _print_check(
-        f"NF2 constraint metrics present{pli_str}", "NF2 missing constraint metrics",
-        bool(nf2_constrained),
+
+    score_detail = f" ({nf2_with_pheno[0]['phenotype_match_score']:.2f})" if nf2_with_pheno else ""
+    pli_detail = f" (pLI={nf2_constrained[0]['gene_constraint']['pli']})" if nf2_constrained else ""
+
+    checks: list[tuple[str, str, bool]] = [
+        ("NF2 variants detected in output",
+         "No NF2 variants found",
+         len(nf2_variants) > 0),
+        ("NF2 variants have disease associations attached",
+         "NF2 variants missing disease associations",
+         bool(nf2_with_disease)),
+        (f"NF2 variants have phenotype match score > 0{score_detail}",
+         "NF2 variants have zero phenotype match",
+         bool(nf2_with_pheno)),
+        ("NF2 variants flagged as actionable",
+         "NF2 variants not flagged actionable",
+         bool(nf2_actionable)),
+        (f"NF2 constraint metrics present{pli_detail}",
+         "NF2 missing constraint metrics",
+         bool(nf2_constrained)),
+    ]
+
+    print(f"\n{'='*70}")
+    print("VALIDATION")
+    print(f"{'='*70}")
+
+    checks_passed = sum(
+        _print_check(pass_msg, fail_msg, condition)
+        for pass_msg, fail_msg, condition in checks
     )
+    total_checks = len(checks)
 
     print(f"\n  Result: {checks_passed}/{total_checks} checks passed")
 

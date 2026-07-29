@@ -2,7 +2,8 @@
 
 Sits between the AnnotationEngine and PrioritizationEngine. Enriches
 each AnnotatedVariant with gene-level context (disease associations,
-constraint, actionability, phenotype match score).
+constraint, actionability, phenotype match score). Optionally filters
+by inheritance mode.
 """
 
 from __future__ import annotations
@@ -12,8 +13,6 @@ from dataclasses import replace
 from typing import Iterator, Optional
 
 from vartriage.knowledge.config import KnowledgeBaseConfig
-from vartriage.knowledge.models import GeneContext
-from vartriage.knowledge.phenotype import PhenotypeRanker
 from vartriage.knowledge.registry import GeneKnowledgeRegistry
 from vartriage.models.variant import AnnotatedVariant
 
@@ -23,37 +22,35 @@ logger = logging.getLogger(__name__)
 class GeneKnowledgeAnnotator:
     """Enrich AnnotatedVariants with gene-disease linkage context.
 
-    Processes a stream of AnnotatedVariants (which already have
-    gene_name resolved by the AnnotationEngine) and attaches a
-    GeneContext to each one.
+    Thin wrapper around GeneKnowledgeRegistry that processes a stream
+    of AnnotatedVariants and attaches a GeneContext to each one.
+    Optionally filters variants by gene inheritance mode.
 
     Parameters
     ----------
     config : KnowledgeBaseConfig
-        Knowledge base configuration with data dir and HPO terms.
+        Knowledge base configuration with data dir, HPO terms,
+        inheritance mode filter, and actionable flag.
     """
 
     def __init__(self, config: KnowledgeBaseConfig) -> None:
         self._registry = GeneKnowledgeRegistry(config)
-        self._ranker = PhenotypeRanker(
-            patient_hpo_terms=config.hpo_terms,
-            hpo_db=self._registry.hpo,
-        )
+        self._inheritance_mode: Optional[str] = config.inheritance_mode
+        self._flag_actionable: bool = config.flag_actionable
 
     @property
     def registry(self) -> GeneKnowledgeRegistry:
         """Access the underlying gene knowledge registry."""
         return self._registry
 
-    @property
-    def phenotype_ranker(self) -> PhenotypeRanker:
-        """Access the phenotype ranker for score boosting."""
-        return self._ranker
-
     def annotate(
         self, variants: Iterator[AnnotatedVariant]
     ) -> Iterator[AnnotatedVariant]:
         """Attach gene context to each variant in the stream.
+
+        When inheritance_mode is set, variants in genes that don't
+        match the specified mode are filtered out. Intergenic variants
+        (gene_name=None) pass through regardless.
 
         Parameters
         ----------
@@ -63,19 +60,20 @@ class GeneKnowledgeAnnotator:
         Yields
         ------
         AnnotatedVariant
-            Variants with gene_context field populated.
+            Variants with gene_context field populated, filtered by
+            inheritance mode when configured.
         """
         for variant in variants:
-            gene_symbol = variant.gene_name
+            gene_context = self._registry.build_gene_context(variant.gene_name)
 
-            # Compute phenotype overlap for this gene
-            overlap = self._ranker.compute_overlap(gene_symbol)
+            # Inheritance mode filtering: drop variants in genes that
+            # don't match the requested mode. Intergenic variants and
+            # genes with no OMIM data pass through unfiltered.
+            if self._inheritance_mode is not None and variant.gene_name is not None:
+                gene_modes = self._registry.omim.get_inheritance_modes(
+                    variant.gene_name
+                )
+                if gene_modes and self._inheritance_mode not in gene_modes:
+                    continue
 
-            # Build the context object (uses flyweight cache internally)
-            gene_context = self._registry.build_gene_context(
-                gene_symbol=gene_symbol,
-                phenotype_match_score=overlap,
-            )
-
-            # Attach context via dataclass replace (AnnotatedVariant is frozen)
             yield replace(variant, gene_context=gene_context)

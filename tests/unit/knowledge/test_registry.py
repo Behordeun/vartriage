@@ -81,11 +81,15 @@ def test_flyweight_cache_reuses_instances(knowledge_dir: Path) -> None:
 
 
 def test_build_gene_context_with_phenotype_score(knowledge_dir: Path) -> None:
-    config = KnowledgeBaseConfig(data_dir=knowledge_dir)
+    config = KnowledgeBaseConfig(
+        data_dir=knowledge_dir,
+        hpo_terms=frozenset({"HP:0003002"}),
+    )
     registry = GeneKnowledgeRegistry(config)
 
-    ctx = registry.build_gene_context("BRCA1", phenotype_match_score=0.75)
-    assert ctx.phenotype_match_score == pytest.approx(0.75)
+    ctx = registry.build_gene_context("BRCA1")
+    # 1 of 1 patient HPO terms matches BRCA1's annotations -> 1.0
+    assert ctx.phenotype_match_score == pytest.approx(1.0)
     assert ctx.is_actionable is True
     assert ctx.clingen_validity == "Definitive"
 
@@ -94,7 +98,7 @@ def test_build_gene_context_unknown_gene(knowledge_dir: Path) -> None:
     config = KnowledgeBaseConfig(data_dir=knowledge_dir)
     registry = GeneKnowledgeRegistry(config)
 
-    ctx = registry.build_gene_context("UNKNOWN", phenotype_match_score=0.0)
+    ctx = registry.build_gene_context("UNKNOWN")
     assert ctx.disease_associations == ()
     assert ctx.is_actionable is False
     assert ctx.phenotype_match_score == 0.0

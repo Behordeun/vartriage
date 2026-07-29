@@ -11,7 +11,7 @@ from vartriage.knowledge.models import (
     GeneConstraint,
     GeneContext,
 )
-from vartriage.knowledge.registry import GeneKnowledgeRegistry
+from vartriage.knowledge.registry import GeneKnowledgeRegistry, apply_phenotype_boost
 
 __all__ = [
     "DiseaseAssociation",
@@ -20,4 +20,5 @@ __all__ = [
     "GeneContext",
     "GeneKnowledgeRegistry",
     "KnowledgeBaseConfig",
+    "apply_phenotype_boost",
 ]
