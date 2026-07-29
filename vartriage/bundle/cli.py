@@ -90,19 +90,30 @@ def run_bundle_command(args: argparse.Namespace) -> int:
 
 
 def _resolve_storage_path(raw: str | None, default: Path) -> Path:
-    """Resolve a user-supplied storage directory, preventing path traversal.
+    """Resolve a user-supplied storage directory under the default base.
+
+    The resolved path is guaranteed to stay within the ``default``
+    directory. Absolute paths are rejected; only relative fragments
+    are accepted.
 
     Raises
     ------
     ValueError
-        If the resolved path contains traversal sequences.
+        If the resolved path escapes the default base directory or
+        contains null bytes.
     """
+    base = default.resolve()
     if not raw:
-        return default
-    resolved = Path(raw).resolve()
-    # Reject paths that resolve to filesystem root or contain null bytes
-    if "\x00" in str(resolved):
+        return base
+    if "\x00" in raw:
         raise ValueError(f"Invalid storage path: {raw!r}")
+    candidate = Path(raw)
+    # Reject absolute paths from user input
+    if candidate.is_absolute():
+        raise ValueError(f"Absolute storage paths not allowed: {raw!r}")
+    resolved = (base / candidate).resolve()
+    if not resolved.is_relative_to(base):
+        raise ValueError(f"Path traversal detected for storage path: {raw!r}")
     return resolved
 
 

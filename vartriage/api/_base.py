@@ -139,10 +139,12 @@ class BaseAPIClient:
         params: dict[str, str] | None,
         headers: dict[str, str] | None,
         attempt: int,
-    ) -> Any:
-        """Run one HTTP attempt. Returns response on success, raises on non-retryable error.
+    ) -> tuple[Any, int | None]:
+        """Run one HTTP attempt.
 
-        Returns None to signal a retryable failure (caller should backoff and retry).
+        Returns (response, status_code) on success, (None, status_code)
+        for retryable HTTP errors, or (Exception, None) for network errors.
+        Raises APIClientError on non-retryable HTTP failures.
         """
         import httpx
 
@@ -160,7 +162,7 @@ class BaseAPIClient:
             )
             if response.status_code < 400:
                 self._circuit_breaker.record_success()
-                return response
+                return response, response.status_code
             if response.status_code not in _RETRYABLE_STATUS_CODES:
                 self._circuit_breaker.record_success()
                 raise APIClientError(
@@ -168,9 +170,10 @@ class BaseAPIClient:
                     f"HTTP {response.status_code}: {response.text[:200]}",
                     status_code=response.status_code,
                 )
+            # Retryable HTTP error — 429 gets Retry-After handling
             if response.status_code == 429 and self._handle_retry_after(response):
-                return None
-            return None  # retryable, fall through to backoff
+                return None, response.status_code
+            return None, response.status_code
         except (httpx.TimeoutException, httpx.ConnectError) as exc:
             elapsed = time.monotonic() - start_time
             logger.warning(
@@ -178,7 +181,7 @@ class BaseAPIClient:
                 self._service_name, method, path,
                 elapsed, attempt, self._max_retries, str(exc)[:100],
             )
-            return exc  # signal retryable network error
+            return exc, None
 
     def request(
         self,
@@ -234,13 +237,21 @@ class BaseAPIClient:
             except DailyLimitExhausted:
                 raise
 
-            result = self._execute_attempt(
+            result, status = self._execute_attempt(
                 method, path, json_body, params, headers, attempt
             )
+            if status is not None:
+                last_status = status
             if result is not None and not isinstance(result, Exception):
                 return result
             if isinstance(result, Exception):
                 last_error = result
+            elif status is not None:
+                last_error = APIClientError(
+                    self._service_name,
+                    f"HTTP {status} (attempt {attempt}/{self._max_retries})",
+                    status_code=status,
+                )
             backoff = min(2 ** (attempt - 1), 8)
             time.sleep(backoff)
 

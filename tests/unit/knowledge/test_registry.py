@@ -89,7 +89,7 @@ def test_build_gene_context_with_phenotype_score(knowledge_dir: Path) -> None:
 
     ctx = registry.build_gene_context("BRCA1")
     # 1 of 1 patient HPO terms matches BRCA1's annotations -> 1.0
-    assert ctx.phenotype_match_score == 1.0, f"Expected 1.0, got {ctx.phenotype_match_score}"
+    assert ctx.phenotype_match_score == pytest.approx(1.0)
     assert ctx.is_actionable is True
     assert ctx.clingen_validity == "Definitive"
 

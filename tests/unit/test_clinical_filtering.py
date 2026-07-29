@@ -37,8 +37,16 @@ def _make_variant(
     )
 
 
-def _write_bed(content: str) -> Path:
-    """Write content to a temp BED file, return path."""
+def _write_bed(content: str, tmp_path: Path | None = None) -> Path:
+    """Write content to a temp BED file, return path.
+
+    If tmp_path is provided, writes inside it (auto-cleaned by pytest).
+    Otherwise creates a NamedTemporaryFile that callers should clean up.
+    """
+    if tmp_path is not None:
+        bed_file = tmp_path / "regions.bed"
+        bed_file.write_text(content)
+        return bed_file
     with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
         f.write(content)
         return Path(f.name)

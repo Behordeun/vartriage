@@ -154,6 +154,7 @@ class VcfToTsvTransformer:
 
     def _transform_pysam(self, source: Path, dest: Path) -> TransformResult:
         """Pure-Python fallback using pysam."""
+        source = _validate_source_path(source)
         try:
             import pysam
         except ImportError as exc:
@@ -471,6 +472,7 @@ class SpliceAIExtractor:
 
     def _transform_pysam(self, source: Path, dest: Path) -> TransformResult:
         """Pure-Python fallback using pysam."""
+        source = _validate_source_path(source)
         try:
             import pysam
         except ImportError as exc:
