@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, cast
 from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
 
 if TYPE_CHECKING:
+    from vartriage.knowledge.config import KnowledgeBaseConfig
     from vartriage.models.config import SampleConfig
 
 
@@ -537,7 +538,7 @@ def _build_sample_config(
 
 def _build_knowledge_config(
     args: argparse.Namespace,
-) -> "Optional[object]":
+) -> "Optional[KnowledgeBaseConfig]":
     """Build KnowledgeBaseConfig if gene-disease linkage features are requested."""
     from vartriage.knowledge.config import KnowledgeBaseConfig
 
