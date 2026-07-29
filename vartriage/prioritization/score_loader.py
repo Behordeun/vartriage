@@ -142,6 +142,7 @@ class ScoreLoader:
         self._validate_path(path)
 
         scores: dict[CoordinateKey, float] = {}
+        path = path.resolve()
 
         with open(path, encoding="utf-8") as fh:
             for lineno, line in enumerate(fh, start=1):

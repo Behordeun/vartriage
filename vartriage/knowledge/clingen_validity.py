@@ -45,6 +45,7 @@ class ClinGenValidityDB:
             logger.warning("ClinGen validity file not found: %s", tsv_path)
             return
 
+        tsv_path = tsv_path.resolve()
         with open(tsv_path, newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh, delimiter="\t")
             for row in reader:

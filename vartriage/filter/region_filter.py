@@ -116,6 +116,7 @@ class RegionFilter:
         if not bed_path.exists():
             raise FileNotFoundError(f"BED file not found: {bed_path}")
 
+        bed_path = bed_path.resolve()
         with open(bed_path, "r") as fh:
             for line_num, raw_line in enumerate(fh, start=1):
                 line = raw_line.strip()

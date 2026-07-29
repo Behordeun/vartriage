@@ -170,6 +170,7 @@ def write_vcf(
         If writing or indexing fails.
     """
     lookup = _build_lookup(variants)
+    output_path = output_path.resolve()
     tmp_path = output_path.with_suffix(".vcf.gz.tmp")
     tmp_tbi_path = Path(str(tmp_path) + ".tbi")
 

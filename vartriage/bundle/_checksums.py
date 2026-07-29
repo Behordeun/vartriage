@@ -29,6 +29,7 @@ def compute_sha256(path: Path, chunk_size: int = 65536) -> str:
         If the file cannot be read.
     """
     sha256 = hashlib.sha256()
+    path = path.resolve()
     with open(path, "rb") as f:
         while True:
             chunk = f.read(chunk_size)

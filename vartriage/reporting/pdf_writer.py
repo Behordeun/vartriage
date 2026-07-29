@@ -154,7 +154,7 @@ class ReportlabPDFRenderer:
         IOError
             If the file cannot be written to the specified path.
         """
-        output_path = Path(output_path)
+        output_path = Path(output_path).resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         doc = SimpleDocTemplate(

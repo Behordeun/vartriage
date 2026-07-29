@@ -68,6 +68,7 @@ class DictFrequencyDatabase:
             raise ReferenceFileError(f"{reference_path}: not a regular file")
 
         try:
+            reference_path = reference_path.resolve()
             with open(reference_path, "r", newline="") as fh:
                 reader = csv.reader(fh, delimiter="\t")
                 header = next(reader, None)

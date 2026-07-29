@@ -177,7 +177,7 @@ def write_csv(
     IOError
         If the file cannot be written due to filesystem or encoding errors.
     """
-    with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
+    with open(output_path.resolve(), "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile, delimiter=",", quoting=csv.QUOTE_MINIMAL)
         writer.writerow(CSV_FIELDS)
         for variant in variants:

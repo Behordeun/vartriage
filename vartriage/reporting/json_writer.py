@@ -119,6 +119,7 @@ def write_json(
         If the write fails (filesystem or encoding error).
     """
     try:
+        output_path = output_path.resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("[\n")

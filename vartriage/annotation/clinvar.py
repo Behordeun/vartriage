@@ -126,6 +126,7 @@ class DictClinVarDatabase:
             unrecognized clinical significance value.
         """
         data: dict[tuple[str, int, str, str], ClinVarAssertion] = {}
+        path = path.resolve()
 
         with open(path, encoding="utf-8") as fh:
             for line_num, line in enumerate(fh, start=1):

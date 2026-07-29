@@ -67,7 +67,7 @@ class AuditTrailWriter:
             If the sidecar file cannot be written due to filesystem
             errors.
         """
-        sidecar_path = Path(str(output_path) + ".audit.json")
+        sidecar_path = Path(str(output_path.resolve()) + ".audit.json")
 
         audit_data = {
             "run_manifest": self._build_run_manifest(
@@ -116,6 +116,7 @@ class AuditTrailWriter:
         """
         sha256 = hashlib.sha256()
         try:
+            path = path.resolve()
             with open(path, "rb") as f:
                 while True:
                     chunk = f.read(65536)

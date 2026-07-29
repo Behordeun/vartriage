@@ -317,7 +317,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     output_fmt: str = args.output_format
     clinical_config = _build_clinical_config(args, output_fmt)
 
-    vcf_path: Path = args.vcf
+    vcf_path: Path = args.vcf.resolve()
     if not vcf_path.exists():
         print(
             f"Error: VCF file not found: {vcf_path}",
@@ -753,13 +753,13 @@ def _run_cohort_cli(argv: list[str]) -> None:
     sample_labels: dict[str, str] | None = None
 
     if args.manifest is not None:
-        if not args.manifest.exists():
+        if not args.manifest.resolve().exists():
             print(
                 f"Error: manifest file not found: {args.manifest}",
                 file=sys.stderr,
             )
             sys.exit(1)
-        sample_vcfs, sample_labels = parse_cohort_manifest(args.manifest)
+        sample_vcfs, sample_labels = parse_cohort_manifest(args.manifest.resolve())
     else:
         sample_vcfs = args.vcf
 

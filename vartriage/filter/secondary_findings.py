@@ -112,6 +112,7 @@ class SecondaryFindingsFilter:
             )
 
         genes: set[str] = set()
+        path = path.resolve()
         with open(path, encoding="utf-8") as f:
             for line in f:
                 stripped = line.strip()

@@ -175,7 +175,7 @@ def parse_cohort_manifest(
     labels: dict[str, str] = {}
     has_labels = False
 
-    with open(manifest_path, encoding="utf-8") as f:
+    with open(manifest_path.resolve(), encoding="utf-8") as f:
         for raw_line in f:
             line = raw_line.strip()
             if not line or line.startswith("#"):

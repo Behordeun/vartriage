@@ -293,6 +293,7 @@ class AnnotationEngine:
         IntervalIndex
             Loaded consequence annotator.
         """
+        annotation_path = annotation_path.resolve()
         if _pyranges_available():
             try:
                 from vartriage.annotation.consequence_pyranges import \

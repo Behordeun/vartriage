@@ -136,6 +136,7 @@ class GeneFilter:
             raise FileNotFoundError(f"Gene list file not found: {path}")
 
         genes: set[str] = set()
+        path = path.resolve()
         with open(path, "r") as fh:
             for line in fh:
                 stripped = line.strip()

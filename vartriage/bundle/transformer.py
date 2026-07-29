@@ -127,6 +127,7 @@ class VcfToTsvTransformer:
             str(source),
         ]
 
+        dest = dest.resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
 
         with open(dest, "w", encoding="utf-8") as out:
@@ -159,6 +160,7 @@ class VcfToTsvTransformer:
                 "Install bcftools or run: pip install pysam"
             ) from exc
 
+        dest = dest.resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
         rows = 0
 
@@ -218,6 +220,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
             str(source),
         ]
 
+        dest = dest.resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
         rows = 0
 
@@ -278,6 +281,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
                 "Neither bcftools nor pysam available for ClinVar transformation."
             ) from exc
 
+        dest = dest.resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
         rows = 0
 
@@ -353,6 +357,7 @@ class CsvToTsvTransformer:
 
     def transform(self, source: Path, dest: Path, _build: str) -> TransformResult:
         """Transform CSV to TSV with column renaming."""
+        dest = dest.resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
         rows = 0
 
@@ -433,6 +438,7 @@ class SpliceAIExtractor:
             str(source),
         ]
 
+        dest = dest.resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
         rows = 0
 
@@ -475,6 +481,7 @@ class SpliceAIExtractor:
                 "Neither bcftools nor pysam available for SpliceAI extraction."
             ) from exc
 
+        dest = dest.resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
         rows = 0
 
@@ -532,6 +539,7 @@ class PassthroughTransformer:
 
     def transform(self, source: Path, dest: Path, _build: str) -> TransformResult:
         """Copy or decompress source to dest."""
+        dest = dest.resolve()
         dest.parent.mkdir(parents=True, exist_ok=True)
 
         if source.suffix == ".gz":

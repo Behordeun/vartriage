@@ -61,6 +61,7 @@ class TabixFrequencyDatabase:
             )
 
         try:
+            reference_path = reference_path.resolve()
             self._tabix = pysam.TabixFile(str(reference_path))
         except OSError as exc:
             raise ReferenceFileError(

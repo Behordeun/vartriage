@@ -89,6 +89,7 @@ class BundleConfig:
     def _apply_toml(self, path: Path) -> None:
         """Parse TOML file and apply values to config."""
         try:
+            path = path.resolve()
             with open(path, "rb") as f:
                 data = tomllib.load(f)
         except (OSError, ValueError):
