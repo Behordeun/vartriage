@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated_at": "2026-07-13",
+  "updated_at": "2026-07-29",
   "bundles": {
     "clinvar": {
       "display_name": "ClinVar",
@@ -72,6 +72,20 @@
       "genome_builds": ["grch37", "grch38"],
       "release_date": "2019-01-01",
       "transform_type": "spliceai_vcf"
+    },
+    "gnomad-sv": {
+      "display_name": "gnomAD-SV",
+      "description": "Structural variant population frequencies from gnomAD-SV v4 for SV triage",
+      "source_urls": {
+        "grch38": "https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1/genome_sv/gnomad.v4.1.sv.sites.vcf.gz"
+      },
+      "version": "4.1",
+      "expected_size_bytes": 1073741824,
+      "checksum_sha256": "",
+      "transformed_checksum": "",
+      "genome_builds": ["grch38"],
+      "release_date": "2024-04-18",
+      "transform_type": "sv_vcf_to_bed"
     }
   }
 }

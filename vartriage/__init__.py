@@ -46,12 +46,30 @@ from vartriage.models.cohort import (
     GeneBurden,
 )
 
+# Structural variant triage (v0.13.0)
+from vartriage.structural import (
+    SVTriagePipeline,
+    SVParser,
+    SVAnnotator,
+    SVScorer,
+    SVClassifier,
+    SVTriageConfig,
+    StructuralVariant,
+    AnnotatedSV,
+    ScoredSV,
+    ClassifiedSV,
+    SVType,
+    SVConsequence,
+    SVClassification,
+    SVEvidenceCategory,
+)
+
 try:
     from importlib.metadata import version as _get_version
 
     __version__ = _get_version("vartriage")
 except Exception:
-    __version__ = "0.11.1"
+    __version__ = "0.13.0"
 
 __all__ = [
     # Pipeline orchestrator
@@ -65,6 +83,21 @@ __all__ = [
     "CohortVariant",
     "CohortSummary",
     "GeneBurden",
+    # Structural variant triage
+    "SVTriagePipeline",
+    "SVParser",
+    "SVAnnotator",
+    "SVScorer",
+    "SVClassifier",
+    "SVTriageConfig",
+    "StructuralVariant",
+    "AnnotatedSV",
+    "ScoredSV",
+    "ClassifiedSV",
+    "SVType",
+    "SVConsequence",
+    "SVClassification",
+    "SVEvidenceCategory",
     # Processing stages
     "VCFParser",
     "QualityFilter",
