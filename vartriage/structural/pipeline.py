@@ -165,7 +165,7 @@ class SVTriagePipeline:
 
     def _write_report(self, results: list[ClassifiedSV]) -> None:
         """Write results to the configured output format."""
-        output_path = self._config.output_path
+        output_path = self._config.output_path.resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self._config.output_format == "json":
@@ -313,7 +313,10 @@ class SVTriagePipeline:
         self, path: Optional[Path]
     ) -> list[tuple[str, int, int]]:
         """Load BED regions (chrom, start, end) from a file."""
-        if path is None or not path.exists():
+        if path is None:
+            return []
+        path = path.resolve()
+        if not path.exists():
             return []
 
         regions: list[tuple[str, int, int]] = []
@@ -340,7 +343,10 @@ class SVTriagePipeline:
         self, path: Optional[Path]
     ) -> tuple[list[tuple[str, int, int]], dict[tuple[str, int, int], str]]:
         """Load BED regions with optional 4th-column syndrome names."""
-        if path is None or not path.exists():
+        if path is None:
+            return [], {}
+        path = path.resolve()
+        if not path.exists():
             return [], {}
 
         regions: list[tuple[str, int, int]] = []

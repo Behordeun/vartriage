@@ -300,6 +300,7 @@ class SVAnnotator:
         Extracts gene-level features and counts exons per gene
         for overlap assessment.
         """
+        gtf_path = gtf_path.resolve()
         if not gtf_path.exists():
             raise FileNotFoundError(f"Gene annotation not found: {gtf_path}")
 
@@ -333,6 +334,7 @@ class SVAnnotator:
         Expects a TSV with columns: gene_symbol, hi_score, ts_score.
         Scores are numeric (0-3 scale where 3 = sufficient evidence).
         """
+        path = path.resolve()
         if not path.exists():
             raise FileNotFoundError(f"Dosage sensitivity file not found: {path}")
 
@@ -363,6 +365,7 @@ class SVAnnotator:
 
         Expects a TSV/BED with columns: chrom, start, end, sv_type, af.
         """
+        path = path.resolve()
         if not path.exists():
             raise FileNotFoundError(f"gnomAD-SV file not found: {path}")
 

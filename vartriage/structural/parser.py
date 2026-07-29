@@ -133,10 +133,12 @@ class SVParser:
         self._open_vcf()
 
     def _validate_file(self) -> None:
-        if not self._file_path.exists():
+        resolved = self._file_path.resolve()
+        if not resolved.exists():
             raise FileNotFoundError(f"VCF file not found: {self._file_path}")
-        if not self._file_path.is_file():
+        if not resolved.is_file():
             raise FileNotFoundError(f"Path is not a file: {self._file_path}")
+        self._file_path = resolved
 
     def _open_vcf(self) -> None:
         try:

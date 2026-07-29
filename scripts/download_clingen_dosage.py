@@ -89,11 +89,17 @@ def _write_dosage_tsv(
 
 def fetch_dosage_data(output_path: Path) -> None:
     """Download and process ClinGen dosage sensitivity data."""
+    # Validate output path does not escape expected directory
+    resolved = output_path.resolve()
+    if ".." in str(output_path):
+        print("Error: output path must not contain '..'", file=sys.stderr)
+        sys.exit(2)
+
     print(f"Downloading ClinGen dosage data from:\n  {CLINGEN_DOSAGE_URL}")
 
     try:
-        response = urllib.request.urlopen(CLINGEN_DOSAGE_URL, timeout=30)
-        raw_data = response.read().decode("utf-8")
+        with urllib.request.urlopen(CLINGEN_DOSAGE_URL, timeout=30) as response:
+            raw_data = response.read().decode("utf-8")
     except Exception as exc:
         print(f"Error downloading: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -8,6 +8,7 @@ as an additional section alongside SNV findings.
 
 from __future__ import annotations
 
+import html
 from dataclasses import dataclass, field
 from typing import Sequence
 
@@ -189,15 +190,20 @@ class SVReportBuilder:
         )
 
     def _build_narrative(self, classified: ClassifiedSV) -> str:
-        """Generate a clinical evidence narrative for one SV."""
+        """Generate a clinical evidence narrative for one SV.
+
+        External-sourced strings (gene symbols, syndrome names) are
+        HTML-escaped to prevent XSS if rendered in HTML reports.
+        """
         sv = classified.scored.annotated.sv
         annotated = classified.scored.annotated
         parts: list[str] = []
 
         # Opening: describe the SV
         size_str = _format_size(sv.length)
+        chrom_safe = html.escape(sv.chrom)
         parts.append(
-            f"{sv.sv_type.value} at {sv.chrom}:{sv.start}-{sv.end} "
+            f"{sv.sv_type.value} at {chrom_safe}:{sv.start}-{sv.end} "
             f"({size_str})"
         )
 
@@ -207,8 +213,9 @@ class SVReportBuilder:
         elif annotated.genes_affected == 1:
             gene = annotated.gene_overlaps[0]
             overlap_pct = f"{gene.overlap_fraction * 100:.0f}%"
+            gene_name_safe = html.escape(gene.gene_symbol)
             parts.append(
-                f"overlaps {overlap_pct} of {gene.gene_symbol} "
+                f"overlaps {overlap_pct} of {gene_name_safe} "
                 f"({gene.exons_affected}/{gene.total_exons} exons)."
             )
         else:
@@ -219,7 +226,7 @@ class SVReportBuilder:
         # Dosage sensitivity
         if annotated.hi_genes_affected > 0:
             hi_names = [
-                o.gene_symbol for o in annotated.gene_overlaps
+                html.escape(o.gene_symbol) for o in annotated.gene_overlaps
                 if o.is_haploinsufficient
             ]
             parts.append(
@@ -228,8 +235,9 @@ class SVReportBuilder:
 
         # Syndrome match
         if classified.syndrome_name:
+            syndrome_safe = html.escape(classified.syndrome_name)
             parts.append(
-                f"Matches known pathogenic region: {classified.syndrome_name}."
+                f"Matches known pathogenic region: {syndrome_safe}."
             )
 
         # Population frequency
