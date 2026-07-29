@@ -4,6 +4,30 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-07-29
+
+### Added
+
+- **Structural variant triage pipeline** (`vartriage/structural/`): complete SV analysis from VCF parsing through ClinGen-based classification.
+  - `SVParser`: streams SV records from VCF via pysam. Handles SVTYPE, END/SVLEN, CIPOS/CIEND, BND bracket notation, copy number. Supports Manta, DELLY, GATK-SV, GRIDSS, and LUMPY INFO field conventions.
+  - `SVAnnotator`: determines gene overlap (whole-gene vs partial), attaches ClinGen dosage sensitivity (HI/TS scores), and matches gnomAD-SV population frequencies via reciprocal overlap.
+  - `SVScorer`: composite pathogenicity score from gene impact (35%), dosage sensitivity (30%), population frequency rarity (20%), and SV size (15%).
+  - `SVClassifier`: implements ACMG/ClinGen Technical Standards for CNV interpretation (Riggs et al. 2020). Evaluates Sections 1-4, maps accumulated evidence to 5-tier classification.
+  - `SVTriagePipeline`: orchestrates all stages, validates config at construction, writes JSON/CSV reports.
+  - `SVReportBuilder`: clinical report section with findings table, summary stats, and per-SV evidence narratives.
+  - `merge_findings()`: combines SNV ClassifiedVariants + SV ClassifiedSVs into unified ranked output.
+- **CLI `vartriage sv` subcommand** with `--sv-vcf`, `--min-sv-size`, `--max-sv-size`, `--sv-types`, `--dosage-sensitivity`, `--gnomad-sv`, `--pathogenic-regions`, `--benign-regions`, `--reciprocal-overlap`, `--whole-gene-threshold`, `--include-benign` flags.
+- **Integrated SV mode**: `--sv-vcf` flag on the main `vartriage` command runs both SNV and SV pipelines, producing separate output files.
+- **Syndrome name resolution**: pathogenic region matches return the associated syndrome name (e.g., "22q11.2 deletion syndrome") in classification output.
+- **Bundled reference data**: `clingen_dosage.tsv` (54 genes), `clingen_pathogenic_regions.bed` (16 syndromes), `clingen_benign_regions.bed` (18 regions).
+- **gnomAD-SV bundle**: `gnomad-sv` entry in the bundle registry for automated download.
+- **Download script**: `scripts/download_clingen_dosage.py` fetches latest ClinGen dosage data from FTP.
+- `SVTriageConfig` frozen dataclass with startup validation for all parameters.
+- Data models: `StructuralVariant`, `AnnotatedSV`, `ScoredSV`, `ClassifiedSV`, `GeneOverlap`, `Breakpoint`.
+- Enums: `SVType` (6 types), `SVConsequence` (8 levels), `SVClassification` (5 tiers), `SVEvidenceCategory` (ClinGen sections 1-5).
+- 60 new unit/integration tests covering parser, annotator, frequency matching, classifier, and end-to-end 22q11.2 deletion scenario.
+- `docs/structural-variants.md` user guide with CLI reference, Python API, and output format documentation.
+
 ## [0.12.0] - 2026-07-29
 
 ### Added
