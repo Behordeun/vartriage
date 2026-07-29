@@ -25,11 +25,11 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
 
 **Benchmarks:**
 
-| Workload | Variants | Wall time | Peak RSS |
-| --- | --- | --- | --- |
-| WGS QC only | 4M | 156 s | 122 MB |
-| chr22 full annotation | 130K | 36 s | ~2 GB |
-| chr22 annotation (100K gnomAD) | 130K | 19.5 s | 453 MB |
+| Workload                       | Variants | Wall time | Peak RSS |
+| ------------------------------ | -------- | --------- | -------- |
+| WGS QC only                    | 4M       | 156 s     | 122 MB   |
+| chr22 full annotation          | 130K     | 36 s      | ~2 GB    |
+| chr22 annotation (100K gnomAD) | 130K     | 19.5 s    | 453 MB   |
 
 Reference files are cached after first parse. Subsequent runs load from cache in seconds.
 
@@ -123,21 +123,21 @@ vartriage cohort --manifest samples.tsv --output cohort_results/ \
 
 **Output files** - three files per run:
 
-| File | Contents |
-| --- | --- |
-| `{cohort_name}_variants.json` | All cohort variants with recurrence counts, per-sample classifications, and evidence tags |
-| `{cohort_name}_gene_burden.json` | Per-gene statistics: variant count, pathogenic count, penetrance, samples affected |
-| `{cohort_name}_summary.json` | Top-level metrics: total variants, shared/singleton/universal counts, top recurrent genes |
+| File                               | Contents                                                                                  |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `{cohort_name}_variants.json`    | All cohort variants with recurrence counts, per-sample classifications, and evidence tags |
+| `{cohort_name}_gene_burden.json` | Per-gene statistics: variant count, pathogenic count, penetrance, samples affected        |
+| `{cohort_name}_summary.json`     | Top-level metrics: total variants, shared/singleton/universal counts, top recurrent genes |
 
 **Key options:**
 
-| Flag | Default | Description |
-| --- | --- | --- |
-| `--min-recurrence` | 2 | Exclude variants appearing in fewer than this many samples |
-| `--max-af` | 0.05 | Exclude variants above this population frequency |
-| `--no-singletons` | false | Drop variants seen in only one sample |
-| `--parallel` | false | Process samples concurrently |
-| `--max-workers` | 4 | Thread pool size for parallel mode |
+| Flag                 | Default | Description                                                |
+| -------------------- | ------- | ---------------------------------------------------------- |
+| `--min-recurrence` | 2       | Exclude variants appearing in fewer than this many samples |
+| `--max-af`         | 0.05    | Exclude variants above this population frequency           |
+| `--no-singletons`  | false   | Drop variants seen in only one sample                      |
+| `--parallel`       | false   | Process samples concurrently                               |
+| `--max-workers`    | 4       | Thread pool size for parallel mode                         |
 
 Parallel mode uses `ThreadPoolExecutor`. Per-sample work is I/O-bound (pysam releases the GIL during C-level VCF parsing), so threads are effective here without needing multiprocessing.
 
@@ -324,16 +324,16 @@ When only two scores are available, weights redistribute proportionally. Single 
 
 **ACMG classification** - Tags evidence per ACMG/AMP 2015 guidelines:
 
-| Tag | Strength | Condition |
-| ------ | ------------ | ---------------------------------------------- |
+| Tag  | Strength    | Condition                                             |
+| ---- | ----------- | ----------------------------------------------------- |
 | PVS1 | Very Strong | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
-| PM2 | Moderate | All population AFs < 0.0001 (population-aware) |
-| PP3 | Supporting | REVEL > 0.7 or SpliceAI > 0.5 on splice-adjacent |
-| PP5 | Supporting | ClinVar Pathogenic without conflicting Benign |
-| BA1 | Standalone | Any population AF > 5% (standalone Benign) |
-| BS1 | Strong | Any population AF > 1% (strong benign) |
-| BP4 | Supporting | REVEL < 0.15 (missense) or CADD < 10 (non-missense) |
-| BP7 | Supporting | Synonymous + SpliceAI < 0.1 |
+| PM2  | Moderate    | All population AFs < 0.0001 (population-aware)        |
+| PP3  | Supporting  | REVEL > 0.7 or SpliceAI > 0.5 on splice-adjacent      |
+| PP5  | Supporting  | ClinVar Pathogenic without conflicting Benign         |
+| BA1  | Standalone  | Any population AF > 5% (standalone Benign)            |
+| BS1  | Strong      | Any population AF > 1% (strong benign)                |
+| BP4  | Supporting  | REVEL < 0.15 (missense) or CADD < 10 (non-missense)   |
+| BP7  | Supporting  | Synonymous + SpliceAI < 0.1                           |
 
 Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign. Conflicting pathogenic + benign evidence yields VUS. Missing data sources mean the tag is simply omitted.
 
@@ -343,80 +343,80 @@ Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign. 
 
 ### QualityFilterConfig
 
-| Field | Type | Default | Range |
-| --- | --- | --- | --- |
-| min_qual | float | 20.0 | 0-1,000,000 |
+| Field    | Type  | Default | Range       |
+| -------- | ----- | ------- | ----------- |
+| min_qual | float | 20.0    | 0-1,000,000 |
 
 ### AnnotationConfig
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
-| gene_annotation_path | Path | required | GTF/GFF |
-| gnomad_path | Path | required | TSV or tabix VCF (.vcf.bgz/.vcf.gz) |
-| clinvar_path | Path | None | TSV |
-| reference_fasta_path | Path | None | Indexed FASTA (.fa + .fai) for codon-level consequence calling |
-| batch_size | int | 10,000 | 1,000-100,000 |
+| Field                | Type | Default  | Notes                                                          |
+| -------------------- | ---- | -------- | -------------------------------------------------------------- |
+| gene_annotation_path | Path | required | GTF/GFF                                                        |
+| gnomad_path          | Path | required | TSV or tabix VCF (.vcf.bgz/.vcf.gz)                            |
+| clinvar_path         | Path | None     | TSV                                                            |
+| reference_fasta_path | Path | None     | Indexed FASTA (.fa + .fai) for codon-level consequence calling |
+| batch_size           | int  | 10,000   | 1,000-100,000                                                  |
 
 ### PrioritizationConfig
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
-| max_allele_frequency | float | 0.01 | 0.0-1.0 |
-| cadd_scores_path | Path | None | CADD Phred TSV |
-| revel_scores_path | Path | None | REVEL TSV |
-| spliceai_scores_path | Path | None | SpliceAI TSV |
-| batch_size | int | 10,000 | 1,000-100,000 |
+| Field                | Type  | Default | Notes          |
+| -------------------- | ----- | ------- | -------------- |
+| max_allele_frequency | float | 0.01    | 0.0-1.0        |
+| cadd_scores_path     | Path  | None    | CADD Phred TSV |
+| revel_scores_path    | Path  | None    | REVEL TSV      |
+| spliceai_scores_path | Path  | None    | SpliceAI TSV   |
+| batch_size           | int   | 10,000  | 1,000-100,000  |
 
 ### ReportConfig
 
-| Field | Type | Default | Options |
-| --- | --- | --- | --- |
-| output_format | str | "json" | "json", "csv", "pdf", "vcf", "clinical-html", "clinical-pdf", "clinical-docx" |
+| Field         | Type | Default | Options                                                                       |
+| ------------- | ---- | ------- | ----------------------------------------------------------------------------- |
+| output_format | str  | "json"  | "json", "csv", "pdf", "vcf", "clinical-html", "clinical-pdf", "clinical-docx" |
 
 ### ClinicalReportConfig
 
-| Field | Type | Default | Options |
-| --- | --- | --- | --- |
-| patient_id | str | required | Patient identifier |
-| panel_name | str | required | Gene panel name |
-| output_format | str | required | "clinical-pdf", "clinical-html", "clinical-docx" |
-| report_template | str | "standard" | Template name |
+| Field           | Type | Default    | Options                                          |
+| --------------- | ---- | ---------- | ------------------------------------------------ |
+| patient_id      | str  | required   | Patient identifier                               |
+| panel_name      | str  | required   | Gene panel name                                  |
+| output_format   | str  | required   | "clinical-pdf", "clinical-html", "clinical-docx" |
+| report_template | str  | "standard" | Template name                                    |
 
 Constructed automatically when `--output-format` is a `clinical-*` value. Requires `--patient-id` and `--panel-name`.
 
 ### GeneFilterConfig
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
+| Field          | Type | Default  | Notes                                |
+| -------------- | ---- | -------- | ------------------------------------ |
 | gene_list_path | Path | required | Plain text, one gene symbol per line |
 
 ### RegionFilterConfig
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
+| Field    | Type | Default  | Notes                          |
+| -------- | ---- | -------- | ------------------------------ |
 | bed_path | Path | required | BED file with target intervals |
 
 ### SampleConfig
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
-| sample_name | str | required | Sample name from VCF header |
-| min_gq | int | None | Genotype quality threshold (0-99) |
+| Field       | Type | Default  | Notes                             |
+| ----------- | ---- | -------- | --------------------------------- |
+| sample_name | str  | required | Sample name from VCF header       |
+| min_gq      | int  | None     | Genotype quality threshold (0-99) |
 
 ### CohortConfig
 
-| Field | Type | Default | Notes |
-| --- | --- | --- | --- |
-| sample_vcfs | list[Path] | required | At least 2 VCF file paths |
-| output_path | Path | required | Output directory for reports |
-| cohort_name | str | "cohort" | Identifier for output filenames |
-| min_recurrence | int | 2 | Minimum samples for recurrence |
-| output_format | str | "json" | "json" or "csv" |
-| max_af_threshold | float | 0.05 | Max population AF for inclusion (0.0-1.0) |
-| include_singletons | bool | True | Include variants in only 1 sample |
-| sample_labels | dict | None | Map file stems to display labels |
-| parallel | bool | False | Process samples concurrently |
-| max_workers | int | 4 | Thread pool size (>= 1) |
+| Field              | Type       | Default  | Notes                                     |
+| ------------------ | ---------- | -------- | ----------------------------------------- |
+| sample_vcfs        | list[Path] | required | At least 2 VCF file paths                 |
+| output_path        | Path       | required | Output directory for reports              |
+| cohort_name        | str        | "cohort" | Identifier for output filenames           |
+| min_recurrence     | int        | 2        | Minimum samples for recurrence            |
+| output_format      | str        | "json"   | "json" or "csv"                           |
+| max_af_threshold   | float      | 0.05     | Max population AF for inclusion (0.0-1.0) |
+| include_singletons | bool       | True     | Include variants in only 1 sample         |
+| sample_labels      | dict       | None     | Map file stems to display labels          |
+| parallel           | bool       | False    | Process samples concurrently              |
+| max_workers        | int        | 4        | Thread pool size (>= 1)                   |
 
 ## Reference file formats
 
@@ -463,15 +463,15 @@ warnings.filterwarnings("ignore", category=VarTriageWarning)
 
 ## Dependencies
 
-| Package | Required | Extra | Purpose |
-| --- | --- | --- | --- |
-| pysam >=0.22,<1.0 | yes | - | VCF streaming via htslib |
-| numpy >=1.24,<3.0 | yes | - | Score normalization |
-| polars >=0.20,<2.0 | no | [accelerated] | Batch frequency/ClinVar joins |
-| pyranges >=0.1,<1.0 | no | [accelerated] | Interval overlap queries |
-| reportlab >=4.0,<5.0 | no | [pdf] | PDF report rendering |
-| weasyprint >=60.0,<62.0 | no | [clinical] | Clinical PDF rendering |
-| python-docx >=1.0,<2.0 | no | [clinical] | Clinical DOCX rendering |
+| Package                 | Required | Extra         | Purpose                       |
+| ----------------------- | -------- | ------------- | ----------------------------- |
+| pysam >=0.22,<1.0       | yes      | -             | VCF streaming via htslib      |
+| numpy >=1.24,<3.0       | yes      | -             | Score normalization           |
+| polars >=0.20,<2.0      | no       | [accelerated] | Batch frequency/ClinVar joins |
+| pyranges >=0.1,<1.0     | no       | [accelerated] | Interval overlap queries      |
+| reportlab >=4.0,<5.0    | no       | [pdf]         | PDF report rendering          |
+| weasyprint >=60.0,<62.0 | no       | [clinical]    | Clinical PDF rendering        |
+| python-docx >=1.0,<2.0  | no       | [clinical]    | Clinical DOCX rendering       |
 
 Without optional extras, the library uses pure-Python fallbacks (dict lookups, bisect-based interval tree). Same output either way; the accelerated path is faster on large reference files.
 
