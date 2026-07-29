@@ -4,6 +4,40 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-07-29
+
+### Added
+
+- **Gene-disease linkage knowledge base** (`vartriage/knowledge/`): connects variants to their clinical context via gene-level annotations from OMIM, ClinGen, HPO, and gnomAD constraint data.
+  - `OMIMDatabase`: gene-disease associations with MIM numbers and inheritance modes (AD, AR, XL, XLD, XLR, MT).
+  - `HPODatabase`: gene-to-HPO phenotype term mappings for overlap scoring.
+  - `ClinGenValidityDB`: gene-disease validity levels (Definitive, Strong, Moderate, Limited, Disputed, Refuted).
+  - `ConstraintDB`: gnomAD constraint metrics (pLI, LOEUF, mis_z) per gene.
+  - `ActionabilityDB`: ClinGen actionability curations with intervention types.
+  - `GeneKnowledgeRegistry`: flyweight-cached composite lookup (O(1) per gene). Owns phenotype overlap scoring internally.
+  - `GeneKnowledgeAnnotator`: pipeline stage enriching variants with `GeneContext`. Filters by inheritance mode and actionability. Provides `boost_scores()` for prioritization.
+  - `apply_phenotype_boost()`: stateless utility applying `score * (1 + overlap)` bounded at 2.0.
+- **Phenotype-driven prioritization** (`--hpo-terms HP:0001250,HP:0001249`): computes overlap between patient HPO terms and each gene's phenotype annotations. Variants in phenotype-matching genes receive a multiplicative score boost (1.0-2.0) applied to `prioritization_score` between scoring and ACMG classification. Tier isolation preserved: boost operates within classification tiers only.
+- **Inheritance mode filtering** (`--inheritance-mode AD|AR|XL|XLD|XLR|MT`): filters variants to genes matching the specified OMIM inheritance pattern. Intergenic variants and genes without OMIM data pass through unfiltered.
+- **Actionability filtering** (`--flag-actionable`): when set, only variants in ClinGen-curated medically actionable genes (plus intergenic) pass through. Actionability annotation is always populated when knowledge base is active.
+- **Gene context in output** (JSON and CSV): `disease_associations` (with MIM numbers and inheritance mode), `clingen_validity`, `gene_constraint` (pLI/LOEUF/mis_z), `is_actionable`, and `phenotype_match_score` fields added to classified variant output.
+- **Custom knowledge directory** (`--knowledge-dir`): override the bundled data with custom pre-processed TSV files.
+- **Bundled knowledge data**: pre-processed TSV files for 22 clinically relevant genes (BRCA1, BRCA2, TP53, CFTR, SCN1A, MECP2, NF2, etc.) shipped as package data.
+- `KnowledgeBaseConfig` dataclass with HPO term format validation and inheritance mode validation.
+- `GeneContext` dataclass attached to `AnnotatedVariant` for variant-facing gene knowledge.
+- `gene_context` field on `AnnotatedVariant`.
+- Spike-in validation script (`scripts/validate_affected_patient.py`): injects pathogenic NF2 variants into GIAB HG002 and validates end-to-end gene-disease linkage.
+- 73 new tests: 56 unit tests for all knowledge modules + 17 clinical scenario integration tests (Dravet syndrome patient simulation).
+- `docs/gene-disease-linkage.md` user guide.
+
+### Changed
+
+- `PipelineConfig` gains `knowledge: KnowledgeBaseConfig | None` field.
+- `GeneKnowledgeAnnotator` is constructed once at `Pipeline.__init__` (not per-run) to avoid repeated TSV reloads.
+- CSV `disease_associations` column now includes MIM numbers: `"Disease name [MIM:123456] (AD)"`.
+- Pipeline stage order: `AnnotationEngine → [GeneFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier`.
+- Package version bumped to 0.12.0.
+
 ## [0.11.1] - 2026-07-28
 
 ### Documentation

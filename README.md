@@ -8,7 +8,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific), pathogenicity scoring (CADD/REVEL/SpliceAI), ACMG/AMP classification (pathogenic and benign criteria), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific), pathogenicity scoring (CADD/REVEL/SpliceAI), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (pathogenic and benign criteria), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
@@ -16,6 +16,8 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
 - Streams 4M+ variant WGS files under 2 GB RAM
 - Codon-level consequence calling with reference FASTA (correct missense vs synonymous)
 - Benign + pathogenic ACMG criteria: classifies variants across all 5 tiers
+- Gene-disease linkage: OMIM, ClinGen validity, HPO phenotype matching, gnomAD constraint, actionability
+- Phenotype-driven: `--hpo-terms` boosts variants in genes matching patient symptoms
 - Trio-aware: de novo, dominant, recessive, compound het, X-linked
 - ACMG Secondary Findings (SF v3.2): screens 71 medically actionable genes
 - Score bundle downloader: `vartriage bundle download --bundle clinvar` fetches and prepares reference files
@@ -123,16 +125,16 @@ vartriage cohort --manifest samples.tsv --output cohort_results/ \
 
 **Output files** - three files per run:
 
-| File                               | Contents                                                                                  |
-| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| File                             | Contents                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
 | `{cohort_name}_variants.json`    | All cohort variants with recurrence counts, per-sample classifications, and evidence tags |
 | `{cohort_name}_gene_burden.json` | Per-gene statistics: variant count, pathogenic count, penetrance, samples affected        |
 | `{cohort_name}_summary.json`     | Top-level metrics: total variants, shared/singleton/universal counts, top recurrent genes |
 
 **Key options:**
 
-| Flag                 | Default | Description                                                |
-| -------------------- | ------- | ---------------------------------------------------------- |
+| Flag               | Default | Description                                                |
+| ------------------ | ------- | ---------------------------------------------------------- |
 | `--min-recurrence` | 2       | Exclude variants appearing in fewer than this many samples |
 | `--max-af`         | 0.05    | Exclude variants above this population frequency           |
 | `--no-singletons`  | false   | Drop variants seen in only one sample                      |
@@ -140,6 +142,36 @@ vartriage cohort --manifest samples.tsv --output cohort_results/ \
 | `--max-workers`    | 4       | Thread pool size for parallel mode                         |
 
 Parallel mode uses `ThreadPoolExecutor`. Per-sample work is I/O-bound (pysam releases the GIL during C-level VCF parsing), so threads are effective here without needing multiprocessing.
+
+### Gene-disease linkage (new in v0.12.0)
+
+Connect variants to clinical context with phenotype-driven prioritization:
+
+```bash
+# Phenotype-driven: boost epilepsy-related genes for a seizure patient
+vartriage --vcf patient.vcf.gz --output results.json \
+  --gene-annotation gencode.gtf --gnomad gnomad.tsv \
+  --hpo-terms HP:0001250,HP:0001249,HP:0002197
+
+# Filter to autosomal recessive genes
+vartriage --vcf patient.vcf.gz --output results.json \
+  --gene-annotation gencode.gtf --gnomad gnomad.tsv \
+  --inheritance-mode AR
+
+# Only actionable findings (ClinGen curations)
+vartriage --vcf patient.vcf.gz --output results.json \
+  --gene-annotation gencode.gtf --gnomad gnomad.tsv \
+  --flag-actionable
+
+# Combine all three
+vartriage --vcf patient.vcf.gz --output results.json \
+  --gene-annotation gencode.gtf --gnomad gnomad.tsv \
+  --hpo-terms HP:0001250,HP:0001249 --inheritance-mode AD --flag-actionable
+```
+
+Output includes per-variant: disease associations (with MIM numbers), ClinGen validity level, gnomAD constraint metrics (pLI/LOEUF/mis_z), actionability status, and phenotype match score.
+
+See [Gene-Disease Linkage Guide](https://github.com/Behordeun/vartriage/blob/main/docs/gene-disease-linkage.md) for data file formats, Python API usage, and validation details.
 
 ### Full options
 
@@ -297,7 +329,7 @@ for burden in pipeline.gene_burdens:
 ## Pipeline stages
 
 ```text
-VCFParser → [SampleExtractor] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
+VCFParser → [SampleExtractor] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
 ```
 
 Stages in brackets are optional and activate based on config.
@@ -337,7 +369,7 @@ When only two scores are available, weights redistribute proportionally. Single 
 
 Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign. Conflicting pathogenic + benign evidence yields VUS. Missing data sources mean the tag is simply omitted.
 
-**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with a computational-only disclaimer (citing ACMG/AMP 2015), per-variant evidence narratives, an executive summary, findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, gene_name, functional consequence, allele frequency, revel_score, composite rank, prioritization_score, ClinVar assertion, ACMG classification, evidence tags.
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with a computational-only disclaimer (citing ACMG/AMP 2015), per-variant evidence narratives, an executive summary, findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, gene_name, functional consequence, allele frequency, revel_score, composite rank, prioritization_score, ClinVar assertion, ACMG classification, evidence tags, disease_associations, clingen_validity, gene_constraint, is_actionable, phenotype_match_score.
 
 ## Configuration
 
@@ -417,6 +449,17 @@ Constructed automatically when `--output-format` is a `clinical-*` value. Requir
 | sample_labels      | dict       | None     | Map file stems to display labels          |
 | parallel           | bool       | False    | Process samples concurrently              |
 | max_workers        | int        | 4        | Thread pool size (>= 1)                   |
+
+### KnowledgeBaseConfig
+
+| Field            | Type          | Default  | Notes                                                   |
+| ---------------- | ------------- | -------- | ------------------------------------------------------- |
+| data_dir         | Path \| None  | None     | Custom TSV directory (defaults to bundled package data) |
+| hpo_terms        | frozenset[str]| empty    | Patient HPO terms (HP:NNNNNNN format)                   |
+| inheritance_mode | str \| None   | None     | Filter: AD, AR, XL, XLD, XLR, MT                        |
+| flag_actionable  | bool          | False    | Filter to ClinGen actionable genes only                 |
+
+Any non-default field activates the gene-disease linkage pipeline stage.
 
 ## Reference file formats
 
@@ -512,11 +555,13 @@ vartriage/
     io/                   # VCF parsing
     filter/               # Quality, region, sample, and gene filtering
     annotation/           # Consequence, frequency, ClinVar lookups
+    knowledge/            # Gene-disease linkage (OMIM, ClinGen, HPO, constraint)
     prioritization/       # AF gating + CADD/REVEL/SpliceAI scoring (ScoreLoader)
     classification/       # ACMG evidence tagging
     reporting/            # JSON, CSV, PDF, VCF (streaming writers)
         clinical/         # Clinical report generation (HTML/PDF/DOCX + audit trail)
     models/               # Dataclasses, enums, configs, warnings
+    data/knowledge/       # Bundled gene-disease TSV files
     _internal/            # Batch utils, interval tree, caching, vectorized ops
     py.typed              # PEP 561 marker
 ```
