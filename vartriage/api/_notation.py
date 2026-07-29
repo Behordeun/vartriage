@@ -18,6 +18,25 @@ Edge cases handled:
 
 from __future__ import annotations
 
+import re
+
+_VALID_ALLELE = re.compile(r"^[ACGTNacgtn*.-]+$")
+_VALID_CHROM = re.compile(r"^(chr)?[0-9XYMTxymt]+$")
+
+
+def _sanitize_genomic_input(chrom: str, ref: str, alt: str) -> None:
+    """Reject inputs containing characters outside the genomic alphabet.
+
+    Prevents injection of control characters or HTML into downstream
+    API request bodies or report output.
+    """
+    if not _VALID_CHROM.match(chrom):
+        raise ValueError(f"Invalid chromosome name: {chrom!r}")
+    if not _VALID_ALLELE.match(ref):
+        raise ValueError(f"Invalid reference allele: {ref!r}")
+    if not _VALID_ALLELE.match(alt):
+        raise ValueError(f"Invalid alternate allele: {alt!r}")
+
 
 def vcf_to_vep_notation(chrom: str, pos: int, ref: str, alt: str) -> str:
     """Convert a VCF variant to VEP region notation.
@@ -38,6 +57,7 @@ def vcf_to_vep_notation(chrom: str, pos: int, ref: str, alt: str) -> str:
     str
         VEP-format string: "chrom start end allele/allele +"
     """
+    _sanitize_genomic_input(chrom, ref, alt)
     chrom_clean = _strip_chr_prefix(chrom)
     ref_len = len(ref)
     alt_len = len(alt)

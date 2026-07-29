@@ -93,7 +93,7 @@ class ReportGenerator:
             On write or encoding failure, or if format is "vcf"
             and ``source_vcf_path`` is None.
         """
-        output_path = Path(output_path)
+        output_path = Path(output_path).resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         fmt = self._config.output_format

@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import Optional, Protocol, Sequence
 
 
-def _validate_source_path(source: Path) -> None:
-    """Validate a source path before passing to subprocess.
+def _validate_source_path(source: Path) -> Path:
+    """Validate and resolve a source path before passing to subprocess.
 
-    Ensures the path exists and is within expected boundaries.
-    Prevents path traversal or unexpected shell metacharacters.
+    Ensures the path exists, resolves to an absolute canonical path,
+    and does not contain traversal components. Returns the resolved path.
 
     Raises
     ------
@@ -28,12 +28,12 @@ def _validate_source_path(source: Path) -> None:
     FileNotFoundError
         If the path doesn't exist.
     """
-    if not source.exists():
-        raise FileNotFoundError(f"Source file not found: {source}")
     resolved = source.resolve()
-    name = resolved.name
-    if ".." in str(resolved) or not name:
+    if not resolved.exists():
+        raise FileNotFoundError(f"Source file not found: {source}")
+    if ".." in str(source) or not resolved.name:
         raise ValueError(f"Invalid source path: {source}")
+    return resolved
 
 
 @dataclass
@@ -118,6 +118,7 @@ class VcfToTsvTransformer:
 
     def _transform_bcftools(self, source: Path, dest: Path) -> TransformResult:
         """Use bcftools query for fast extraction."""
+        source = _validate_source_path(source)
         cmd = [
             "bcftools",
             "query",
@@ -130,8 +131,7 @@ class VcfToTsvTransformer:
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write(self._header + "\n")
-            _validate_source_path(source)
-            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+            result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -209,6 +209,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
 
     def _transform_clinvar_bcftools(self, source: Path, dest: Path) -> TransformResult:
         """Extract ClinVar with bcftools, normalizing CLNSIG values."""
+        source = _validate_source_path(source)
         cmd = [
             "bcftools",
             "query",
@@ -222,8 +223,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tclinical_significance\n")
-            _validate_source_path(source)
-            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+            result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -424,6 +424,7 @@ class SpliceAIExtractor:
 
     def _transform_bcftools(self, source: Path, dest: Path) -> TransformResult:
         """Use bcftools to extract SpliceAI INFO field."""
+        source = _validate_source_path(source)
         cmd = [
             "bcftools",
             "query",
@@ -437,8 +438,7 @@ class SpliceAIExtractor:
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tscore\n")
-            _validate_source_path(source)
-            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+            result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

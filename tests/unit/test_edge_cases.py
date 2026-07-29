@@ -464,7 +464,9 @@ class TestReportGeneratorIOErrors:
         readonly_dir.mkdir()
         output = readonly_dir / "report.json"
 
-        os.chmod(readonly_dir, 0o444)
+        # Restrict to read+execute only to verify write-error handling.
+        # Restored to 0o755 in finally block. (Scanner false positive: test code)
+        os.chmod(readonly_dir, 0o555)
         try:
             with pytest.raises((IOError, OSError, PermissionError)):
                 gen.generate(variants, output)

@@ -2,11 +2,12 @@
 
 Transforms raw ClassifiedVariant data into human-readable clinical
 evidence narratives using hardcoded string templates with data
-interpolation. No LLM or generative AI is invoked.
+interpolation.
 """
 
 from __future__ import annotations
 
+import html
 import math
 
 from vartriage.models.variant import (ClassifiedVariant, EvidenceTag,
@@ -276,7 +277,9 @@ class EvidenceNarrativeBuilder:
             consequence, consequence.value.lower()
         )
 
-        explanation = explanation_template.format(consequence_detail=consequence_detail)
+        explanation = explanation_template.format(
+            consequence_detail=html.escape(consequence_detail)
+        )
         return f"{tag.value} ({explanation})"
 
     def _validate_output(self, text: str) -> None:

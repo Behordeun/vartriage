@@ -56,40 +56,42 @@ def build_spike_vcf(source_vcf: Path, output_vcf: Path) -> int:
     import pysam
 
     vcf_in = pysam.VariantFile(str(source_vcf))
-    header = vcf_in.header.copy()
+    try:
+        header = vcf_in.header.copy()
 
-    # Add INFO field for spike-in tracking
-    header.add_line(
-        '##INFO=<ID=SPIKE,Number=0,Type=Flag,Description="Spiked-in pathogenic variant">'
-    )
+        # Add INFO field for spike-in tracking
+        header.add_line(
+            '##INFO=<ID=SPIKE,Number=0,Type=Flag,Description="Spiked-in pathogenic variant">'
+        )
 
-    vcf_out = pysam.VariantFile(str(output_vcf), "wz", header=header)
+        vcf_out = pysam.VariantFile(str(output_vcf), "wz", header=header)
+        try:
+            spike_positions = {pos for pos, _, _, _ in NF2_SPIKE_VARIANTS}
+            spiked_count = 0
+            spike_inserted = False
 
-    spike_positions = {pos for pos, _, _, _ in NF2_SPIKE_VARIANTS}
-    spiked_count = 0
-    spike_inserted = False
+            for rec in vcf_in:
+                # Insert spike variants just before we pass their position
+                if not spike_inserted and rec.pos >= min(spike_positions):
+                    for pos, ref, alt, desc in sorted(NF2_SPIKE_VARIANTS):
+                        new_rec = vcf_out.new_record()
+                        new_rec.contig = "chr22"
+                        new_rec.pos = pos
+                        new_rec.alleles = (ref, alt)
+                        new_rec.qual = 99
+                        new_rec.filter.add("PASS")
+                        new_rec.info["SPIKE"] = True
+                        # Set genotype: heterozygous (typical for AD condition)
+                        new_rec.samples["HG002"]["GT"] = (0, 1)
+                        vcf_out.write(new_rec)
+                        spiked_count += 1
+                    spike_inserted = True
 
-    for rec in vcf_in:
-        # Insert spike variants just before we pass their position
-        if not spike_inserted and rec.pos >= min(spike_positions):
-            for pos, ref, alt, desc in sorted(NF2_SPIKE_VARIANTS):
-                new_rec = vcf_out.new_record()
-                new_rec.contig = "chr22"
-                new_rec.pos = pos
-                new_rec.alleles = (ref, alt)
-                new_rec.qual = 99
-                new_rec.filter.add("PASS")
-                new_rec.info["SPIKE"] = True
-                # Set genotype: heterozygous (typical for AD condition)
-                new_rec.samples["HG002"]["GT"] = (0, 1)
-                vcf_out.write(new_rec)
-                spiked_count += 1
-            spike_inserted = True
-
-        vcf_out.write(rec)
-
-    vcf_out.close()
-    vcf_in.close()
+                vcf_out.write(rec)
+        finally:
+            vcf_out.close()
+    finally:
+        vcf_in.close()
 
     # Index the output
     pysam.tabix_index(str(output_vcf), preset="vcf", force=True)
@@ -217,23 +219,7 @@ def _format_nf2_summary(v: dict) -> str:  # type: ignore[type-arg]
     )
 
 
-def analyze_results(output_path: Path) -> None:
-    """Analyze pipeline output and validate NF2 variants surfaced correctly."""
-    with open(output_path) as f:
-        results = json.load(f)
-
-    print(f"\n{'='*70}")
-    print("RESULTS ANALYSIS")
-    print(f"{'='*70}")
-    print(f"Total classified variants: {len(results)}")
-
-    with_context = [r for r in results if "disease_associations" in r]
-    print(f"Variants with gene-disease context: {len(with_context)}")
-
-    nf2_variants = [r for r in results if r.get("gene_name") == "NF2"]
-    print(f"NF2 variants found: {len(nf2_variants)}")
-
-    # Classification distribution
+def _print_classification_distribution(results: list) -> None:  # type: ignore[type-arg]
     classifications: dict[str, int] = {}
     for r in results:
         cls = r.get("acmg_classification", "Unknown")
@@ -242,7 +228,8 @@ def analyze_results(output_path: Path) -> None:
     for cls, count in sorted(classifications.items()):
         print(f"  {cls}: {count}")
 
-    # Pathogenic findings
+
+def _print_pathogenic_findings(results: list) -> None:  # type: ignore[type-arg]
     pathogenic = [
         r for r in results
         if r.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
@@ -253,15 +240,18 @@ def analyze_results(output_path: Path) -> None:
     for v in pathogenic[:10]:
         _print_variant_detail(v)
 
-    # NF2 detail
-    if nf2_variants:
-        print(f"\n{'='*70}")
-        print("NF2 VARIANTS DETAIL")
-        print(f"{'='*70}")
-        for v in nf2_variants:
-            print(f"  {_format_nf2_summary(v)}")
 
-    # Validation checks — declarative list
+def _print_nf2_detail(nf2_variants: list) -> None:  # type: ignore[type-arg]
+    if not nf2_variants:
+        return
+    print(f"\n{'='*70}")
+    print("NF2 VARIANTS DETAIL")
+    print(f"{'='*70}")
+    for v in nf2_variants:
+        print(f"  {_format_nf2_summary(v)}")
+
+
+def _build_nf2_checks(nf2_variants: list) -> list[tuple[str, str, bool]]:  # type: ignore[type-arg]
     nf2_with_disease = [v for v in nf2_variants if v.get("disease_associations")]
     nf2_with_pheno = [
         v for v in nf2_variants
@@ -273,7 +263,7 @@ def analyze_results(output_path: Path) -> None:
     score_detail = f" ({nf2_with_pheno[0]['phenotype_match_score']:.2f})" if nf2_with_pheno else ""
     pli_detail = f" (pLI={nf2_constrained[0]['gene_constraint']['pli']})" if nf2_constrained else ""
 
-    checks: list[tuple[str, str, bool]] = [
+    return [
         ("NF2 variants detected in output",
          "No NF2 variants found",
          len(nf2_variants) > 0),
@@ -291,6 +281,29 @@ def analyze_results(output_path: Path) -> None:
          bool(nf2_constrained)),
     ]
 
+
+def analyze_results(output_path: Path) -> None:
+    """Analyze pipeline output and validate NF2 variants surfaced correctly."""
+    with open(output_path) as f:
+        results = json.load(f)
+
+    print(f"\n{'='*70}")
+    print("RESULTS ANALYSIS")
+    print(f"{'='*70}")
+    print(f"Total classified variants: {len(results)}")
+
+    with_context = [r for r in results if "disease_associations" in r]
+    print(f"Variants with gene-disease context: {len(with_context)}")
+
+    nf2_variants = [r for r in results if r.get("gene_name") == "NF2"]
+    print(f"NF2 variants found: {len(nf2_variants)}")
+
+    _print_classification_distribution(results)
+    _print_pathogenic_findings(results)
+    _print_nf2_detail(nf2_variants)
+
+    checks = _build_nf2_checks(nf2_variants)
+
     print(f"\n{'='*70}")
     print("VALIDATION")
     print(f"{'='*70}")
@@ -299,11 +312,10 @@ def analyze_results(output_path: Path) -> None:
         _print_check(pass_msg, fail_msg, condition)
         for pass_msg, fail_msg, condition in checks
     )
-    total_checks = len(checks)
 
-    print(f"\n  Result: {checks_passed}/{total_checks} checks passed")
+    print(f"\n  Result: {checks_passed}/{len(checks)} checks passed")
 
-    if checks_passed == total_checks:
+    if checks_passed == len(checks):
         print("\n  Gene-disease linkage validation PASSED")
     else:
         print("\n  Gene-disease linkage validation FAILED")
