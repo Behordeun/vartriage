@@ -52,6 +52,8 @@ def batched(iterable: Iterable[T], batch_size: int) -> Iterator[list[T]]:
     >>> list(batched([], 10))
     []
     """
+    if not isinstance(batch_size, int):
+        raise TypeError(f"batch_size must be an integer, got {type(batch_size).__name__}")
     if batch_size < 1:
         raise ValueError(f"batch_size must be >= 1, got {batch_size}")
 
@@ -85,6 +87,7 @@ def process_with_memory_fallback(
     initial_chunk_size : int, optional
         Starting chunk size for fallback processing. Defaults to half
         the length of ``items`` (minimum ``_MIN_CHUNK_SIZE``).
+        Must be a positive integer if provided.
 
     Returns
     -------
@@ -95,7 +98,14 @@ def process_with_memory_fallback(
     ------
     MemoryError
         Re-raised if processing fails even at the minimum chunk size.
+    ValueError
+        If initial_chunk_size is not a positive integer.
     """
+    if initial_chunk_size is not None:
+        if not isinstance(initial_chunk_size, int) or initial_chunk_size < 1:
+            raise ValueError(
+                f"initial_chunk_size must be a positive integer, got {initial_chunk_size}"
+            )
     try:
         return processor(items)
     except MemoryError:

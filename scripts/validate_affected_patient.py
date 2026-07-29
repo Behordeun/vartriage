@@ -26,6 +26,8 @@ import tempfile
 import warnings
 from pathlib import Path
 
+from vartriage._internal.path_safety import safe_read_path, safe_write_path
+
 # Pathogenic NF2 variants from ClinVar to spike into the healthy VCF.
 # These are real variants reported in neurofibromatosis type 2 patients.
 # Format: (pos, ref, alt, description)
@@ -55,8 +57,8 @@ def build_spike_vcf(source_vcf: Path, output_vcf: Path) -> int:
     """
     import pysam
 
-    source_vcf = source_vcf.resolve()
-    output_vcf = output_vcf.resolve()
+    source_vcf = safe_read_path(source_vcf, "Source VCF")
+    output_vcf = safe_write_path(output_vcf, "Spike VCF")
     vcf_in = pysam.VariantFile(str(source_vcf))
     try:
         header = vcf_in.header.copy()
@@ -103,7 +105,7 @@ def build_spike_vcf(source_vcf: Path, output_vcf: Path) -> int:
 
 def update_knowledge_base(knowledge_dir: Path) -> None:
     """Add NF2 to the knowledge base TSV files for this validation run."""
-    knowledge_dir = knowledge_dir.resolve()
+    knowledge_dir = safe_write_path(knowledge_dir, "Knowledge dir")
     omim_path = knowledge_dir / "omim_gene_disease.tsv"
     content = omim_path.read_text()
     if "NF2" not in content:
@@ -287,7 +289,7 @@ def _build_nf2_checks(nf2_variants: list) -> list[tuple[str, str, bool]]:  # typ
 
 def analyze_results(output_path: Path) -> None:
     """Analyze pipeline output and validate NF2 variants surfaced correctly."""
-    with open(output_path.resolve()) as f:
+    with open(safe_read_path(output_path, "Pipeline output")) as f:
         results = json.load(f)
 
     print(f"\n{'='*70}")

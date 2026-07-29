@@ -39,11 +39,10 @@ chr1\t6000\tA\tT\tBenign
 
 def _write_temp(content: str, suffix: str) -> Path:
     """Write content to a temporary file and return the path."""
-    f = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False)
-    f.write(content)
-    f.flush()
-    f.close()
-    return Path(f.name)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as f:
+        f.write(content)
+        f.flush()
+        return Path(f.name)
 
 
 def _make_variant(chrom: str, pos: int, ref: str, alt: str) -> Variant:
@@ -64,7 +63,12 @@ def annotation_files():
     gtf_path = _write_temp(SAMPLE_GTF, ".gtf")
     gnomad_path = _write_temp(SAMPLE_GNOMAD, ".tsv")
     clinvar_path = _write_temp(SAMPLE_CLINVAR, ".tsv")
-    return gtf_path, gnomad_path, clinvar_path
+    yield gtf_path, gnomad_path, clinvar_path
+    for p in (gtf_path, gnomad_path, clinvar_path):
+        p.unlink(missing_ok=True)
+        # Clean up cache files if created
+        cache_p = Path(str(p) + ".vartriage.cache")
+        cache_p.unlink(missing_ok=True)
 
 
 @pytest.fixture

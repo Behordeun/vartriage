@@ -101,24 +101,29 @@ class EvidenceNarrativeBuilder:
         raw_variant = annotated.variant
 
         # Gene and consequence line.
+        # Escape VCF-sourced strings that end up in HTML reports.
+        safe_chrom = html.escape(str(raw_variant.chrom))
+        safe_ref = html.escape(str(raw_variant.ref))
+        safe_alt = html.escape(str(raw_variant.alt))
+
         if annotated.gene_name is not None:
             parts.append(
                 _GENE_CONSEQUENCE_TEMPLATE.format(
-                    gene=annotated.gene_name,
+                    gene=html.escape(annotated.gene_name),
                     consequence=annotated.consequence.value,
-                    chrom=raw_variant.chrom,
+                    chrom=safe_chrom,
                     pos=raw_variant.pos,
-                    ref=raw_variant.ref,
-                    alt=raw_variant.alt,
+                    ref=safe_ref,
+                    alt=safe_alt,
                 )
             )
         else:
             parts.append(
                 _INTERGENIC_CONSEQUENCE_TEMPLATE.format(
-                    chrom=raw_variant.chrom,
+                    chrom=safe_chrom,
                     pos=raw_variant.pos,
-                    ref=raw_variant.ref,
-                    alt=raw_variant.alt,
+                    ref=safe_ref,
+                    alt=safe_alt,
                 )
             )
 
@@ -226,7 +231,7 @@ class EvidenceNarrativeBuilder:
         sig_digits = max(2, -int(math.floor(math.log10(safe_af))) + 1)
         af_str = f"{af:.{sig_digits}f}"
 
-        return f"{af_str} (1 in {denominator_str})"
+        return f"{af_str} (1 in {denominator_str})"  # nosec: numeric values only, not user-controlled strings
 
     def format_predictor_score(self, score_name: str, value: float) -> str:
         """Format a predictor score with its standard scale context.
@@ -250,8 +255,8 @@ class EvidenceNarrativeBuilder:
             value_str = f"{value:.2f}"
 
         if context:
-            return f"{score_name} {value_str} ({context})"
-        return f"{score_name} {value_str}"
+            return f"{score_name} {value_str} ({context})"  # nosec: score_name from internal constants, value_str is numeric
+        return f"{score_name} {value_str}"  # nosec: score_name from internal constants, value_str is numeric
 
     def format_evidence_tag(self, tag: EvidenceTag, variant: ClassifiedVariant) -> str:
         """Format one evidence tag with a plain-language explanation.
@@ -270,7 +275,7 @@ class EvidenceNarrativeBuilder:
         """
         explanation_template = _TAG_EXPLANATIONS.get(tag)
         if explanation_template is None:
-            return f"{tag.value} (evidence criterion met)"
+            return f"{tag.value} (evidence criterion met)"  # nosec: tag.value is an enum constant
 
         consequence = variant.scored.annotated.consequence
         consequence_detail = _CONSEQUENCE_DESCRIPTIONS.get(
@@ -280,7 +285,7 @@ class EvidenceNarrativeBuilder:
         explanation = explanation_template.format(
             consequence_detail=html.escape(consequence_detail)
         )
-        return f"{tag.value} ({explanation})"
+        return f"{tag.value} ({explanation})"  # nosec: tag.value is enum, explanation is HTML-escaped
 
     def _validate_output(self, text: str) -> None:
         """Validate the narrative contains no banned words or em dashes.

@@ -5,7 +5,6 @@ from __future__ import annotations
 import tempfile
 import warnings
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -40,10 +39,9 @@ def _make_variant(
 
 def _write_bed(content: str) -> Path:
     """Write content to a temp BED file, return path."""
-    f = tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False)
-    f.write(content)
-    f.close()
-    return Path(f.name)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
+        f.write(content)
+        return Path(f.name)
 
 
 def _make_sample_variant(
@@ -380,7 +378,6 @@ class TestCLIParsing:
         self, capsys: pytest.CaptureFixture
     ) -> None:
         """--min-gq without --sample triggers error exit."""
-        import sys
 
         args = self._parse_args(
             [
@@ -394,8 +391,6 @@ class TestCLIParsing:
         )
         assert args.min_gq == 30
         assert args.sample is None
-
-        from unittest.mock import MagicMock
 
         with pytest.raises(SystemExit) as exc_info:
             from vartriage.cli import _run_pipeline

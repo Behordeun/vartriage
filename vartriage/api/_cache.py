@@ -17,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from vartriage._internal.path_safety import safe_write_path
+
 logger = logging.getLogger(__name__)
 
 _SCHEMA_SQL = """\
@@ -63,7 +65,7 @@ class ResponseCache:
     """
 
     def __init__(self, db_path: Path, default_ttl_days: int = 7) -> None:
-        self._db_path = Path(db_path).expanduser()
+        self._db_path = safe_write_path(Path(db_path).expanduser(), "Cache database")
         self._default_ttl_days = default_ttl_days
         self._lock = threading.Lock()
         self._conn: sqlite3.Connection | None = None
@@ -239,7 +241,6 @@ class ResponseCache:
         if self._conn is not None:
             return self._conn
 
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")

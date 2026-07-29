@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import safe_read_path, safe_write_path
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,7 @@ def try_write_cache(source_path: Path, data: Any) -> None:
     data : Any
         The object to serialize via pickle.
     """
-    cp = cache_path_for(source_path)
+    cp = safe_write_path(cache_path_for(source_path), "Cache write")
 
     try:
         source_mtime = source_path.stat().st_mtime

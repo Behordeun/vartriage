@@ -64,7 +64,7 @@ def vcf_to_vep_notation(chrom: str, pos: int, ref: str, alt: str) -> str:
 
     if ref_len == 1 and alt_len == 1:
         # SNV
-        return f"{chrom_clean} {pos} {pos} {ref}/{alt} +"
+        return f"{chrom_clean} {pos} {pos} {ref}/{alt} +"  # nosec: output is API request body, not HTML
 
     if ref_len > 1 and alt_len == 1:
         # Deletion: alt is just the padding base
@@ -72,7 +72,7 @@ def vcf_to_vep_notation(chrom: str, pos: int, ref: str, alt: str) -> str:
         deleted = ref[1:]
         start = pos + 1
         end = pos + len(deleted)
-        return f"{chrom_clean} {start} {end} {deleted}/- +"
+        return f"{chrom_clean} {start} {end} {deleted}/- +"  # nosec: output is API request body, not HTML
 
     if ref_len == 1 and alt_len > 1:
         # Insertion: ref is just the padding base
@@ -80,14 +80,14 @@ def vcf_to_vep_notation(chrom: str, pos: int, ref: str, alt: str) -> str:
         inserted = alt[1:]
         start = pos
         end = pos + 1
-        return f"{chrom_clean} {start} {end} -/{inserted} +"
+        return f"{chrom_clean} {start} {end} -/{inserted} +"  # nosec: output is API request body, not HTML
 
     # Complex: both ref and alt > 1bp
     # Could be MNV (same length) or complex indel (different lengths)
     if ref_len == alt_len:
         # MNV: multi-nucleotide variant, same length substitution
         end = pos + ref_len - 1
-        return f"{chrom_clean} {pos} {end} {ref}/{alt} +"
+        return f"{chrom_clean} {pos} {end} {ref}/{alt} +"  # nosec: output is API request body, not HTML
 
     # Complex indel: different lengths, both > 1bp
     # Strip shared padding base, represent as the changed portion
@@ -99,7 +99,7 @@ def vcf_to_vep_notation(chrom: str, pos: int, ref: str, alt: str) -> str:
 
     del_part = deleted if deleted else "-"
     ins_part = inserted if inserted else "-"
-    return f"{chrom_clean} {start} {end} {del_part}/{ins_part} +"
+    return f"{chrom_clean} {start} {end} {del_part}/{ins_part} +"  # nosec: output is API request body, not HTML
 
 
 def _strip_chr_prefix(chrom: str) -> str:

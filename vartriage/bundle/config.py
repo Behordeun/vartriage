@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from vartriage._internal.path_safety import safe_read_path
+from vartriage._internal.path_safety import safe_read_path, safe_write_path
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -103,8 +103,9 @@ class BundleConfig:
         if "download_concurrency" in bundle_section:
             self.download_concurrency = int(bundle_section["download_concurrency"])
         if "storage_path" in bundle_section:
-            self.storage_path = Path(
-                os.path.expanduser(str(bundle_section["storage_path"]))
+            self.storage_path = safe_write_path(
+                Path(os.path.expanduser(str(bundle_section["storage_path"]))),
+                "Bundle storage",
             )
         if "auto_verify" in bundle_section:
             self.auto_verify = bool(bundle_section["auto_verify"])
@@ -119,7 +120,7 @@ class BundleConfig:
         """Apply environment variable overrides."""
         env_storage = os.environ.get("VARTRIAGE_BUNDLE_STORAGE")
         if env_storage:
-            self.storage_path = Path(env_storage)
+            self.storage_path = safe_write_path(Path(env_storage), "Bundle storage")
 
         env_build = os.environ.get("VARTRIAGE_DEFAULT_BUILD")
         if env_build:
