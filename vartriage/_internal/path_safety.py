@@ -1,7 +1,14 @@
 """Path validation utilities for preventing path traversal (CWE-22).
 
-All file path operations in the library should resolve paths via these
-helpers before opening files or passing paths to external tools.
+Two levels of safety:
+
+- resolve_path(): for CLI/user-supplied paths. Resolves to canonical absolute
+  form (symlinks followed, '..' normalized). Does NOT reject '..' — users
+  legitimately pass relative paths like '../sample.vcf'.
+
+- safe_read_path() / safe_write_path(): for untrusted programmatic inputs
+  (e.g. filenames derived from URLs, API responses). Rejects '..' traversal
+  sequences before resolving.
 """
 
 from __future__ import annotations
@@ -12,34 +19,29 @@ from pathlib import Path
 def resolve_path(path: Path) -> Path:
     """Resolve a path to its canonical absolute form.
 
-    Follows symlinks, eliminates '..' components, and returns an
-    absolute path. Used before any open() or subprocess call to
-    prevent path traversal attacks.
+    Follows symlinks, normalizes '..' components, and returns an
+    absolute path. Used for CLI-supplied paths where relative
+    traversal (../file.vcf) is legitimate.
 
     Parameters
     ----------
     path : Path
-        User-provided or config-provided file path.
+        User-provided file path (may be relative).
 
     Returns
     -------
     Path
         Canonicalized absolute path.
-
-    Raises
-    ------
-    ValueError
-        If the original path contains '..' traversal sequences.
     """
-    _reject_traversal(path)
     return path.resolve()
 
 
 def safe_read_path(path: Path, label: str = "File") -> Path:
-    """Validate and resolve a path for reading.
+    """Validate and resolve a path for reading (untrusted inputs).
 
     Rejects traversal sequences, resolves to absolute, and verifies
-    existence. Use before every open(..., 'r') on user-provided paths.
+    existence. Use for paths derived from untrusted sources (URLs,
+    API responses, computed filenames).
 
     Parameters
     ----------
@@ -68,10 +70,10 @@ def safe_read_path(path: Path, label: str = "File") -> Path:
 
 
 def safe_write_path(path: Path, label: str = "Output") -> Path:
-    """Validate and resolve a path for writing.
+    """Validate and resolve a path for writing (untrusted inputs).
 
     Rejects traversal sequences, resolves to absolute, creates parent
-    directories. Use before every open(..., 'w') on user-provided paths.
+    directories. Use for paths derived from untrusted sources.
 
     Parameters
     ----------

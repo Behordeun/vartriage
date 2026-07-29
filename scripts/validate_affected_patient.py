@@ -59,24 +59,21 @@ def build_spike_vcf(source_vcf: Path, output_vcf: Path) -> int:
 
     source_vcf = safe_read_path(source_vcf, "Source VCF")
     output_vcf = safe_write_path(output_vcf, "Spike VCF")
-    vcf_in = pysam.VariantFile(str(source_vcf))
-    try:
-        header = vcf_in.header.copy()
 
-        # Add INFO field for spike-in tracking
+    with pysam.VariantFile(str(source_vcf)) as vcf_in:
+        header = vcf_in.header.copy()
         header.add_line(
             '##INFO=<ID=SPIKE,Number=0,Type=Flag,Description="Spiked-in pathogenic variant">'
         )
 
-        vcf_out = pysam.VariantFile(str(output_vcf), "wz", header=header)
-        try:
+        with pysam.VariantFile(str(output_vcf), "wz", header=header) as vcf_out:
             spike_positions = {pos for pos, _, _, _ in NF2_SPIKE_VARIANTS}
+            first_spike_pos = min(spike_positions)
             spiked_count = 0
             spike_inserted = False
 
             for rec in vcf_in:
-                # Insert spike variants just before we pass their position
-                if not spike_inserted and rec.pos >= min(spike_positions):
+                if not spike_inserted and rec.pos >= first_spike_pos:
                     for pos, ref, alt, desc in sorted(NF2_SPIKE_VARIANTS):
                         new_rec = vcf_out.new_record()
                         new_rec.contig = "chr22"
@@ -85,21 +82,14 @@ def build_spike_vcf(source_vcf: Path, output_vcf: Path) -> int:
                         new_rec.qual = 99
                         new_rec.filter.add("PASS")
                         new_rec.info["SPIKE"] = True
-                        # Set genotype: heterozygous (typical for AD condition)
                         new_rec.samples["HG002"]["GT"] = (0, 1)
                         vcf_out.write(new_rec)
                         spiked_count += 1
                     spike_inserted = True
 
                 vcf_out.write(rec)
-        finally:
-            vcf_out.close()
-    finally:
-        vcf_in.close()
 
-    # Index the output
     pysam.tabix_index(str(output_vcf), preset="vcf", force=True)
-
     return spiked_count
 
 

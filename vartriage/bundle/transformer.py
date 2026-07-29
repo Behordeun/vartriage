@@ -134,7 +134,7 @@ class VcfToTsvTransformer:
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write(self._header + "\n")
-            result = subprocess.run(
+            result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -227,7 +227,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tclinical_significance\n")
-            result = subprocess.run(
+            result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -442,7 +442,7 @@ class SpliceAIExtractor:
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tscore\n")
-            result = subprocess.run(
+            result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

@@ -318,11 +318,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     output_fmt: str = args.output_format
     clinical_config = _build_clinical_config(args, output_fmt)
 
-    try:
-        vcf_path: Path = resolve_path(args.vcf)
-    except ValueError as exc:
-        print(f"Error: invalid path: {exc}", file=sys.stderr)
-        sys.exit(1)
+    vcf_path: Path = resolve_path(args.vcf)
     if not vcf_path.exists():
         print(
             f"Error: VCF file not found: {vcf_path}",  # nosec: output to stderr, not rendered in browser

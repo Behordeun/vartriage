@@ -43,6 +43,37 @@ class APIClientError(Exception):
         super().__init__(f"[{service}] {message}")
 
 
+class _AttemptKind:
+    """Outcome categories for a single HTTP attempt."""
+    SUCCESS = "success"
+    RETRYABLE = "retryable"
+    NETWORK_ERROR = "network_error"
+
+
+class _AttemptResult:
+    """Structured result from _execute_attempt.
+
+    Encodes what happened so the retry loop can make clear decisions
+    without interpreting overloaded return types.
+    """
+
+    __slots__ = ("kind", "response", "error", "status_code", "already_delayed")
+
+    def __init__(
+        self,
+        kind: str,
+        response: Any = None,
+        error: Exception | None = None,
+        status_code: int | None = None,
+        already_delayed: bool = False,
+    ) -> None:
+        self.kind = kind
+        self.response = response
+        self.error = error
+        self.status_code = status_code
+        self.already_delayed = already_delayed
+
+
 class BaseAPIClient:
     """HTTP client with retry, rate limiting, circuit breaker, and structured logging.
 
@@ -139,13 +170,8 @@ class BaseAPIClient:
         params: dict[str, str] | None,
         headers: dict[str, str] | None,
         attempt: int,
-    ) -> tuple[Any, int | None]:
-        """Run one HTTP attempt.
-
-        Returns (response, status_code) on success, (None, status_code)
-        for retryable HTTP errors, or (Exception, None) for network errors.
-        Raises APIClientError on non-retryable HTTP failures.
-        """
+    ) -> _AttemptResult:
+        """Run one HTTP attempt and return a structured result."""
         import httpx
 
         start_time = time.monotonic()
@@ -162,7 +188,11 @@ class BaseAPIClient:
             )
             if response.status_code < 400:
                 self._circuit_breaker.record_success()
-                return response, response.status_code
+                return _AttemptResult(
+                    kind=_AttemptKind.SUCCESS,
+                    response=response,
+                    status_code=response.status_code,
+                )
             if response.status_code not in _RETRYABLE_STATUS_CODES:
                 self._circuit_breaker.record_success()
                 raise APIClientError(
@@ -170,10 +200,15 @@ class BaseAPIClient:
                     f"HTTP {response.status_code}: {response.text[:200]}",
                     status_code=response.status_code,
                 )
-            # Retryable HTTP error — 429 gets Retry-After handling
+            # Retryable HTTP error
+            already_delayed = False
             if response.status_code == 429 and self._handle_retry_after(response):
-                return None, response.status_code
-            return None, response.status_code
+                already_delayed = True
+            return _AttemptResult(
+                kind=_AttemptKind.RETRYABLE,
+                status_code=response.status_code,
+                already_delayed=already_delayed,
+            )
         except (httpx.TimeoutException, httpx.ConnectError) as exc:
             elapsed = time.monotonic() - start_time
             logger.warning(
@@ -181,7 +216,10 @@ class BaseAPIClient:
                 self._service_name, method, path,
                 elapsed, attempt, self._max_retries, str(exc)[:100],
             )
-            return exc, None
+            return _AttemptResult(
+                kind=_AttemptKind.NETWORK_ERROR,
+                error=exc,
+            )
 
     def request(
         self,
@@ -223,7 +261,6 @@ class BaseAPIClient:
         DailyLimitExhausted
             If the daily request cap is reached.
         """
-        import httpx
 
         # Circuit breaker check (raises CircuitBreakerOpen if tripped)
         self._circuit_breaker.allow_request()
@@ -232,28 +269,27 @@ class BaseAPIClient:
         last_status: int | None = None
 
         for attempt in range(1, self._max_retries + 1):
-            try:
-                self._rate_limiter.acquire()
-            except DailyLimitExhausted:
-                raise
+            self._rate_limiter.acquire()
 
-            result, status = self._execute_attempt(
+            result = self._execute_attempt(
                 method, path, json_body, params, headers, attempt
             )
-            if status is not None:
-                last_status = status
-            if result is not None and not isinstance(result, Exception):
-                return result
-            if isinstance(result, Exception):
-                last_error = result
-            elif status is not None:
+            if result.status_code is not None:
+                last_status = result.status_code
+            if result.kind == _AttemptKind.SUCCESS:
+                return result.response
+            if result.kind == _AttemptKind.NETWORK_ERROR:
+                last_error = result.error
+            else:
                 last_error = APIClientError(
                     self._service_name,
-                    f"HTTP {status} (attempt {attempt}/{self._max_retries})",
-                    status_code=status,
+                    f"HTTP {result.status_code} (attempt {attempt}/{self._max_retries})",
+                    status_code=result.status_code,
                 )
-            backoff = min(2 ** (attempt - 1), 8)
-            time.sleep(backoff)
+            # Skip extra backoff if Retry-After already applied
+            if not result.already_delayed:
+                backoff = min(2 ** (attempt - 1), 8)
+                time.sleep(backoff)
 
         self._circuit_breaker.record_failure()
         raise APIClientError(
