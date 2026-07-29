@@ -106,6 +106,7 @@ def _resolve_storage_path(raw: str | None, default: Path) -> Path:
     return resolved
 
 
+def _sanitize_filename(raw_name: str) -> str:
     """Sanitize a filename extracted from a URL to prevent path traversal.
 
     Raises
