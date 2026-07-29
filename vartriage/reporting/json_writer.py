@@ -69,6 +69,29 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
     record["acmg_classification"] = classification
     record["evidence_tags"] = evidence
 
+    # Gene-disease linkage context (when knowledge base is active)
+    if annotated.gene_context is not None:
+        ctx = annotated.gene_context
+        record["disease_associations"] = [
+            {
+                "disease_name": a.disease_name,
+                "mim_number": a.mim_number,
+                "inheritance_mode": a.inheritance_mode,
+            }
+            for a in ctx.disease_associations
+        ]
+        record["clingen_validity"] = ctx.clingen_validity
+        if ctx.constraint is not None:
+            record["gene_constraint"] = {
+                "pli": ctx.constraint.pli,
+                "loeuf": ctx.constraint.loeuf,
+                "mis_z": ctx.constraint.mis_z,
+            }
+        else:
+            record["gene_constraint"] = None
+        record["is_actionable"] = ctx.is_actionable
+        record["phenotype_match_score"] = ctx.phenotype_match_score
+
     return record
 
 

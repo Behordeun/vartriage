@@ -247,6 +247,45 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # Gene-disease linkage arguments
+    parser.add_argument(
+        "--hpo-terms",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated HPO term IDs for phenotype-driven prioritization "
+            "(e.g., HP:0001250,HP:0001249). Genes matching patient phenotype "
+            "receive a ranking boost."
+        ),
+    )
+    parser.add_argument(
+        "--inheritance-mode",
+        type=str,
+        default=None,
+        help=(
+            "Filter variants by gene-level inheritance mode (AD, AR, XL). "
+            "Only variants in genes matching this mode are retained."
+        ),
+    )
+    parser.add_argument(
+        "--flag-actionable",
+        action="store_true",
+        default=False,
+        help=(
+            "Flag variants in medically actionable genes (ClinGen "
+            "actionability curations). Adds is_actionable to output."
+        ),
+    )
+    parser.add_argument(
+        "--knowledge-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Path to custom gene knowledge data directory. "
+            "Defaults to bundled package data."
+        ),
+    )
+
     return parser
 
 
@@ -381,6 +420,8 @@ def _run_pipeline(
     )
     sample_config = _build_sample_config(args)
 
+    knowledge_config = _build_knowledge_config(args)
+
     pipeline_config = PipelineConfig(
         vcf_path=vcf_path,
         output_path=args.output,
@@ -395,6 +436,7 @@ def _run_pipeline(
         use_bundles=use_bundles,
         genome_build=genome_build,
         api=api_config,
+        knowledge=knowledge_config,
     )
 
     pipeline = Pipeline(pipeline_config)
@@ -491,6 +533,39 @@ def _build_sample_config(
         return None
 
     return SampleConfig(sample_name=args.sample, min_gq=args.min_gq)
+
+
+def _build_knowledge_config(
+    args: argparse.Namespace,
+) -> "Optional[object]":
+    """Build KnowledgeBaseConfig if gene-disease linkage features are requested."""
+    from vartriage.knowledge.config import KnowledgeBaseConfig
+
+    hpo_terms_raw: Optional[str] = getattr(args, "hpo_terms", None)
+    knowledge_dir: Optional[Path] = getattr(args, "knowledge_dir", None)
+    flag_actionable: bool = getattr(args, "flag_actionable", False)
+    inheritance_mode: Optional[str] = getattr(args, "inheritance_mode", None)
+
+    # Only create config when at least one gene-knowledge feature is active
+    has_knowledge_request = (
+        hpo_terms_raw is not None
+        or knowledge_dir is not None
+        or flag_actionable
+        or inheritance_mode is not None
+    )
+
+    if not has_knowledge_request:
+        return None
+
+    hpo_terms: frozenset[str] = frozenset()
+    if hpo_terms_raw:
+        parsed = [t.strip() for t in hpo_terms_raw.split(",") if t.strip()]
+        hpo_terms = frozenset(parsed)
+
+    return KnowledgeBaseConfig(
+        data_dir=knowledge_dir,
+        hpo_terms=hpo_terms,
+    )
 
 
 def _build_clinical_config(

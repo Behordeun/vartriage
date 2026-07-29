@@ -161,6 +161,15 @@ class Pipeline:
                 gene_filter = GeneFilter(self._config.gene_filter)
                 annotated = gene_filter.apply(annotated)
 
+            # Gene-disease linkage: attach gene context and phenotype scores
+            if self._config.knowledge is not None:
+                from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
+
+                gene_knowledge_annotator = GeneKnowledgeAnnotator(
+                    self._config.knowledge  # type: ignore[arg-type]
+                )
+                annotated = gene_knowledge_annotator.annotate(annotated)
+
             scored = prioritization_engine.prioritize(annotated)
 
             classified = acmg_classifier.classify(scored)
@@ -255,6 +264,15 @@ class Pipeline:
 
                 gene_filter = GeneFilter(self._config.gene_filter)
                 annotated = gene_filter.apply(annotated)
+
+            # Gene-disease linkage in run_to_classification path
+            if self._config.knowledge is not None:
+                from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
+
+                gene_knowledge_annotator = GeneKnowledgeAnnotator(
+                    self._config.knowledge  # type: ignore[arg-type]
+                )
+                annotated = gene_knowledge_annotator.annotate(annotated)
 
             scored = prioritization_engine.prioritize(annotated)
             yield from acmg_classifier.classify(scored)
