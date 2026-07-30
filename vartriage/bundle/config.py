@@ -6,6 +6,7 @@ overrides from environment variables.
 
 from __future__ import annotations
 
+import logging
 import os
 # Python 3.11+ has tomllib in stdlib; for 3.10 we use tomli
 import sys
@@ -13,7 +14,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from vartriage._internal.path_safety import safe_read_path, safe_write_path
+from vartriage._internal.path_safety import resolve_path, safe_read_path
+
+log = logging.getLogger(__name__)
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -22,6 +25,19 @@ else:
         import tomli as tomllib
     except ModuleNotFoundError:
         tomllib = None  # type: ignore[assignment,unused-ignore]
+
+
+def _resolve_storage_config(raw: str) -> Path:
+    """Resolve a user-supplied storage path from config or env var.
+
+    Uses resolve_path (not safe_write_path) because config values are
+    user-typed and may legitimately contain '..' for relative references.
+    Creates parent directories on success.
+    """
+    expanded = Path(os.path.expanduser(raw))
+    resolved = resolve_path(expanded)
+    resolved.mkdir(parents=True, exist_ok=True)
+    return resolved
 
 
 @dataclass
@@ -103,10 +119,16 @@ class BundleConfig:
         if "download_concurrency" in bundle_section:
             self.download_concurrency = int(bundle_section["download_concurrency"])
         if "storage_path" in bundle_section:
-            self.storage_path = safe_write_path(
-                Path(os.path.expanduser(str(bundle_section["storage_path"]))),
-                "Bundle storage",
-            )
+            try:
+                self.storage_path = _resolve_storage_config(
+                    str(bundle_section["storage_path"])
+                )
+            except (OSError, ValueError) as exc:
+                log.warning(
+                    "Ignoring invalid bundle.storage_path in %s: %s",
+                    path,
+                    exc,
+                )
         if "auto_verify" in bundle_section:
             self.auto_verify = bool(bundle_section["auto_verify"])
 
@@ -120,7 +142,12 @@ class BundleConfig:
         """Apply environment variable overrides."""
         env_storage = os.environ.get("VARTRIAGE_BUNDLE_STORAGE")
         if env_storage:
-            self.storage_path = safe_write_path(Path(env_storage), "Bundle storage")
+            try:
+                self.storage_path = _resolve_storage_config(env_storage)
+            except (OSError, ValueError) as exc:
+                log.warning(
+                    "Ignoring invalid VARTRIAGE_BUNDLE_STORAGE: %s", exc
+                )
 
         env_build = os.environ.get("VARTRIAGE_DEFAULT_BUILD")
         if env_build:

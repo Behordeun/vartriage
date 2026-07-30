@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 
 _VALID_ALLELE = re.compile(r"^[ACGTNacgtn*.\-]+$|^<[A-Za-z:]+>$")
-_VALID_CHROM = re.compile(r"^[A-Za-z0-9_.]+$")
+_VALID_CHROM = re.compile(r"^[A-Za-z0-9_.\-]+$")
 
 
 def _sanitize_genomic_input(chrom: str, ref: str, alt: str) -> None:
@@ -30,8 +30,9 @@ def _sanitize_genomic_input(chrom: str, ref: str, alt: str) -> None:
     Prevents injection of control characters or HTML into downstream
     API request bodies or report output.
 
-    Chromosome: alphanumeric plus underscore and dot (covers standard
-    contigs like chr1_GL000192_random, chrUn_gl000220, GL000220.1).
+    Chromosome: alphanumeric plus underscore, dot, and hyphen (covers
+    standard contigs like chr1_GL000192_random, chrUn_gl000220,
+    GL000220.1, plus ALT/decoy contigs like chr1-ALT, HLA-A*01:01:01:01).
 
     Alleles: ACGTN bases, dot, dash, star (standard VCF) plus symbolic
     alleles in angle brackets (e.g. <DEL>, <INS>, <DUP:TANDEM>).
