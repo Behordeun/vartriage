@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from vartriage.api._cache import ResponseCache
@@ -19,6 +20,15 @@ logger = logging.getLogger(__name__)
 
 # Transient HTTP status codes worth retrying
 _RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+
+
+@dataclass
+class _AttemptOutcome:
+    response: Any  # httpx.Response | None
+    status_code: int | None
+    retryable: bool
+    already_delayed: bool
+    error: Exception | None = None
 
 
 def _check_httpx_available() -> None:
@@ -41,20 +51,6 @@ class APIClientError(Exception):
         self.service = service
         self.status_code = status_code
         super().__init__(f"[{service}] {message}")
-
-
-class _RetryableHTTPError(APIClientError):
-    """Transient HTTP error that the retry loop should attempt again."""
-
-    def __init__(
-        self, service: str, status_code: int, already_delayed: bool
-    ) -> None:
-        super().__init__(
-            service,
-            f"HTTP {status_code}",
-            status_code=status_code,
-        )
-        self.already_delayed = already_delayed
 
 
 class BaseAPIClient:
@@ -152,8 +148,8 @@ class BaseAPIClient:
         params: dict[str, str] | None,
         headers: dict[str, str] | None,
         attempt: int,
-    ) -> Any:
-        """Run one HTTP attempt. Returns the response on success, raises on failure."""
+    ) -> _AttemptOutcome:
+        """Run one HTTP attempt. Returns an _AttemptOutcome describing the result."""
         import httpx
 
         start_time = time.monotonic()
@@ -169,7 +165,10 @@ class BaseAPIClient:
                 self._service_name, method, path,
                 elapsed, attempt, self._max_retries, str(exc)[:100],
             )
-            raise
+            return _AttemptOutcome(
+                response=None, status_code=None,
+                retryable=True, already_delayed=False, error=exc,
+            )
 
         elapsed = time.monotonic() - start_time
         logger.info(
@@ -180,25 +179,34 @@ class BaseAPIClient:
 
         if response.status_code < 400:
             self._circuit_breaker.record_success()
-            return response
+            return _AttemptOutcome(
+                response=response, status_code=response.status_code,
+                retryable=False, already_delayed=False,
+            )
 
         if response.status_code not in _RETRYABLE_STATUS_CODES:
             self._circuit_breaker.record_success()
-            raise APIClientError(
-                self._service_name,
-                f"HTTP {response.status_code}: {response.text[:200]}",
-                status_code=response.status_code,
+            return _AttemptOutcome(
+                response=None, status_code=response.status_code,
+                retryable=False, already_delayed=False,
+                error=APIClientError(
+                    self._service_name,
+                    f"HTTP {response.status_code}: {response.text[:200]}",
+                    status_code=response.status_code,
+                ),
             )
 
-        # Retryable HTTP error — check Retry-After before raising
-        already_delayed = False
-        if response.status_code == 429 and self._handle_retry_after(response):
-            already_delayed = True
-
-        raise _RetryableHTTPError(
-            self._service_name,
-            status_code=response.status_code,
-            already_delayed=already_delayed,
+        already_delayed = (
+            response.status_code == 429 and self._handle_retry_after(response)
+        )
+        return _AttemptOutcome(
+            response=None, status_code=response.status_code,
+            retryable=True, already_delayed=already_delayed,
+            error=APIClientError(
+                self._service_name,
+                f"HTTP {response.status_code} (attempt {attempt}/{self._max_retries})",
+                status_code=response.status_code,
+            ),
         )
 
     def request(
@@ -245,27 +253,30 @@ class BaseAPIClient:
         # Circuit breaker check (raises CircuitBreakerOpen if tripped)
         self._circuit_breaker.allow_request()
 
-        import httpx
-
         last_error: Exception | None = None
         last_status: int | None = None
 
         for attempt in range(1, self._max_retries + 1):
             self._rate_limiter.acquire()
 
-            try:
-                response = self._execute_attempt(
-                    method, path, json_body, params, headers, attempt
+            outcome = self._execute_attempt(
+                method, path, json_body, params, headers, attempt
+            )
+
+            if outcome.response is not None:
+                return outcome.response
+
+            if not outcome.retryable:
+                self._circuit_breaker.record_failure()
+                raise outcome.error or APIClientError(
+                    self._service_name,
+                    f"HTTP {outcome.status_code}",
+                    status_code=outcome.status_code,
                 )
-                return response
-            except _RetryableHTTPError as exc:
-                last_error = exc
-                last_status = exc.status_code
-                if not exc.already_delayed:
-                    backoff = min(2 ** (attempt - 1), 8)
-                    time.sleep(backoff)
-            except (httpx.TimeoutException, httpx.ConnectError) as exc:
-                last_error = exc
+
+            last_error = outcome.error
+            last_status = outcome.status_code
+            if not outcome.already_delayed:
                 backoff = min(2 ** (attempt - 1), 8)
                 time.sleep(backoff)
 

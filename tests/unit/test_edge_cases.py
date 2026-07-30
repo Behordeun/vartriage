@@ -25,6 +25,7 @@ def _has_reportlab() -> bool:
         return False
 
 
+from vartriage._internal.batch import batched, process_with_memory_fallback
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.exceptions import ParseError
@@ -534,3 +535,52 @@ class TestReportGeneratorIOErrors:
             gen.generate([_make_classified()], target)
 
         assert "Encoding failure" in str(exc_info.value)
+
+
+# --------------------------------------------------------------------------
+# Batch Size Validation
+# --------------------------------------------------------------------------
+
+
+class TestBatchedValidation:
+    def test_zero_batch_size_raises_value_error(self) -> None:
+        with pytest.raises(ValueError):
+            list(batched([1, 2, 3], batch_size=0))
+
+    def test_negative_batch_size_raises_value_error(self) -> None:
+        with pytest.raises(ValueError):
+            list(batched([1, 2, 3], batch_size=-1))
+
+    def test_non_integer_batch_size_raises_type_error(self) -> None:
+        with pytest.raises(TypeError):
+            list(batched([1, 2, 3], batch_size=1.5))  # type: ignore[arg-type]
+
+
+class TestProcessWithMemoryFallbackValidation:
+    def test_zero_initial_chunk_size_raises_without_calling_processor(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        called = []
+
+        def processor(xs: list[int]) -> list[int]:
+            called.append(xs)
+            return xs
+
+        with pytest.raises(ValueError):
+            process_with_memory_fallback([1, 2, 3], processor, initial_chunk_size=0)
+
+        assert called == []
+
+    def test_negative_initial_chunk_size_raises_without_calling_processor(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        called = []
+
+        def processor(xs: list[int]) -> list[int]:
+            called.append(xs)
+            return xs
+
+        with pytest.raises(ValueError):
+            process_with_memory_fallback([1, 2, 3], processor, initial_chunk_size=-1)
+
+        assert called == []

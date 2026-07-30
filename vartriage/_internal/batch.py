@@ -9,6 +9,7 @@ input size. Includes MemoryError recovery logic that halves the chunk size
 from __future__ import annotations
 
 import logging
+import numbers
 from itertools import islice
 from typing import Callable, Iterable, Iterator, TypeVar
 
@@ -52,8 +53,11 @@ def batched(iterable: Iterable[T], batch_size: int) -> Iterator[list[T]]:
     >>> list(batched([], 10))
     []
     """
-    if not isinstance(batch_size, int):
-        raise TypeError(f"batch_size must be an integer, got {type(batch_size).__name__}")
+    if not isinstance(batch_size, numbers.Integral):
+        raise TypeError(
+            f"batch_size must be an integer (numbers.Integral), got {type(batch_size).__name__}"
+        )
+    batch_size = int(batch_size)
     if batch_size < 1:
         raise ValueError(f"batch_size must be >= 1, got {batch_size}")
 

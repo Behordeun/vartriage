@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from vartriage._internal.path_safety import resolve_path, safe_read_path
+from vartriage._internal.path_safety import resolve_path
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +107,9 @@ class BundleConfig:
     def _apply_toml(self, path: Path) -> None:
         """Parse TOML file and apply values to config."""
         try:
-            path = safe_read_path(path, "Bundle config")
+            path = resolve_path(path)
+            if not path.exists():
+                return
             with open(path, "rb") as f:
                 data = tomllib.load(f)
         except (OSError, ValueError):
