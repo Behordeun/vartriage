@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from vartriage._internal.path_safety import safe_read_path, safe_write_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -101,13 +103,14 @@ def try_load_cache(source_path: Path) -> Optional[Any]:
         return None
 
     try:
+        cp = safe_read_path(cp, "Cache file")
         with open(cp, "rb") as f:
             envelope: CacheEnvelope = pickle.load(f)  # noqa: S301
-    except (OSError, PermissionError) as exc:
+    except OSError as exc:
         logger.warning("Cannot read cache file %s: %s", cp, exc)
         _delete_cache(cp)
         return None
-    except (pickle.UnpicklingError, Exception) as exc:
+    except Exception as exc:
         logger.warning("Failed to deserialize cache %s: %s", cp, exc)
         _delete_cache(cp)
         return None
@@ -178,7 +181,7 @@ def try_write_cache(source_path: Path, data: Any) -> None:
     data : Any
         The object to serialize via pickle.
     """
-    cp = cache_path_for(source_path)
+    cp = safe_write_path(cache_path_for(source_path), "Cache write")
 
     try:
         source_mtime = source_path.stat().st_mtime

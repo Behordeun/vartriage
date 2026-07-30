@@ -101,4 +101,4 @@ def test_build_gene_context_unknown_gene(knowledge_dir: Path) -> None:
     ctx = registry.build_gene_context("UNKNOWN")
     assert ctx.disease_associations == ()
     assert ctx.is_actionable is False
-    assert ctx.phenotype_match_score == 0.0
+    assert ctx.phenotype_match_score == pytest.approx(0.0)

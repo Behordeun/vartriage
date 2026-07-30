@@ -14,6 +14,7 @@ from typing import Optional
 
 import pysam
 
+from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ReferenceFileError
 from vartriage.models.warnings import MissingDataWarning
 
@@ -61,6 +62,7 @@ class TabixFrequencyDatabase:
             )
 
         try:
+            reference_path = resolve_path(reference_path)
             self._tabix = pysam.TabixFile(str(reference_path))
         except OSError as exc:
             raise ReferenceFileError(

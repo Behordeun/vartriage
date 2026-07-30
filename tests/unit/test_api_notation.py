@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vartriage.api._notation import _strip_chr_prefix, vcf_to_vep_notation
+from vartriage.api._notation import _sanitize_genomic_input, _strip_chr_prefix, vcf_to_vep_notation
 
 
 class TestSNVs:
@@ -105,3 +105,43 @@ class TestChrPrefixStripping:
     def test_handles_lowercase_chr(self) -> None:
         assert _strip_chr_prefix("Chr1") == "1"
         assert _strip_chr_prefix("CHR22") == "22"
+
+
+class TestSanitizeGenomicInput:
+    """Tests for _sanitize_genomic_input validation."""
+
+    def test_allows_symbolic_alleles(self) -> None:
+        for allele in ("<DEL>", "<DUP>", "<INS>", "<INV>", "<CNV>"):
+            _sanitize_genomic_input("chr1", "A", allele)  # should not raise
+
+    def test_allows_nonstandard_chrom_names(self) -> None:
+        for chrom in ("chrUn_KI270538v1", "GL000220.1", "chrM", "chrY", "NC_000001.11"):
+            _sanitize_genomic_input(chrom, "A", "T")  # should not raise
+
+    def test_rejects_control_characters_in_chrom(self) -> None:
+        with pytest.raises(ValueError):
+            _sanitize_genomic_input("\x00", "A", "T")
+        with pytest.raises(ValueError):
+            _sanitize_genomic_input("\x1Fchr1", "A", "T")
+
+    def test_rejects_html_in_chrom(self) -> None:
+        with pytest.raises(ValueError):
+            _sanitize_genomic_input("<script>alert(1)</script>", "A", "T")
+
+    def test_rejects_space_in_chrom(self) -> None:
+        with pytest.raises(ValueError):
+            _sanitize_genomic_input("chr 1", "A", "T")
+
+    def test_rejects_invalid_allele(self) -> None:
+        with pytest.raises(ValueError):
+            _sanitize_genomic_input("chr1", "A<bad>", "T")
+        with pytest.raises(ValueError):
+            _sanitize_genomic_input("chr1", "A", "T;DROP")
+
+    def test_vcf_to_vep_notation_accepts_symbolic_sv_alleles(self) -> None:
+        result = vcf_to_vep_notation("chr3", 345678, "N", "<DEL>")
+        assert isinstance(result, str) and result.strip()
+
+    def test_vcf_to_vep_notation_accepts_mnv(self) -> None:
+        result = vcf_to_vep_notation("chr5", 567890, "AC", "GT")
+        assert isinstance(result, str) and result.strip()

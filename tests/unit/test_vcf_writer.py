@@ -110,7 +110,8 @@ class TestBuildLookup:
             classification=ACMGClassification.PATHOGENIC,
         )
         lookup = _build_lookup([first, second])
-        assert lookup[("chr2", 300, "C", "G")] is second
+        result = lookup[("chr2", 300, "C", "G")]
+        assert result == second, "last-wins: duplicate key should map to second variant"
 
 
 class TestInjectInfoFields:

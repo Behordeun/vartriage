@@ -14,13 +14,17 @@ from vartriage.api._cache import ResponseCache
 @pytest.fixture
 def cache(tmp_path: Path) -> ResponseCache:
     """Fresh cache instance with short TTL for testing."""
-    return ResponseCache(db_path=tmp_path / "test_cache.db", default_ttl_days=1)
+    c = ResponseCache(db_path=tmp_path / "test_cache.db", default_ttl_days=1)
+    yield c
+    c.close()
 
 
 @pytest.fixture
 def pinned_cache(tmp_path: Path) -> ResponseCache:
     """Cache with TTL disabled (pinned mode)."""
-    return ResponseCache(db_path=tmp_path / "pinned_cache.db", default_ttl_days=-1)
+    c = ResponseCache(db_path=tmp_path / "pinned_cache.db", default_ttl_days=-1)
+    yield c
+    c.close()
 
 
 class TestPutAndGet:
@@ -71,6 +75,7 @@ class TestTTLExpiry:
         conn.commit()
 
         assert cache.get("k1") is None
+        cache.close()
 
     def test_expired_entry_is_deleted_on_read(self, tmp_path: Path) -> None:
         cache = ResponseCache(db_path=tmp_path / "evict.db", default_ttl_days=1)
@@ -86,6 +91,7 @@ class TestTTLExpiry:
             "SELECT COUNT(*) FROM api_cache WHERE key = ?", ("k1",)
         ).fetchone()[0]
         assert count == 0
+        cache.close()
 
     def test_custom_ttl_per_entry(self, cache: ResponseCache) -> None:
         cache.put(
@@ -159,6 +165,7 @@ class TestEvictExpired:
         assert evicted == 1
         assert cache.get("fresh") == {"f": 1}
         assert cache.get("stale") is None
+        cache.close()
 
 
 class TestStats:
@@ -222,3 +229,4 @@ class TestCorruptedEntries:
             "SELECT COUNT(*) FROM api_cache WHERE key = ?", ("bad",)
         ).fetchone()[0]
         assert count == 0
+        cache.close()

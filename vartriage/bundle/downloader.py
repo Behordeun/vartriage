@@ -16,6 +16,7 @@ from typing import Optional, Sequence
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from vartriage._internal.path_safety import safe_write_path
 from vartriage.bundle._checksums import compute_sha256, verify_checksum
 from vartriage.bundle._disk import check_disk_space
 from vartriage.bundle._progress import ProgressBar
@@ -126,8 +127,7 @@ class BundleDownloader:
         OSError
             If disk space is insufficient.
         """
-        dest = dest.resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Download destination")
 
         partial_path = Path(str(dest) + ".partial")
         resumed = False

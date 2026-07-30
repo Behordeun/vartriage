@@ -15,25 +15,30 @@ from pathlib import Path
 from typing import Optional, Protocol, Sequence
 
 
-def _validate_source_path(source: Path) -> None:
-    """Validate a source path before passing to subprocess.
+from vartriage._internal.path_safety import safe_write_path
 
-    Ensures the path exists and is within expected boundaries.
-    Prevents path traversal or unexpected shell metacharacters.
+
+def _validate_source_path(source: Path) -> Path:
+    """Validate and resolve a source path before passing to subprocess.
+
+    Ensures the path exists and resolves to a canonical absolute path.
+    Does not reject '..' in the raw input since relative paths like
+    '../data/clinvar.vcf.gz' are valid user input. Resolution via
+    Path.resolve() normalizes traversal safely.
 
     Raises
     ------
-    ValueError
-        If the path contains suspicious components.
     FileNotFoundError
-        If the path doesn't exist.
+        If the resolved path doesn't exist.
+    ValueError
+        If the resolved path has no filename component.
     """
-    if not source.exists():
-        raise FileNotFoundError(f"Source file not found: {source}")
     resolved = source.resolve()
-    name = resolved.name
-    if ".." in str(resolved) or not name:
+    if not resolved.exists():
+        raise FileNotFoundError(f"Source file not found: {source}")
+    if not resolved.name:
         raise ValueError(f"Invalid source path: {source}")
+    return resolved
 
 
 @dataclass
@@ -118,6 +123,7 @@ class VcfToTsvTransformer:
 
     def _transform_bcftools(self, source: Path, dest: Path) -> TransformResult:
         """Use bcftools query for fast extraction."""
+        source = _validate_source_path(source)
         cmd = [
             "bcftools",
             "query",
@@ -126,12 +132,11 @@ class VcfToTsvTransformer:
             str(source),
         ]
 
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write(self._header + "\n")
-            _validate_source_path(source)
-            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+            result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -151,6 +156,7 @@ class VcfToTsvTransformer:
 
     def _transform_pysam(self, source: Path, dest: Path) -> TransformResult:
         """Pure-Python fallback using pysam."""
+        source = _validate_source_path(source)
         try:
             import pysam
         except ImportError as exc:
@@ -159,7 +165,7 @@ class VcfToTsvTransformer:
                 "Install bcftools or run: pip install pysam"
             ) from exc
 
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
@@ -209,6 +215,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
 
     def _transform_clinvar_bcftools(self, source: Path, dest: Path) -> TransformResult:
         """Extract ClinVar with bcftools, normalizing CLNSIG values."""
+        source = _validate_source_path(source)
         cmd = [
             "bcftools",
             "query",
@@ -217,13 +224,12 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
             str(source),
         ]
 
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tclinical_significance\n")
-            _validate_source_path(source)
-            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+            result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -278,7 +284,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
                 "Neither bcftools nor pysam available for ClinVar transformation."
             ) from exc
 
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
@@ -353,7 +359,7 @@ class CsvToTsvTransformer:
 
     def transform(self, source: Path, dest: Path, _build: str) -> TransformResult:
         """Transform CSV to TSV with column renaming."""
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         opener = gzip.open if source.suffix == ".gz" else open
@@ -424,6 +430,7 @@ class SpliceAIExtractor:
 
     def _transform_bcftools(self, source: Path, dest: Path) -> TransformResult:
         """Use bcftools to extract SpliceAI INFO field."""
+        source = _validate_source_path(source)
         cmd = [
             "bcftools",
             "query",
@@ -432,13 +439,12 @@ class SpliceAIExtractor:
             str(source),
         ]
 
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         with open(dest, "w", encoding="utf-8") as out:
             out.write("chrom\tpos\tref\talt\tscore\n")
-            _validate_source_path(source)
-            result = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+            result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -468,6 +474,7 @@ class SpliceAIExtractor:
 
     def _transform_pysam(self, source: Path, dest: Path) -> TransformResult:
         """Pure-Python fallback using pysam."""
+        source = _validate_source_path(source)
         try:
             import pysam
         except ImportError as exc:
@@ -475,7 +482,7 @@ class SpliceAIExtractor:
                 "Neither bcftools nor pysam available for SpliceAI extraction."
             ) from exc
 
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
         rows = 0
 
         vcf = pysam.VariantFile(str(source))
@@ -532,7 +539,7 @@ class PassthroughTransformer:
 
     def transform(self, source: Path, dest: Path, _build: str) -> TransformResult:
         """Copy or decompress source to dest."""
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = safe_write_path(dest, "Transform output")
 
         if source.suffix == ".gz":
             with gzip.open(source, "rb") as f_in, open(dest, "wb") as f_out:

@@ -48,7 +48,7 @@ class VCFParser:
     """
 
     def __init__(self, file_path: Path, extract_samples: bool = False) -> None:
-        self._file_path = Path(file_path)
+        self._file_path = Path(file_path).resolve()
         self._vcf: Optional[pysam.VariantFile] = None
         self._closed: bool = False
         self._extract_samples = extract_samples
