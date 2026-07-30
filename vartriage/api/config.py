@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Optional
 
+from vartriage._internal.path_safety import resolve_path
+
 
 def _load_toml_api_section(config_path: Path) -> dict[str, object]:
     """Load the [api] section from a TOML config file.
@@ -35,6 +37,7 @@ def _load_toml_api_section(config_path: Path) -> dict[str, object]:
             return {}
 
     try:
+        config_path = resolve_path(config_path)
         with open(config_path, "rb") as f:
             data = tomllib.load(f)
         return dict(data.get("api", {}))

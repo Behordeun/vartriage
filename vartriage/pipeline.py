@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Optional
 
+from vartriage._internal.path_safety import resolve_path
 from vartriage._internal.warning_accumulator import WarningAccumulator
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
@@ -80,6 +81,60 @@ class Pipeline:
         """
         return self._warning_accumulator
 
+    def _build_stages(
+        self,
+    ) -> tuple[
+        QualityFilter,
+        Optional[AnnotationEngine],
+        object,
+        PrioritizationEngine,
+        ACMGClassifier,
+        ReportGenerator,
+    ]:
+        """Construct all pipeline stage objects."""
+        quality_filter = QualityFilter(self._config.quality_filter)
+
+        annotation_engine: Optional[AnnotationEngine] = None
+        api_annotation_engine = None
+
+        if self._config.api is not None:
+            api_annotation_engine = self._build_api_annotation_engine()
+
+        if api_annotation_engine is None and self._config.annotation is not None:
+            annotation_engine = AnnotationEngine(self._config.annotation)
+
+        prioritization_engine = PrioritizationEngine(self._config.prioritization)
+        acmg_classifier = ACMGClassifier()
+        report_generator = ReportGenerator(
+            self._config.report,
+            clinical_config=self._config.clinical_report,
+            reference_checksums=(
+                self._compute_reference_checksums()
+                if self._config.clinical_report is not None
+                else None
+            ),
+        )
+        return (
+            quality_filter,
+            annotation_engine,
+            api_annotation_engine,
+            prioritization_engine,
+            acmg_classifier,
+            report_generator,
+        )
+
+    def _generate_report(
+        self,
+        report_generator: ReportGenerator,
+        classified: Iterator[ClassifiedVariant],
+        output_path: Path,
+        vcf_path: Path,
+    ) -> Path:
+        """Dispatch report generation for VCF and non-VCF formats."""
+        if self._config.report.output_format == "vcf":
+            return report_generator.generate(classified, output_path, vcf_path)
+        return report_generator.generate(classified, output_path)
+
     def run(
         self, vcf_path: Optional[Path] = None, output_path: Optional[Path] = None
     ) -> Path:
@@ -121,36 +176,17 @@ class Pipeline:
             "Starting pipeline run: %s → %s", effective_vcf_path, effective_output_path
         )
 
-        # Warn if reference file checksums don't match current files.
         if self._config.clinical_report is not None:
             self._check_reference_checksums()
 
-        quality_filter = QualityFilter(self._config.quality_filter)
-
-        annotation_engine: Optional[AnnotationEngine] = None
-        api_annotation_engine = None
-
-        if self._config.api is not None:
-            # API or hybrid mode: use API-based annotation
-            api_annotation_engine = self._build_api_annotation_engine()
-
-        if api_annotation_engine is None and self._config.annotation is not None:
-            # Local mode (or hybrid fallback): use file-based annotation
-            annotation_engine = AnnotationEngine(self._config.annotation)
-
-        prioritization_engine = PrioritizationEngine(self._config.prioritization)
-
-        acmg_classifier = ACMGClassifier()
-
-        report_generator = ReportGenerator(
-            self._config.report,
-            clinical_config=self._config.clinical_report,
-            reference_checksums=(
-                self._compute_reference_checksums()
-                if self._config.clinical_report is not None
-                else None
-            ),
-        )
+        (
+            quality_filter,
+            annotation_engine,
+            api_annotation_engine,
+            prioritization_engine,
+            acmg_classifier,
+            report_generator,
+        ) = self._build_stages()
 
         extract_samples = (
             self._config.inheritance is not None or self._config.sample is not None
@@ -161,41 +197,26 @@ class Pipeline:
             extract_samples=extract_samples,
         ) as parser:
             annotated = self._build_annotated_stream(
-                parser,
-                quality_filter,
-                annotation_engine,
-                api_annotation_engine,
+                parser, quality_filter, annotation_engine, api_annotation_engine,
             )
 
             if self._config.gene_filter is not None:
                 from vartriage.filter.gene_filter import GeneFilter
+                annotated = GeneFilter(self._config.gene_filter).apply(annotated)
 
-                gene_filter = GeneFilter(self._config.gene_filter)
-                annotated = gene_filter.apply(annotated)
-
-            # Gene-disease linkage: attach gene context and phenotype scores
             if self._gene_knowledge_annotator is not None:
                 annotated = self._gene_knowledge_annotator.annotate(annotated)
 
             scored = prioritization_engine.prioritize(annotated)
 
-            # Apply phenotype boost to prioritization scores when HPO active
             if self._gene_knowledge_annotator is not None:
                 scored = self._gene_knowledge_annotator.boost_scores(scored)
 
             classified = acmg_classifier.classify(scored)
 
-            if self._config.report.output_format == "vcf":
-                result_path = report_generator.generate(
-                    classified,
-                    effective_output_path,
-                    effective_vcf_path,
-                )
-            else:
-                result_path = report_generator.generate(
-                    classified,
-                    effective_output_path,
-                )
+            result_path = self._generate_report(
+                report_generator, classified, effective_output_path, effective_vcf_path
+            )
 
             if annotation_engine is not None:
                 self._warning_accumulator.add_batch(annotation_engine.warnings)
@@ -204,7 +225,6 @@ class Pipeline:
             "Pipeline completed. Missing data warnings: %d",
             self._warning_accumulator.total_count,
         )
-
         logger.info("Report written to: %s", result_path)
         return result_path
 
@@ -689,6 +709,9 @@ class Pipeline:
     def _check_path(path: Path, label: str) -> None:
         """Verify a file path exists, raising FileNotFoundError if not.
 
+        Resolves the path to its canonical form before checking, which
+        eliminates directory traversal sequences and follows symlinks.
+
         Parameters
         ----------
         path : Path
@@ -701,5 +724,6 @@ class Pipeline:
         FileNotFoundError
             If the path does not exist.
         """
-        if not path.exists():
+        resolved = resolve_path(path)
+        if not resolved.exists():
             raise FileNotFoundError(f"{label} not found: {path}")

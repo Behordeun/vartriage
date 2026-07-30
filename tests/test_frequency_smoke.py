@@ -17,42 +17,43 @@ def create_test_gnomad_file() -> Path:
         "chr2\t500\tAT\tA\t0.0001\n"
         "chrX\t1000\tC\tG\t0.25\n"
     )
-    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False)
-    tmp.write(content)
-    tmp.close()
-    return Path(tmp.name)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as tmp:
+        tmp.write(content)
+        return Path(tmp.name)
 
 
 def test_dict_frequency_database():
     """Test DictFrequencyDatabase with a valid reference file."""
     ref_path = create_test_gnomad_file()
+    try:
+        db = DictFrequencyDatabase()
+        db.load(ref_path)
 
-    db = DictFrequencyDatabase()
-    db.load(ref_path)
+        variants = [
+            ("chr1", 100, "A", "T"),
+            ("chr1", 200, "G", "C"),
+            ("chr1", 300, "A", "G"),
+            ("chr2", 500, "AT", "A"),
+            ("chr3", 999, "T", "C"),
+        ]
 
-    variants = [
-        ("chr1", 100, "A", "T"),
-        ("chr1", 200, "G", "C"),
-        ("chr1", 300, "A", "G"),
-        ("chr2", 500, "AT", "A"),
-        ("chr3", 999, "T", "C"),
-    ]
+        results = db.lookup_batch(variants)
 
-    results = db.lookup_batch(variants)
+        assert results[0] == 0.001
+        assert results[1] == 0.05
+        assert results[2] is None
+        assert results[3] == 0.0001
+        assert results[4] is None
 
-    assert results[0] == 0.001
-    assert results[1] == 0.05
-    assert results[2] is None
-    assert results[3] == 0.0001
-    assert results[4] is None
-
-    assert len(db.warnings) == 2
-    assert all(isinstance(w, MissingDataWarning) for w in db.warnings)
-    assert db.warnings[0].chrom == "chr1"
-    assert db.warnings[0].pos == 300
-    assert db.warnings[0].source == "gnomAD"
-    assert db.warnings[1].chrom == "chr3"
-    assert db.warnings[1].pos == 999
+        assert len(db.warnings) == 2
+        assert all(isinstance(w, MissingDataWarning) for w in db.warnings)
+        assert db.warnings[0].chrom == "chr1"
+        assert db.warnings[0].pos == 300
+        assert db.warnings[0].source == "gnomAD"
+        assert db.warnings[1].chrom == "chr3"
+        assert db.warnings[1].pos == 999
+    finally:
+        ref_path.unlink(missing_ok=True)
 
 
 def test_dict_frequency_missing_file():
@@ -68,26 +69,32 @@ def test_dict_frequency_missing_file():
 def test_dict_frequency_bad_format():
     """Test ReferenceFileError for files with wrong columns."""
     content = "col_a\tcol_b\n1\t2\n"
-    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False)
-    tmp.write(content)
-    tmp.close()
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as tmp:
+        tmp.write(content)
+        tmp_name = tmp.name
 
-    db = DictFrequencyDatabase()
     try:
-        db.load(Path(tmp.name))
-        assert False, "Should have raised ReferenceFileError"
-    except ReferenceFileError as exc:
-        assert "missing required columns" in str(exc)
+        db = DictFrequencyDatabase()
+        try:
+            db.load(Path(tmp_name))
+            assert False, "Should have raised ReferenceFileError"
+        except ReferenceFileError as exc:
+            assert "missing required columns" in str(exc)
+    finally:
+        Path(tmp_name).unlink(missing_ok=True)
 
 
 def test_dict_frequency_empty_batch():
     """Test that empty batch returns empty list."""
     ref_path = create_test_gnomad_file()
-    db = DictFrequencyDatabase()
-    db.load(ref_path)
+    try:
+        db = DictFrequencyDatabase()
+        db.load(ref_path)
 
-    results = db.lookup_batch([])
-    assert results == []
+        results = db.lookup_batch([])
+        assert results == []
+    finally:
+        ref_path.unlink(missing_ok=True)
 
 
 def test_polars_frequency_database():
@@ -102,30 +109,33 @@ def test_polars_frequency_database():
         return
 
     ref_path = create_test_gnomad_file()
-    db = PolarsFrequencyDatabase()
-    db.load(ref_path)
+    try:
+        db = PolarsFrequencyDatabase()
+        db.load(ref_path)
 
-    variants = [
-        ("chr1", 100, "A", "T"),
-        ("chr1", 200, "G", "C"),
-        ("chr1", 300, "A", "G"),
-        ("chr2", 500, "AT", "A"),
-        ("chr3", 999, "T", "C"),
-    ]
+        variants = [
+            ("chr1", 100, "A", "T"),
+            ("chr1", 200, "G", "C"),
+            ("chr1", 300, "A", "G"),
+            ("chr2", 500, "AT", "A"),
+            ("chr3", 999, "T", "C"),
+        ]
 
-    results = db.lookup_batch(variants)
+        results = db.lookup_batch(variants)
 
-    assert results[0] == 0.001
-    assert results[1] == 0.05
-    assert results[2] is None
-    assert results[3] == 0.0001
-    assert results[4] is None
+        assert results[0] == 0.001
+        assert results[1] == 0.05
+        assert results[2] is None
+        assert results[3] == 0.0001
+        assert results[4] is None
 
-    assert len(db.warnings) == 2
-    assert db.warnings[0].chrom == "chr1"
-    assert db.warnings[0].pos == 300
-    assert db.warnings[1].chrom == "chr3"
-    assert db.warnings[1].pos == 999
+        assert len(db.warnings) == 2
+        assert db.warnings[0].chrom == "chr1"
+        assert db.warnings[0].pos == 300
+        assert db.warnings[1].chrom == "chr3"
+        assert db.warnings[1].pos == 999
+    finally:
+        ref_path.unlink(missing_ok=True)
 
 
 def test_polars_frequency_missing_file():
@@ -159,8 +169,11 @@ def test_polars_frequency_empty_batch():
         return
 
     ref_path = create_test_gnomad_file()
-    db = PolarsFrequencyDatabase()
-    db.load(ref_path)
+    try:
+        db = PolarsFrequencyDatabase()
+        db.load(ref_path)
 
-    results = db.lookup_batch([])
-    assert results == []
+        results = db.lookup_batch([])
+        assert results == []
+    finally:
+        ref_path.unlink(missing_ok=True)

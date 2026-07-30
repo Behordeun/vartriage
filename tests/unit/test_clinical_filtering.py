@@ -5,7 +5,6 @@ from __future__ import annotations
 import tempfile
 import warnings
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -38,12 +37,19 @@ def _make_variant(
     )
 
 
-def _write_bed(content: str) -> Path:
-    """Write content to a temp BED file, return path."""
-    f = tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False)
-    f.write(content)
-    f.close()
-    return Path(f.name)
+def _write_bed(content: str, tmp_path: Path | None = None) -> Path:
+    """Write content to a temp BED file, return path.
+
+    If tmp_path is provided, writes inside it (auto-cleaned by pytest).
+    Otherwise creates a NamedTemporaryFile that callers should clean up.
+    """
+    if tmp_path is not None:
+        bed_file = tmp_path / "regions.bed"
+        bed_file.write_text(content)
+        return bed_file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as f:
+        f.write(content)
+        return Path(f.name)
 
 
 def _make_sample_variant(
@@ -380,7 +386,6 @@ class TestCLIParsing:
         self, capsys: pytest.CaptureFixture
     ) -> None:
         """--min-gq without --sample triggers error exit."""
-        import sys
 
         args = self._parse_args(
             [
@@ -395,19 +400,17 @@ class TestCLIParsing:
         assert args.min_gq == 30
         assert args.sample is None
 
-        from unittest.mock import MagicMock
+        from vartriage.cli import _run_pipeline
 
-        with pytest.raises(SystemExit) as exc_info:
-            from vartriage.cli import _run_pipeline
+        with tempfile.NamedTemporaryFile(suffix=".vcf", delete=False) as f:
+            f.write(b"##fileformat=VCFv4.2\n")
+            vcf_path = Path(f.name)
 
-            with tempfile.NamedTemporaryFile(suffix=".vcf", delete=False) as f:
-                f.write(b"##fileformat=VCFv4.2\n")
-                vcf_path = Path(f.name)
-
-            try:
+        try:
+            with pytest.raises(SystemExit) as exc_info:
                 _run_pipeline(args, vcf_path)
-            finally:
-                vcf_path.unlink(missing_ok=True)
+        finally:
+            vcf_path.unlink(missing_ok=True)
 
         assert exc_info.value.code == 2
         captured = capsys.readouterr()

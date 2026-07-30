@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pysam
 
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import ClassifiedVariant
 
 LookupKey = tuple[str, int, str, str]
@@ -134,27 +135,34 @@ def _inject_info_fields(
         record.info["VARTRIAGE_TAGS"] = tags_str
 
 
-def _copy_info(src_rec: pysam.VariantRecord, dst_rec: pysam.VariantRecord) -> None:
-    """Copy all INFO fields from src_rec to dst_rec."""
-    for info_key in src_rec.info:
-        dst_rec.info[info_key] = src_rec.info[info_key]
+def _copy_info(
+    src_record: pysam.VariantRecord,
+    dst_record: pysam.VariantRecord,
+) -> None:
+    """Copy all INFO fields from src to dst."""
+    for key in src_record.info:
+        dst_record.info[key] = src_record.info[key]
 
 
-def _copy_samples(src_rec: pysam.VariantRecord, dst_rec: pysam.VariantRecord) -> None:
-    """Copy all FORMAT/sample data from src_rec to dst_rec."""
-    for sample in src_rec.samples:
-        for fmt_key in src_rec.samples[sample]:
-            dst_rec.samples[sample][fmt_key] = src_rec.samples[sample][fmt_key]
+def _copy_samples(
+    src_record: pysam.VariantRecord,
+    dst_record: pysam.VariantRecord,
+) -> None:
+    """Copy all FORMAT/sample data from src to dst."""
+    for sample in src_record.samples:
+        for fmt_key in src_record.samples[sample]:
+            dst_record.samples[sample][fmt_key] = src_record.samples[sample][fmt_key]
 
 
 def _find_classified(
     record: pysam.VariantRecord,
     lookup: dict[LookupKey, ClassifiedVariant],
 ) -> ClassifiedVariant | None:
-    """Return the first matching ClassifiedVariant for a VCF record, or None."""
-    if not record.alts or record.ref is None:
+    """Return the first matching ClassifiedVariant for any ALT allele, or None."""
+    alts = record.alts
+    if not alts or record.ref is None:
         return None
-    for alt_allele in record.alts:
+    for alt_allele in alts:
         if alt_allele is None:
             continue
         key: LookupKey = (record.chrom, record.pos, str(record.ref), str(alt_allele))
@@ -168,7 +176,7 @@ def _write_records(
     out: pysam.VariantFile,
     lookup: dict[LookupKey, ClassifiedVariant],
 ) -> None:
-    """Iterate src records, annotate matches, and write all to out."""
+    """Copy all records from src to out, injecting VARTRIAGE_* fields on matches."""
     for record in src:
         new_rec = out.new_record(
             contig=record.chrom,
@@ -223,18 +231,10 @@ def write_vcf(
         If writing or indexing fails.
     """
     lookup = _build_lookup(variants)
-
-    # Resolve output directory once; all derived paths are validated against it
-    # to prevent path traversal (CWE-22).
-    output_dir = output_path.resolve().parent
-    resolved_output = output_path.resolve()
-
-    # Tabix index file extension for bgzipped VCF files.
-    tabix_ext = ".tbi"
-
-    tmp_path = output_dir / (resolved_output.name + ".tmp")
-    tmp_tabix_path = output_dir / (tmp_path.name + tabix_ext)
-    final_tabix_path = output_dir / (resolved_output.name + tabix_ext)
+    output_path = resolve_path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = output_path.with_suffix(".vcf.gz.tmp")
+    tmp_tbi_path = Path(str(tmp_path) + ".tbi")
 
     try:
         with pysam.VariantFile(str(source_vcf_path), "r") as src:

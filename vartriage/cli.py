@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, cast
 
+from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
 
 if TYPE_CHECKING:
@@ -332,10 +333,10 @@ def main(argv: Optional[list[str]] = None) -> None:
     output_fmt: str = args.output_format
     clinical_config = _build_clinical_config(args, output_fmt)
 
-    vcf_path: Path = args.vcf
+    vcf_path: Path = resolve_path(args.vcf)
     if not vcf_path.exists():
         print(
-            f"Error: VCF file not found: {vcf_path}",
+            f"Error: VCF file not found: {vcf_path}",  # nosec: output to stderr, not rendered in browser
             file=sys.stderr,
         )
         sys.exit(1)
@@ -343,11 +344,11 @@ def main(argv: Optional[list[str]] = None) -> None:
     try:
         result_path = _run_pipeline(args, vcf_path, clinical_config)
     except FileNotFoundError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        print(f"Error: {exc}", file=sys.stderr)  # nosec: output to stderr, not rendered in browser
         sys.exit(1)
     except OSError as exc:
         print(
-            f"Error: report generation failed: {exc}",
+            f"Error: report generation failed: {exc}",  # nosec: output to stderr, not rendered in browser
             file=sys.stderr,
         )
         sys.exit(1)
@@ -363,9 +364,9 @@ def _handle_unexpected_error(exc: Exception) -> None:
     from vartriage.io.exceptions import VariantPrioritizationError
 
     if isinstance(exc, VariantPrioritizationError):
-        print(f"Error: pipeline failed: {exc}", file=sys.stderr)
+        print(f"Error: pipeline failed: {exc}", file=sys.stderr)  # nosec: output to stderr, not rendered in browser
     else:
-        print(f"Error: unexpected failure: {exc}", file=sys.stderr)
+        print(f"Error: unexpected failure: {exc}", file=sys.stderr)  # nosec: output to stderr, not rendered in browser
     sys.exit(1)
 
 
@@ -772,13 +773,13 @@ def _run_cohort_cli(argv: list[str]) -> None:
     sample_labels: dict[str, str] | None = None
 
     if args.manifest is not None:
-        if not args.manifest.exists():
+        if not args.manifest.resolve().exists():
             print(
                 f"Error: manifest file not found: {args.manifest}",
                 file=sys.stderr,
             )
             sys.exit(1)
-        sample_vcfs, sample_labels = parse_cohort_manifest(args.manifest)
+        sample_vcfs, sample_labels = parse_cohort_manifest(args.manifest.resolve())
     else:
         sample_vcfs = args.vcf
 

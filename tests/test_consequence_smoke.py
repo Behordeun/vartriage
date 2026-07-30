@@ -48,43 +48,51 @@ class TestAttributeParsing:
 
 class TestSortedArrayIntervalIndex:
     def _create_index(self) -> tuple[SortedArrayIntervalIndex, Path]:
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False)
-        tmp.write(SAMPLE_GTF)
-        tmp.flush()
-        tmp.close()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False) as tmp:
+            tmp.write(SAMPLE_GTF)
+            tmp.flush()
+            tmp_name = tmp.name
 
         index = SortedArrayIntervalIndex()
-        index.load(Path(tmp.name))
-        return index, Path(tmp.name)
+        index.load(Path(tmp_name))
+        return index, Path(tmp_name)
 
     def test_load_gtf(self):
-        index, _ = self._create_index()
-        assert index._loaded is True
-        assert "chr1" in index._chromosomes
+        index, tmp_path = self._create_index()
+        try:
+            assert index._loaded is True
+            assert "chr1" in index._chromosomes
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_overlap_coding_region(self):
-        index, _ = self._create_index()
-        # Position 1100 is inside the CDS (1050-1190)
-        hits = index.overlap("chr1", 1100, "A", "T")
-        assert len(hits) > 0
-        cds_hits = [h for h in hits if h["feature_type"] == "CDS"]
-        assert len(cds_hits) > 0
+        index, tmp_path = self._create_index()
+        try:
+            # Position 1100 is inside the CDS (1050-1190)
+            hits = index.overlap("chr1", 1100, "A", "T")
+            assert len(hits) > 0
+            cds_hits = [h for h in hits if h["feature_type"] == "CDS"]
+            assert len(cds_hits) > 0
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_no_overlap_intergenic(self):
-        index, _ = self._create_index()
-        # Position 6000 is outside all gene regions
-        hits = index.overlap("chr1", 6000, "A", "T")
-        assert hits == []
+        index, tmp_path = self._create_index()
+        try:
+            # Position 6000 is outside all gene regions
+            hits = index.overlap("chr1", 6000, "A", "T")
+            assert hits == []
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_splice_site_detection(self):
-        index, _ = self._create_index()
-        # Position 1199 is within 2 bases of exon end (1200)
-        # The exon is chr1:1000-1200 (GTF 1-based), so 0-based: 999-1200
-        # Exon end at 1200, donor site is 1198-1202
-        # VCF pos 1200 -> 0-based start 1199, is in donor zone
-        hits = index.overlap("chr1", 1200, "A", "T")
-        splice_hits = [h for h in hits if h.get("is_splice_site")]
-        assert len(splice_hits) > 0
+        index, tmp_path = self._create_index()
+        try:
+            hits = index.overlap("chr1", 1200, "A", "T")
+            splice_hits = [h for h in hits if h.get("is_splice_site")]
+            assert len(splice_hits) > 0
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_missing_file_raises(self):
         index = SortedArrayIntervalIndex()
@@ -95,84 +103,106 @@ class TestSortedArrayIntervalIndex:
             pass
 
     def test_unknown_chromosome(self):
-        index, _ = self._create_index()
-        hits = index.overlap("chrZ", 100, "A", "T")
-        assert hits == []
+        index, tmp_path = self._create_index()
+        try:
+            hits = index.overlap("chrZ", 100, "A", "T")
+            assert hits == []
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
 
 class TestConsequenceAnnotator:
-    def _create_annotator(self) -> ConsequenceAnnotator:
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False)
-        tmp.write(SAMPLE_GTF)
-        tmp.flush()
-        tmp.close()
-        return ConsequenceAnnotator(Path(tmp.name))
+    def _create_annotator(self) -> tuple[ConsequenceAnnotator, Path]:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".gtf", delete=False) as tmp:
+            tmp.write(SAMPLE_GTF)
+            tmp.flush()
+            tmp_name = tmp.name
+        return ConsequenceAnnotator(Path(tmp_name)), Path(tmp_name)
 
     def test_intergenic_variant(self):
-        annotator = self._create_annotator()
-        variant = _make_variant("chr1", 6000, "A", "T")
-        result = annotator.assign(variant)
-        assert result == FunctionalConsequence.INTERGENIC
+        annotator, tmp_path = self._create_annotator()
+        try:
+            variant = _make_variant("chr1", 6000, "A", "T")
+            result = annotator.assign(variant)
+            assert result == FunctionalConsequence.INTERGENIC
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_missense_snv_in_cds(self):
-        annotator = self._create_annotator()
-        # Position 2100 is in CDS (2000-2500)
-        variant = _make_variant("chr1", 2100, "A", "T")
-        result = annotator.assign(variant)
-        assert result == FunctionalConsequence.MISSENSE
+        annotator, tmp_path = self._create_annotator()
+        try:
+            # Position 2100 is in CDS (2000-2500)
+            variant = _make_variant("chr1", 2100, "A", "T")
+            result = annotator.assign(variant)
+            assert result == FunctionalConsequence.MISSENSE
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_frameshift_in_cds(self):
-        annotator = self._create_annotator()
-        # Insertion of 1 base (not divisible by 3) in CDS
-        variant = _make_variant("chr1", 2100, "A", "AT")
-        result = annotator.assign(variant)
-        assert result == FunctionalConsequence.FRAMESHIFT
+        annotator, tmp_path = self._create_annotator()
+        try:
+            # Insertion of 1 base (not divisible by 3) in CDS
+            variant = _make_variant("chr1", 2100, "A", "AT")
+            result = annotator.assign(variant)
+            assert result == FunctionalConsequence.FRAMESHIFT
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_in_frame_insertion_in_cds(self):
-        annotator = self._create_annotator()
-        # Insertion of 3 bases (divisible by 3) in CDS
-        variant = _make_variant("chr1", 2100, "A", "ATCG")
-        result = annotator.assign(variant)
-        assert result == FunctionalConsequence.IN_FRAME_INSERTION
+        annotator, tmp_path = self._create_annotator()
+        try:
+            # Insertion of 3 bases (divisible by 3) in CDS
+            variant = _make_variant("chr1", 2100, "A", "ATCG")
+            result = annotator.assign(variant)
+            assert result == FunctionalConsequence.IN_FRAME_INSERTION
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_in_frame_deletion_in_cds(self):
-        annotator = self._create_annotator()
-        # Deletion of 3 bases (divisible by 3) in CDS
-        variant = _make_variant("chr1", 2100, "ATCG", "A")
-        result = annotator.assign(variant)
-        assert result == FunctionalConsequence.IN_FRAME_DELETION
+        annotator, tmp_path = self._create_annotator()
+        try:
+            # Deletion of 3 bases (divisible by 3) in CDS
+            variant = _make_variant("chr1", 2100, "ATCG", "A")
+            result = annotator.assign(variant)
+            assert result == FunctionalConsequence.IN_FRAME_DELETION
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_severity_ranking_most_severe_wins(self):
-        annotator = self._create_annotator()
-        # A variant that overlaps both CDS and exon should get the CDS consequence
-        # since CDS gives Missense while exon gives Synonymous for an SNV
-        variant = _make_variant("chr1", 2100, "A", "T")
-        result = annotator.assign(variant)
-        # Should be at least Missense (more severe than Synonymous)
-        severity = {
-            c: i
-            for i, c in enumerate(
-                [
-                    FunctionalConsequence.FRAMESHIFT,
-                    FunctionalConsequence.NONSENSE,
-                    FunctionalConsequence.SPLICE_SITE,
-                    FunctionalConsequence.MISSENSE,
-                    FunctionalConsequence.IN_FRAME_INSERTION,
-                    FunctionalConsequence.IN_FRAME_DELETION,
-                    FunctionalConsequence.SYNONYMOUS,
-                    FunctionalConsequence.INTERGENIC,
-                ]
-            )
-        }
-        assert severity[result] <= severity[FunctionalConsequence.MISSENSE]
+        annotator, tmp_path = self._create_annotator()
+        try:
+            # A variant that overlaps both CDS and exon should get the CDS consequence
+            variant = _make_variant("chr1", 2100, "A", "T")
+            result = annotator.assign(variant)
+            severity = {
+                c: i
+                for i, c in enumerate(
+                    [
+                        FunctionalConsequence.FRAMESHIFT,
+                        FunctionalConsequence.NONSENSE,
+                        FunctionalConsequence.SPLICE_SITE,
+                        FunctionalConsequence.MISSENSE,
+                        FunctionalConsequence.IN_FRAME_INSERTION,
+                        FunctionalConsequence.IN_FRAME_DELETION,
+                        FunctionalConsequence.SYNONYMOUS,
+                        FunctionalConsequence.INTERGENIC,
+                    ]
+                )
+            }
+            assert severity[result] <= severity[FunctionalConsequence.MISSENSE]
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def test_assign_batch(self):
-        annotator = self._create_annotator()
-        variants = [
-            _make_variant("chr1", 6000, "A", "T"),
-            _make_variant("chr1", 2100, "A", "T"),
-        ]
-        results = annotator.assign_batch(variants)
-        assert len(results) == 2
-        assert results[0] == FunctionalConsequence.INTERGENIC
-        assert results[1] == FunctionalConsequence.MISSENSE
+        annotator, tmp_path = self._create_annotator()
+        try:
+            variants = [
+                _make_variant("chr1", 6000, "A", "T"),
+                _make_variant("chr1", 2100, "A", "T"),
+            ]
+            results = annotator.assign_batch(variants)
+            assert len(results) == 2
+            assert results[0] == FunctionalConsequence.INTERGENIC
+            assert results[1] == FunctionalConsequence.MISSENSE
+        finally:
+            tmp_path.unlink(missing_ok=True)

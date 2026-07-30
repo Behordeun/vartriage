@@ -470,16 +470,15 @@ class ReportTemplateEngine:
         """Render the methodology section HTML."""
         methodology = sections.methodology
 
-        ref_rows = ""
-        for path, checksum in methodology.reference_files.items():
-            ref_rows += METHODOLOGY_REF_ROW.format(path=path, checksum=checksum)
+        ref_rows = "".join(
+            METHODOLOGY_REF_ROW.format(path=p, checksum=digest)
+            for p, digest in methodology.reference_files.items()
+        )
 
-        param_rows = ""
-        for param_name, param_value in methodology.classification_parameters.items():
-            param_rows += METHODOLOGY_PARAM_ROW.format(
-                param_name=param_name,
-                param_value=param_value,
-            )
+        param_rows = "".join(
+            METHODOLOGY_PARAM_ROW.format(param_name=k, param_value=v)
+            for k, v in methodology.classification_parameters.items()
+        )
 
         return METHODOLOGY_TEMPLATE.format(
             section_id=SECTION_ID_METHODOLOGY,

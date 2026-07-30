@@ -17,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from vartriage._internal.path_safety import safe_write_path
+
 logger = logging.getLogger(__name__)
 
 _SCHEMA_SQL = """\
@@ -239,8 +241,9 @@ class ResponseCache:
         if self._conn is not None:
             return self._conn
 
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        # Defer directory creation to first actual use
+        resolved = safe_write_path(self._db_path, "Cache database")
+        self._conn = sqlite3.connect(str(resolved), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(_SCHEMA_SQL)

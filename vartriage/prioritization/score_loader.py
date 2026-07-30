@@ -16,6 +16,8 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from vartriage._internal.path_safety import resolve_path
+
 logger = logging.getLogger(__name__)
 
 CoordinateKey = tuple[str, int, str, str]
@@ -142,6 +144,7 @@ class ScoreLoader:
         self._validate_path(path)
 
         scores: dict[CoordinateKey, float] = {}
+        path = resolve_path(path)
 
         with open(path, encoding="utf-8") as fh:
             for lineno, line in enumerate(fh, start=1):

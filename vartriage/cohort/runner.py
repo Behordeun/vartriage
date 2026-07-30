@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Optional
 
+from vartriage._internal.path_safety import resolve_path
 from vartriage.cohort.pipeline import CohortPipeline
 from vartriage.models.cohort import CohortConfig
 from vartriage.models.config import (
@@ -115,7 +116,7 @@ def run_cohort(config: CohortCLIConfig) -> list[Path]:
 
     base_pipeline_config = PipelineConfig(
         vcf_path=config.sample_vcfs[0],
-        output_path=config.output / "tmp.json",
+        output_path=resolve_path(config.output / "tmp.json"),
         annotation=annotation_config,
         prioritization=prioritization_config,
         report=ReportConfig(output_format="json"),
@@ -124,7 +125,7 @@ def run_cohort(config: CohortCLIConfig) -> list[Path]:
 
     cohort_config = CohortConfig(
         sample_vcfs=config.sample_vcfs,
-        output_path=config.output,
+        output_path=resolve_path(config.output),
         cohort_name=config.cohort_name,
         min_recurrence=config.min_recurrence,
         output_format=config.output_format,
@@ -175,7 +176,7 @@ def parse_cohort_manifest(
     labels: dict[str, str] = {}
     has_labels = False
 
-    with open(manifest_path, encoding="utf-8") as f:
+    with open(resolve_path(manifest_path), encoding="utf-8") as f:
         for raw_line in f:
             line = raw_line.strip()
             if not line or line.startswith("#"):
