@@ -112,3 +112,25 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
+
+[tool.coverage.run]
+source_pkgs = ["vartriage"]
+branch = false
+relative_files = true
+omit = [
+    # CLI entry points tested via integration/CI, not unit tests
+    "vartriage/cli.py",
+    "vartriage/bundle/cli.py",
+    # Abstract protocol definitions (no executable logic)
+    "vartriage/protocols.py",
+    "vartriage/models/warnings.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+    "@(abc\\.)?abstractmethod",
+]
