@@ -8,7 +8,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific), pathogenicity scoring (CADD/REVEL/SpliceAI), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (pathogenic and benign criteria), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific), pathogenicity scoring (CADD/REVEL/SpliceAI), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (pathogenic and benign criteria), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
@@ -23,6 +23,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
 - Score bundle downloader: `vartriage bundle download --bundle clinvar` fetches and prepares reference files
 - API mode: annotate gene panels via Ensembl VEP + ClinVar with zero local files
 - Outputs: JSON, CSV, PDF, HTML clinical reports, IGV-loadable annotated VCF
+- Structural variant triage: ClinGen 2020 framework for DEL/DUP/INV/INS/BND/CNV
 - Typed API with Protocol-based backends
 
 **Benchmarks:**
@@ -172,6 +173,27 @@ vartriage --vcf patient.vcf.gz --output results.json \
 Output includes per-variant: disease associations (with MIM numbers), ClinGen validity level, gnomAD constraint metrics (pLI/LOEUF/mis_z), actionability status, and phenotype match score.
 
 See [Gene-Disease Linkage Guide](https://github.com/Behordeun/vartriage/blob/main/docs/gene-disease-linkage.md) for data file formats, Python API usage, and validation details.
+
+### Structural variant triage (new in v0.13.0)
+
+Classify structural variants (DEL, DUP, INV, INS, BND, CNV) using the ClinGen 2020 technical standards:
+
+```bash
+# Standalone SV analysis
+vartriage sv --sv-vcf sv_calls.vcf.gz --output sv_report.json \
+  --gene-annotation gencode.v46.gtf \
+  --dosage-sensitivity clingen_dosage.tsv \
+  --gnomad-sv gnomad_sv.bed \
+  --pathogenic-regions clingen_pathogenic_regions.bed
+
+# Combined SNV + SV analysis
+vartriage --vcf snv.vcf.gz --sv-vcf sv_calls.vcf.gz \
+  --output report.json --gene-annotation gencode.v46.gtf
+```
+
+Pipeline: SVParser (streams from VCF) -> SVAnnotator (gene overlap, dosage sensitivity, gnomAD-SV frequency) -> SVScorer (composite pathogenicity score) -> SVClassifier (ClinGen evidence sections 1-4, 5-tier classification).
+
+Supports Manta, DELLY, GATK-SV, GRIDSS, and LUMPY. See [Structural Variants Guide](https://github.com/Behordeun/vartriage/blob/main/docs/structural-variants.md) for the full CLI reference and Python API.
 
 ### Full options
 
@@ -324,6 +346,25 @@ for burden in pipeline.gene_burdens:
     if burden.pathogenic_count > 0:
         print(f"{burden.gene_name}: {burden.pathogenic_count} pathogenic, "
               f"penetrance={burden.penetrance:.0%}")
+```
+
+Structural variant triage:
+
+```python
+from pathlib import Path
+from vartriage.structural import SVTriagePipeline, SVTriageConfig
+
+config = SVTriageConfig(
+    vcf_path=Path("sv_calls.vcf.gz"),
+    output_path=Path("sv_report.json"),
+    gene_annotation_path=Path("gencode.v46.gtf"),
+    dosage_sensitivity_path=Path("clingen_dosage.tsv"),
+    gnomad_sv_path=Path("gnomad_sv.bed"),
+    pathogenic_regions_path=Path("pathogenic_regions.bed"),
+)
+
+pipeline = SVTriagePipeline(config)
+output = pipeline.run()
 ```
 
 ## Pipeline stages
@@ -558,9 +599,13 @@ vartriage/
     knowledge/            # Gene-disease linkage (OMIM, ClinGen, HPO, constraint)
     prioritization/       # AF gating + CADD/REVEL/SpliceAI scoring (ScoreLoader)
     classification/       # ACMG evidence tagging
+    structural/           # SV triage: parser, annotator, scorer, classifier, report
     reporting/            # JSON, CSV, PDF, VCF (streaming writers)
         clinical/         # Clinical report generation (HTML/PDF/DOCX + audit trail)
+    cohort/               # Multi-sample cohort analysis
     models/               # Dataclasses, enums, configs, warnings
+    bundle/               # Score bundle downloader and transformer
+    api/                  # Remote API annotation (VEP, ClinVar, CADD, SpliceAI)
     data/knowledge/       # Bundled gene-disease TSV files
     _internal/            # Batch utils, interval tree, caching, vectorized ops
     py.typed              # PEP 561 marker

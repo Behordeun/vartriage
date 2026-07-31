@@ -289,6 +289,18 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # Structural variant analysis (integrated mode)
+    parser.add_argument(
+        "--sv-vcf",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a VCF file containing structural variant calls. "
+            "When provided alongside --vcf, both SNV and SV pipelines "
+            "run and produce separate output files."
+        ),
+    )
+
     return parser
 
 
@@ -307,6 +319,9 @@ def main(argv: Optional[list[str]] = None) -> None:
         return
     if effective_argv and effective_argv[0] == "cohort":
         _run_cohort_cli(effective_argv[1:])
+        return
+    if effective_argv and effective_argv[0] == "sv":
+        _run_sv_cli(effective_argv[1:])
         return
 
     parser = _build_parser()
@@ -440,9 +455,13 @@ def _run_pipeline(
         genome_build=genome_build,
         api=api_config,
         knowledge=knowledge_config,
+        sv_vcf_path=getattr(args, "sv_vcf", None),
     )
 
     pipeline = Pipeline(pipeline_config)
+    if pipeline_config.sv_vcf_path is not None:
+        pipeline.run_with_sv()
+        return pipeline_config.output_path
     return pipeline.run()
 
 
@@ -812,4 +831,170 @@ def _run_cohort_cli(argv: list[str]) -> None:
 
     for p in report_paths:
         print(str(p))
+    sys.exit(0)
+
+
+def _run_sv_cli(argv: list[str]) -> None:
+    """Handle the 'vartriage sv' subcommand for structural variant triage.
+
+    Runs the SV triage pipeline: parse SV VCF, annotate gene overlap,
+    score by dosage sensitivity, classify via ClinGen framework, and
+    write a triage report.
+    """
+    parser = argparse.ArgumentParser(
+        prog="vartriage sv",
+        description=(
+            "Structural variant triage pipeline. Parses SV calls from VCF, "
+            "annotates gene overlap and dosage sensitivity, scores pathogenicity, "
+            "classifies via ClinGen 2020 framework, and writes a prioritized report."
+        ),
+    )
+
+    parser.add_argument(
+        "--sv-vcf",
+        type=Path,
+        required=True,
+        help="Path to a VCF file containing structural variant calls",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Path where the SV triage report will be written",
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "csv"],
+        default="json",
+        help="Output report format (default: json)",
+    )
+    parser.add_argument(
+        "--gene-annotation",
+        type=Path,
+        default=None,
+        help="Path to GTF/GFF gene annotation for gene overlap assessment",
+    )
+    parser.add_argument(
+        "--dosage-sensitivity",
+        type=Path,
+        default=None,
+        help="Path to ClinGen dosage sensitivity TSV (gene_symbol, hi_score, ts_score)",
+    )
+    parser.add_argument(
+        "--gnomad-sv",
+        type=Path,
+        default=None,
+        help="Path to gnomAD-SV reference (BED/TSV: chrom, start, end, sv_type, af)",
+    )
+    parser.add_argument(
+        "--pathogenic-regions",
+        type=Path,
+        default=None,
+        help="BED file of known pathogenic CNV regions for classification",
+    )
+    parser.add_argument(
+        "--benign-regions",
+        type=Path,
+        default=None,
+        help="BED file of known benign CNV regions for classification",
+    )
+    parser.add_argument(
+        "--min-sv-size",
+        type=int,
+        default=50,
+        help="Minimum SV size in bp to include (default: 50)",
+    )
+    parser.add_argument(
+        "--max-sv-size",
+        type=int,
+        default=0,
+        help="Maximum SV size in bp to include (default: 0, no limit)",
+    )
+    parser.add_argument(
+        "--sv-types",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated list of SV types to include "
+            "(DEL,DUP,INV,INS,BND,CNV). Default: all types."
+        ),
+    )
+    parser.add_argument(
+        "--max-af",
+        type=float,
+        default=0.01,
+        help="Maximum population frequency for SV inclusion (default: 0.01)",
+    )
+    parser.add_argument(
+        "--min-quality",
+        type=float,
+        default=20.0,
+        help="Minimum QUAL score for SV calls (default: 20.0)",
+    )
+    parser.add_argument(
+        "--reciprocal-overlap",
+        type=float,
+        default=0.5,
+        help="Minimum reciprocal overlap for frequency matching (default: 0.5)",
+    )
+    parser.add_argument(
+        "--whole-gene-threshold",
+        type=float,
+        default=0.8,
+        help="Gene overlap fraction to classify as whole-gene event (default: 0.8)",
+    )
+    parser.add_argument(
+        "--include-benign",
+        action="store_true",
+        default=False,
+        help="Include Benign/Likely_Benign SVs in output (excluded by default)",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_get_version()}",
+    )
+
+    args = parser.parse_args(argv)
+
+    sv_vcf: Path = args.sv_vcf
+    if not sv_vcf.exists():
+        print(f"Error: SV VCF file not found: {sv_vcf}", file=sys.stderr)
+        sys.exit(1)
+
+    from vartriage.structural.config import SVTriageConfig
+    from vartriage.structural.pipeline import SVTriagePipeline
+
+    try:
+        config = SVTriageConfig(
+            vcf_path=sv_vcf,
+            output_path=args.output,
+            gene_annotation_path=args.gene_annotation,
+            dosage_sensitivity_path=args.dosage_sensitivity,
+            gnomad_sv_path=args.gnomad_sv,
+            pathogenic_regions_path=args.pathogenic_regions,
+            benign_regions_path=args.benign_regions,
+            min_sv_size=args.min_sv_size,
+            max_allele_frequency=args.max_af,
+            reciprocal_overlap=args.reciprocal_overlap,
+            whole_gene_threshold=args.whole_gene_threshold,
+            min_quality=args.min_quality,
+            output_format=args.output_format,
+            include_benign=args.include_benign,
+        )
+    except ValueError as exc:
+        print(f"Error: invalid configuration: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        pipeline = SVTriagePipeline(config)
+        result_path = pipeline.run()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:
+        print(f"Error: SV triage failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print(str(result_path))
     sys.exit(0)

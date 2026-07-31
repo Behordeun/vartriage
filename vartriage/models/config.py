@@ -365,6 +365,7 @@ class PipelineConfig:
     genome_build: str = "grch38"
     api: "object | None" = field(default=None)
     knowledge: "KnowledgeBaseConfig | None" = field(default=None)
+    sv_vcf_path: Optional[Path] = None
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format

@@ -1,0 +1,18 @@
+# ClinGen pathogenic CNV regions (curated subset for SV classification)
+# chrom	start	end	syndrome_name
+chr1	145273344	145773344	1q21.1 microdeletion syndrome
+chr2	49918530	51259674	2p16.3 (NRXN1) deletion
+chr3	197232750	198295559	3q29 microdeletion syndrome
+chr5	11700001	11900001	Cri-du-chat (5p15.2)
+chr7	72650120	74154209	Williams-Beuren syndrome (7q11.23)
+chr8	8048143	11827898	8p23.1 microdeletion syndrome
+chr15	22805361	28518120	Prader-Willi/Angelman (15q11-q13)
+chr15	30910306	32445406	15q13.3 microdeletion syndrome
+chr16	15421364	16527354	16p13.11 microdeletion syndrome
+chr16	21940876	22427207	16p11.2 microdeletion syndrome
+chr16	29604828	30199855	16p11.2 distal microdeletion
+chr17	16757603	20222149	Smith-Magenis syndrome (17p11.2)
+chr17	29107121	30260034	17q12 microdeletion syndrome
+chr22	18916842	21465659	22q11.2 deletion syndrome (DiGeorge)
+chr22	23653038	25090834	22q11.2 distal deletion
+chrX	6440001	8140001	Xp22.31 (STS) deletion

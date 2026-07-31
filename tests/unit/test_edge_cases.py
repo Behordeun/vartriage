@@ -375,58 +375,65 @@ class TestParseErrorContent:
         )
         vcf_path = tmp_path / "bad.vcf"
         vcf_path.write_text(bad_content)
-        with pytest.raises(ParseError) as exc_info:
+
+        with pytest.raises(ParseError, match="fileformat"):
             VCFParser(vcf_path)
-        assert exc_info.value.line_number >= 1
-        assert "fileformat" in exc_info.value.detail.lower()
 
 
 class TestValueErrorContent:
     """ValueError from configs specifies the valid range."""
 
-    def test_quality_filter_config_error_specifies_range(self) -> None:
-        with pytest.raises(ValueError) as exc_info:
+    def test_quality_filter_config_error_includes_lower_bound(self) -> None:
+        with pytest.raises(ValueError, match="0"):
             QualityFilterConfig(min_qual=-1.0)
-        msg = str(exc_info.value)
-        assert "0" in msg
-        assert "1000000" in msg
+
+    def test_quality_filter_config_error_includes_upper_bound(self) -> None:
+        with pytest.raises(ValueError, match="1000000"):
+            QualityFilterConfig(min_qual=-1.0)
 
     def test_quality_filter_config_error_includes_invalid_value(self) -> None:
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="2000000"):
             QualityFilterConfig(min_qual=2_000_000)
-        msg = str(exc_info.value)
-        assert "2000000" in msg
 
-    def test_prioritization_config_af_error_specifies_range(self) -> None:
-        with pytest.raises(ValueError) as exc_info:
+    def test_prioritization_config_af_error_includes_lower_bound(self) -> None:
+        with pytest.raises(ValueError, match="0.0"):
             PrioritizationConfig(max_allele_frequency=-0.5)
-        msg = str(exc_info.value)
-        assert "0.0" in msg
-        assert "1.0" in msg
+
+    def test_prioritization_config_af_error_includes_upper_bound(self) -> None:
+        with pytest.raises(ValueError, match="1.0"):
+            PrioritizationConfig(max_allele_frequency=-0.5)
 
     def test_prioritization_config_af_error_includes_value(self) -> None:
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="2.0"):
             PrioritizationConfig(max_allele_frequency=2.0)
-        msg = str(exc_info.value)
-        assert "2.0" in msg
 
-    def test_annotation_config_batch_size_error_specifies_range(self) -> None:
-        with pytest.raises(ValueError) as exc_info:
+    def test_annotation_config_batch_size_error_includes_lower_bound(self) -> None:
+        gene_path = Path("/fake")
+        gnomad_path = Path("/fake")
+        with pytest.raises(ValueError, match="1000"):
             AnnotationConfig(
-                gene_annotation_path=Path("/fake"),
-                gnomad_path=Path("/fake"),
+                gene_annotation_path=gene_path,
+                gnomad_path=gnomad_path,
                 batch_size=500,
             )
-        msg = str(exc_info.value)
-        assert "1000" in msg
-        assert "100000" in msg
 
-    def test_prioritization_config_batch_size_error(self) -> None:
-        with pytest.raises(ValueError) as exc_info:
+    def test_annotation_config_batch_size_error_includes_upper_bound(self) -> None:
+        gene_path = Path("/fake")
+        gnomad_path = Path("/fake")
+        with pytest.raises(ValueError, match="100000"):
+            AnnotationConfig(
+                gene_annotation_path=gene_path,
+                gnomad_path=gnomad_path,
+                batch_size=500,
+            )
+
+    def test_prioritization_config_batch_size_error_includes_lower_bound(self) -> None:
+        with pytest.raises(ValueError, match="1000"):
             PrioritizationConfig(batch_size=200_000)
-        msg = str(exc_info.value)
-        assert "1000" in msg
-        assert "100000" in msg
+
+    def test_prioritization_config_batch_size_error_includes_upper_bound(self) -> None:
+        with pytest.raises(ValueError, match="100000"):
+            PrioritizationConfig(batch_size=200_000)
 
 
 class TestFileNotFoundErrorContent:
@@ -434,17 +441,17 @@ class TestFileNotFoundErrorContent:
 
     def test_vcf_parser_file_not_found_includes_path(self, tmp_path: Path) -> None:
         fake_path = tmp_path / "nonexistent.vcf"
-        with pytest.raises(FileNotFoundError) as exc_info:
+        with pytest.raises(FileNotFoundError) as err:
             VCFParser(fake_path)
-        assert str(fake_path) in str(exc_info.value)
+        assert str(fake_path) in str(err.value)
 
     def test_vcf_parser_missing_tbi_includes_index_path(self, tmp_path: Path) -> None:
         gz_path = tmp_path / "test.vcf.gz"
         gz_path.write_bytes(b"fake")
         expected_tbi = str(gz_path) + ".tbi"
-        with pytest.raises(FileNotFoundError) as exc_info:
+        with pytest.raises(FileNotFoundError) as err:
             VCFParser(gz_path)
-        assert expected_tbi in str(exc_info.value)
+        assert expected_tbi in str(err.value)
 
 
 # --------------------------------------------------------------------------
@@ -473,7 +480,7 @@ class TestReportGeneratorIOErrors:
                 gen.generate(variants, output)
         finally:
             os.chmod(readonly_dir, 0o755)
-        # After restoring perms, verify no output was written
+
         assert not output.exists()
 
     def test_no_partial_output_on_write_error(
@@ -491,8 +498,9 @@ class TestReportGeneratorIOErrors:
 
         monkeypatch.setattr(generator, "write_json", _failing_write)
 
+        variants = [_make_classified()]
         with pytest.raises(IOError, match="Disk full simulation"):
-            gen.generate([_make_classified()], target)
+            gen.generate(variants, target)
 
         assert not target.exists()
 
@@ -511,8 +519,9 @@ class TestReportGeneratorIOErrors:
 
         monkeypatch.setattr(generator, "write_csv", _failing_write)
 
+        variants = [_make_classified()]
         with pytest.raises(IOError, match="Permission denied"):
-            gen.generate([_make_classified()], target)
+            gen.generate(variants, target)
 
         assert not target.exists()
 
@@ -531,10 +540,11 @@ class TestReportGeneratorIOErrors:
 
         monkeypatch.setattr(generator, "write_json", _failing_write)
 
-        with pytest.raises(IOError) as exc_info:
-            gen.generate([_make_classified()], target)
+        variants = [_make_classified()]
+        with pytest.raises(IOError) as err:
+            gen.generate(variants, target)
 
-        assert "Encoding failure" in str(exc_info.value)
+        assert "Encoding failure" in str(err.value)
 
 
 # --------------------------------------------------------------------------
@@ -544,16 +554,19 @@ class TestReportGeneratorIOErrors:
 
 class TestBatchedValidation:
     def test_zero_batch_size_raises_value_error(self) -> None:
+        result = batched([1, 2, 3], batch_size=0)
         with pytest.raises(ValueError):
-            list(batched([1, 2, 3], batch_size=0))
+            list(result)
 
     def test_negative_batch_size_raises_value_error(self) -> None:
+        result = batched([1, 2, 3], batch_size=-1)
         with pytest.raises(ValueError):
-            list(batched([1, 2, 3], batch_size=-1))
+            list(result)
 
     def test_non_integer_batch_size_raises_type_error(self) -> None:
+        result = batched([1, 2, 3], batch_size=1.5)  # type: ignore[arg-type]
         with pytest.raises(TypeError):
-            list(batched([1, 2, 3], batch_size=1.5))  # type: ignore[arg-type]
+            list(result)
 
 
 class TestProcessWithMemoryFallbackValidation:

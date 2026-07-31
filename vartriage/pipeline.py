@@ -308,6 +308,47 @@ class Pipeline:
 
             yield from acmg_classifier.classify(scored)
 
+    def run_with_sv(self) -> None:
+        """Execute the main pipeline and SV triage when sv_vcf_path is set.
+
+        Runs the standard SNV pipeline via run(), then if sv_vcf_path is
+        configured, also runs the SV triage pipeline and writes a combined
+        findings file alongside the main report.
+        """
+        self.run()
+
+        sv_path = self._config.sv_vcf_path
+        if sv_path is None or not sv_path.exists():
+            return
+
+        from vartriage.structural.config import SVTriageConfig
+        from vartriage.structural.pipeline import SVTriagePipeline
+
+        # Derive SV output path from the main output
+        main_output = self._config.output_path
+        sv_output = main_output.parent / (
+            main_output.stem + "_sv" + main_output.suffix
+        )
+
+        sv_config = SVTriageConfig(
+            vcf_path=sv_path,
+            output_path=sv_output,
+            gene_annotation_path=(
+                self._config.annotation.gene_annotation_path
+                if self._config.annotation is not None
+                else None
+            ),
+            output_format=(
+                "json" if self._config.report.output_format in ("json", "vcf", "pdf")
+                else "csv"
+            ),
+        )
+
+        sv_pipeline = SVTriagePipeline(sv_config)
+        sv_pipeline.run()
+
+        logger.info("SV triage report written to: %s", sv_output)
+
     def _check_reference_checksums(self) -> None:
         """Log reference file checksums using AuditTrailWriter.
 

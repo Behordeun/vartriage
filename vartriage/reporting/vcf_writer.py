@@ -234,7 +234,7 @@ def write_vcf(
     output_path = resolve_path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = output_path.with_suffix(".vcf.gz.tmp")
-    tmp_tbi_path = Path(str(tmp_path) + ".tbi")
+    tmp_tabix_path = Path(str(tmp_path) + ".tbi")
 
     try:
         with pysam.VariantFile(str(source_vcf_path), "r") as src:
@@ -245,13 +245,13 @@ def write_vcf(
         # Build tabix index against temp file before moving anything.
         pysam.tabix_index(str(tmp_path), preset="vcf", force=True)
 
-        # Atomically move both VCF and .tbi into their final locations.
-        final_tbi_path = Path(str(output_path) + ".tbi")
+        # Atomically move both VCF and tabix index into their final locations.
+        final_tabix_path = Path(str(output_path) + ".tbi")
         os.replace(str(tmp_path), str(output_path))
-        os.replace(str(tmp_tbi_path), str(final_tbi_path))
+        os.replace(str(tmp_tabix_path), str(final_tabix_path))
 
     except Exception as exc:
-        for p in (tmp_path, tmp_tbi_path):
+        for p in (tmp_path, tmp_tabix_path):
             if p.exists():
                 p.unlink()
         raise IOError(f"Failed to write VCF output: {exc}") from exc

@@ -267,7 +267,6 @@ class BaseAPIClient:
                 return outcome.response
 
             if not outcome.retryable:
-                self._circuit_breaker.record_failure()
                 raise outcome.error or APIClientError(
                     self._service_name,
                     f"HTTP {outcome.status_code}",

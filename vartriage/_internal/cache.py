@@ -69,9 +69,11 @@ def cache_path_for(source_path: Path) -> Path:
     Returns
     -------
     Path
-        source_path with '.vartriage.cache' appended.
+        A sibling file in the same directory with '.vartriage.cache' appended
+        to the source filename.
     """
-    return Path(str(source_path) + ".vartriage.cache")
+    resolved = source_path.resolve()
+    return resolved.parent / (resolved.name + ".vartriage.cache")
 
 
 def try_load_cache(source_path: Path) -> Optional[Any]:
