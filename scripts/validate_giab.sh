@@ -233,7 +233,7 @@ fi
 echo "[6/7] Running vartriage on ${REGION}..."
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-# JSON output for analysis
+# JSON output with full annotation stack
 if ! vartriage \
     --vcf "${OUTPUT_DIR}/data/giab_${REGION}.vcf.gz" \
     --output "${OUTPUT_DIR}/results/giab_${REGION}_${TIMESTAMP}.json" \
@@ -241,6 +241,8 @@ if ! vartriage \
     --gnomad "${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz" \
     --clinvar "${OUTPUT_DIR}/refs/clinvar.tsv" \
     --regions "${OUTPUT_DIR}/data/giab_highconf.bed" \
+    --secondary-findings \
+    --use-bundles \
     2>&1 | tee "${OUTPUT_DIR}/results/run_log_${TIMESTAMP}.txt"; then
     echo "ERROR: vartriage pipeline failed. Check run_log for details."
     exit 2
@@ -248,7 +250,7 @@ fi
 
 echo "  Pipeline complete"
 
-# Clinical HTML report
+# Clinical HTML report with gene-disease linkage
 if ! vartriage \
     --vcf "${OUTPUT_DIR}/data/giab_${REGION}.vcf.gz" \
     --output "${OUTPUT_DIR}/reports/giab_${REGION}_clinical_${TIMESTAMP}.html" \
@@ -258,6 +260,8 @@ if ! vartriage \
     --gnomad "${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz" \
     --clinvar "${OUTPUT_DIR}/refs/clinvar.tsv" \
     --regions "${OUTPUT_DIR}/data/giab_highconf.bed" \
+    --secondary-findings \
+    --use-bundles \
     2>&1 | tee -a "${OUTPUT_DIR}/results/run_log_${TIMESTAMP}.txt"; then
     echo "ERROR: Clinical report generation failed."
     exit 2
@@ -302,7 +306,7 @@ if len(results) == 0:
 # Classification distribution (defensive: use .get with defaults)
 classifications: dict[str, int] = {}
 for v in results:
-    cls = v.get("acmg_classification", "Unknown")
+    cls = v.get("classification", "Unknown")
     classifications[cls] = classifications.get(cls, 0) + 1
 
 # Evidence tag frequency
@@ -314,7 +318,7 @@ for v in results:
 # Consequence distribution
 consequences: dict[str, int] = {}
 for v in results:
-    cons = v.get("functional_consequence", "Unknown")
+    cons = v.get("consequence", v.get("functional_consequence", "Unknown"))
     consequences[cons] = consequences.get(cons, 0) + 1
 
 # Missing data summary
@@ -326,20 +330,20 @@ for v in results:
 # Variants with ClinVar pathogenic/likely pathogenic
 clinvar_actionable = [
     v for v in results
-    if v.get("clinvar_assertion") in ("Pathogenic", "Likely_Pathogenic")
+    if v.get("clinvar_assertion") in ("Pathogenic", "Likely_Pathogenic", "Likely pathogenic")
 ]
 
 # Variants classified as Pathogenic/LP by pipeline
 pipeline_actionable = [
     v for v in results
-    if v.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
+    if v.get("classification") in ("Pathogenic", "Likely_Pathogenic")
 ]
 
 # Concordance: variants where pipeline classification matches ClinVar
 concordant = [
     v for v in results
-    if v.get("clinvar_assertion") in ("Pathogenic", "Likely_Pathogenic")
-    and v.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
+    if v.get("clinvar_assertion") in ("Pathogenic", "Likely_Pathogenic", "Likely pathogenic")
+    and v.get("classification") in ("Pathogenic", "Likely_Pathogenic")
 ]
 
 report = {
@@ -365,10 +369,10 @@ report = {
         {
             "gene": v.get("gene_name"),
             "position": f"{v.get('chromosome', '?')}:{v.get('position', '?')}",
-            "consequence": v.get("functional_consequence"),
-            "classification": v.get("acmg_classification"),
+            "consequence": v.get("consequence", v.get("functional_consequence")),
+            "classification": v.get("classification"),
             "clinvar": v.get("clinvar_assertion"),
-            "composite_rank": v.get("composite_rank"),
+            "score": v.get("prioritization_score", v.get("composite_rank")),
         }
         for v in pipeline_actionable
     ],

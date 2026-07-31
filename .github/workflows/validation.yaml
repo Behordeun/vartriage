@@ -40,7 +40,6 @@ jobs:
             echo "ERROR: No validation metrics found in ${RESULTS_DIR}"
             exit 1
           fi
-          # Verify metrics file is valid JSON with expected structure
           python3 -c "
           import json, glob, sys
           metrics_files = glob.glob('${RESULTS_DIR}/validation_metrics_*.json')
@@ -52,7 +51,13 @@ jobs:
           assert 'concordance' in data, 'Missing concordance'
           total = data['validation_summary']['total_variants_processed']
           assert total > 0, f'Expected >0 variants, got {total}'
-          print(f'Validation verified: {total} variants processed')
+          print(f'Validation passed: {total} variants processed')
+          conc = data['concordance']
+          print(f'  ClinVar actionable: {conc[\"clinvar_actionable_count\"]}')
+          print(f'  Pipeline actionable: {conc[\"pipeline_actionable_count\"]}')
+          print(f'  Concordant: {conc[\"concordant_count\"]}')
+          if conc['sensitivity_vs_clinvar'] is not None:
+              print(f'  Sensitivity: {conc[\"sensitivity_vs_clinvar\"]*100:.1f}%')
           "
 
       - uses: actions/upload-artifact@v4
