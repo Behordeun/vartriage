@@ -26,7 +26,7 @@ vartriage --vcf panel.vcf --output results.json --mode hybrid --gnomad local_gno
 ## Modes
 
 | Mode | Behavior |
-|------|----------|
+| ------ | ---------- |
 | `local` (default) | File-based backends only. Requires local reference files. |
 | `api` | All annotation via remote APIs. No local files needed (except REVEL for PP3). |
 | `hybrid` | Local files where available, API fills in any missing sources. |
@@ -34,7 +34,7 @@ vartriage --vcf panel.vcf --output results.json --mode hybrid --gnomad local_gno
 ## What Each API Provides
 
 | Service | Data | Rate Limit |
-|---------|------|------------|
+| --------- | ------ | ------------ |
 | Ensembl VEP | Consequence, gene name, gnomAD frequency, CADD (plugin) | 15 req/sec, 55K/day |
 | ClinVar E-utilities | Clinical significance, review status | 10 req/sec (with API key) |
 | CADD API | Phred score (fallback when VEP plugin has no data) | 2 req/sec |
@@ -111,7 +111,7 @@ url = "http://proxy.hospital.internal:8080"
 ### Environment Variables
 
 | Variable | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | `NCBI_API_KEY` | ClinVar rate limit upgrade (3 req/sec to 10 req/sec) |
 | `HTTPS_PROXY` | HTTP proxy for outbound connections |
 | `HTTP_PROXY` | Fallback proxy (HTTPS_PROXY takes priority) |
@@ -119,7 +119,7 @@ url = "http://proxy.hospital.internal:8080"
 ## Performance Expectations
 
 | Workload | Approximate Time |
-|----------|-----------------|
+| ---------- | ----------------- |
 | Gene panel (50 variants) | < 30 seconds |
 | Targeted sequencing (500 variants) | 2-3 minutes |
 | Exome subset (5,000 variants) | ~15 minutes |

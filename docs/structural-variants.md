@@ -40,7 +40,7 @@ vartriage sv [OPTIONS]
 ```
 
 | Flag | Default | Description |
-|------|---------|-------------|
+| ------ | --------- | ------------- |
 | `--sv-vcf` | required | Input VCF with SV calls |
 | `--output` | required | Output report path |
 | `--output-format` | json | `json` or `csv` |
@@ -77,6 +77,7 @@ This runs the standard SNV pipeline and the SV triage pipeline, producing two ou
 Tab-separated file with columns: `gene_symbol`, `hi_score`, `ts_score`
 
 Score scale (ClinGen curation levels):
+
 - 0 = No evidence for dosage sensitivity
 - 1 = Little evidence
 - 2 = Emerging evidence
@@ -109,25 +110,30 @@ Bundled files include curated ClinGen regions for common microdeletion/microdupl
 The classifier implements the ACMG/ClinGen Technical Standards (Riggs et al. 2020):
 
 **Section 1** - Genomic content assessment
+
 - 1A: Contains protein-coding genes
 - 1B: Contains established HI/TS gene
 
 **Section 2** - Overlap with established regions
+
 - 2A: Complete overlap with pathogenic region
 - 2B-2C: Partial overlap
 - 2D-2F: Benign region overlap
 
 **Section 3** - Gene-level evaluation (losses)
+
 - 3A: HI gene fully contained
 - 3B: HI gene partially deleted
 - 3C: Breakpoint within gene
 
 **Section 4** - Duplication-specific
+
 - 4F: TS gene fully contained
 - 4G: Gene disrupted by dup breakpoint
 - 4H: Intragenic dup without disruption
 
 Evidence points accumulate and map to classification:
+
 - >= 0.99: Pathogenic
 - 0.90 - 0.98: Likely Pathogenic
 - -0.89 to 0.89: VUS
@@ -223,7 +229,7 @@ Flat format with columns: chrom, start, end, sv_type, length, consequence, class
 The parser handles caller-specific INFO field conventions:
 
 | Caller | SVTYPE | END field | Length field | Copy number | Mate ID |
-|--------|--------|-----------|-------------|-------------|---------|
+| -------- | -------- | ----------- | ------------- | ------------- | --------- |
 | Manta | SVTYPE | END | SVLEN, INSLEN | - | MATEID |
 | DELLY | SVTYPE | END | SVLEN | - | MATEID |
 | GATK-SV | SVTYPE | END | SVLEN | CN, CNVAL | - |
