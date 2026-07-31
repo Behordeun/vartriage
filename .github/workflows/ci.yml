@@ -28,7 +28,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          coverage run -m pytest tests/ --override-ini="addopts="
+          coverage run -m pytest tests/
           coverage report --fail-under=80
 
       - name: Run mypy

@@ -233,16 +233,21 @@ fi
 echo "[6/7] Running vartriage on ${REGION}..."
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
+# Shared options for both pipeline invocations
+COMMON_OPTS=(
+    --vcf "${OUTPUT_DIR}/data/giab_${REGION}.vcf.gz"
+    --gnomad "${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz"
+    --clinvar "${OUTPUT_DIR}/refs/clinvar.tsv"
+    --regions "${OUTPUT_DIR}/data/giab_highconf.bed"
+    --secondary-findings
+    --use-bundles
+)
+
 # JSON output with full annotation stack
 if ! vartriage \
-    --vcf "${OUTPUT_DIR}/data/giab_${REGION}.vcf.gz" \
+    "${COMMON_OPTS[@]}" \
     --output "${OUTPUT_DIR}/results/giab_${REGION}_${TIMESTAMP}.json" \
     --output-format json \
-    --gnomad "${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz" \
-    --clinvar "${OUTPUT_DIR}/refs/clinvar.tsv" \
-    --regions "${OUTPUT_DIR}/data/giab_highconf.bed" \
-    --secondary-findings \
-    --use-bundles \
     2>&1 | tee "${OUTPUT_DIR}/results/run_log_${TIMESTAMP}.txt"; then
     echo "ERROR: vartriage pipeline failed. Check run_log for details."
     exit 2
@@ -250,18 +255,13 @@ fi
 
 echo "  Pipeline complete"
 
-# Clinical HTML report with gene-disease linkage
+# Clinical HTML report
 if ! vartriage \
-    --vcf "${OUTPUT_DIR}/data/giab_${REGION}.vcf.gz" \
+    "${COMMON_OPTS[@]}" \
     --output "${OUTPUT_DIR}/reports/giab_${REGION}_clinical_${TIMESTAMP}.html" \
     --output-format clinical-html \
     --patient-id "GIAB-HG002" \
     --panel-name "GIAB Validation (${REGION})" \
-    --gnomad "${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz" \
-    --clinvar "${OUTPUT_DIR}/refs/clinvar.tsv" \
-    --regions "${OUTPUT_DIR}/data/giab_highconf.bed" \
-    --secondary-findings \
-    --use-bundles \
     2>&1 | tee -a "${OUTPUT_DIR}/results/run_log_${TIMESTAMP}.txt"; then
     echo "ERROR: Clinical report generation failed."
     exit 2
@@ -318,7 +318,7 @@ for v in results:
 # Consequence distribution
 consequences: dict[str, int] = {}
 for v in results:
-    cons = v.get("consequence", v.get("functional_consequence", "Unknown"))
+    cons = v.get("consequence", "Unknown")
     consequences[cons] = consequences.get(cons, 0) + 1
 
 # Missing data summary
@@ -369,10 +369,10 @@ report = {
         {
             "gene": v.get("gene_name"),
             "position": f"{v.get('chromosome', '?')}:{v.get('position', '?')}",
-            "consequence": v.get("consequence", v.get("functional_consequence")),
+            "consequence": v.get("consequence"),
             "classification": v.get("classification"),
             "clinvar": v.get("clinvar_assertion"),
-            "score": v.get("prioritization_score", v.get("composite_rank")),
+            "score": v.get("prioritization_score"),
         }
         for v in pipeline_actionable
     ],
