@@ -115,6 +115,23 @@ class ClinVarProteinIndex:
         self._index: dict[tuple[str, int], ProteinPositionEntry] = {}
         self._loaded: bool = False
 
+    @classmethod
+    def from_variants(cls, variants: list[PathogenicMissense]) -> "ClinVarProteinIndex":
+        """Build an in-memory index from a list of PathogenicMissense entries.
+
+        Useful for testing and programmatic construction without a TSV file.
+        """
+        instance = cls()
+        for v in variants:
+            key = (v.gene, v.position)
+            if key not in instance._index:
+                instance._index[key] = ProteinPositionEntry(
+                    gene=v.gene, position=v.position
+                )
+            instance._index[key].variants.append(v)
+        instance._loaded = True
+        return instance
+
     @property
     def is_loaded(self) -> bool:
         """True if the index has been loaded from a reference file."""
@@ -210,24 +227,14 @@ class ClinVarProteinIndex:
         if entry is None:
             return False
 
-        # Must have the same AA change
-        if not entry.has_same_aa_change(ref_aa, alt_aa):
-            return False
-
-        # Must be achieved via a different nucleotide change
-        for v in entry.variants:
-            if v.ref_aa == ref_aa and v.alt_aa == alt_aa:
-                # Same AA change — check if nucleotide differs
-                same_nucleotide = (
-                    v.chrom == chrom
-                    and v.genomic_pos == genomic_pos
-                    and v.ref_allele == ref_allele
-                    and v.alt_allele == alt_allele
-                )
-                if not same_nucleotide:
-                    return True
-
-        return False
+        return entry.is_different_nucleotide(
+            chrom=chrom,
+            genomic_pos=genomic_pos,
+            ref_allele=ref_allele,
+            alt_allele=alt_allele,
+            ref_aa=ref_aa,
+            alt_aa=alt_aa,
+        )
 
     def check_pm5(
         self,

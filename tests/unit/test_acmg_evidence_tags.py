@@ -5,7 +5,6 @@ from __future__ import annotations
 from vartriage.annotation.clinvar_protein_index import (
     ClinVarProteinIndex,
     PathogenicMissense,
-    ProteinPositionEntry,
 )
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
@@ -346,16 +345,7 @@ def _make_scored_variant_at(
 
 def _build_protein_index(entries: list[PathogenicMissense]) -> ClinVarProteinIndex:
     """Build an in-memory ClinVarProteinIndex from a list of PathogenicMissense."""
-    index = ClinVarProteinIndex()
-    for entry in entries:
-        key = (entry.gene, entry.position)
-        if key not in index._index:
-            index._index[key] = ProteinPositionEntry(
-                gene=entry.gene, position=entry.position
-            )
-        index._index[key].variants.append(entry)
-    index._loaded = True
-    return index
+    return ClinVarProteinIndex.from_variants(entries)
 
 
 class TestPS1Assignment:

@@ -76,18 +76,24 @@ def fetch_single_score(chrom: str, pos: int, ref: str, alt: str) -> float | None
     chrom_clean = chrom.replace("chr", "")
     url = f"{CADD_API_BASE}/{chrom_clean}:{pos}_{ref}_{alt}"
 
-    try:
-        response = requests.get(url, timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            if data and len(data) > 0:
-                return float(data[0].get("PHRED", 0))
-        elif response.status_code == 429:
-            # Rate limited, back off
-            time.sleep(5)
-            return fetch_single_score(chrom, pos, ref, alt)
-    except (requests.RequestException, ValueError, KeyError):
-        pass
+    max_retries = 5
+    backoff = 5.0
+
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, timeout=15)
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    return float(data[0].get("PHRED", 0))
+                return None
+            elif response.status_code == 429:
+                time.sleep(backoff * (2 ** attempt))
+                continue
+            else:
+                return None
+        except (requests.RequestException, ValueError, KeyError):
+            return None
 
     return None
 

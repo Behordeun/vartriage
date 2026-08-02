@@ -295,7 +295,7 @@ Pathogenic criteria:
 | PP3 | Moderate | REVEL > 0.773 (ClinGen-calibrated, Pejaver et al. 2022) |
 | PP5 | Supporting | ClinVar Pathogenic, no conflicting Benign/Likely_Benign |
 
-Benign criteria (v0.9.0+):
+Benign criteria:
 
 | Tag | Strength | Condition |
 | ----- | ---------- | ----------- |
