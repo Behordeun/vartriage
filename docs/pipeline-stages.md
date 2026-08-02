@@ -290,8 +290,8 @@ Pathogenic criteria:
 | PVS1 | Very Strong | Consequence is Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
 | PS1 | Strong | Same amino acid change as established ClinVar Pathogenic, via different nucleotide (requires protein index + codon resolution) |
 | PM2 | Moderate | All population AFs < 0.0001 (population-specific when available) |
-| PM5 | Moderate | Novel missense at amino acid position with known pathogenic missense in ClinVar (requires protein index) |
-| PP3 | Supporting | REVEL > 0.644, or SpliceAI > 0.5 on splice-adjacent variant |
+| PM5 | Moderate | Novel missense at an amino acid position with known pathogenic missense in ClinVar (requires protein index) |
+| PP3 | Supporting | REVEL > 0.644, or SpliceAI > 0.5 on a splice-adjacent variant |
 | PP3 | Moderate | REVEL > 0.773 (ClinGen-calibrated, Pejaver et al. 2022) |
 | PP5 | Supporting | ClinVar Pathogenic, no conflicting Benign/Likely_Benign |
 

@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
+from vartriage import __version__
 from vartriage.api._base import APIClientError, BaseAPIClient
 from vartriage.api._cache import ResponseCache
 from vartriage.api._circuit_breaker import CircuitBreaker, CircuitBreakerOpen
@@ -69,6 +70,19 @@ _POP_MAP: dict[str, str] = {
 }
 
 
+_VALID_DATASETS: frozenset[str] = frozenset({
+    "gnomad_r4",
+    "gnomad_r3",
+    "gnomad_r2_1",
+})
+
+_VALID_SOURCES: frozenset[str] = frozenset({
+    "combined",
+    "exome",
+    "genome",
+})
+
+
 class GnomADClient:
     """gnomAD GraphQL API client for allele frequency lookups.
 
@@ -101,6 +115,17 @@ class GnomADClient:
         max_retries: int = 3,
         timeout: tuple[float, float] = (10.0, 30.0),
     ) -> None:
+        if dataset not in _VALID_DATASETS:
+            raise ValueError(
+                f"Invalid dataset '{dataset}'. "
+                f"Must be one of: {sorted(_VALID_DATASETS)}"
+            )
+        if prefer_source not in _VALID_SOURCES:
+            raise ValueError(
+                f"Invalid prefer_source '{prefer_source}'. "
+                f"Must be one of: {sorted(_VALID_SOURCES)}"
+            )
+
         self._dataset = dataset
         self._prefer_source = prefer_source
         self._cache = cache
@@ -113,7 +138,7 @@ class GnomADClient:
             service_name="gnomad",
             timeout=timeout,
             max_retries=max_retries,
-            user_agent="vartriage/0.10.0 (https://github.com/Behordeun/vartriage)",
+            user_agent=f"vartriage/{__version__} (https://github.com/Behordeun/vartriage)",
         )
 
     def lookup_frequency(
@@ -140,8 +165,8 @@ class GnomADClient:
         chrom_clean = _strip_chr_prefix(chrom)
         variant_id = f"{chrom_clean}-{pos}-{ref}-{alt}"
 
-        # Check cache
-        cache_key = ResponseCache.build_key("gnomad", self._dataset, chrom, pos, ref, alt)
+        # Check cache (use normalized chrom to avoid duplicate entries for chr1 vs 1)
+        cache_key = ResponseCache.build_key("gnomad", self._dataset, chrom_clean, pos, ref, alt)
         cached = self._cache.get(cache_key)
         if cached is not None:
             return self._parse_cached(cached)
@@ -207,7 +232,7 @@ class GnomADClient:
             for chrom, pos, ref, alt in variants
         ]
 
-    def _parse_variant_data(self, variant_data: dict) -> Optional[PopulationFrequencies]:
+    def _parse_variant_data(self, variant_data: dict[str, Any]) -> Optional[PopulationFrequencies]:
         """Extract population frequencies from gnomAD response."""
         exome = variant_data.get("exome")
         genome = variant_data.get("genome")
@@ -250,7 +275,7 @@ class GnomADClient:
             sas=pop_freqs["sas"],
         )
 
-    def _select_source(self, exome: Optional[dict], genome: Optional[dict]) -> Optional[dict]:
+    def _select_source(self, exome: Optional[dict[str, Any]], genome: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
         """Pick the gnomAD data source based on preference."""
         if self._prefer_source == "exome":
             return exome or genome
@@ -267,7 +292,7 @@ class GnomADClient:
             return genome
         return exome
 
-    def _parse_cached(self, cached: dict) -> Optional[PopulationFrequencies]:
+    def _parse_cached(self, cached: dict[str, Any]) -> Optional[PopulationFrequencies]:
         """Reconstruct PopulationFrequencies from cached dict."""
         if cached.get("not_found"):
             return None
@@ -283,7 +308,7 @@ class GnomADClient:
         )
 
     @staticmethod
-    def _frequencies_to_dict(freq: PopulationFrequencies) -> dict:
+    def _frequencies_to_dict(freq: PopulationFrequencies) -> dict[str, Optional[float]]:
         """Serialize PopulationFrequencies for cache storage."""
         return {
             "global_af": freq.global_af,

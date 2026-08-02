@@ -77,7 +77,11 @@ class PrioritizationEngine:
     def prioritize(
         self, variants: Iterator[AnnotatedVariant]
     ) -> Iterator[ScoredVariant]:
-        """Filter by allele frequency and score remaining variants.
+        """Score variants for pathogenicity ranking.
+
+        All variants pass through scoring regardless of allele frequency.
+        Common variants must reach ACMG classification to receive BA1/BS1
+        benign evidence tags before any frequency-based exclusion occurs.
 
         Parameters
         ----------
@@ -87,12 +91,11 @@ class PrioritizationEngine:
         Yields
         ------
         ScoredVariant
-            Variants that pass frequency filtering, scored and sorted in
-            descending order by composite pathogenicity rank within each
-            batch. Variants with null composite rank appear last.
+            Scored variants sorted in descending order by composite
+            pathogenicity rank within each batch. Variants with null
+            composite rank appear last.
         """
-        filtered = self._frequency_filter.apply(variants)
-        yield from self._process_in_batches(filtered)
+        yield from self._process_in_batches(variants)
 
     def _process_in_batches(
         self, variants: Iterator[AnnotatedVariant]

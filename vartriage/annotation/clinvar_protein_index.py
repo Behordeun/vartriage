@@ -69,18 +69,30 @@ class ProteinPositionEntry:
         )
 
     def is_different_nucleotide(
-        self, chrom: str, genomic_pos: int, ref_allele: str, alt_allele: str
+        self,
+        chrom: str,
+        genomic_pos: int,
+        ref_allele: str,
+        alt_allele: str,
+        ref_aa: str,
+        alt_aa: str,
     ) -> bool:
-        """True if at least one entry has a different nucleotide change.
+        """True if at least one entry has the same AA change via a different nucleotide.
 
         For PS1: same amino acid change but achieved via different codons.
+        Only considers variants that produce the same ref_aa -> alt_aa substitution.
         """
         for v in self.variants:
-            if v.chrom == chrom and v.genomic_pos == genomic_pos:
-                if v.ref_allele != ref_allele or v.alt_allele != alt_allele:
-                    return True
-            else:
-                # Different genomic position producing same AA change counts too
+            if v.ref_aa != ref_aa or v.alt_aa != alt_aa:
+                continue
+            # Same AA change — check if nucleotide differs
+            same_nucleotide = (
+                v.chrom == chrom
+                and v.genomic_pos == genomic_pos
+                and v.ref_allele == ref_allele
+                and v.alt_allele == alt_allele
+            )
+            if not same_nucleotide:
                 return True
         return False
 
