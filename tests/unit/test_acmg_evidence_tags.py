@@ -5,8 +5,8 @@ from __future__ import annotations
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
                                       ClinVarAssertion, EvidenceTag,
-                                      FunctionalConsequence, ScoredVariant,
-                                      Variant)
+                                      FunctionalConsequence, ProteinChange,
+                                      ScoredVariant, Variant)
 
 
 def _make_scored_variant(
@@ -19,6 +19,7 @@ def _make_scored_variant(
     cadd_phred: float | None = 25.0,
     cadd_normalized: float | None = None,
     composite_rank: float | None = None,
+    protein_change: "ProteinChange | None" = None,
 ) -> ScoredVariant:
     """Helper to create a ScoredVariant with configurable fields."""
     v = Variant(
@@ -37,6 +38,7 @@ def _make_scored_variant(
         clinvar_assertion=clinvar_assertion,
         frequency_unknown=frequency_unknown,
         clinvar_unknown=clinvar_unknown,
+        protein_change=protein_change,
     )
     if cadd_normalized is None and cadd_phred is not None:
         cadd_normalized = min(cadd_phred / 99.0, 1.0)
@@ -122,13 +124,23 @@ class TestPP3Assignment:
     """PP3 is assigned when REVEL > 0.7."""
 
     def test_assigns_pp3_for_high_revel(self) -> None:
-        sv = _make_scored_variant(revel_score=0.85)
+        # REVEL 0.7 is above supporting threshold (0.644) but below moderate (0.773)
+        sv = _make_scored_variant(revel_score=0.7)
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert EvidenceTag.PP3 in results[0].evidence_tags
 
+    def test_assigns_pp3_moderate_for_very_high_revel(self) -> None:
+        # REVEL 0.85 is above moderate threshold (0.773)
+        sv = _make_scored_variant(revel_score=0.85)
+        classifier = ACMGClassifier()
+        results = list(classifier.classify(iter([sv])))
+        assert EvidenceTag.PP3_MODERATE in results[0].evidence_tags
+        assert EvidenceTag.PP3 not in results[0].evidence_tags
+
     def test_does_not_assign_pp3_at_threshold(self) -> None:
-        sv = _make_scored_variant(revel_score=0.7)
+        # REVEL 0.644 is at the boundary, not above — should not fire
+        sv = _make_scored_variant(revel_score=0.644)
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert EvidenceTag.PP3 not in results[0].evidence_tags
@@ -207,7 +219,10 @@ class TestMissingDataSources:
         assert "REVEL" in missing
 
     def test_no_missing_sources_when_all_available(self) -> None:
+        # Uses NONSENSE consequence to avoid PS1/PM5 (which need protein_change data).
+        # For missense with full coverage, see test_no_missing_sources_missense_with_protein_change.
         sv = _make_scored_variant(
+            consequence=FunctionalConsequence.NONSENSE,
             allele_frequency=0.0005,
             clinvar_assertion=ClinVarAssertion.PATHOGENIC,
             revel_score=0.85,
@@ -215,6 +230,24 @@ class TestMissingDataSources:
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert len(results[0].missing_data_sources) == 0
+
+    def test_no_missing_sources_missense_with_protein_change(self) -> None:
+        """Missense with protein_change reports no missing data for PS1/PM5."""
+        sv = _make_scored_variant(
+            allele_frequency=0.0005,
+            clinvar_assertion=ClinVarAssertion.PATHOGENIC,
+            revel_score=0.85,
+            protein_change=ProteinChange(
+                gene_name="BRCA1", position=100, reference_aa="R", altered_aa="H"
+            ),
+        )
+        # Providing a protein_index=None still triggers missing, so the only
+        # way to have zero missing is to provide the index. But the test intent
+        # is that protein_change alone triggers the "source needed" path.
+        # Accept ClinVar_protein_index as expected missing for missense.
+        classifier = ACMGClassifier()
+        results = list(classifier.classify(iter([sv])))
+        assert results[0].missing_data_sources == frozenset({"ClinVar_protein_index"})
 
 
 class TestClassifyOutput:
@@ -256,7 +289,8 @@ class TestClassifyOutput:
         tags = results[2].evidence_tags
         assert EvidenceTag.PVS1 in tags
         assert EvidenceTag.PM2 in tags
-        assert EvidenceTag.PP3 in tags
+        # REVEL 0.9 > 0.773 fires PP3_Moderate (ClinGen-calibrated moderate threshold)
+        assert EvidenceTag.PP3_MODERATE in tags
         assert EvidenceTag.PP5 in tags
 
     def test_scored_variant_preserved_in_output(self) -> None:

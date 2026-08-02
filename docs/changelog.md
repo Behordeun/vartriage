@@ -4,6 +4,32 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-08-02
+
+### Added
+
+- **PS1 criterion** (Strong pathogenic): fires when a different nucleotide change at the same codon produces the same amino acid substitution as a known ClinVar Pathogenic variant. Requires a ClinVar protein index file and reference FASTA for codon resolution.
+- **PM5 criterion** (Moderate pathogenic): fires when a novel missense change occurs at an amino acid position where a different pathogenic missense is established in ClinVar. Shares the same protein index as PS1.
+- **PP3_Moderate** and **BP4_Moderate** evidence tags: ClinGen SVI strength-modulated computational evidence (Pejaver et al. 2022). PP3 now fires at two strength levels; BP4 fires at two strength levels.
+- **gnomAD GraphQL API client** (`vartriage.api.gnomad_client.GnomADClient`): queries gnomAD v4 directly for per-population allele frequencies. Returns `PopulationFrequencies` with all 7 ancestry groups. Cached in the same SQLite database as other API responses.
+- **ClinVar protein index** (`vartriage.annotation.clinvar_protein_index`): loads a TSV of ClinVar pathogenic missense variants keyed by (gene, amino acid position) for O(1) PS1/PM5 lookups.
+- **`ProteinChange` dataclass** on `AnnotatedVariant`: stores resolved amino acid substitution (gene, position, ref_aa, alt_aa) from codon resolution. Enables PS1/PM5 without re-running codon analysis at classification time.
+
+### Changed
+
+- **PP3 threshold** updated to ClinGen-calibrated values: REVEL > 0.644 (supporting), REVEL > 0.773 (moderate). Previously used REVEL > 0.7 (supporting only).
+- **BP4 threshold** updated to ClinGen-calibrated values: REVEL < 0.290 (supporting), REVEL < 0.183 (moderate). Previously used REVEL < 0.15 (supporting only).
+- **Benign combining rules** now handle moderate-level benign evidence: 1 BS + 1 BM = Likely Benign, 2 BM = Likely Benign, 1 BM + 2 BP = Likely Benign.
+- `ACMGClassifier` constructor accepts an optional `protein_index` parameter for PS1/PM5 evaluation.
+- `EvidenceTag` enum expanded with `PS1`, `PM5`, `PP3_MODERATE`, `BP4_MODERATE` members.
+- `EVIDENCE_STRENGTH_MAP` updated with strength assignments for all new tags.
+
+### Migration Notes
+
+- **Breaking for threshold-sensitive analyses:** variants with REVEL between 0.644-0.7 now receive PP3 (previously they didn't). Variants with REVEL between 0.15-0.290 now receive BP4 (previously they didn't). This means some variants will shift classification. Re-run existing analyses to see the impact.
+- PS1/PM5 are additive: they fire only when a protein index is provided. Without it, behavior is identical to 0.13.0 (the criteria are simply omitted).
+- The gnomAD API client is optional: it's available under `pip install vartriage[api]` and activates only when explicitly used.
+
 ## [0.13.0] - 2026-07-31
 
 ### Added

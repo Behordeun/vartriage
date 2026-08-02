@@ -64,7 +64,7 @@ class TestClassifyCombiningWiring:
         """
         sv = _make_scored_variant(
             consequence=FunctionalConsequence.NONSENSE,
-            revel_score=0.85,
+            revel_score=0.70,  # Above 0.644 (supporting PP3) but below 0.773 (moderate)
             clinvar_assertion=ClinVarAssertion.PATHOGENIC,
         )
         classifier = ACMGClassifier()
@@ -157,7 +157,7 @@ class TestClassifyCombiningWiring:
         sv = _make_scored_variant(
             consequence=FunctionalConsequence.FRAMESHIFT,
             allele_frequency=0.00001,
-            revel_score=0.9,
+            revel_score=0.70,  # Above 0.644 (supporting PP3) but below 0.773 (moderate)
             clinvar_assertion=ClinVarAssertion.PATHOGENIC,
         )
         classifier = ACMGClassifier()

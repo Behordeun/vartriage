@@ -8,20 +8,20 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific), pathogenicity scoring (CADD/REVEL/SpliceAI), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (pathogenic and benign criteria), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (10 criteria: PVS1, PS1, PM2, PM5, PP3, PP5, BA1, BS1, BP4, BP7 with strength modulation), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
 - Single Python package, no Java/Perl/Spark dependencies
 - Streams 4M+ variant WGS files under 2 GB RAM
 - Codon-level consequence calling with reference FASTA (correct missense vs synonymous)
-- Benign + pathogenic ACMG criteria: classifies variants across all 5 tiers
+- Benign + pathogenic ACMG criteria (10 criteria, ClinGen-calibrated): classifies variants across all 5 tiers
 - Gene-disease linkage: OMIM, ClinGen validity, HPO phenotype matching, gnomAD constraint, actionability
 - Phenotype-driven: `--hpo-terms` boosts variants in genes matching patient symptoms
 - Trio-aware: de novo, dominant, recessive, compound het, X-linked
 - ACMG Secondary Findings (SF v3.2): screens 71 medically actionable genes
 - Score bundle downloader: `vartriage bundle download --bundle clinvar` fetches and prepares reference files
-- API mode: annotate gene panels via Ensembl VEP + ClinVar with zero local files
+- API mode: annotate gene panels via Ensembl VEP + ClinVar + gnomAD API with zero local files
 - Outputs: JSON, CSV, PDF, HTML clinical reports, IGV-loadable annotated VCF
 - Structural variant triage: ClinGen 2020 framework for DEL/DUP/INV/INS/BND/CNV
 - Typed API with Protocol-based backends

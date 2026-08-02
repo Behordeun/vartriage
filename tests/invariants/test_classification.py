@@ -207,13 +207,20 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
     # PP3 cannot fire if neither predictor is available
     if not revel_available and not spliceai_available:
         assert EvidenceTag.PP3 not in classified.evidence_tags
+        assert EvidenceTag.PP3_MODERATE not in classified.evidence_tags
         return
 
-    # REVEL path triggers PP3
-    if revel_available and revel > 0.7:
+    # REVEL path: moderate level (> 0.773) or supporting level (> 0.644)
+    if revel_available and revel > 0.773:
+        assert (
+            EvidenceTag.PP3_MODERATE in classified.evidence_tags
+        ), f"PP3_Moderate should be assigned for REVEL={revel} > 0.773"
+        return
+
+    if revel_available and revel > 0.644:
         assert (
             EvidenceTag.PP3 in classified.evidence_tags
-        ), f"PP3 should be assigned for REVEL={revel} > 0.7"
+        ), f"PP3 should be assigned for REVEL={revel} > 0.644"
         return
 
     # SpliceAI path triggers PP3 on splice-adjacent
@@ -228,6 +235,9 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
     assert EvidenceTag.PP3 not in classified.evidence_tags, (
         f"PP3 should NOT be assigned: REVEL={revel}, "
         f"SpliceAI={spliceai}, consequence={consequence.value}"
+    )
+    assert EvidenceTag.PP3_MODERATE not in classified.evidence_tags, (
+        f"PP3_Moderate should NOT be assigned: REVEL={revel}"
     )
 
 
@@ -311,13 +321,18 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     elif af is not None and af < 0.0001:
         expected_tags.add(EvidenceTag.PM2)
 
-    # PP3: REVEL > 0.7 OR SpliceAI > 0.5 on splice-adjacent
+    # PP3: ClinGen-calibrated REVEL thresholds (Pejaver et al. 2022)
+    # Moderate: REVEL > 0.773
+    # Supporting: REVEL > 0.644
+    # OR SpliceAI > 0.5 on splice-adjacent (supporting only)
     revel = variant.revel_score
     revel_available = revel is not None
     spliceai_available = spliceai is not None
 
     if revel_available or spliceai_available:
-        if revel_available and revel > 0.7:
+        if revel_available and revel > 0.773:
+            expected_tags.add(EvidenceTag.PP3_MODERATE)
+        elif revel_available and revel > 0.644:
             expected_tags.add(EvidenceTag.PP3)
         elif (
             spliceai_available
@@ -351,15 +366,20 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
         elif af is not None and af > 0.01:
             expected_tags.add(EvidenceTag.BS1)
 
-    # BP4: computational benign (missense REVEL < 0.15, or non-missense CADD < 10)
+    # BP4: computational benign (ClinGen-calibrated thresholds)
+    # Missense: REVEL < 0.183 (moderate) or REVEL < 0.290 (supporting)
+    # Non-missense: CADD < 10 (supporting)
     # Does NOT fire for null variants (frameshift/nonsense)
     if consequence not in (
         FunctionalConsequence.FRAMESHIFT,
         FunctionalConsequence.NONSENSE,
     ):
         if consequence == FunctionalConsequence.MISSENSE:
-            if revel is not None and revel < 0.15:
-                expected_tags.add(EvidenceTag.BP4)
+            if revel is not None:
+                if revel < 0.183:
+                    expected_tags.add(EvidenceTag.BP4_MODERATE)
+                elif revel < 0.290:
+                    expected_tags.add(EvidenceTag.BP4)
         else:
             cadd = variant.cadd_phred
             if cadd is not None and cadd < 10.0:
@@ -404,8 +424,8 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
         # Both unavailable, both recorded
         expected_missing.add("REVEL")
         expected_missing.add("SpliceAI")
-    elif revel_available and revel > 0.7:
-        # REVEL triggered PP3, no missing sources from PP3
+    elif revel_available and revel > 0.644:
+        # REVEL triggered PP3 or PP3_Moderate, no missing sources from PP3
         pass
     elif (
         spliceai_available
@@ -433,6 +453,13 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
         ):
             if spliceai is None:
                 expected_missing.add("SpliceAI")
+
+    # PS1/PM5 missing source tracking for MISSENSE variants
+    # Without a protein_index or protein_change, missense variants report this as missing
+    if consequence == FunctionalConsequence.MISSENSE:
+        protein_change = variant.annotated.protein_change
+        if protein_change is None:
+            expected_missing.add("ClinVar_protein_index")
 
     assert classified.missing_data_sources == frozenset(expected_missing), (
         f"Expected missing sources {expected_missing}, "
@@ -490,6 +517,11 @@ def test_combining_rules_match_specification(
             for t in benign_tags
             if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
         )
+        bm_count = sum(
+            1
+            for t in benign_tags
+            if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.MODERATE
+        )
         bp_count = sum(
             1
             for t in benign_tags
@@ -499,6 +531,12 @@ def test_combining_rules_match_specification(
         if bs_count >= 2:
             assert result == ACMGClassification.BENIGN
         elif bs_count >= 1 and bp_count >= 1:
+            assert result == ACMGClassification.LIKELY_BENIGN
+        elif bs_count >= 1 and bm_count >= 1:
+            assert result == ACMGClassification.LIKELY_BENIGN
+        elif bm_count >= 1 and bp_count >= 2:
+            assert result == ACMGClassification.LIKELY_BENIGN
+        elif bm_count >= 2:
             assert result == ACMGClassification.LIKELY_BENIGN
         else:
             assert result == ACMGClassification.VUS

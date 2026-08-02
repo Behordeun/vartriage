@@ -8,12 +8,15 @@ data sources are unavailable and recording which sources were missing.
 
 from __future__ import annotations
 
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from vartriage.classification.combining import combine_evidence
 from vartriage.models.variant import (ClassifiedVariant, ClinVarAssertion,
                                       EvidenceTag, FunctionalConsequence,
                                       ScoredVariant)
+
+if TYPE_CHECKING:
+    from vartriage.annotation.clinvar_protein_index import ClinVarProteinIndex
 
 _PVS1_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset(
     {
@@ -24,7 +27,12 @@ _PVS1_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset(
 
 _PM2_AF_THRESHOLD: float = 0.0001
 
-_PP3_REVEL_THRESHOLD: float = 0.7
+# ClinGen-calibrated PP3 thresholds (Pejaver et al., 2022)
+# Supporting level: REVEL > 0.644
+# Moderate level: REVEL > 0.773
+_PP3_REVEL_THRESHOLD: float = 0.644
+
+_PP3_REVEL_MODERATE_THRESHOLD: float = 0.773
 
 _PP3_SPLICEAI_THRESHOLD: float = 0.5
 
@@ -34,7 +42,12 @@ _BA1_AF_THRESHOLD: float = 0.05
 
 _BS1_AF_THRESHOLD: float = 0.01
 
-_BP4_REVEL_THRESHOLD: float = 0.15
+# ClinGen-calibrated BP4 thresholds (Pejaver et al., 2022)
+# Supporting level: REVEL < 0.290
+# Moderate level: REVEL < 0.183
+_BP4_REVEL_THRESHOLD: float = 0.290
+
+_BP4_REVEL_MODERATE_THRESHOLD: float = 0.183
 
 _BP4_CADD_THRESHOLD: float = 10.0
 
@@ -58,22 +71,40 @@ _PP5_CONFLICTING_ASSERTIONS: frozenset[ClinVarAssertion] = frozenset(
 class ACMGClassifier:
     """Assign ACMG/AMP evidence tags and final classification.
 
-    The classifier evaluates each ScoredVariant against four evidence criteria:
+    The classifier evaluates each ScoredVariant against ten evidence criteria:
 
+    Pathogenic:
     - PVS1: Nonsense or Frameshift consequence (null variant)
+    - PS1: Same amino acid change as established pathogenic (different nucleotide)
     - PM2: gnomAD allele frequency below 0.0001 (absent from controls)
-    - PP3: REVEL score above 0.7 (computational evidence)
+    - PM5: Novel missense at amino acid position with known pathogenic change
+    - PP3: REVEL score above threshold (computational evidence)
     - PP5: ClinVar Pathogenic with no conflicting Benign/Likely_Benign
+
+    Benign:
+    - BA1: Any population AF > 5% (standalone benign)
+    - BS1: Any population AF > 1%
+    - BP4: Low computational pathogenicity score
+    - BP7: Synonymous with no splice impact
 
     When a required data source is unavailable for a given criterion, that
     tag is omitted and the source name is recorded in the output.
-
-    Notes
-    -----
-    This class handles evidence tag assignment only. The combining step
-    (determining final Pathogenic/Likely_Pathogenic/VUS classification from
-    accumulated tags) is handled separately by the combining module.
     """
+
+    def __init__(
+        self,
+        protein_index: Optional["ClinVarProteinIndex"] = None,
+    ) -> None:
+        """Initialize the classifier with optional protein-level ClinVar index.
+
+        Parameters
+        ----------
+        protein_index : Optional[ClinVarProteinIndex]
+            Pre-loaded index of ClinVar pathogenic missense variants for
+            PS1/PM5 evaluation. When None, PS1 and PM5 are omitted with
+            the source recorded as missing.
+        """
+        self._protein_index = protein_index
 
     def classify(
         self, variants: Iterator[ScoredVariant]
@@ -124,7 +155,9 @@ class ACMGClassifier:
         missing_sources: set[str] = set()
 
         self._evaluate_pvs1(variant, tags, missing_sources)
+        self._evaluate_ps1(variant, tags, missing_sources)
         self._evaluate_pm2(variant, tags, missing_sources)
+        self._evaluate_pm5(variant, tags, missing_sources)
         self._evaluate_pp3(variant, tags, missing_sources)
         self._evaluate_pp5(variant, tags, missing_sources)
 
@@ -171,6 +204,84 @@ class ACMGClassifier:
                 return
             if spliceai > _PVS1_SPLICEAI_THRESHOLD:
                 tags.add(EvidenceTag.PVS1)
+
+    def _evaluate_ps1(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
+    ) -> None:
+        """Assign PS1 for same amino acid change as established pathogenic variant.
+
+        PS1 fires when a different nucleotide change at the same codon
+        produces the same amino acid substitution as a known ClinVar
+        Pathogenic variant. Requires both the protein index and protein
+        change annotation on the variant.
+        """
+        # PS1 only applies to missense variants
+        if variant.annotated.consequence != FunctionalConsequence.MISSENSE:
+            return
+
+        protein_change = variant.annotated.protein_change
+        if protein_change is None:
+            # Missense but no codon resolution (no reference FASTA) — can't evaluate
+            missing_sources.add("ClinVar_protein_index")
+            return
+
+        if self._protein_index is None or not self._protein_index.is_loaded:
+            missing_sources.add("ClinVar_protein_index")
+            return
+
+        v = variant.annotated.variant
+        if self._protein_index.check_ps1(
+            gene=protein_change.gene_name,
+            aa_position=protein_change.position,
+            ref_aa=protein_change.reference_aa,
+            alt_aa=protein_change.altered_aa,
+            chrom=v.chrom,
+            genomic_pos=v.pos,
+            ref_allele=v.ref,
+            alt_allele=v.alt,
+        ):
+            tags.add(EvidenceTag.PS1)
+
+    def _evaluate_pm5(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
+    ) -> None:
+        """Assign PM5 for novel missense at position with known pathogenic change.
+
+        PM5 fires when the variant introduces a different amino acid change
+        at a position where another missense change is already classified
+        as Pathogenic. Does not fire if PS1 already assigned (PS1 is stronger
+        and the same-change case subsumes the different-change case).
+        """
+        # PM5 only applies to missense variants
+        if variant.annotated.consequence != FunctionalConsequence.MISSENSE:
+            return
+
+        protein_change = variant.annotated.protein_change
+        if protein_change is None:
+            missing_sources.add("ClinVar_protein_index")
+            return
+
+        if self._protein_index is None or not self._protein_index.is_loaded:
+            missing_sources.add("ClinVar_protein_index")
+            return
+
+        # Don't double-count: if PS1 already fired, PM5 is redundant
+        if EvidenceTag.PS1 in tags:
+            return
+
+        if self._protein_index.check_pm5(
+            gene=protein_change.gene_name,
+            aa_position=protein_change.position,
+            ref_aa=protein_change.reference_aa,
+            alt_aa=protein_change.altered_aa,
+        ):
+            tags.add(EvidenceTag.PM5)
 
     def _evaluate_pm2(
         self,
@@ -225,20 +336,15 @@ class ACMGClassifier:
         tags: set[EvidenceTag],
         missing_sources: set[str],
     ) -> None:
-        """Assign PP3 based on REVEL or SpliceAI computational evidence.
+        """Assign PP3 based on ClinGen-calibrated REVEL or SpliceAI thresholds.
 
-        PP3 is assigned when REVEL > 0.7, or when SpliceAI > 0.5 on a
-        splice-adjacent variant (SPLICE_SITE or MISSENSE consequence).
-        When neither predictor is available, both are recorded as missing.
+        Strength-modulated per Pejaver et al. (2022):
+        - PP3_Moderate: REVEL > 0.773
+        - PP3 (supporting): REVEL > 0.644
+        - PP3 (supporting): SpliceAI > 0.5 on splice-adjacent variant
 
-        Parameters
-        ----------
-        variant : ScoredVariant
-            The variant to evaluate.
-        tags : set[EvidenceTag]
-            Accumulator for assigned tags (mutated in place).
-        missing_sources : set[str]
-            Accumulator for missing data sources (mutated in place).
+        Only the highest applicable strength fires. When neither predictor
+        is available, both are recorded as missing.
         """
         revel = variant.revel_score
         spliceai = variant.spliceai_score
@@ -252,10 +358,17 @@ class ACMGClassifier:
             missing_sources.add("SpliceAI")
             return
 
+        # Check REVEL at moderate threshold first (higher bar = stronger evidence)
+        if revel is not None and revel > _PP3_REVEL_MODERATE_THRESHOLD:
+            tags.add(EvidenceTag.PP3_MODERATE)
+            return
+
+        # Then supporting-level REVEL
         if revel is not None and revel > _PP3_REVEL_THRESHOLD:
             tags.add(EvidenceTag.PP3)
             return
 
+        # SpliceAI-based PP3 (supporting only)
         splice_adjacent = consequence in _PP3_SPLICE_ADJACENT
         if (
             spliceai is not None
@@ -371,10 +484,11 @@ class ACMGClassifier:
     ) -> None:
         """Assign BP4 for computational benign evidence.
 
-        BP4 fires when:
-        - Missense with REVEL < 0.15 (computational evidence suggests no impact)
-        - Non-missense with CADD Phred < 10
+        Strength-modulated per Pejaver et al. (2022):
+        - BP4_Moderate: REVEL < 0.183 (stronger benign evidence)
+        - BP4 (supporting): REVEL < 0.290
 
+        For non-missense variants, CADD Phred < 10 triggers supporting BP4.
         Does NOT fire for null variants (frameshift/nonsense) where
         computational predictors are not appropriate for benign evidence.
         """
@@ -389,8 +503,12 @@ class ACMGClassifier:
 
         if consequence == FunctionalConsequence.MISSENSE:
             revel = variant.revel_score
-            if revel is not None and revel < _BP4_REVEL_THRESHOLD:
-                tags.add(EvidenceTag.BP4)
+            if revel is not None:
+                # Moderate level first (stricter threshold = more confident benign)
+                if revel < _BP4_REVEL_MODERATE_THRESHOLD:
+                    tags.add(EvidenceTag.BP4_MODERATE)
+                elif revel < _BP4_REVEL_THRESHOLD:
+                    tags.add(EvidenceTag.BP4)
         else:
             cadd = variant.cadd_phred
             if cadd is not None and cadd < _BP4_CADD_THRESHOLD:

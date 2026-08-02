@@ -142,6 +142,7 @@ class EvidenceTag(Enum):
     PM4 = "PM4"
     PM5 = "PM5"
     PP3 = "PP3"
+    PP3_MODERATE = "PP3_Moderate"
     PP5 = "PP5"
 
     # Benign evidence
@@ -149,6 +150,7 @@ class EvidenceTag(Enum):
     BS1 = "BS1"
     BS2 = "BS2"
     BP4 = "BP4"
+    BP4_MODERATE = "BP4_Moderate"
     BP7 = "BP7"
 
 
@@ -183,12 +185,14 @@ EVIDENCE_STRENGTH_MAP: dict[EvidenceTag, EvidenceStrength] = {
     EvidenceTag.PM4: EvidenceStrength.MODERATE,
     EvidenceTag.PM5: EvidenceStrength.MODERATE,
     EvidenceTag.PP3: EvidenceStrength.SUPPORTING,
+    EvidenceTag.PP3_MODERATE: EvidenceStrength.MODERATE,
     EvidenceTag.PP5: EvidenceStrength.SUPPORTING,
     # Benign evidence
     EvidenceTag.BA1: EvidenceStrength.STANDALONE,
     EvidenceTag.BS1: EvidenceStrength.STRONG,
     EvidenceTag.BS2: EvidenceStrength.STRONG,
     EvidenceTag.BP4: EvidenceStrength.SUPPORTING,
+    EvidenceTag.BP4_MODERATE: EvidenceStrength.MODERATE,
     EvidenceTag.BP7: EvidenceStrength.SUPPORTING,
 }
 """Mapping of evidence tags to their strength tiers.
@@ -311,6 +315,33 @@ class PopulationFrequencies:
 
 
 @dataclass(frozen=True, slots=True)
+class ProteinChange:
+    """Amino acid substitution from codon-level resolution.
+
+    Parameters
+    ----------
+    gene_name : str
+        Gene symbol where the substitution occurs.
+    position : int
+        1-based amino acid position in the protein.
+    reference_aa : str
+        Single-letter reference amino acid.
+    altered_aa : str
+        Single-letter alternate amino acid ("*" for stop-gain).
+    """
+
+    gene_name: str
+    position: int
+    reference_aa: str
+    altered_aa: str
+
+    @property
+    def hgvs_p(self) -> str:
+        """HGVS-style protein notation (e.g., p.R123H)."""
+        return f"p.{self.reference_aa}{self.position}{self.altered_aa}"
+
+
+@dataclass(frozen=True, slots=True)
 class AnnotatedVariant:
     """Variant enriched with functional and population annotations.
 
@@ -330,6 +361,9 @@ class AnnotatedVariant:
         True if variant was absent from ClinVar.
     gene_name : Optional[str]
         Gene symbol from consequence annotation, or None for intergenic variants.
+    protein_change : Optional[ProteinChange]
+        Amino acid substitution from codon resolution, or None if not a
+        coding SNV or resolution failed.
     """
 
     variant: Variant
@@ -343,6 +377,7 @@ class AnnotatedVariant:
     zygosity: Zygosity = Zygosity.UNKNOWN
     quality_metrics: Optional[VariantQualityMetrics] = None
     gene_context: Optional[GeneContext] = None
+    protein_change: Optional[ProteinChange] = None
 
 
 @dataclass(frozen=True, slots=True)
