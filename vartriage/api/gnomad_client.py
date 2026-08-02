@@ -12,7 +12,6 @@ are cached in the local SQLite database to avoid re-querying.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any, Optional
 
 from vartriage import __version__
@@ -195,9 +194,16 @@ class GnomADClient:
         except (ValueError, AttributeError):
             return None
 
+        # GraphQL can return errors with data.variant == null; don't cache
+        # these as genuine misses since they may be transient failures
+        errors = data.get("errors")
+        if errors:
+            logger.debug("gnomAD GraphQL errors for %s: %s", variant_id, errors)
+            return None
+
         variant_data = data.get("data", {}).get("variant")
         if variant_data is None:
-            # Variant not found in gnomAD — cache the miss
+            # Variant genuinely not found in gnomAD (no errors) — cache the miss
             self._cache.put(
                 key=cache_key,
                 value={"not_found": True},

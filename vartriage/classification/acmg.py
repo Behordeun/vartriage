@@ -225,7 +225,7 @@ class ACMGClassifier:
         protein_change = variant.annotated.protein_change
         if protein_change is None:
             # Missense but no codon resolution (no reference FASTA) — can't evaluate
-            missing_sources.add("ClinVar_protein_index")
+            missing_sources.add("codon_resolution")
             return
 
         if self._protein_index is None or not self._protein_index.is_loaded:
@@ -264,7 +264,7 @@ class ACMGClassifier:
 
         protein_change = variant.annotated.protein_change
         if protein_change is None:
-            missing_sources.add("ClinVar_protein_index")
+            missing_sources.add("codon_resolution")
             return
 
         if self._protein_index is None or not self._protein_index.is_loaded:

@@ -16,7 +16,7 @@ from typing import Iterator, Optional
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import AnnotationConfig
 from vartriage.models.variant import (AnnotatedVariant, ClinVarAssertion,
-                                      Variant)
+                                      ProteinChange, Variant)
 from vartriage.models.warnings import MissingDataWarning
 from vartriage.protocols import (ClinVarDatabase, FrequencyDatabase,
                                  IntervalIndex)
@@ -140,8 +140,8 @@ class AnnotationEngine:
         # Consequence assignment (uses original coordinates for overlap)
         consequences = self._consequence_annotator.assign_batch(batch)
 
-        # Gene name extraction via overlap queries
-        gene_names = self._extract_gene_names(batch)
+        # Gene name + protein change extraction via overlap queries
+        gene_names, protein_changes = self._extract_gene_and_protein(batch)
 
         # Normalize coordinates for database lookups (gnomAD, ClinVar)
         # Consequence calling uses original coords (GTF overlap is position-based)
@@ -205,10 +205,64 @@ class AnnotationEngine:
                     frequency_unknown=frequency_unknown,
                     clinvar_unknown=clinvar_unknown,
                     gene_name=gene_names[i],
+                    protein_change=protein_changes[i],
                 )
             )
 
         return results
+
+    def _extract_gene_and_protein(
+        self, batch: list[Variant]
+    ) -> tuple[list[Optional[str]], list[Optional[ProteinChange]]]:
+        """Extract gene names and protein changes for a batch of variants.
+
+        Uses the consequence annotator's overlap() method per variant to find
+        the gene symbol and codon context from overlapping regions. Builds
+        ProteinChange from CodonContext when codon resolution succeeded.
+
+        Parameters
+        ----------
+        batch : list[Variant]
+            Variants to look up.
+
+        Returns
+        -------
+        tuple[list[Optional[str]], list[Optional[ProteinChange]]]
+            Gene names and protein changes positionally matched to the batch.
+        """
+        gene_names: list[Optional[str]] = []
+        protein_changes: list[Optional[ProteinChange]] = []
+
+        for variant in batch:
+            overlaps = self._consequence_annotator.overlap(
+                chrom=variant.chrom,
+                pos=variant.pos,
+                ref=variant.ref,
+                alt=variant.alt,
+            )
+            if not overlaps:
+                gene_names.append(None)
+                protein_changes.append(None)
+                continue
+
+            gene_names.append(overlaps[0].get("gene_name"))
+
+            # Find the first overlap with codon context (missense resolution)
+            protein_change: Optional[ProteinChange] = None
+            for overlap in overlaps:
+                ctx = overlap.get("codon_context")
+                if ctx is not None and not ctx.is_synonymous:
+                    # codon_index is 0-based; amino acid position is 1-based
+                    protein_change = ProteinChange(
+                        gene_name=ctx.gene_name,
+                        position=ctx.codon_index + 1,
+                        reference_aa=ctx.reference_aa,
+                        altered_aa=ctx.altered_aa,
+                    )
+                    break
+            protein_changes.append(protein_change)
+
+        return gene_names, protein_changes
 
     def _extract_gene_names(self, batch: list[Variant]) -> list[Optional[str]]:
         """Extract gene names for a batch of variants.

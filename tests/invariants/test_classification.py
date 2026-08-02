@@ -455,10 +455,13 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
                 expected_missing.add("SpliceAI")
 
     # PS1/PM5 missing source tracking for MISSENSE variants
-    # Without a protein_index or protein_change, missense variants report this as missing
+    # Without protein_change (no codon resolution), classifier reports it as missing
     if consequence == FunctionalConsequence.MISSENSE:
         protein_change = variant.annotated.protein_change
         if protein_change is None:
+            expected_missing.add("codon_resolution")
+        else:
+            # protein_change present but no protein_index → index is missing
             expected_missing.add("ClinVar_protein_index")
 
     assert classified.missing_data_sources == frozenset(expected_missing), (

@@ -100,7 +100,7 @@ def _classify_benign(benign_tags: frozenset[EvidenceTag]) -> ACMGClassification:
     Strength tiers for benign combining:
     - BA1: standalone (Benign by itself)
     - BS1, BS2: strong benign
-    - BP4_MODERATE: moderate benign (treated as strong for combining per ClinGen Bayesian framework)
+    - BP4_MODERATE: moderate benign
     - BP4, BP7: supporting benign
     """
     # BA1 standalone = Benign

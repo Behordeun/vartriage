@@ -245,10 +245,8 @@ class TestMissingDataSources:
                 gene_name="BRCA1", position=100, reference_aa="R", altered_aa="H"
             ),
         )
-        # Providing a protein_index=None still triggers missing, so the only
-        # way to have zero missing is to provide the index. But the test intent
-        # is that protein_change alone triggers the "source needed" path.
-        # Accept ClinVar_protein_index as expected missing for missense.
+        # Providing a protein_index=None still triggers missing for the index,
+        # but codon_resolution is satisfied since protein_change is populated.
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert results[0].missing_data_sources == frozenset({"ClinVar_protein_index"})

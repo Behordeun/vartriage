@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from vartriage._internal.interval_tree import SortedArrayIntervalIndex
+from vartriage.annotation.codon_resolver import CodonResolver
+from vartriage.annotation.transcript_index import TranscriptCDSIndex
 from vartriage.io.exceptions import ReferenceFileError
 from vartriage.models.variant import (CONSEQUENCE_SEVERITY_ORDER,
                                       FunctionalConsequence, Variant)
@@ -45,6 +47,15 @@ class ConsequenceAnnotator:
     def __init__(self, annotation_path: Path) -> None:
         self._index = SortedArrayIntervalIndex()
         self._index.load(annotation_path)
+
+    def set_codon_resolver(self, resolver: CodonResolver) -> None:
+        """Attach a CodonResolver for amino acid-level consequence calling."""
+        self._index.set_codon_resolver(resolver)
+
+    @property
+    def transcript_index(self) -> "TranscriptCDSIndex | None":
+        """Access the TranscriptCDSIndex built during GTF parsing."""
+        return self._index.transcript_index
 
     def load(self, annotation_path: Path) -> None:
         """Load gene annotation from a GTF/GFF file.

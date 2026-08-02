@@ -142,7 +142,12 @@ class ClinVarProteinIndex:
         """Total pathogenic missense variants in the index."""
         return sum(len(entry.variants) for entry in self._index.values())
 
-    def load(self, reference_path: Path) -> None:
+    def load(
+        self,
+        reference_path: Path,
+        strict: bool = False,
+        max_skipped_lines: int = 100,
+    ) -> None:
         """Load the ClinVar protein index from TSV.
 
         Parameters
@@ -150,11 +155,17 @@ class ClinVarProteinIndex:
         reference_path : Path
             Path to the protein index TSV with columns:
             gene, position, ref_aa, alt_aa, chrom, pos, ref, alt, significance
+        strict : bool
+            When True, any malformed line raises ReferenceFileError.
+        max_skipped_lines : int
+            Maximum number of malformed lines tolerated before raising
+            ReferenceFileError. Ignored when strict is True. Default 100.
 
         Raises
         ------
         ReferenceFileError
-            If the file cannot be read or parsed.
+            If the file cannot be read or parsed, or if malformed line
+            thresholds are exceeded.
         """
         reference_path = resolve_path(reference_path)
 
@@ -164,7 +175,7 @@ class ClinVarProteinIndex:
             )
 
         try:
-            self._parse_tsv(reference_path)
+            self._parse_tsv(reference_path, strict=strict, max_skipped=max_skipped_lines)
         except ReferenceFileError:
             raise
         except Exception as exc:
@@ -274,36 +285,60 @@ class ClinVarProteinIndex:
 
         return entry.has_different_aa_change(ref_aa, alt_aa)
 
-    def _parse_tsv(self, path: Path) -> None:
+    def _parse_tsv(
+        self, path: Path, strict: bool = False, max_skipped: int = 100
+    ) -> None:
         """Parse the protein index TSV into the lookup dictionary."""
+        skipped = 0
+
         with open(path, encoding="utf-8") as fh:
             for line_num, line in enumerate(fh, start=1):
                 stripped = line.strip()
                 if not stripped or stripped.startswith("#"):
                     continue
 
-                # Skip header
-                if line_num == 1 and stripped.lower().startswith("gene"):
+                # Skip header (works regardless of position after comment lines)
+                if stripped.lower().startswith("gene"):
                     continue
 
                 parts = stripped.split("\t")
                 if len(parts) < 8:
+                    skipped += 1
+                    if strict:
+                        raise ReferenceFileError(
+                            f"{path}:{line_num}: expected 8+ columns, got {len(parts)}"
+                        )
                     logger.warning(
                         "Skipping line %d: expected 8+ columns, got %d",
                         line_num,
                         len(parts),
                     )
+                    if skipped > max_skipped:
+                        raise ReferenceFileError(
+                            f"{path}: too many malformed lines ({skipped}), "
+                            f"exceeds threshold of {max_skipped}"
+                        )
                     continue
 
                 gene = parts[0]
                 try:
                     position = int(parts[1])
                 except ValueError:
+                    skipped += 1
+                    if strict:
+                        raise ReferenceFileError(
+                            f"{path}:{line_num}: non-integer position '{parts[1]}'"
+                        )
                     logger.warning(
                         "Skipping line %d: non-integer position '%s'",
                         line_num,
                         parts[1],
                     )
+                    if skipped > max_skipped:
+                        raise ReferenceFileError(
+                            f"{path}: too many malformed lines ({skipped}), "
+                            f"exceeds threshold of {max_skipped}"
+                        )
                     continue
 
                 ref_aa = parts[2]
@@ -313,11 +348,21 @@ class ClinVarProteinIndex:
                 try:
                     genomic_pos = int(parts[5])
                 except ValueError:
+                    skipped += 1
+                    if strict:
+                        raise ReferenceFileError(
+                            f"{path}:{line_num}: non-integer genomic position '{parts[5]}'"
+                        )
                     logger.warning(
                         "Skipping line %d: non-integer genomic position '%s'",
                         line_num,
                         parts[5],
                     )
+                    if skipped > max_skipped:
+                        raise ReferenceFileError(
+                            f"{path}: too many malformed lines ({skipped}), "
+                            f"exceeds threshold of {max_skipped}"
+                        )
                     continue
 
                 ref_allele = parts[6]
