@@ -190,7 +190,7 @@ def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
 
     if vs >= 1 and m >= 1:
         return True
-    if s >= 1 and 1 <= m <= 2:
+    if s >= 1 and m >= 1:
         return True
     if s >= 1 and sup >= 2:
         return True
