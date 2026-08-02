@@ -247,28 +247,56 @@ resolve_ref() {
     elif [ -f "$downloaded_path" ]; then
         echo "$downloaded_path"
     else
-        echo "ERROR: ${description} not found at:" >&2
-        echo "  local:      $local_path" >&2
-        echo "  downloaded: $downloaded_path" >&2
-        echo "  Run the download steps first or provide local files." >&2
-        exit 1
+        echo ""
     fi
 }
 
-GENCODE_REF=$(resolve_ref \
-    "data/references/gencode_${REGION}.gtf" \
-    "${OUTPUT_DIR}/refs/gencode_${REGION}.gtf" \
-    "GENCODE gene annotation")
+# Resolve GENCODE — download if not found in either location
+GENCODE_LOCAL="data/references/gencode_${REGION}.gtf"
+GENCODE_DOWNLOADED="${OUTPUT_DIR}/refs/gencode_${REGION}.gtf"
+GENCODE_REF=$(resolve_ref "$GENCODE_LOCAL" "$GENCODE_DOWNLOADED" "GENCODE")
+
+if [ -z "$GENCODE_REF" ]; then
+    echo "  Downloading GENCODE gene annotation for ${REGION}..."
+    GENCODE_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/gencode.v46.annotation.gtf.gz"
+    download_file "${GENCODE_URL}" "${OUTPUT_DIR}/refs/gencode.v46.annotation.gtf.gz"
+    gunzip -f "${OUTPUT_DIR}/refs/gencode.v46.annotation.gtf.gz"
+    grep "^${REGION}\b" "${OUTPUT_DIR}/refs/gencode.v46.annotation.gtf" > "$GENCODE_DOWNLOADED" || true
+    if [ ! -s "$GENCODE_DOWNLOADED" ]; then
+        REGION_BARE="${REGION#chr}"
+        grep "^${REGION_BARE}\b" "${OUTPUT_DIR}/refs/gencode.v46.annotation.gtf" > "$GENCODE_DOWNLOADED" || true
+    fi
+    if [ ! -s "$GENCODE_DOWNLOADED" ]; then
+        echo "ERROR: Failed to extract GENCODE annotation for ${REGION}"
+        exit 1
+    fi
+    GENCODE_REF="$GENCODE_DOWNLOADED"
+    echo "  GENCODE ${REGION} ready ($(wc -l < "$GENCODE_REF") lines)"
+fi
 
 GNOMAD_REF=$(resolve_ref \
     "data/references/gnomad.${REGION}.vcf.bgz" \
     "${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz" \
     "gnomAD ${REGION} VCF")
 
+if [ -z "$GNOMAD_REF" ]; then
+    echo "ERROR: gnomAD ${REGION} VCF not found at:"
+    echo "  local:      data/references/gnomad.${REGION}.vcf.bgz"
+    echo "  downloaded: ${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz"
+    exit 1
+fi
+
 CLINVAR_REF=$(resolve_ref \
     "data/references/clinvar.tsv" \
     "${OUTPUT_DIR}/refs/clinvar.tsv" \
     "ClinVar TSV")
+
+if [ -z "$CLINVAR_REF" ]; then
+    echo "ERROR: ClinVar TSV not found at:"
+    echo "  local:      data/references/clinvar.tsv"
+    echo "  downloaded: ${OUTPUT_DIR}/refs/clinvar.tsv"
+    exit 1
+fi
 
 # CADD and REVEL: check local paths, determine pipeline mode
 CADD_LOCAL="data/references/cadd_${REGION}_full.tsv"
