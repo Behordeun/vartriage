@@ -245,8 +245,15 @@ class AnnotationEngine:
                 protein_changes.append(None)
                 continue
 
-            gene_names.append(overlaps[0].get("gene_name"))
-            protein_changes.append(self._first_nonsynonymous_protein_change(overlaps))
+            protein_change = self._first_nonsynonymous_protein_change(overlaps)
+            if protein_change is not None:
+                # Use the gene from the same transcript that produced the
+                # protein change so gene_name and protein_change.gene_name
+                # are always consistent
+                gene_names.append(protein_change.gene_name)
+            else:
+                gene_names.append(overlaps[0].get("gene_name"))
+            protein_changes.append(protein_change)
 
         return gene_names, protein_changes
 

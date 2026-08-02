@@ -17,7 +17,7 @@ from vartriage._internal.cache import try_load_cache, try_write_cache
 from vartriage.io.exceptions import ReferenceFileError
 
 if TYPE_CHECKING:
-    from vartriage.annotation.codon_resolver import CodonResolver
+    from vartriage.annotation.codon_resolver import CodonContext, CodonResolver
     from vartriage.annotation.transcript_index import TranscriptCDSIndex
 
 logger = logging.getLogger(__name__)
@@ -425,7 +425,7 @@ def _snv_consequence(
     ref: str,
     alt: str,
     transcript_id: str,
-) -> tuple[str, object]:
+) -> tuple[str, Optional["CodonContext"]]:
     """Consequence for a coding SNV, using codon resolution when available.
 
     Returns a tuple of (consequence_string, CodonContext_or_None).
@@ -466,7 +466,7 @@ def _determine_consequence(
     chrom: str = "",
     pos: int = 0,
     transcript_id: str = "",
-) -> tuple[str, object]:
+) -> tuple[str, Optional["CodonContext"]]:
     """Determine functional consequence based on variant type and genomic context.
 
     When a CodonResolver is provided, SNVs in CDS regions get proper
@@ -495,7 +495,7 @@ def _determine_consequence(
 
     Returns
     -------
-    tuple[str, object]
+    tuple[str, Optional[CodonContext]]
         (FunctionalConsequence value string, CodonContext or None).
     """
     from vartriage.models.variant import FunctionalConsequence
