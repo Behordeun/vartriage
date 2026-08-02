@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from itertools import islice
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import AnnotationConfig
@@ -246,62 +246,33 @@ class AnnotationEngine:
                 continue
 
             gene_names.append(overlaps[0].get("gene_name"))
-
-            # Find the first overlap with codon context (missense resolution)
-            protein_change: Optional[ProteinChange] = None
-            for overlap in overlaps:
-                ctx = overlap.get("codon_context")
-                if ctx is not None and not ctx.is_synonymous:
-                    # codon_index is 0-based; amino acid position is 1-based
-                    protein_change = ProteinChange(
-                        gene_name=ctx.gene_name,
-                        position=ctx.codon_index + 1,
-                        reference_aa=ctx.reference_aa,
-                        altered_aa=ctx.altered_aa,
-                    )
-                    break
-            protein_changes.append(protein_change)
+            protein_changes.append(self._first_nonsynonymous_protein_change(overlaps))
 
         return gene_names, protein_changes
+
+    @staticmethod
+    def _first_nonsynonymous_protein_change(
+        overlaps: list[dict[str, Any]],
+    ) -> Optional[ProteinChange]:
+        """Extract ProteinChange from the first non-synonymous codon context."""
+        for overlap in overlaps:
+            ctx = overlap.get("codon_context")
+            if ctx is None or ctx.is_synonymous:
+                continue
+            return ProteinChange(
+                gene_name=ctx.gene_name,
+                position=ctx.codon_index + 1,
+                reference_aa=ctx.reference_aa,
+                altered_aa=ctx.altered_aa,
+            )
+        return None
 
     def _extract_gene_names(self, batch: list[Variant]) -> list[Optional[str]]:
         """Extract gene names for a batch of variants.
 
-        Uses the consequence annotator's overlap() method per variant
-        to find the gene symbol from the first overlapping region.
-        Returns None for intergenic variants with no overlap.
-
-        Parameters
-        ----------
-        batch : list[Variant]
-            Variants to look up gene names for.
-
-        Returns
-        -------
-        list[Optional[str]]
-            Gene names positionally matched to the batch. None when
-            no overlap is found (intergenic variants).
+        Delegates to _extract_gene_and_protein for consistency.
         """
-        # If the annotator exposes a batch gene lookup, use it
-        if hasattr(self._consequence_annotator, "gene_names_batch"):
-            result: list[Optional[str]] = self._consequence_annotator.gene_names_batch(
-                batch
-            )
-            return result
-
-        # Fallback: per-variant overlap queries
-        gene_names: list[Optional[str]] = []
-        for variant in batch:
-            overlaps = self._consequence_annotator.overlap(
-                chrom=variant.chrom,
-                pos=variant.pos,
-                ref=variant.ref,
-                alt=variant.alt,
-            )
-            if overlaps:
-                gene_names.append(overlaps[0].get("gene_name"))
-            else:
-                gene_names.append(None)
+        gene_names, _ = self._extract_gene_and_protein(batch)
         return gene_names
 
     def _validate_paths(self, config: AnnotationConfig) -> None:

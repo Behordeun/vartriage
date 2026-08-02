@@ -107,11 +107,10 @@ def _classify_benign(benign_tags: frozenset[EvidenceTag]) -> ACMGClassification:
     if EvidenceTag.BA1 in benign_tags:
         return ACMGClassification.BENIGN
 
-    # Count strong-tier benign evidence (includes moderate-strength BP4 per ClinGen)
+    # Count by benign strength tier
     bs_count = sum(
         1 for t in benign_tags if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
     )
-    # BP4_MODERATE contributes to benign combining at the moderate/strong boundary
     bm_count = sum(
         1 for t in benign_tags if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.MODERATE
     )
