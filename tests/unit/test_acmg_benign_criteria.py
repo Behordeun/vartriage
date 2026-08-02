@@ -119,7 +119,19 @@ class TestBP4:
             revel_score=0.10,
         )
         tags = _classify(sv)
+        # REVEL 0.10 < 0.183 triggers BP4_Moderate (ClinGen-calibrated)
+        assert EvidenceTag.BP4_MODERATE in tags
+
+    def test_fires_bp4_supporting_for_missense_between_thresholds(self) -> None:
+        # REVEL 0.25 is below 0.290 (supporting) but above 0.183 (moderate)
+        sv = _make_variant(
+            consequence=FunctionalConsequence.MISSENSE,
+            allele_frequency=0.005,
+            revel_score=0.25,
+        )
+        tags = _classify(sv)
         assert EvidenceTag.BP4 in tags
+        assert EvidenceTag.BP4_MODERATE not in tags
 
     def test_does_not_fire_for_missense_with_high_revel(self) -> None:
         sv = _make_variant(

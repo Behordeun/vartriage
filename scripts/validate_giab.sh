@@ -236,11 +236,13 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 # Shared options for both pipeline invocations
 COMMON_OPTS=(
     --vcf "${OUTPUT_DIR}/data/giab_${REGION}.vcf.gz"
-    --gnomad "${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz"
-    --clinvar "${OUTPUT_DIR}/refs/clinvar.tsv"
+    --gene-annotation "data/references/gencode_chr22.gtf"
+    --gnomad "data/references/gnomad.chr22.vcf.bgz"
+    --clinvar "data/references/clinvar.tsv"
+    --cadd-scores "data/references/cadd_chr22_full.tsv"
+    --revel-scores "data/references/revel_chr22_clean.tsv"
     --regions "${OUTPUT_DIR}/data/giab_highconf.bed"
     --secondary-findings
-    --use-bundles
 )
 
 # JSON output with full annotation stack
@@ -306,7 +308,7 @@ if len(results) == 0:
 # Classification distribution (defensive: use .get with defaults)
 classifications: dict[str, int] = {}
 for v in results:
-    cls = v.get("classification", "Unknown")
+    cls = v.get("acmg_classification", "Unknown")
     classifications[cls] = classifications.get(cls, 0) + 1
 
 # Evidence tag frequency
@@ -318,7 +320,7 @@ for v in results:
 # Consequence distribution
 consequences: dict[str, int] = {}
 for v in results:
-    cons = v.get("consequence", "Unknown")
+    cons = v.get("functional_consequence", "Unknown")
     consequences[cons] = consequences.get(cons, 0) + 1
 
 # Missing data summary
@@ -336,14 +338,14 @@ clinvar_actionable = [
 # Variants classified as Pathogenic/LP by pipeline
 pipeline_actionable = [
     v for v in results
-    if v.get("classification") in ("Pathogenic", "Likely_Pathogenic")
+    if v.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
 ]
 
 # Concordance: variants where pipeline classification matches ClinVar
 concordant = [
     v for v in results
     if v.get("clinvar_assertion") in ("Pathogenic", "Likely_Pathogenic", "Likely pathogenic")
-    and v.get("classification") in ("Pathogenic", "Likely_Pathogenic")
+    and v.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
 ]
 
 report = {
@@ -369,8 +371,8 @@ report = {
         {
             "gene": v.get("gene_name"),
             "position": f"{v.get('chromosome', '?')}:{v.get('position', '?')}",
-            "consequence": v.get("consequence"),
-            "classification": v.get("classification"),
+            "consequence": v.get("functional_consequence"),
+            "classification": v.get("acmg_classification"),
             "clinvar": v.get("clinvar_assertion"),
             "score": v.get("prioritization_score"),
         }
@@ -390,9 +392,11 @@ print(f"\n{'='*50}")
 print(f" VALIDATION RESULTS ({region})")
 print(f"{'='*50}")
 print(f" Total variants processed:    {len(results)}")
-print(f" Pathogenic:                   {classifications.get('Pathogenic', 0)}")
-print(f" Likely Pathogenic:            {classifications.get('Likely_Pathogenic', 0)}")
+print(f" Benign:                       {classifications.get('Benign', 0)}")
+print(f" Likely Benign:                {classifications.get('Likely_Benign', 0)}")
 print(f" VUS:                          {classifications.get('VUS', 0)}")
+print(f" Likely Pathogenic:            {classifications.get('Likely_Pathogenic', 0)}")
+print(f" Pathogenic:                   {classifications.get('Pathogenic', 0)}")
 print(f"")
 print(f" ClinVar actionable (P/LP):    {len(clinvar_actionable)}")
 print(f" Pipeline actionable (P/LP):   {len(pipeline_actionable)}")

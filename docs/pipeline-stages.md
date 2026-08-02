@@ -288,27 +288,31 @@ Pathogenic criteria:
 | Tag | Strength | Condition |
 | ----- | ---------- | ----------- |
 | PVS1 | Very Strong | Consequence is Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
+| PS1 | Strong | Same amino acid change as established ClinVar Pathogenic, via different nucleotide (requires protein index + codon resolution) |
 | PM2 | Moderate | All population AFs < 0.0001 (population-specific when available) |
-| PP3 | Supporting | REVEL score > 0.7, or SpliceAI > 0.5 on splice-adjacent variant |
+| PM5 | Moderate | Novel missense at an amino acid position with known pathogenic missense in ClinVar (requires protein index) |
+| PP3 | Supporting | REVEL > 0.644, or SpliceAI > 0.5 on a splice-adjacent variant |
+| PP3 | Moderate | REVEL > 0.773 (ClinGen-calibrated, Pejaver et al. 2022) |
 | PP5 | Supporting | ClinVar Pathogenic, no conflicting Benign/Likely_Benign |
 
-Benign criteria (v0.9.0+):
+Benign criteria:
 
 | Tag | Strength | Condition |
 | ----- | ---------- | ----------- |
 | BA1 | Standalone | Any population AF > 5% |
 | BS1 | Strong | Any population AF > 1% (only when BA1 not already assigned) |
-| BP4 | Supporting | Missense with REVEL < 0.15, or non-missense with CADD Phred < 10 |
+| BP4 | Supporting | Missense with REVEL < 0.290, or non-missense with CADD Phred < 10 |
+| BP4 | Moderate | Missense with REVEL < 0.183 (ClinGen-calibrated, Pejaver et al. 2022) |
 | BP7 | Supporting | Synonymous with SpliceAI < 0.1 |
 
 **Combining rules:**
 
 Tags combine into a final classification across all five ACMG tiers:
 
-- **Pathogenic:** 1 Very Strong + 1 Moderate, or 1 Very Strong + 2 Supporting
-- **Likely_Pathogenic:** 1 Very Strong + 1 Supporting, or 1 Moderate + 2 Supporting
+- **Pathogenic:** 1 Very Strong + 1 Strong, or 2 Strong + 1 Supporting, or 1 Very Strong + 2 Supporting
+- **Likely_Pathogenic:** 1 Very Strong + 1 Moderate, or 1 Strong + 1-2 Moderate, or 1 Strong + 2 Supporting
 - **VUS:** Insufficient evidence for either direction, or conflicting pathogenic + benign evidence
-- **Likely_Benign:** 1 Strong benign + 1 Supporting benign
+- **Likely_Benign:** 1 Strong benign + 1 Supporting benign, or 1 Strong benign + 1 Moderate benign, or 2 Moderate benign, or 1 Moderate benign + 2 Supporting benign
 - **Benign:** BA1 alone (standalone), or 2 Strong benign
 
 When a required data source is unavailable for a criterion, that tag is omitted and the source name is recorded in `missing_data_sources`.

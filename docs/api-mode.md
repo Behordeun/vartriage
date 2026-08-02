@@ -36,9 +36,56 @@ vartriage --vcf panel.vcf --output results.json --mode hybrid --gnomad local_gno
 | Service | Data | Rate Limit |
 | --------- | ------ | ------------ |
 | Ensembl VEP | Consequence, gene name, gnomAD frequency, CADD (plugin) | 15 req/sec, 55K/day |
+| gnomAD GraphQL | Per-population allele frequencies (7 ancestry groups) | ~10 req/sec |
 | ClinVar E-utilities | Clinical significance, review status | 10 req/sec (with API key) |
 | CADD API | Phred score (fallback when VEP plugin has no data) | 2 req/sec |
 | SpliceAI Lookup | Delta scores for splice-relevant variants | 5 req/min |
+
+## gnomAD API Client (v0.14.0+)
+
+Queries the gnomAD GraphQL endpoint directly for per-population allele frequencies. More reliable than VEP's colocated_variants field, which doesn't always return frequency data.
+
+```python
+from pathlib import Path
+from vartriage.api.gnomad_client import GnomADClient
+from vartriage.api._cache import ResponseCache
+from vartriage.api._circuit_breaker import CircuitBreaker
+from vartriage.api._rate_limiter import RateLimiter
+
+client = GnomADClient(
+    rate_limiter=RateLimiter(tokens_per_second=5.0),
+    cache=ResponseCache(db_path=Path("~/.vartriage/api_cache.db")),
+    circuit_breaker=CircuitBreaker(),
+    dataset="gnomad_r4",
+    prefer_source="combined",  # picks exome or genome based on sample size
+)
+
+# Returns PopulationFrequencies with global_af, afr, amr, asj, eas, fin, nfe, sas
+freq = client.lookup_frequency("chr17", 43091429, "T", "G")
+if freq:
+    print(f"Global AF: {freq.global_af}")
+    print(f"NFE AF: {freq.nfe}")
+```
+
+### Dataset versions
+
+| Dataset ID | Description |
+| ------------ | ------------- |
+| `gnomad_r4` | gnomAD v4 (807K individuals, default) |
+| `gnomad_r3` | gnomAD v3.1.2 (genomes only) |
+| `gnomad_r2_1` | gnomAD v2.1.1 (legacy, exomes + genomes) |
+
+### Source preference
+
+The `prefer_source` parameter controls which gnomAD data source is used when both exome and genome data exist for a variant:
+
+- `"combined"` (default): picks whichever source has more alleles (higher AN)
+- `"exome"`: prefer exome data (larger sample size for coding variants)
+- `"genome"`: prefer genome data (better for non-coding variants)
+
+### Rate limits and caching
+
+gnomAD's public API doesn't officially document rate limits but empirically handles ~10 requests/second without throttling. The client caches all responses in the same SQLite database as other API clients. For 1,000 variants, expect ~2 minutes on first run and < 1 second on cached re-runs.
 
 ## REVEL Limitation
 

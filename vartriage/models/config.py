@@ -87,9 +87,12 @@ class PrioritizationConfig:
     Parameters
     ----------
     max_allele_frequency : float
-        Maximum allele frequency threshold. Variants with a population
-        frequency strictly above this value are excluded (unless they carry
-        the ``frequency_unknown`` flag). Must be in the range [0.0, 1.0].
+        .. deprecated:: 0.14.0
+            The prioritization engine no longer applies a frequency gate.
+            All variants now pass through to ACMG classification where BA1/BS1
+            benign evidence tags handle frequency-based filtering. This field
+            is retained for backward compatibility and will be removed in v1.0.0.
+        Maximum allele frequency threshold. Must be in the range [0.0, 1.0].
         Default is 0.01.
     cadd_scores_path : Optional[Path]
         Path to a CADD Phred score reference file. When None, CADD scores are

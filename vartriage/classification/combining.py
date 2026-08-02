@@ -32,6 +32,7 @@ _BENIGN_TAGS: frozenset[EvidenceTag] = frozenset(
         EvidenceTag.BS1,
         EvidenceTag.BS2,
         EvidenceTag.BP4,
+        EvidenceTag.BP4_MODERATE,
         EvidenceTag.BP7,
     }
 )
@@ -94,13 +95,24 @@ def has_conflicting_evidence(tags: frozenset[EvidenceTag]) -> bool:
 
 
 def _classify_benign(benign_tags: frozenset[EvidenceTag]) -> ACMGClassification:
-    """Apply benign combining rules."""
+    """Apply benign combining rules.
+
+    Strength tiers for benign combining:
+    - BA1: standalone (Benign by itself)
+    - BS1, BS2: strong benign
+    - BP4_MODERATE: moderate benign
+    - BP4, BP7: supporting benign
+    """
     # BA1 standalone = Benign
     if EvidenceTag.BA1 in benign_tags:
         return ACMGClassification.BENIGN
 
+    # Count by benign strength tier
     bs_count = sum(
         1 for t in benign_tags if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
+    )
+    bm_count = sum(
+        1 for t in benign_tags if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.MODERATE
     )
     bp_count = sum(
         1
@@ -114,6 +126,18 @@ def _classify_benign(benign_tags: frozenset[EvidenceTag]) -> ACMGClassification:
 
     # 1 BS + 1 BP = Likely Benign
     if bs_count >= 1 and bp_count >= 1:
+        return ACMGClassification.LIKELY_BENIGN
+
+    # 1 BS + 1 BM (moderate benign) = Likely Benign
+    if bs_count >= 1 and bm_count >= 1:
+        return ACMGClassification.LIKELY_BENIGN
+
+    # 1 BM + 2 BP = Likely Benign (moderate + two supporting)
+    if bm_count >= 1 and bp_count >= 2:
+        return ACMGClassification.LIKELY_BENIGN
+
+    # 2 BM = Likely Benign (two moderate benign pieces)
+    if bm_count >= 2:
         return ACMGClassification.LIKELY_BENIGN
 
     # 2 BP alone = not sufficient for classification change
@@ -166,7 +190,7 @@ def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
 
     if vs >= 1 and m >= 1:
         return True
-    if s >= 1 and 1 <= m <= 2:
+    if s >= 1 and m >= 1:
         return True
     if s >= 1 and sup >= 2:
         return True

@@ -64,14 +64,14 @@ class TestPrioritizationEngineDefaults:
 
 
 class TestPrioritize:
-    """prioritize() filters by frequency then scores remaining variants."""
+    """prioritize() scores all variants regardless of frequency."""
 
     def test_empty_stream_yields_nothing(self) -> None:
         engine = PrioritizationEngine()
         results = list(engine.prioritize(iter([])))
         assert results == []
 
-    def test_excludes_high_frequency_variants(self) -> None:
+    def test_retains_high_frequency_variants_for_classification(self) -> None:
         config = PrioritizationConfig(max_allele_frequency=0.01)
         engine = PrioritizationEngine(config)
 
@@ -81,7 +81,7 @@ class TestPrioritize:
         results = list(engine.prioritize(iter([rare, common])))
         positions = [sv.annotated.variant.pos for sv in results]
         assert 1 in positions
-        assert 2 not in positions
+        assert 2 in positions
 
     def test_retains_frequency_unknown_variants(self) -> None:
         config = PrioritizationConfig(max_allele_frequency=0.01)

@@ -17,7 +17,7 @@ from vartriage._internal.cache import try_load_cache, try_write_cache
 from vartriage.io.exceptions import ReferenceFileError
 
 if TYPE_CHECKING:
-    from vartriage.annotation.codon_resolver import CodonResolver
+    from vartriage.annotation.codon_resolver import CodonContext, CodonResolver
     from vartriage.annotation.transcript_index import TranscriptCDSIndex
 
 logger = logging.getLogger(__name__)
@@ -357,7 +357,7 @@ class SortedArrayIntervalIndex:
         results: list[dict[str, Any]] = []
         for interval in hits:
             is_splice = self._is_splice_site(chrom, var_start, var_end)
-            consequence = _determine_consequence(
+            consequence, codon_context = _determine_consequence(
                 ref=ref,
                 alt=alt,
                 feature_type=interval.feature_type,
@@ -374,6 +374,7 @@ class SortedArrayIntervalIndex:
                     "transcript_id": interval.transcript_id,
                     "consequence": consequence,
                     "is_splice_site": is_splice,
+                    "codon_context": codon_context,
                 }
             )
 
@@ -424,19 +425,22 @@ def _snv_consequence(
     ref: str,
     alt: str,
     transcript_id: str,
-) -> str:
-    """Consequence for a coding SNV, using codon resolution when available."""
+) -> tuple[str, Optional["CodonContext"]]:
+    """Consequence for a coding SNV, using codon resolution when available.
+
+    Returns a tuple of (consequence_string, CodonContext_or_None).
+    """
     from vartriage.models.variant import FunctionalConsequence
 
     if codon_resolver is not None and chrom and pos > 0:
         context = codon_resolver.resolve(chrom, pos, ref, alt, transcript_id or None)  # type: ignore[attr-defined]
         if context is not None:
             if context.is_nonsense:
-                return FunctionalConsequence.NONSENSE.value
+                return FunctionalConsequence.NONSENSE.value, context
             if context.is_synonymous:
-                return FunctionalConsequence.SYNONYMOUS.value
-            return FunctionalConsequence.MISSENSE.value
-    return FunctionalConsequence.MISSENSE.value
+                return FunctionalConsequence.SYNONYMOUS.value, context
+            return FunctionalConsequence.MISSENSE.value, context
+    return FunctionalConsequence.MISSENSE.value, None
 
 
 def _indel_consequence(ref: str, alt: str) -> str:
@@ -462,7 +466,7 @@ def _determine_consequence(
     chrom: str = "",
     pos: int = 0,
     transcript_id: str = "",
-) -> str:
+) -> tuple[str, Optional["CodonContext"]]:
     """Determine functional consequence based on variant type and genomic context.
 
     When a CodonResolver is provided, SNVs in CDS regions get proper
@@ -491,23 +495,23 @@ def _determine_consequence(
 
     Returns
     -------
-    str
-        The FunctionalConsequence value string.
+    tuple[str, Optional[CodonContext]]
+        (FunctionalConsequence value string, CodonContext or None).
     """
     from vartriage.models.variant import FunctionalConsequence
 
     if is_splice_site:
-        return FunctionalConsequence.SPLICE_SITE.value
+        return FunctionalConsequence.SPLICE_SITE.value, None
 
     if feature_type != "CDS":
         if feature_type in ("exon", "transcript", "gene"):
-            return FunctionalConsequence.SYNONYMOUS.value
-        return FunctionalConsequence.INTERGENIC.value
+            return FunctionalConsequence.SYNONYMOUS.value, None
+        return FunctionalConsequence.INTERGENIC.value, None
 
     if len(ref) == 1 and len(alt) == 1:
         return _snv_consequence(codon_resolver, chrom, pos, ref, alt, transcript_id)
 
-    return _indel_consequence(ref, alt)
+    return _indel_consequence(ref, alt), None
 
 
 def _parse_attributes(attr_string: str) -> dict[str, str]:

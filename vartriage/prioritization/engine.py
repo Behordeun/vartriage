@@ -14,7 +14,6 @@ from typing import Iterator
 
 from vartriage.models.config import PrioritizationConfig
 from vartriage.models.variant import AnnotatedVariant, ScoredVariant
-from vartriage.prioritization.frequency_filter import FrequencyFilter
 from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
 from vartriage.prioritization.scoring import score_variants
 
@@ -24,16 +23,14 @@ _MAX_CHUNK_SIZE: int = 500_000
 
 
 class PrioritizationEngine:
-    """Filter and rank variants by frequency and pathogenicity scores.
+    """Score and rank variants by pathogenicity.
 
-    Processes an iterator of annotated variants through two stages:
+    Processes an iterator of annotated variants through pathogenicity scoring:
+    normalizes CADD/REVEL scores, computes a composite rank, and sorts each
+    batch in descending order by composite rank (nulls last).
 
-    1. **Frequency filtering**: excludes variants with allele frequency
-       above the configured maximum threshold (retaining frequency-unknown
-       variants).
-    2. **Pathogenicity scoring**: normalizes CADD/REVEL scores, computes
-       a composite rank, and sorts each batch in descending order by
-       composite rank (nulls last).
+    Frequency-based exclusion is handled downstream by the ACMG classifier
+    via BA1/BS1 benign evidence tags, not by this engine.
 
     Variants are processed in configurable batches to bound memory usage.
     On MemoryError, the engine retries with a reduced chunk size (capped at
@@ -42,15 +39,13 @@ class PrioritizationEngine:
     Parameters
     ----------
     config : PrioritizationConfig, optional
-        Configuration containing ``max_allele_frequency``, ``batch_size``,
-        and optional score file paths. When None, defaults are used
-        (max_af=0.01, batch_size=10,000).
+        Configuration containing ``batch_size`` and optional score file
+        paths. When None, defaults are used (batch_size=10,000).
 
     Raises
     ------
     ValueError
-        If ``config.max_allele_frequency`` is outside [0.0, 1.0] or
-        ``config.batch_size`` is outside [1,000, 100,000]. Enforced at
+        If ``config.batch_size`` is outside [1,000, 100,000]. Enforced at
         config construction time via ``PrioritizationConfig.__post_init__``.
     """
 
@@ -59,7 +54,6 @@ class PrioritizationEngine:
             config = PrioritizationConfig()
         self._config = config
         self._batch_size = config.batch_size
-        self._frequency_filter = FrequencyFilter(config)
         self._score_loader = ScoreLoader()
         self._cadd_scores: dict[CoordinateKey, float] = {}
         self._revel_scores: dict[CoordinateKey, float] = {}
@@ -77,7 +71,11 @@ class PrioritizationEngine:
     def prioritize(
         self, variants: Iterator[AnnotatedVariant]
     ) -> Iterator[ScoredVariant]:
-        """Filter by allele frequency and score remaining variants.
+        """Score variants for pathogenicity ranking.
+
+        All variants pass through scoring regardless of allele frequency.
+        Frequency-based evidence (BA1/BS1) is applied downstream by the
+        ACMG classifier, not by this method.
 
         Parameters
         ----------
@@ -87,12 +85,11 @@ class PrioritizationEngine:
         Yields
         ------
         ScoredVariant
-            Variants that pass frequency filtering, scored and sorted in
-            descending order by composite pathogenicity rank within each
-            batch. Variants with null composite rank appear last.
+            Scored variants sorted in descending order by composite
+            pathogenicity rank within each batch. Variants with null
+            composite rank appear last.
         """
-        filtered = self._frequency_filter.apply(variants)
-        yield from self._process_in_batches(filtered)
+        yield from self._process_in_batches(variants)
 
     def _process_in_batches(
         self, variants: Iterator[AnnotatedVariant]
