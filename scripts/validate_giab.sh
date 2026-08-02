@@ -233,16 +233,97 @@ fi
 echo "[6/7] Running vartriage on ${REGION}..."
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
+# --- Resolve reference file paths ---
+# Checks local data/references/ first (developer machine), falls back to
+# downloaded files in ${OUTPUT_DIR}/refs/ (CI environment).
+
+resolve_ref() {
+    local local_path="$1"
+    local downloaded_path="$2"
+    local description="$3"
+
+    if [ -f "$local_path" ]; then
+        echo "$local_path"
+    elif [ -f "$downloaded_path" ]; then
+        echo "$downloaded_path"
+    else
+        echo "ERROR: ${description} not found at:" >&2
+        echo "  local:      $local_path" >&2
+        echo "  downloaded: $downloaded_path" >&2
+        echo "  Run the download steps first or provide local files." >&2
+        exit 1
+    fi
+}
+
+GENCODE_REF=$(resolve_ref \
+    "data/references/gencode_${REGION}.gtf" \
+    "${OUTPUT_DIR}/refs/gencode_${REGION}.gtf" \
+    "GENCODE gene annotation")
+
+GNOMAD_REF=$(resolve_ref \
+    "data/references/gnomad.${REGION}.vcf.bgz" \
+    "${OUTPUT_DIR}/refs/gnomad.${REGION}.vcf.bgz" \
+    "gnomAD ${REGION} VCF")
+
+CLINVAR_REF=$(resolve_ref \
+    "data/references/clinvar.tsv" \
+    "${OUTPUT_DIR}/refs/clinvar.tsv" \
+    "ClinVar TSV")
+
+# CADD and REVEL: check local paths, determine pipeline mode
+CADD_LOCAL="data/references/cadd_${REGION}_full.tsv"
+CADD_DOWNLOADED="${OUTPUT_DIR}/refs/cadd_${REGION}.tsv"
+REVEL_LOCAL="data/references/revel_${REGION}_clean.tsv"
+REVEL_DOWNLOADED="${OUTPUT_DIR}/refs/revel_${REGION}.tsv"
+
+SCORE_OPTS=()
+PIPELINE_MODE="local"
+
+if [ -f "$CADD_LOCAL" ]; then
+    SCORE_OPTS+=(--cadd-scores "$CADD_LOCAL")
+elif [ -f "$CADD_DOWNLOADED" ]; then
+    SCORE_OPTS+=(--cadd-scores "$CADD_DOWNLOADED")
+else
+    PIPELINE_MODE="hybrid"
+fi
+
+if [ -f "$REVEL_LOCAL" ]; then
+    SCORE_OPTS+=(--revel-scores "$REVEL_LOCAL")
+elif [ -f "$REVEL_DOWNLOADED" ]; then
+    SCORE_OPTS+=(--revel-scores "$REVEL_DOWNLOADED")
+else
+    PIPELINE_MODE="hybrid"
+fi
+
+if [ "$PIPELINE_MODE" = "hybrid" ]; then
+    echo "  CADD/REVEL score files not found locally."
+    echo "  Using hybrid mode: VEP API will provide CADD scores for scoring."
+    SCORE_OPTS+=(--mode hybrid)
+fi
+
+# Download GENCODE if neither local nor previously downloaded
+if [ ! -f "$GENCODE_REF" ]; then
+    echo "  Downloading GENCODE gene annotation for ${REGION}..."
+    GENCODE_URL="https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/gencode.v46.annotation.gtf.gz"
+    download_file "${GENCODE_URL}" "${OUTPUT_DIR}/refs/gencode.v46.annotation.gtf.gz"
+    gunzip -f "${OUTPUT_DIR}/refs/gencode.v46.annotation.gtf.gz"
+    grep "^${REGION}\b" "${OUTPUT_DIR}/refs/gencode.v46.annotation.gtf" > "${OUTPUT_DIR}/refs/gencode_${REGION}.gtf" || true
+    if [ ! -s "${OUTPUT_DIR}/refs/gencode_${REGION}.gtf" ]; then
+        REGION_BARE="${REGION#chr}"
+        grep "^${REGION_BARE}\b" "${OUTPUT_DIR}/refs/gencode.v46.annotation.gtf" > "${OUTPUT_DIR}/refs/gencode_${REGION}.gtf" || true
+    fi
+    GENCODE_REF="${OUTPUT_DIR}/refs/gencode_${REGION}.gtf"
+    echo "  GENCODE ${REGION} ready ($(wc -l < "$GENCODE_REF") lines)"
+fi
+
 # Shared options for both pipeline invocations
 COMMON_OPTS=(
     --vcf "${OUTPUT_DIR}/data/giab_${REGION}.vcf.gz"
-    --gene-annotation "data/references/gencode_chr22.gtf"
-    --gnomad "data/references/gnomad.chr22.vcf.bgz"
-    --clinvar "data/references/clinvar.tsv"
-    --cadd-scores "data/references/cadd_chr22_full.tsv"
-    --revel-scores "data/references/revel_chr22_clean.tsv"
+    --gene-annotation "$GENCODE_REF"
+    --gnomad "$GNOMAD_REF"
+    --clinvar "$CLINVAR_REF"
+    "${SCORE_OPTS[@]}"
     --regions "${OUTPUT_DIR}/data/giab_highconf.bed"
-    --secondary-findings
 )
 
 # JSON output with full annotation stack
