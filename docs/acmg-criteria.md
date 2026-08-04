@@ -176,6 +176,8 @@ Note: having more moderate evidence than the minimum (e.g., 1S + 3M) still quali
 | 1 BA (Standalone) | BA1 alone |
 | 2 Strong benign | BS1 + BS2 |
 
+Note: BS2 (observed in a healthy adult with full penetrance for a recessive condition) exists as a tag in the combining rules but has no evaluator implemented yet. It requires gnomAD homozygote count data that is not currently parsed. The 2-Strong-benign rule activates only if BS2 is manually assigned or added in a future release.
+
 ### Likely Benign
 
 | Rule | Example |

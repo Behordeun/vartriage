@@ -148,5 +148,6 @@ def __getattr__(name: str) -> object:
     if name == "GnomADClient":
         from vartriage.api.gnomad_client import GnomADClient
 
+        globals()["GnomADClient"] = GnomADClient
         return GnomADClient
     raise AttributeError(f"module 'vartriage' has no attribute {name!r}")
