@@ -566,7 +566,7 @@ def test_combining_rules_match_specification(
         (vs >= 1 and s >= 1) or (s >= 2 and sup >= 1) or (vs >= 1 and sup >= 2)
     )
     is_likely_pathogenic = (
-        (vs >= 1 and m >= 1) or (s >= 1 and 1 <= m <= 2) or (s >= 1 and sup >= 2)
+        (vs >= 1 and m >= 1) or (s >= 1 and m >= 1) or (s >= 1 and sup >= 2)
     )
 
     if not tags:

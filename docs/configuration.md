@@ -209,6 +209,8 @@ Top-level configuration aggregating all sub-configs.
 | `use_bundles` | `bool` | `False` | Auto-resolve reference paths from bundles |
 | `genome_build` | `str` | `"grch38"` | Build for bundle resolution |
 | `api` | `Optional[object]` | `None` | APIConfig for API/hybrid mode |
+| `knowledge` | `Optional[KnowledgeBaseConfig]` | `None` | Gene-disease linkage knowledge base config |
+| `sv_vcf_path` | `Optional[Path]` | `None` | Structural variant VCF for integrated SV triage |
 
 ## RegionFilterConfig
 
@@ -275,6 +277,89 @@ config = CohortConfig(
 ```
 
 Raises `ValueError` if fewer than 2 samples, min_recurrence < 1, max_af_threshold outside [0.0, 1.0], or max_workers < 1.
+
+## KnowledgeBaseConfig
+
+Gene-disease linkage knowledge base configuration. Enables OMIM disease associations, ClinGen validity, HPO phenotype matching, gnomAD constraint, and actionability annotations.
+
+| Field | Type | Default | Notes |
+| ------- | ------ | --------- | ------- |
+| `data_dir` | `Path \| None` | `None` | Directory with knowledge TSV files. None uses bundled data. |
+| `hpo_terms` | `frozenset[str]` | `frozenset()` | Patient HPO terms for phenotype boosting (HP:NNNNNNN format) |
+| `inheritance_mode` | `str \| None` | `None` | Filter to genes matching mode: AD, AR, XL, XLD, XLR, MT |
+| `flag_actionable` | `bool` | `False` | Filter to ClinGen medically actionable genes |
+
+```python
+from vartriage.knowledge.config import KnowledgeBaseConfig
+
+# Phenotype-driven prioritization for epilepsy patient
+config = KnowledgeBaseConfig(
+    hpo_terms=frozenset({"HP:0001250", "HP:0001249", "HP:0002069"}),
+    inheritance_mode="AD",
+)
+
+# Custom knowledge directory
+config = KnowledgeBaseConfig(
+    data_dir=Path("/data/custom_knowledge/"),
+    flag_actionable=True,
+)
+```
+
+Raises `ValueError` if HPO terms don't match `HP:NNNNNNN` format or inheritance_mode is unrecognized.
+
+## ClinVarProteinIndex (PS1/PM5)
+
+The `ClinVarProteinIndex` is passed directly to `ACMGClassifier` for PS1 and PM5 evidence evaluation. It loads a pre-processed TSV of ClinVar pathogenic missense variants keyed by gene and amino acid position.
+
+```python
+from pathlib import Path
+from vartriage.annotation.clinvar_protein_index import ClinVarProteinIndex
+from vartriage.classification.acmg import ACMGClassifier
+
+# Load the protein index
+protein_index = ClinVarProteinIndex()
+protein_index.load(Path("clinvar_protein_index.tsv"))
+
+# Pass to the classifier
+classifier = ACMGClassifier(protein_index=protein_index)
+```
+
+The TSV columns: `gene`, `position`, `ref_aa`, `alt_aa`, `chrom`, `pos`, `ref`, `alt`, `significance`. Generated using `scripts/prepare_clinvar_protein_index.py` from the ClinVar VCF.
+
+Without a protein index, PS1 and PM5 are omitted (recorded as missing data sources). Behavior is identical to v0.13.0.
+
+## GnomADClient (gnomAD API)
+
+The gnomAD GraphQL API client queries gnomAD v4 for per-population allele frequencies. Used as a fallback when local gnomAD files are unavailable or in API mode.
+
+| Parameter | Type | Default | Notes |
+| --------- | ---- | ------- | ----- |
+| `dataset` | `str` | `"gnomad_r4"` | Dataset version: `gnomad_r4`, `gnomad_r3`, `gnomad_r2_1` |
+| `prefer_source` | `str` | `"combined"` | Data source: `exome`, `genome`, or `combined` |
+| `max_retries` | `int` | `3` | Retry attempts for transient failures |
+| `timeout` | `tuple[float, float]` | `(10.0, 30.0)` | (connect, read) timeouts in seconds |
+
+```python
+from vartriage.api.gnomad_client import GnomADClient
+from vartriage.api._rate_limiter import RateLimiter
+from vartriage.api._cache import ResponseCache
+from vartriage.api._circuit_breaker import CircuitBreaker
+
+client = GnomADClient(
+    rate_limiter=RateLimiter(requests_per_second=5, daily_limit=10000),
+    cache=ResponseCache(db_path=Path("~/.vartriage/api_cache.db")),
+    circuit_breaker=CircuitBreaker(),
+    dataset="gnomad_r4",
+    prefer_source="combined",
+)
+
+# Lookup a single variant
+freq = client.lookup_frequency("chr17", 43091429, "T", "G")
+if freq:
+    print(f"NFE AF: {freq.nfe}, Global AF: {freq.global_af}")
+```
+
+The client caches responses in the shared SQLite database. Requires `pip install vartriage[api]` (httpx).
 
 ## Example configurations
 

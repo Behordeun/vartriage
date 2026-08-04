@@ -32,7 +32,8 @@ vartriage/
 │   ├── frequency_polars.py  # Polars backend (optional)
 │   ├── frequency_tabix.py   # Tabix VCF backend (pysam, zero-memory)
 │   ├── clinvar.py           # Dict-based ClinVar lookup
-│   └── clinvar_polars.py    # Polars backend (optional)
+│   ├── clinvar_polars.py    # Polars backend (optional)
+│   └── clinvar_protein_index.py  # ClinVar pathogenic missense index for PS1/PM5 (v0.14.0)
 ├── prioritization/
 │   ├── engine.py            # AF gating + scoring orchestrator
 │   ├── frequency_filter.py  # Allele frequency threshold filter
@@ -87,7 +88,30 @@ vartriage/
 │   ├── cadd_client.py       # CADD REST score lookups
 │   ├── spliceai_client.py   # SpliceAI Lookup with smart filtering
 │   ├── annotation_engine.py # Composes VEP + ClinVar into annotate() interface
-│   └── score_provider.py    # CADD hierarchy + SpliceAI
+│   ├── score_provider.py    # CADD hierarchy + SpliceAI
+│   └── gnomad_client.py     # gnomAD GraphQL API for population frequencies (v0.14.0)
+├── knowledge/               # Gene-disease linkage knowledge base (v0.12.0)
+│   ├── __init__.py          # Public exports
+│   ├── omim.py              # OMIM gene-disease associations + inheritance modes
+│   ├── hpo.py               # HPO phenotype term mappings per gene
+│   ├── clingen_validity.py  # ClinGen gene-disease validity levels
+│   ├── constraint.py        # gnomAD constraint metrics (pLI, LOEUF, mis_z)
+│   ├── actionability.py     # ClinGen actionability curations
+│   ├── registry.py          # GeneKnowledgeRegistry: flyweight-cached composite lookup
+│   ├── annotator.py         # GeneKnowledgeAnnotator pipeline stage
+│   ├── config.py            # KnowledgeBaseConfig dataclass
+│   └── models.py            # GeneContext dataclass
+├── structural/              # Structural variant triage (v0.13.0)
+│   ├── __init__.py          # Public exports
+│   ├── parser.py            # SVParser: pysam-based SV VCF streaming
+│   ├── annotator.py         # SVAnnotator: gene overlap, dosage, gnomAD-SV frequency
+│   ├── scoring.py           # SVScorer: composite pathogenicity score
+│   ├── classifier.py        # SVClassifier: ClinGen 2020 evidence sections 1-4
+│   ├── pipeline.py          # SVTriagePipeline orchestrator
+│   ├── report.py            # SVReportBuilder: clinical report section
+│   ├── combiner.py          # merge_findings(): unified SNV + SV ranked output
+│   ├── config.py            # SVTriageConfig frozen dataclass
+│   └── models.py            # StructuralVariant, AnnotatedSV, ScoredSV, ClassifiedSV, enums
 ├── models/
 │   ├── config.py            # All config dataclasses
 │   ├── variant.py           # Variant, AnnotatedVariant, ScoredVariant, ClassifiedVariant, enums
@@ -101,6 +125,7 @@ vartriage/
     ├── genetic_code.py      # Standard genetic code + translate_codon() (v0.8.0)
     ├── normalizer.py        # Left-align + trim indel normalization (v0.8.0)
     ├── interval_tree.py     # Sorted-array interval tree
+    ├── path_safety.py       # Path traversal prevention (CWE-22)
     ├── vectorized.py        # NumPy vectorized operations
     └── warning_accumulator.py  # Warning collection + threshold
 ```
@@ -110,7 +135,7 @@ vartriage/
 The pipeline supports several optional filtering stages activated by configuration:
 
 ```text
-VCFParser → [SampleExtractor] → [InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
+VCFParser → [SampleExtractor] → [InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
 ```
 
 Stages in brackets activate conditionally:
@@ -120,6 +145,8 @@ Stages in brackets activate conditionally:
 - **RegionFilter** (`--regions`): restricts to variants overlapping BED intervals.
 - **GeneFilter** (`--gene-list`): post-annotation filter keeping only variants in specified genes.
 - **SecondaryFindingsFilter** (`--secondary-findings`): flags variants in ACMG SF v3.2 genes regardless of primary gene panel.
+- **GeneKnowledgeAnnotator** (`--knowledge-dir` or bundled data): enriches variants with OMIM disease associations, ClinGen validity, HPO phenotype terms, gnomAD constraint, and actionability. Filters by inheritance mode and actionability when configured.
+- **PhenotypeBoost** (`--hpo-terms`): applies a multiplicative score boost (1.0-2.0) to variants in genes matching patient HPO phenotype terms.
 
 ## Codon-level consequence calling (v0.8.0+)
 

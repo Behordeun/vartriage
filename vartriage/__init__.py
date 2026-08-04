@@ -27,8 +27,8 @@ from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
                                       ACMGClassification, AnnotatedVariant,
                                       ClassifiedVariant, ClinVarAssertion,
                                       EvidenceStrength, EvidenceTag,
-                                      FunctionalConsequence, ScoredVariant,
-                                      Variant)
+                                      FunctionalConsequence, ProteinChange,
+                                      ScoredVariant, Variant)
 from vartriage.models.warnings import MissingDataWarning
 from vartriage.pipeline import Pipeline
 from vartriage.prioritization.engine import PrioritizationEngine
@@ -63,6 +63,9 @@ from vartriage.structural import (
     SVClassification,
     SVEvidenceCategory,
 )
+
+# PS1/PM5 protein index (v0.14.0)
+from vartriage.annotation.clinvar_protein_index import ClinVarProteinIndex
 
 try:
     from importlib.metadata import version as _get_version
@@ -133,4 +136,17 @@ __all__ = [
     # Warnings
     "VarTriageWarning",
     "MissingDataWarning",
+    # v0.14.0: PS1/PM5 and gnomAD API
+    "ProteinChange",
+    "ClinVarProteinIndex",
+    "GnomADClient",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazy import for GnomADClient to avoid httpx import at module level."""
+    if name == "GnomADClient":
+        from vartriage.api.gnomad_client import GnomADClient
+
+        return GnomADClient
+    raise AttributeError(f"module 'vartriage' has no attribute {name!r}")
