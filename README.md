@@ -1,5 +1,7 @@
 # vartriage
 
+[![CI](https://github.com/Behordeun/vartriage/actions/workflows/ci.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/ci.yml) [![Publish to PyPI](https://github.com/Behordeun/vartriage/actions/workflows/publish.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/publish.yml) [![CodeQL](https://github.com/Behordeun/vartriage/actions/workflows/codeql.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/codeql.yml)
+
 Clinical variant triage for gene panels. VCF in, ACMG-classified report out.
 
 ```bash
