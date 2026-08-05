@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import pysam
 
@@ -35,7 +34,7 @@ class TabixFrequencyDatabase:
     """
 
     def __init__(self) -> None:
-        self._tabix: Optional[pysam.TabixFile] = None
+        self._tabix: pysam.TabixFile | None = None
         self.warnings: list[MissingDataWarning] = []
 
     def load(self, reference_path: Path) -> None:
@@ -57,8 +56,7 @@ class TabixFrequencyDatabase:
         index_path = Path(str(reference_path) + ".tbi")
         if not index_path.exists():
             raise ReferenceFileError(
-                f"{reference_path}: tabix index file not found "
-                f"(expected {index_path})"
+                f"{reference_path}: tabix index file not found (expected {index_path})"
             )
 
         try:
@@ -71,7 +69,7 @@ class TabixFrequencyDatabase:
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[float]]:
+    ) -> list[float | None]:
         """Query allele frequencies for a batch of variants.
 
         For each (chrom, pos, ref, alt):
@@ -91,7 +89,7 @@ class TabixFrequencyDatabase:
             Allele frequencies, positionally matched. None for
             variants not found.
         """
-        results: list[Optional[float]] = []
+        results: list[float | None] = []
 
         for chrom, pos, ref, alt in variants:
             af = self._lookup_single(chrom, pos, ref, alt)
@@ -110,9 +108,7 @@ class TabixFrequencyDatabase:
 
         return results
 
-    def _lookup_single(
-        self, chrom: str, pos: int, ref: str, alt: str
-    ) -> Optional[float]:
+    def _lookup_single(self, chrom: str, pos: int, ref: str, alt: str) -> float | None:
         """Query tabix for a single variant's allele frequency."""
         if self._tabix is None:
             return None
@@ -132,7 +128,7 @@ class TabixFrequencyDatabase:
 
     def _parse_af_from_record(
         self, record_line: str, ref: str, alt: str
-    ) -> Optional[float]:
+    ) -> float | None:
         """Extract AF for a specific alt allele from a VCF record.
 
         Handles multiallelic records by splitting ALT and AF fields
@@ -176,7 +172,7 @@ class TabixFrequencyDatabase:
 
         if alt_index >= len(af_values):
             logger.warning(
-                "AF field has fewer values than ALT alleles " "in record: %s",
+                "AF field has fewer values than ALT alleles in record: %s",
                 record_line[:100],
             )
             return None
@@ -191,7 +187,7 @@ class TabixFrequencyDatabase:
             )
             return None
 
-    def _extract_af_from_info(self, info_field: str) -> Optional[str]:
+    def _extract_af_from_info(self, info_field: str) -> str | None:
         """Parse the AF key from the INFO column string.
 
         Parameters

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from vartriage.bundle.manifest import BundleManifest
 
@@ -26,7 +25,7 @@ class BundleStorage:
                     {output_file}  # Transformed TSV ready for pipeline
     """
 
-    def __init__(self, base_path: Optional[Path] = None) -> None:
+    def __init__(self, base_path: Path | None = None) -> None:
         """Initialize storage manager.
 
         Parameters
@@ -66,7 +65,7 @@ class BundleStorage:
         manifest = self.manifest_path(build, bundle_name)
         return manifest.exists()
 
-    def installed_version(self, build: str, bundle_name: str) -> Optional[str]:
+    def installed_version(self, build: str, bundle_name: str) -> str | None:
         """Return the installed version, or None if not installed."""
         try:
             manifest = BundleManifest.load(self.manifest_path(build, bundle_name))
@@ -74,7 +73,7 @@ class BundleStorage:
         except (FileNotFoundError, ValueError):
             return None
 
-    def resolve_path(self, build: str, bundle_name: str) -> Optional[Path]:
+    def resolve_path(self, build: str, bundle_name: str) -> Path | None:
         """Resolve the path to the transformed file if installed.
 
         Returns None if the bundle is not installed or the

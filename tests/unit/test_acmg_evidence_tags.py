@@ -7,10 +7,16 @@ from vartriage.annotation.clinvar_protein_index import (
     PathogenicMissense,
 )
 from vartriage.classification.acmg import ACMGClassifier
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClinVarAssertion, EvidenceTag,
-                                      FunctionalConsequence, ProteinChange,
-                                      ScoredVariant, Variant)
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClinVarAssertion,
+    EvidenceTag,
+    FunctionalConsequence,
+    ProteinChange,
+    ScoredVariant,
+    Variant,
+)
 
 
 def _make_scored_variant(
@@ -23,7 +29,7 @@ def _make_scored_variant(
     cadd_phred: float | None = 25.0,
     cadd_normalized: float | None = None,
     composite_rank: float | None = None,
-    protein_change: "ProteinChange | None" = None,
+    protein_change: ProteinChange | None = None,
 ) -> ScoredVariant:
     """Helper to create a ScoredVariant with configurable fields."""
     v = Variant(

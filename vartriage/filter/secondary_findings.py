@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import AnnotatedVariant
@@ -33,7 +32,7 @@ class SecondaryFindingsFilter:
         ACMG SF v3.2 list.
     """
 
-    def __init__(self, gene_list_path: Optional[Path] = None) -> None:
+    def __init__(self, gene_list_path: Path | None = None) -> None:
         path = gene_list_path or _DEFAULT_SF_PATH
         self._genes = self._load_genes(path)
         logger.info("SecondaryFindingsFilter loaded %d SF genes", len(self._genes))
@@ -43,7 +42,7 @@ class SecondaryFindingsFilter:
         """Number of genes in the SF list."""
         return len(self._genes)
 
-    def is_secondary_finding(self, gene_name: Optional[str]) -> bool:
+    def is_secondary_finding(self, gene_name: str | None) -> bool:
         """Check if a gene is in the ACMG SF list.
 
         Parameters

@@ -6,15 +6,20 @@ variant normalizer, and prioritization score computation.
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from vartriage._internal.genetic_code import (CODON_TABLE, reverse_complement,
-                                              translate_codon)
-from vartriage.annotation.transcript_index import (CDSExon, TranscriptCDS,
-                                                   TranscriptCDSIndex)
+from vartriage._internal.genetic_code import (
+    CODON_TABLE,
+    reverse_complement,
+    translate_codon,
+)
+from vartriage.annotation.transcript_index import (
+    CDSExon,
+    TranscriptCDS,
+    TranscriptCDSIndex,
+)
 from vartriage.models.variant import FunctionalConsequence
 from vartriage.prioritization.scoring import compute_prioritization_score
 
@@ -326,8 +331,7 @@ class TestScoredVariantSync:
     """Verify composite_rank and prioritization_score stay in sync."""
 
     def test_composite_rank_syncs_to_prioritization_score(self) -> None:
-        from vartriage.models.variant import (AnnotatedVariant, ScoredVariant,
-                                              Variant)
+        from vartriage.models.variant import AnnotatedVariant, ScoredVariant, Variant
 
         raw = Variant(
             chrom="chr1",
@@ -344,8 +348,7 @@ class TestScoredVariantSync:
         assert scored.prioritization_score == 0.75
 
     def test_prioritization_score_syncs_to_composite_rank(self) -> None:
-        from vartriage.models.variant import (AnnotatedVariant, ScoredVariant,
-                                              Variant)
+        from vartriage.models.variant import AnnotatedVariant, ScoredVariant, Variant
 
         raw = Variant(
             chrom="chr1",
@@ -362,8 +365,7 @@ class TestScoredVariantSync:
         assert scored.composite_rank == 0.88
 
     def test_both_none_stays_none(self) -> None:
-        from vartriage.models.variant import (AnnotatedVariant, ScoredVariant,
-                                              Variant)
+        from vartriage.models.variant import AnnotatedVariant, ScoredVariant, Variant
 
         raw = Variant(
             chrom="chr1",

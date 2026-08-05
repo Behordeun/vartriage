@@ -61,7 +61,7 @@ def test_dict_frequency_missing_file():
     db = DictFrequencyDatabase()
     try:
         db.load(Path("/nonexistent/gnomad.tsv"))
-        assert False, "Should have raised ReferenceFileError"
+        raise AssertionError("Should have raised ReferenceFileError")
     except ReferenceFileError as exc:
         assert "file not found" in str(exc)
 
@@ -77,7 +77,7 @@ def test_dict_frequency_bad_format():
         db = DictFrequencyDatabase()
         try:
             db.load(Path(tmp_name))
-            assert False, "Should have raised ReferenceFileError"
+            raise AssertionError("Should have raised ReferenceFileError")
         except ReferenceFileError as exc:
             assert "missing required columns" in str(exc)
     finally:
@@ -101,7 +101,9 @@ def test_polars_frequency_database():
     """Test PolarsFrequencyDatabase if polars is available."""
     try:
         from vartriage.annotation.frequency_polars import (
-            POLARS_AVAILABLE, PolarsFrequencyDatabase)
+            POLARS_AVAILABLE,
+            PolarsFrequencyDatabase,
+        )
     except ImportError:
         return
 
@@ -142,7 +144,9 @@ def test_polars_frequency_missing_file():
     """Test PolarsFrequencyDatabase with missing file."""
     try:
         from vartriage.annotation.frequency_polars import (
-            POLARS_AVAILABLE, PolarsFrequencyDatabase)
+            POLARS_AVAILABLE,
+            PolarsFrequencyDatabase,
+        )
     except ImportError:
         return
 
@@ -152,7 +156,7 @@ def test_polars_frequency_missing_file():
     db = PolarsFrequencyDatabase()
     try:
         db.load(Path("/nonexistent/gnomad.tsv"))
-        assert False, "Should have raised ReferenceFileError"
+        raise AssertionError("Should have raised ReferenceFileError")
     except ReferenceFileError as exc:
         assert "file not found" in str(exc)
 
@@ -161,7 +165,9 @@ def test_polars_frequency_empty_batch():
     """Test PolarsFrequencyDatabase with empty batch."""
     try:
         from vartriage.annotation.frequency_polars import (
-            POLARS_AVAILABLE, PolarsFrequencyDatabase)
+            POLARS_AVAILABLE,
+            PolarsFrequencyDatabase,
+        )
     except ImportError:
         return
 

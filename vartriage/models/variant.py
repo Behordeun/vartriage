@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from vartriage.knowledge.models import GeneContext
@@ -228,10 +228,10 @@ class Variant:
 
     chrom: str
     pos: int
-    id: Optional[str]
+    id: str | None
     ref: str
     alt: str
-    qual: Optional[float]
+    qual: float | None
     filter_status: str
     info: dict[str, Any] = field(default_factory=dict)
 
@@ -249,9 +249,9 @@ class Zygosity(Enum):
 class VariantQualityMetrics:
     """Per-variant sequencing quality metrics from VCF FORMAT fields."""
 
-    depth: Optional[int] = None
-    genotype_quality: Optional[int] = None
-    allele_balance: Optional[float] = None
+    depth: int | None = None
+    genotype_quality: int | None = None
+    allele_balance: float | None = None
     is_low_confidence: bool = False
 
 
@@ -259,17 +259,17 @@ class VariantQualityMetrics:
 class PopulationFrequencies:
     """Per-population gnomAD allele frequencies."""
 
-    global_af: Optional[float] = None
-    afr: Optional[float] = None
-    amr: Optional[float] = None
-    asj: Optional[float] = None
-    eas: Optional[float] = None
-    fin: Optional[float] = None
-    nfe: Optional[float] = None
-    sas: Optional[float] = None
+    global_af: float | None = None
+    afr: float | None = None
+    amr: float | None = None
+    asj: float | None = None
+    eas: float | None = None
+    fin: float | None = None
+    nfe: float | None = None
+    sas: float | None = None
 
     @property
-    def max_population_af(self) -> Optional[float]:
+    def max_population_af(self) -> float | None:
         """Highest frequency across all population subgroups."""
         values = [
             v
@@ -368,16 +368,16 @@ class AnnotatedVariant:
 
     variant: Variant
     consequence: FunctionalConsequence
-    allele_frequency: Optional[float] = None
-    clinvar_assertion: Optional[ClinVarAssertion] = None
+    allele_frequency: float | None = None
+    clinvar_assertion: ClinVarAssertion | None = None
     frequency_unknown: bool = False
     clinvar_unknown: bool = False
-    gene_name: Optional[str] = None
-    population_frequencies: Optional[PopulationFrequencies] = None
+    gene_name: str | None = None
+    population_frequencies: PopulationFrequencies | None = None
     zygosity: Zygosity = Zygosity.UNKNOWN
-    quality_metrics: Optional[VariantQualityMetrics] = None
-    gene_context: Optional[GeneContext] = None
-    protein_change: Optional[ProteinChange] = None
+    quality_metrics: VariantQualityMetrics | None = None
+    gene_context: GeneContext | None = None
+    protein_change: ProteinChange | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -404,12 +404,12 @@ class ScoredVariant:
     """
 
     annotated: AnnotatedVariant
-    cadd_phred: Optional[float] = None
-    cadd_normalized: Optional[float] = None
-    revel_score: Optional[float] = None
-    spliceai_score: Optional[float] = None
-    composite_rank: Optional[float] = None
-    prioritization_score: Optional[float] = None
+    cadd_phred: float | None = None
+    cadd_normalized: float | None = None
+    revel_score: float | None = None
+    spliceai_score: float | None = None
+    composite_rank: float | None = None
+    prioritization_score: float | None = None
 
     def __post_init__(self) -> None:
         # Sync: prioritization_score is the canonical field,

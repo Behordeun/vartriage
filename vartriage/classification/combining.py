@@ -6,7 +6,7 @@ applies threshold patterns from ACMG Table 5.
 
 Pathogenic Combining Rules:
 - PATHOGENIC: 1 VS + 1 S, or 2 S + 1 Sup, or 1 VS + 2 Sup
-- LIKELY_PATHOGENIC: 1 VS + 1 M, or 1 S + 1-2 M, or 1 S + 2 Sup
+- LIKELY_PATHOGENIC: 1 VS + 1 M, or 1 S + >= 1 M, or 1 S + 2 Sup
 
 Benign Combining Rules:
 - BENIGN: 1 BA (standalone), or 2 BS
@@ -21,9 +21,12 @@ Conflicting Evidence:
 
 from __future__ import annotations
 
-from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
-                                      ACMGClassification, EvidenceStrength,
-                                      EvidenceTag)
+from vartriage.models.variant import (
+    EVIDENCE_STRENGTH_MAP,
+    ACMGClassification,
+    EvidenceStrength,
+    EvidenceTag,
+)
 
 # Benign tags are those with STANDALONE, STRONG (benign), or SUPPORTING (benign) strength
 _BENIGN_TAGS: frozenset[EvidenceTag] = frozenset(
@@ -175,10 +178,7 @@ def _meets_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
         return True
     if s >= 2 and sup >= 1:
         return True
-    if vs >= 1 and sup >= 2:
-        return True
-
-    return False
+    return bool(vs >= 1 and sup >= 2)
 
 
 def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
@@ -192,7 +192,4 @@ def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
         return True
     if s >= 1 and m >= 1:
         return True
-    if s >= 1 and sup >= 2:
-        return True
-
-    return False
+    return bool(s >= 1 and sup >= 2)

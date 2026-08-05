@@ -20,7 +20,7 @@ def _write_tiny_vcf(path: Path) -> Path:
     """Create a minimal bgzipped VCF with two variants using pysam."""
     header = pysam.VariantHeader()
     header.add_sample("SAMPLE")
-    header.add_line("##FORMAT=<ID=GT,Number=1,Type=String," 'Description="Genotype">')
+    header.add_line('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">')
     header.add_line("##contig=<ID=chr1,length=1000000>")
 
     with pysam.VariantFile(str(path), "wz", header=header) as vcf:

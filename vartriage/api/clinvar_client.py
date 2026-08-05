@@ -15,7 +15,6 @@ fields we need (clinical significance, review status).
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from vartriage.api._base import APIClientError, BaseAPIClient
 from vartriage.api._cache import ResponseCache
@@ -80,12 +79,12 @@ class ClinVarClient:
         rate_limiter: RateLimiter,
         cache: ResponseCache,
         circuit_breaker: CircuitBreaker,
-        ncbi_api_key: Optional[str] = None,
+        ncbi_api_key: str | None = None,
         genome_build: str = "grch38",
         max_retries: int = 3,
         timeout: tuple[float, float] = (10.0, 30.0),
         user_agent: str = "vartriage/0.7.0 (https://github.com/Behordeun/vartriage)",
-        proxy_url: Optional[str] = None,
+        proxy_url: str | None = None,
     ) -> None:
         self._api_key = ncbi_api_key
         self._genome_build = genome_build
@@ -105,7 +104,7 @@ class ClinVarClient:
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[ClinVarAssertion]]:
+    ) -> list[ClinVarAssertion | None]:
         """Look up ClinVar clinical significance for a batch of variants.
 
         Queries each variant individually (ClinVar esearch doesn't support
@@ -122,7 +121,7 @@ class ClinVarClient:
             Clinical significance in input order. None when no ClinVar
             entry exists or the query failed.
         """
-        results: list[Optional[ClinVarAssertion]] = []
+        results: list[ClinVarAssertion | None] = []
 
         for chrom, pos, ref, alt in variants:
             assertion = self._lookup_single(chrom, pos, ref, alt)
@@ -132,7 +131,7 @@ class ClinVarClient:
 
     def _lookup_single(
         self, chrom: str, pos: int, ref: str, alt: str
-    ) -> Optional[ClinVarAssertion]:
+    ) -> ClinVarAssertion | None:
         """Query ClinVar for a single variant, checking cache first."""
         cache_key = ResponseCache.build_key(
             "clinvar", self._genome_build, chrom, pos, ref, alt
@@ -212,7 +211,7 @@ class ClinVarClient:
 
     def _esummary(
         self, variation_ids: list[str]
-    ) -> tuple[Optional[ClinVarAssertion], dict[str, object]]:
+    ) -> tuple[ClinVarAssertion | None, dict[str, object]]:
         """Fetch clinical significance via esummary for variation IDs.
 
         When multiple IDs are returned, selects the one with the highest
@@ -244,11 +243,11 @@ class ClinVarClient:
         result = data.get("result", {})
 
         # Pick the entry with highest review status
-        best_assertion: Optional[ClinVarAssertion] = None
+        best_assertion: ClinVarAssertion | None = None
         best_rank = -1
-        best_significance: Optional[str] = None
-        best_review: Optional[str] = None
-        last_evaluated: Optional[str] = None
+        best_significance: str | None = None
+        best_review: str | None = None
+        last_evaluated: str | None = None
 
         for var_id in variation_ids:
             entry = result.get(var_id, {})
@@ -284,7 +283,7 @@ class ClinVarClient:
 
         return best_assertion, raw_response
 
-    def _parse_cached(self, cached: dict[str, object]) -> Optional[ClinVarAssertion]:
+    def _parse_cached(self, cached: dict[str, object]) -> ClinVarAssertion | None:
         """Re-parse a cached ClinVar response into ClinVarAssertion."""
         sig = cached.get("clinical_significance")
         if sig is None:
@@ -296,7 +295,7 @@ class ClinVarClient:
         self._http.close()
 
 
-def _map_significance(description: str) -> Optional[ClinVarAssertion]:
+def _map_significance(description: str) -> ClinVarAssertion | None:
     """Map a ClinVar clinical significance string to our enum.
 
     Handles varied casing, compound assertions (e.g., "Pathogenic/Likely pathogenic"),

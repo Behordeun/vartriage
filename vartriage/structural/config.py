@@ -6,9 +6,8 @@ ValueError with a message naming the valid range.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -71,11 +70,11 @@ class SVTriageConfig:
 
     vcf_path: Path
     output_path: Path
-    gene_annotation_path: Optional[Path] = None
-    dosage_sensitivity_path: Optional[Path] = None
-    gnomad_sv_path: Optional[Path] = None
-    pathogenic_regions_path: Optional[Path] = None
-    benign_regions_path: Optional[Path] = None
+    gene_annotation_path: Path | None = None
+    dosage_sensitivity_path: Path | None = None
+    gnomad_sv_path: Path | None = None
+    pathogenic_regions_path: Path | None = None
+    benign_regions_path: Path | None = None
     min_sv_size: int = 50
     max_sv_size: int = 0
     max_allele_frequency: float = 0.01
@@ -89,13 +88,11 @@ class SVTriageConfig:
     def __post_init__(self) -> None:
         if not (1 <= self.min_sv_size <= 10_000_000):
             raise ValueError(
-                f"min_sv_size must be between 1 and 10000000, "
-                f"got {self.min_sv_size}"
+                f"min_sv_size must be between 1 and 10000000, got {self.min_sv_size}"
             )
         if self.max_sv_size < 0:
             raise ValueError(
-                f"max_sv_size must be >= 0 (0 means no limit), "
-                f"got {self.max_sv_size}"
+                f"max_sv_size must be >= 0 (0 means no limit), got {self.max_sv_size}"
             )
         if self.max_sv_size > 0 and self.max_sv_size < self.min_sv_size:
             raise ValueError(
@@ -119,13 +116,11 @@ class SVTriageConfig:
             )
         if not (0.0 <= self.min_quality <= 1_000_000):
             raise ValueError(
-                f"min_quality must be between 0.0 and 1000000, "
-                f"got {self.min_quality}"
+                f"min_quality must be between 0.0 and 1000000, got {self.min_quality}"
             )
         if not (100 <= self.batch_size <= 100_000):
             raise ValueError(
-                f"batch_size must be between 100 and 100000, "
-                f"got {self.batch_size}"
+                f"batch_size must be between 100 and 100000, got {self.batch_size}"
             )
         valid_formats = ("json", "csv")
         if self.output_format not in valid_formats:

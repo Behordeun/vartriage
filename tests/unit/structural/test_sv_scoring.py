@@ -7,10 +7,9 @@ import pytest
 from vartriage.structural.models import (
     AnnotatedSV,
     GeneOverlap,
-    ScoredSV,
+    StructuralVariant,
     SVConsequence,
     SVType,
-    StructuralVariant,
 )
 from vartriage.structural.scoring import SVScorer
 
@@ -27,8 +26,11 @@ def _make_annotated(
     copy_number: int | None = None,
 ) -> AnnotatedSV:
     sv = StructuralVariant(
-        chrom="chr1", start=1000, end=1000 + length - 1,
-        sv_type=sv_type, copy_number=copy_number,
+        chrom="chr1",
+        start=1000,
+        end=1000 + length - 1,
+        sv_type=sv_type,
+        copy_number=copy_number,
     )
     return AnnotatedSV(
         sv=sv,
@@ -94,10 +96,12 @@ class TestImpactScore:
     def test_multi_gene_boost(self) -> None:
         scorer = SVScorer()
         single = _make_annotated(
-            consequence=SVConsequence.PARTIAL_GENE_DELETION, genes_affected=1,
+            consequence=SVConsequence.PARTIAL_GENE_DELETION,
+            genes_affected=1,
         )
         multi = _make_annotated(
-            consequence=SVConsequence.PARTIAL_GENE_DELETION, genes_affected=5,
+            consequence=SVConsequence.PARTIAL_GENE_DELETION,
+            genes_affected=5,
         )
         s1 = list(scorer.score(iter([single])))[0]
         s5 = list(scorer.score(iter([multi])))[0]
@@ -107,11 +111,16 @@ class TestImpactScore:
 class TestDosageScore:
     def test_hi_gene_loss_scores_high_dosage(self) -> None:
         overlap = GeneOverlap(
-            gene_symbol="BRCA1", gene_chrom="chr17",
-            gene_start=1000, gene_end=5000,
-            overlap_fraction=1.0, is_whole_gene=True,
-            exons_affected=23, total_exons=23,
-            is_haploinsufficient=True, hi_score=3.0,
+            gene_symbol="BRCA1",
+            gene_chrom="chr17",
+            gene_start=1000,
+            gene_end=5000,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=23,
+            total_exons=23,
+            is_haploinsufficient=True,
+            hi_score=3.0,
             ts_score=None,
         )
         scorer = SVScorer()
@@ -127,12 +136,18 @@ class TestDosageScore:
 
     def test_ts_gene_gain_scores_dosage(self) -> None:
         overlap = GeneOverlap(
-            gene_symbol="PMP22", gene_chrom="chr17",
-            gene_start=1000, gene_end=5000,
-            overlap_fraction=1.0, is_whole_gene=True,
-            exons_affected=5, total_exons=5,
-            is_haploinsufficient=False, hi_score=None,
-            is_triplosensitive=True, ts_score=3.0,
+            gene_symbol="PMP22",
+            gene_chrom="chr17",
+            gene_start=1000,
+            gene_end=5000,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=5,
+            total_exons=5,
+            is_haploinsufficient=False,
+            hi_score=None,
+            is_triplosensitive=True,
+            ts_score=3.0,
         )
         scorer = SVScorer()
         annotated = _make_annotated(
@@ -146,11 +161,16 @@ class TestDosageScore:
 
     def test_cnv_loss_uses_hi_score(self) -> None:
         overlap = GeneOverlap(
-            gene_symbol="RB1", gene_chrom="chr13",
-            gene_start=1000, gene_end=5000,
-            overlap_fraction=1.0, is_whole_gene=True,
-            exons_affected=27, total_exons=27,
-            is_haploinsufficient=True, hi_score=3.0,
+            gene_symbol="RB1",
+            gene_chrom="chr13",
+            gene_start=1000,
+            gene_end=5000,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=27,
+            total_exons=27,
+            is_haploinsufficient=True,
+            hi_score=3.0,
             ts_score=None,
         )
         scorer = SVScorer()
@@ -166,15 +186,21 @@ class TestDosageScore:
 
     def test_no_dosage_data_gives_modest_default(self) -> None:
         overlap = GeneOverlap(
-            gene_symbol="GENE1", gene_chrom="chr1",
-            gene_start=1000, gene_end=5000,
-            overlap_fraction=1.0, is_whole_gene=True,
-            exons_affected=5, total_exons=5,
-            hi_score=None, ts_score=None,
+            gene_symbol="GENE1",
+            gene_chrom="chr1",
+            gene_start=1000,
+            gene_end=5000,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=5,
+            total_exons=5,
+            hi_score=None,
+            ts_score=None,
         )
         scorer = SVScorer()
         annotated = _make_annotated(
-            gene_overlaps=(overlap,), genes_affected=1,
+            gene_overlaps=(overlap,),
+            genes_affected=1,
         )
         scored = list(scorer.score(iter([annotated])))[0]
         # Default is 0.3 when no dosage data but genes are affected
@@ -217,7 +243,8 @@ class TestFrequencyScore:
     def test_at_threshold_boundary_gets_zero(self) -> None:
         scorer = SVScorer(max_allele_frequency=0.01)
         annotated = _make_annotated(
-            population_frequency=0.01, frequency_unknown=False,
+            population_frequency=0.01,
+            frequency_unknown=False,
         )
         scored = list(scorer.score(iter([annotated])))[0]
         assert scored.frequency_score == pytest.approx(0.0)
@@ -225,7 +252,8 @@ class TestFrequencyScore:
     def test_half_threshold_gives_half(self) -> None:
         scorer = SVScorer(max_allele_frequency=0.01)
         annotated = _make_annotated(
-            population_frequency=0.005, frequency_unknown=False,
+            population_frequency=0.005,
+            frequency_unknown=False,
         )
         scored = list(scorer.score(iter([annotated])))[0]
         assert scored.frequency_score == pytest.approx(0.5)

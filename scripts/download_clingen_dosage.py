@@ -69,7 +69,7 @@ def _write_dosage_tsv(
     with open(output_path, "w", newline="") as fh:
         writer = csv.writer(fh, delimiter="\t")
         writer.writerow(["gene_symbol", "hi_score", "ts_score"])
-        for line in lines[header_idx + 1:]:
+        for line in lines[header_idx + 1 :]:
             if not line.strip() or line.startswith("#"):
                 continue
             fields = line.split("\t")
@@ -90,7 +90,7 @@ def _write_dosage_tsv(
 def fetch_dosage_data(output_path: Path) -> None:
     """Download and process ClinGen dosage sensitivity data."""
     # Validate output path does not escape expected directory
-    resolved = output_path.resolve()
+    output_path.resolve()
     if ".." in str(output_path):
         print("Error: output path must not contain '..'", file=sys.stderr)
         sys.exit(2)
@@ -110,7 +110,9 @@ def fetch_dosage_data(output_path: Path) -> None:
     col_map = _build_col_map(header)
 
     if "gene_symbol" not in col_map:
-        print("Error: could not find gene symbol column in ClinGen data", file=sys.stderr)
+        print(
+            "Error: could not find gene symbol column in ClinGen data", file=sys.stderr
+        )
         sys.exit(1)
 
     gene_count = _write_dosage_tsv(output_path, lines, header_idx, col_map)

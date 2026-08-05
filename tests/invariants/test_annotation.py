@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
@@ -16,9 +15,11 @@ from tests.generators.variants import chromosome, genomic_position, snv_allele
 from vartriage.annotation.clinvar import DictClinVarDatabase
 from vartriage.annotation.consequence import _most_severe_consequence
 from vartriage.annotation.frequency import DictFrequencyDatabase
-from vartriage.models.variant import (CONSEQUENCE_SEVERITY_ORDER,
-                                      ClinVarAssertion, FunctionalConsequence,
-                                      Variant)
+from vartriage.models.variant import (
+    CONSEQUENCE_SEVERITY_ORDER,
+    ClinVarAssertion,
+    FunctionalConsequence,
+)
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -172,9 +173,9 @@ def test_intergenic_assigned_when_no_overlaps(data: st.DataObject) -> None:
     result = _most_severe_consequence(overlaps)
 
     # With empty overlaps, the function returns the initial best which is INTERGENIC
-    assert (
-        result == FunctionalConsequence.INTERGENIC
-    ), f"Expected INTERGENIC for empty overlap list, got {result.value}"
+    assert result == FunctionalConsequence.INTERGENIC, (
+        f"Expected INTERGENIC for empty overlap list, got {result.value}"
+    )
 
 
 @given(consequence=st.sampled_from(CONSEQUENCE_VALUES))
@@ -186,9 +187,9 @@ def test_single_consequence_returns_itself(
     overlaps = [{"consequence": consequence.value}]
     result = _most_severe_consequence(overlaps)
 
-    assert (
-        result == consequence
-    ), f"Single consequence {consequence.value} should return itself, got {result.value}"
+    assert result == consequence, (
+        f"Single consequence {consequence.value} should return itself, got {result.value}"
+    )
 
 
 @given(
@@ -253,18 +254,18 @@ def test_frequency_lookup_match_returns_value(
 
         assert len(results) == len(query_keys)
 
-        for key, result in zip(query_keys, results):
+        for key, result in zip(query_keys, results, strict=False):
             if key in db_entries:
                 # Match: value should be attached
                 assert result is not None, f"Expected frequency for {key}, got None"
                 assert abs(result - db_entries[key]) < 1e-7, (
-                    f"Expected frequency {db_entries[key]} for {key}, " f"got {result}"
+                    f"Expected frequency {db_entries[key]} for {key}, got {result}"
                 )
             else:
                 # No match: null returned
-                assert (
-                    result is None
-                ), f"Expected None for absent key {key}, got {result}"
+                assert result is None, (
+                    f"Expected None for absent key {key}, got {result}"
+                )
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -297,11 +298,11 @@ def test_frequency_lookup_missing_emits_warning(
         db.lookup_batch(query_keys)
 
         absent_keys = [k for k in query_keys if k not in db_entries]
-        assert len(db.warnings) == len(
-            absent_keys
-        ), f"Expected {len(absent_keys)} warnings, got {len(db.warnings)}"
+        assert len(db.warnings) == len(absent_keys), (
+            f"Expected {len(absent_keys)} warnings, got {len(db.warnings)}"
+        )
 
-        for warning, key in zip(db.warnings, absent_keys):
+        for warning, key in zip(db.warnings, absent_keys, strict=False):
             assert warning.chrom == key[0]
             assert warning.pos == key[1]
             assert warning.ref == key[2]
@@ -348,17 +349,17 @@ def test_clinvar_lookup_match_returns_assertion(
 
         assert len(results) == len(query_keys)
 
-        for key, result in zip(query_keys, results):
+        for key, result in zip(query_keys, results, strict=False):
             if key in db_entries:
-                assert (
-                    result is not None
-                ), f"Expected ClinVar assertion for {key}, got None"
-                assert (
-                    result == db_entries[key]
-                ), f"Expected {db_entries[key]} for {key}, got {result}"
+                assert result is not None, (
+                    f"Expected ClinVar assertion for {key}, got None"
+                )
+                assert result == db_entries[key], (
+                    f"Expected {db_entries[key]} for {key}, got {result}"
+                )
             else:
-                assert (
-                    result is None
-                ), f"Expected None for absent key {key}, got {result}"
+                assert result is None, (
+                    f"Expected None for absent key {key}, got {result}"
+                )
     finally:
         tmp_path.unlink(missing_ok=True)

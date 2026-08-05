@@ -12,8 +12,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +59,7 @@ class TranscriptCDS:
         """Total CDS length in bases."""
         return sum(e.end - e.start for e in self.cds_exons)
 
-    def genomic_to_cds_position(self, genomic_pos: int) -> Optional[int]:
+    def genomic_to_cds_position(self, genomic_pos: int) -> int | None:
         """Map a 0-based genomic position to a 0-based CDS position.
 
         Returns None if the position doesn't fall within any CDS exon
@@ -82,7 +80,7 @@ class TranscriptCDS:
             return self._forward_mapping(genomic_pos)
         return self._reverse_mapping(genomic_pos)
 
-    def _forward_mapping(self, genomic_pos: int) -> Optional[int]:
+    def _forward_mapping(self, genomic_pos: int) -> int | None:
         """Map position on the forward strand."""
         cds_offset = 0
         for exon in self.cds_exons:
@@ -91,7 +89,7 @@ class TranscriptCDS:
             cds_offset += exon.end - exon.start
         return None
 
-    def _reverse_mapping(self, genomic_pos: int) -> Optional[int]:
+    def _reverse_mapping(self, genomic_pos: int) -> int | None:
         """Map position on the reverse strand.
 
         For negative-strand genes, the CDS is read from the last exon
@@ -173,7 +171,7 @@ class TranscriptCDSIndex:
             "TranscriptCDSIndex finalized: %d transcripts", len(self._transcripts)
         )
 
-    def get_transcript(self, transcript_id: str) -> Optional[TranscriptCDS]:
+    def get_transcript(self, transcript_id: str) -> TranscriptCDS | None:
         """Look up a transcript by ID."""
         return self._transcripts.get(transcript_id)
 
@@ -222,7 +220,7 @@ class TranscriptCDSIndex:
         return data
 
     @classmethod
-    def from_serializable(cls, data: dict[str, object]) -> "TranscriptCDSIndex":
+    def from_serializable(cls, data: dict[str, object]) -> TranscriptCDSIndex:
         """Reconstruct from cached data."""
         index = cls()
         for tid, info in data.items():

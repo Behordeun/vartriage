@@ -2,8 +2,6 @@
 
 import warnings
 
-import pytest
-
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.models.config import QualityFilterConfig
 from vartriage.models.variant import Variant

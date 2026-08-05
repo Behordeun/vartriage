@@ -14,6 +14,17 @@ pip install -e ".[dev]"
 
 This installs pytest, hypothesis, pytest-cov, and mypy alongside the core package.
 
+### Pre-commit Hooks
+
+Install pre-commit to run formatting and lint checks on every commit:
+
+```bash
+uv pip install pre-commit
+pre-commit install
+```
+
+The hooks run ruff (lint + format), trailing whitespace/EOF fixes, YAML/TOML validation, and secret detection. They take about 2 seconds per commit.
+
 ### Accelerated Backends
 
 For the optional fast backends (polars, pyranges) and PDF support:

@@ -17,15 +17,13 @@ classification using ClinGen-defined thresholds:
 from __future__ import annotations
 
 import logging
-from typing import Iterator
+from collections.abc import Iterator
 
 from vartriage.structural.models import (
     AnnotatedSV,
     ClassifiedSV,
-    GeneOverlap,
     ScoredSV,
     SVClassification,
-    SVConsequence,
     SVEvidenceCategory,
     SVType,
 )
@@ -122,9 +120,7 @@ class SVClassifier:
             )
 
         # Frequency-based benign evidence
-        evidence_score += self._evaluate_frequency_evidence(
-            annotated, categories
-        )
+        evidence_score += self._evaluate_frequency_evidence(annotated, categories)
 
         classification = self._score_to_classification(evidence_score)
 
@@ -435,7 +431,11 @@ class SVClassifier:
         for r_chrom, r_start, r_end in regions:
             if r_chrom != chrom:
                 # Try chr prefix normalization
-                alt_chrom = chrom.replace("chr", "") if chrom.startswith("chr") else f"chr{chrom}"
+                alt_chrom = (
+                    chrom.replace("chr", "")
+                    if chrom.startswith("chr")
+                    else f"chr{chrom}"
+                )
                 if r_chrom != alt_chrom:
                     continue
 
@@ -476,7 +476,11 @@ class SVClassifier:
 
         for r_chrom, r_start, r_end in regions:
             if r_chrom != chrom:
-                alt_chrom = chrom.replace("chr", "") if chrom.startswith("chr") else f"chr{chrom}"
+                alt_chrom = (
+                    chrom.replace("chr", "")
+                    if chrom.startswith("chr")
+                    else f"chr{chrom}"
+                )
                 if r_chrom != alt_chrom:
                     continue
 

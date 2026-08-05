@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -95,10 +95,7 @@ class TestPrioritize:
     def test_sorts_within_batch_by_composite_rank_descending(self) -> None:
         engine = PrioritizationEngine()
 
-        variants = [
-            _make_annotated(pos=i, allele_frequency=0.001)
-            for i in range(5)
-        ]
+        variants = [_make_annotated(pos=i, allele_frequency=0.001) for i in range(5)]
         results = list(engine.prioritize(iter(variants)))
 
         ranks = [sv.composite_rank for sv in results]
@@ -115,10 +112,7 @@ class TestBatchProcessing:
 
         # 5 variants with small batch means multiple batches
         # but actual minimum is 1000, so we just verify they all come through
-        variants = [
-            _make_annotated(pos=i, allele_frequency=0.001)
-            for i in range(3)
-        ]
+        variants = [_make_annotated(pos=i, allele_frequency=0.001) for i in range(3)]
         results = list(engine._process_in_batches(iter(variants)))
         assert len(results) == 3
 
@@ -139,7 +133,9 @@ class TestChunkedFallback:
                 raise MemoryError("simulated")
             return original_score_batch(b)
 
-        with patch.object(engine, "_score_batch", side_effect=score_batch_with_first_failure):
+        with patch.object(
+            engine, "_score_batch", side_effect=score_batch_with_first_failure
+        ):
             results = engine._chunked_fallback(batch)
 
         assert len(results) == 4

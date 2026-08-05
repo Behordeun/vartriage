@@ -9,10 +9,11 @@ materializes everything since page layout needs random access.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Iterator, Optional, Sequence, Union
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import ClinicalReportConfig, ReportConfig
@@ -46,8 +47,8 @@ class ReportGenerator:
     def __init__(
         self,
         config: ReportConfig,
-        clinical_config: Optional[ClinicalReportConfig] = None,
-        reference_checksums: Optional[dict[str, str]] = None,
+        clinical_config: ClinicalReportConfig | None = None,
+        reference_checksums: dict[str, str] | None = None,
     ) -> None:
         self._config = config
         self._clinical_config = clinical_config
@@ -57,12 +58,9 @@ class ReportGenerator:
 
     def generate(
         self,
-        variants: Union[
-            Iterator[ClassifiedVariant],
-            Sequence[ClassifiedVariant],
-        ],
+        variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
         output_path: Path,
-        source_vcf_path: Optional[Path] = None,
+        source_vcf_path: Path | None = None,
     ) -> Path:
         """Write classified variants to the configured format.
 
@@ -104,7 +102,7 @@ class ReportGenerator:
 
         if fmt == "vcf":
             if source_vcf_path is None:
-                raise IOError("VCF output format requires source_vcf_path")
+                raise OSError("VCF output format requires source_vcf_path")
             from vartriage.reporting.vcf_writer import write_vcf
 
             # VCF output materializes all variants into memory for the
@@ -134,23 +132,21 @@ class ReportGenerator:
                 materialized = list(variants)
                 self._write_pdf(materialized, tmp_path)
             else:
-                raise IOError(f"Unsupported output format: {fmt}")
+                raise OSError(f"Unsupported output format: {fmt}")
 
             os.replace(str(tmp_path), str(output_path))
             tmp_path = None
 
             return output_path
 
-        except IOError:
+        except OSError:
             raise
         except Exception as exc:
-            raise IOError(f"Failed to generate {fmt.upper()} report: {exc}") from exc
+            raise OSError(f"Failed to generate {fmt.upper()} report: {exc}") from exc
         finally:
             if tmp_path is not None:
-                try:
+                with contextlib.suppress(OSError):
                     tmp_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
 
     def _write_pdf(
         self,
@@ -177,8 +173,10 @@ class ReportGenerator:
             If no PDF backend is available or rendering fails.
         """
         try:
-            from vartriage.reporting.pdf_writer import (HAS_REPORTLAB,
-                                                        ReportlabPDFRenderer)
+            from vartriage.reporting.pdf_writer import (
+                HAS_REPORTLAB,
+                ReportlabPDFRenderer,
+            )
         except ImportError:
             pass
         else:
@@ -193,10 +191,7 @@ class ReportGenerator:
 
     def _generate_clinical(
         self,
-        variants: Union[
-            Iterator[ClassifiedVariant],
-            Sequence[ClassifiedVariant],
-        ],
+        variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
         output_path: Path,
     ) -> Path:
         """Delegate to ClinicalReportGenerator for clinical formats.
@@ -219,13 +214,12 @@ class ReportGenerator:
             If clinical_config was not provided.
         """
         if self._clinical_config is None:
-            raise IOError(
-                "Clinical format requires a " "ClinicalReportConfig to be provided"
+            raise OSError(
+                "Clinical format requires a ClinicalReportConfig to be provided"
             )
 
         from vartriage import __version__
-        from vartriage.reporting.clinical.generator import \
-            ClinicalReportGenerator
+        from vartriage.reporting.clinical.generator import ClinicalReportGenerator
 
         clinical_gen = ClinicalReportGenerator(
             config=self._clinical_config,

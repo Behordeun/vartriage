@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ReferenceFileError
@@ -70,7 +69,7 @@ class DictFrequencyDatabase:
 
         try:
             reference_path = resolve_path(reference_path)
-            with open(reference_path, "r", newline="") as fh:
+            with open(reference_path, newline="") as fh:
                 reader = csv.reader(fh, delimiter="\t")
                 header = next(reader, None)
 
@@ -83,8 +82,7 @@ class DictFrequencyDatabase:
                 if not expected_columns.issubset(set(header_lower)):
                     missing = expected_columns - set(header_lower)
                     raise ReferenceFileError(
-                        f"{reference_path}: missing required columns: "
-                        f"{sorted(missing)}"
+                        f"{reference_path}: missing required columns: {sorted(missing)}"
                     )
 
                 col_idx = {name: header_lower.index(name) for name in expected_columns}
@@ -107,8 +105,7 @@ class DictFrequencyDatabase:
                         af = float(af_str)
                     except (IndexError, ValueError) as exc:
                         raise ReferenceFileError(
-                            f"{reference_path}: parse error at "
-                            f"line {line_num}: {exc}"
+                            f"{reference_path}: parse error at line {line_num}: {exc}"
                         ) from exc
 
                     self._data[(chrom, pos, ref, alt)] = af
@@ -122,7 +119,7 @@ class DictFrequencyDatabase:
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[float]]:
+    ) -> list[float | None]:
         """Batch lookup of allele frequencies by genomic coordinate.
 
         For each variant tuple not found in the loaded reference,
@@ -139,7 +136,7 @@ class DictFrequencyDatabase:
             Allele frequencies in the same order as input. None for
             variants not found in the reference database.
         """
-        results: list[Optional[float]] = []
+        results: list[float | None] = []
 
         for chrom, pos, ref, alt in variants:
             freq = self._data.get((chrom, pos, ref, alt))

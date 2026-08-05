@@ -8,20 +8,25 @@ contains partial output.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
+from collections.abc import Iterator, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, Sequence, Union
 
 from vartriage.models.config import ClinicalReportConfig
 from vartriage.models.variant import ACMGClassification, ClassifiedVariant
 from vartriage.reporting.clinical.audit import AuditTrailWriter
-from vartriage.reporting.clinical.models import (EvidenceCardData,
-                                                 ExecutiveSummaryData,
-                                                 FindingsRow, HeaderData,
-                                                 MethodologyData,
-                                                 ReportSections, SignOffData)
+from vartriage.reporting.clinical.models import (
+    EvidenceCardData,
+    ExecutiveSummaryData,
+    FindingsRow,
+    HeaderData,
+    MethodologyData,
+    ReportSections,
+    SignOffData,
+)
 from vartriage.reporting.clinical.narrative import EvidenceNarrativeBuilder
 from vartriage.reporting.clinical.template_engine import ReportTemplateEngine
 
@@ -70,10 +75,7 @@ class ClinicalReportGenerator:
 
     def generate(
         self,
-        variants: Union[
-            Iterator[ClassifiedVariant],
-            Sequence[ClassifiedVariant],
-        ],
+        variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
         output_path: Path,
     ) -> Path:
         """Generate a clinical report with audit trail.
@@ -134,11 +136,9 @@ class ClinicalReportGenerator:
                 execution_timestamp=timestamp,
             )
         except Exception as exc:
-            try:
+            with contextlib.suppress(OSError):
                 output_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-            raise IOError(f"Audit trail write failed: {exc}") from exc
+            raise OSError(f"Audit trail write failed: {exc}") from exc
 
         return output_path
 
@@ -389,7 +389,7 @@ class ClinicalReportGenerator:
         # Resolve output_path to prevent path traversal
         output_path = output_path.resolve()
         if not output_path.parent.exists():
-            raise IOError(f"Parent directory does not exist: {output_path.parent}")
+            raise OSError(f"Parent directory does not exist: {output_path.parent}")
 
         try:
             tmp_fd, tmp_name = tempfile.mkstemp(
@@ -415,20 +415,18 @@ class ClinicalReportGenerator:
             elif fmt == "clinical-docx":
                 self._template_engine.render_docx(sections, tmp_path)
             else:
-                raise IOError(f"Unsupported clinical format: {fmt}")
+                raise OSError(f"Unsupported clinical format: {fmt}")
 
             os.replace(str(tmp_path), str(output_path))
             # Ensure final file also has restricted permissions
             os.chmod(output_path, 0o600)
             tmp_path = None
 
-        except (IOError, ImportError):
+        except (OSError, ImportError):
             raise
         except Exception as exc:
-            raise IOError(f"Failed to generate clinical report: {exc}") from exc
+            raise OSError(f"Failed to generate clinical report: {exc}") from exc
         finally:
             if tmp_path is not None:
-                try:
+                with contextlib.suppress(OSError):
                     tmp_path.unlink(missing_ok=True)
-                except OSError:
-                    pass

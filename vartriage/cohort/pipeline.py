@@ -12,7 +12,6 @@ import logging
 import tempfile
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
 
 from vartriage.cohort.aggregator import CohortAggregator
 from vartriage.cohort.report import CohortReportGenerator
@@ -60,9 +59,9 @@ class CohortPipeline:
     def __init__(
         self,
         cohort_config: CohortConfig,
-        pipeline_config: Optional[PipelineConfig] = None,
-        annotation_config: Optional[AnnotationConfig] = None,
-        prioritization_config: Optional[PrioritizationConfig] = None,
+        pipeline_config: PipelineConfig | None = None,
+        annotation_config: AnnotationConfig | None = None,
+        prioritization_config: PrioritizationConfig | None = None,
     ) -> None:
         self._cohort_config = cohort_config
         self._base_pipeline_config = pipeline_config
@@ -73,7 +72,7 @@ class CohortPipeline:
         # Results populated after run()
         self._variants: list[CohortVariant] = []
         self._gene_burdens: list[GeneBurden] = []
-        self._summary: Optional[CohortSummary] = None
+        self._summary: CohortSummary | None = None
         self._samples_processed: list[str] = []
 
     @property
@@ -87,7 +86,7 @@ class CohortPipeline:
         return self._gene_burdens
 
     @property
-    def summary(self) -> Optional[CohortSummary]:
+    def summary(self) -> CohortSummary | None:
         """Cohort summary statistics (populated after run())."""
         return self._summary
 
@@ -119,15 +118,11 @@ class CohortPipeline:
         # Validate all VCF files exist before processing
         for vcf_path in self._cohort_config.sample_vcfs:
             if not vcf_path.exists():
-                raise FileNotFoundError(
-                    f"Sample VCF not found: {vcf_path}"
-                )
+                raise FileNotFoundError(f"Sample VCF not found: {vcf_path}")
 
         # TemporaryDirectory context manager guarantees cleanup on
         # success, failure, or keyboard interrupt.
-        with tempfile.TemporaryDirectory(
-            prefix="vartriage_cohort_"
-        ) as tmp_dir:
+        with tempfile.TemporaryDirectory(prefix="vartriage_cohort_") as tmp_dir:
             tmp_path = Path(tmp_dir)
 
             if self._cohort_config.parallel:
@@ -166,9 +161,7 @@ class CohortPipeline:
         """Process each sample VCF sequentially."""
         for vcf_path in self._cohort_config.sample_vcfs:
             sample_id = self._cohort_config.label_for(vcf_path)
-            classified = self._run_single_sample(
-                vcf_path, sample_id, tmp_output_dir
-            )
+            classified = self._run_single_sample(vcf_path, sample_id, tmp_output_dir)
             self._aggregator.add_sample(sample_id, vcf_path, classified)
             self._samples_processed.append(sample_id)
 
@@ -180,9 +173,7 @@ class CohortPipeline:
         pysam which releases the GIL during C-level I/O).
         """
         max_workers = self._cohort_config.max_workers
-        futures_map: dict[
-            Future[list[ClassifiedVariant]], tuple[str, Path]
-        ] = {}
+        futures_map: dict[Future[list[ClassifiedVariant]], tuple[str, Path]] = {}
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for vcf_path in self._cohort_config.sample_vcfs:
@@ -198,12 +189,8 @@ class CohortPipeline:
             for future in as_completed(futures_map):
                 sample_id, vcf_path = futures_map[future]
                 try:
-                    classified: list[ClassifiedVariant] = (
-                        future.result()
-                    )
-                    self._aggregator.add_sample(
-                        sample_id, vcf_path, classified
-                    )
+                    classified: list[ClassifiedVariant] = future.result()
+                    self._aggregator.add_sample(sample_id, vcf_path, classified)
                     self._samples_processed.append(sample_id)
                 except Exception:
                     logger.exception(
@@ -271,9 +258,7 @@ class CohortPipeline:
             vcf_path=vcf_path,
             output_path=tmp_output,
             annotation=self._annotation_config,
-            prioritization=(
-                self._prioritization_config or PrioritizationConfig()
-            ),
+            prioritization=(self._prioritization_config or PrioritizationConfig()),
             report=ReportConfig(output_format="json"),
         )
 
@@ -297,9 +282,7 @@ class CohortPipeline:
             output_path=output_path,
             quality_filter=base.quality_filter,
             annotation=self._annotation_config or base.annotation,
-            prioritization=(
-                self._prioritization_config or base.prioritization
-            ),
+            prioritization=(self._prioritization_config or base.prioritization),
             report=ReportConfig(output_format="json"),
             missing_data=base.missing_data,
             gene_filter=base.gene_filter,

@@ -254,6 +254,6 @@ def write_vcf(
         for p in (tmp_path, tmp_tabix_path):
             if p.exists():
                 p.unlink()
-        raise IOError(f"Failed to write VCF output: {exc}") from exc
+        raise OSError(f"Failed to write VCF output: {exc}") from exc
 
     return output_path

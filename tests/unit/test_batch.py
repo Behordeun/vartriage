@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from vartriage._internal.batch import (_MIN_CHUNK_SIZE, batched,
-                                       process_with_memory_fallback)
+from vartriage._internal.batch import (
+    batched,
+    process_with_memory_fallback,
+)
 
 
 class TestBatched:

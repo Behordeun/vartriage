@@ -16,9 +16,13 @@ from pathlib import Path
 
 import pytest
 
-from vartriage.models.config import (AnnotationConfig, MissingDataConfig,
-                                     PipelineConfig, PrioritizationConfig,
-                                     QualityFilterConfig, ReportConfig)
+from vartriage.models.config import (
+    AnnotationConfig,
+    MissingDataConfig,
+    PipelineConfig,
+    QualityFilterConfig,
+    ReportConfig,
+)
 from vartriage.pipeline import Pipeline
 
 _VCF_HEADER = """\
@@ -58,7 +62,7 @@ def _write_gtf(tmp_dir: Path) -> Path:
     gtf_path = tmp_dir / "genes.gtf"
     lines = [
         "##format: gtf",
-        "chr1\thavana\tgene\t50\t1500\t.\t+\t.\t" 'gene_id "BRCA1"; gene_name "BRCA1";',
+        'chr1\thavana\tgene\t50\t1500\t.\t+\t.\tgene_id "BRCA1"; gene_name "BRCA1";',
         "chr1\thavana\ttranscript\t50\t1500\t.\t+\t.\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
         "chr1\thavana\texon\t50\t1500\t.\t+\t.\t"

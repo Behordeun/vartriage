@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from vartriage.knowledge.config import KnowledgeBaseConfig
@@ -69,8 +69,8 @@ class AnnotationConfig:
 
     gene_annotation_path: Path
     gnomad_path: Path
-    clinvar_path: Optional[Path] = None
-    reference_fasta_path: Optional[Path] = None
+    clinvar_path: Path | None = None
+    reference_fasta_path: Path | None = None
     batch_size: int = 10_000
 
     def __post_init__(self) -> None:
@@ -117,9 +117,9 @@ class PrioritizationConfig:
     """
 
     max_allele_frequency: float = 0.01
-    cadd_scores_path: Optional[Path] = None
-    revel_scores_path: Optional[Path] = None
-    spliceai_scores_path: Optional[Path] = None
+    cadd_scores_path: Path | None = None
+    revel_scores_path: Path | None = None
+    spliceai_scores_path: Path | None = None
     batch_size: int = 10_000
 
     def __post_init__(self) -> None:
@@ -355,20 +355,20 @@ class PipelineConfig:
     vcf_path: Path
     output_path: Path
     quality_filter: QualityFilterConfig = field(default_factory=QualityFilterConfig)
-    annotation: Optional[AnnotationConfig] = None
+    annotation: AnnotationConfig | None = None
     prioritization: PrioritizationConfig = field(default_factory=PrioritizationConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
     missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
     gene_filter: GeneFilterConfig | None = field(default=None)
     region_filter: RegionFilterConfig | None = field(default=None)
     sample: SampleConfig | None = field(default=None)
-    inheritance: "InheritanceConfig | None" = field(default=None)
-    clinical_report: "ClinicalReportConfig | None" = field(default=None)
+    inheritance: InheritanceConfig | None = field(default=None)
+    clinical_report: ClinicalReportConfig | None = field(default=None)
     use_bundles: bool = False
     genome_build: str = "grch38"
-    api: "object | None" = field(default=None)
-    knowledge: "KnowledgeBaseConfig | None" = field(default=None)
-    sv_vcf_path: Optional[Path] = None
+    api: object | None = field(default=None)
+    knowledge: KnowledgeBaseConfig | None = field(default=None)
+    sv_vcf_path: Path | None = None
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format

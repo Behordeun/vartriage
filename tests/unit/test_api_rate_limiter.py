@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import threading
 import time
-from unittest.mock import patch
 
 import pytest
 
-from vartriage.api._rate_limiter import (DailyLimitExhausted, RateLimiter,
-                                         RateLimitExhausted)
+from vartriage.api._rate_limiter import (
+    DailyLimitExhausted,
+    RateLimiter,
+    RateLimitExhausted,
+)
 
 
 class TestTokenBucketBasics:

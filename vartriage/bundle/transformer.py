@@ -10,10 +10,10 @@ import csv
 import gzip
 import shutil
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Protocol, Sequence
-
+from typing import Protocol
 
 from vartriage._internal.path_safety import safe_write_path
 
@@ -138,8 +138,7 @@ class VcfToTsvTransformer:
             out.write(self._header + "\n")
             result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=True,
                 text=True,
             )
@@ -231,8 +230,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
             out.write("chrom\tpos\tref\talt\tclinical_significance\n")
             result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=True,
                 text=True,
             )
@@ -312,7 +310,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
         """Ensure chromosome has 'chr' prefix."""
         return chrom if chrom.startswith("chr") else "chr" + chrom
 
-    def _extract_clnsig(self, record: object) -> Optional[str]:
+    def _extract_clnsig(self, record: object) -> str | None:
         """Extract and normalize CLNSIG from a pysam record."""
         clnsig = record.info.get("CLNSIG", [None])  # type: ignore[attr-defined]
         if isinstance(clnsig, tuple):
@@ -335,7 +333,7 @@ class CsvToTsvTransformer:
 
     def __init__(
         self,
-        column_map: Optional[dict[str, str]] = None,
+        column_map: dict[str, str] | None = None,
         add_chr_prefix: bool = True,
     ) -> None:
         """Configure CSV-to-TSV transformer.
@@ -446,8 +444,7 @@ class SpliceAIExtractor:
             out.write("chrom\tpos\tref\talt\tscore\n")
             result = subprocess.run(  # nosec: list-form, source validated by _validate_source_path
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=True,
                 text=True,
             )
@@ -511,7 +508,7 @@ class SpliceAIExtractor:
         return TransformResult(output_path=dest, rows_written=rows, source_path=source)
 
     @staticmethod
-    def _parse_max_delta(info_str: str) -> Optional[float]:
+    def _parse_max_delta(info_str: str) -> float | None:
         """Parse SpliceAI INFO field and return max delta score.
 
         Format: ALLELE|SYMBOL|DS_AG|DS_AL|DS_DG|DS_DL|DP_AG|DP_AL|DP_DG|DP_DL
@@ -548,7 +545,7 @@ class PassthroughTransformer:
             shutil.copy2(source, dest)
 
         # Count lines (approximate row count)
-        with open(dest, "r", encoding="utf-8", errors="replace") as f:
+        with open(dest, encoding="utf-8", errors="replace") as f:
             rows = sum(1 for _ in f) - 1
 
         return TransformResult(
@@ -565,7 +562,7 @@ TRANSFORM_REGISTRY: dict[str, type] = {
 }
 
 
-def get_transformer(transform_type: str, bundle_name: str = "") -> "TransformStrategy":
+def get_transformer(transform_type: str, bundle_name: str = "") -> TransformStrategy:
     """Get the appropriate transformer for a bundle.
 
     Parameters

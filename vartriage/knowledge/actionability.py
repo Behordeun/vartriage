@@ -11,7 +11,6 @@ from __future__ import annotations
 import csv
 import logging
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 
@@ -59,7 +58,7 @@ class ActionabilityDB:
         """Check whether a gene has established medical interventions."""
         return gene_symbol in self._index
 
-    def get_intervention_type(self, gene_symbol: str) -> Optional[str]:
+    def get_intervention_type(self, gene_symbol: str) -> str | None:
         """Return the intervention type for an actionable gene.
 
         Returns

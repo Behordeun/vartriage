@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from vartriage.models.config import ReportConfig
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClassifiedVariant,
+    ClinVarAssertion,
+    EvidenceTag,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
 from vartriage.reporting.generator import ReportGenerator
 
 

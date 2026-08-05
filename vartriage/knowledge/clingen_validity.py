@@ -11,21 +11,22 @@ from __future__ import annotations
 import csv
 import logging
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 
 logger = logging.getLogger(__name__)
 
-VALID_LEVELS = frozenset({
-    "Definitive",
-    "Strong",
-    "Moderate",
-    "Limited",
-    "Disputed",
-    "Refuted",
-    "No Known Disease Relationship",
-})
+VALID_LEVELS = frozenset(
+    {
+        "Definitive",
+        "Strong",
+        "Moderate",
+        "Limited",
+        "Disputed",
+        "Refuted",
+        "No Known Disease Relationship",
+    }
+)
 
 
 class ClinGenValidityDB:
@@ -76,7 +77,7 @@ class ClinGenValidityDB:
             len(self._index),
         )
 
-    def lookup(self, gene_symbol: str) -> Optional[str]:
+    def lookup(self, gene_symbol: str) -> str | None:
         """Return the ClinGen validity level for a gene.
 
         Parameters

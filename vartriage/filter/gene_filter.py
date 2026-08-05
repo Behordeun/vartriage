@@ -9,8 +9,8 @@ frozenset.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import GeneFilterConfig
@@ -138,7 +138,7 @@ class GeneFilter:
 
         genes: set[str] = set()
         path = resolve_path(path)
-        with open(path, "r") as fh:
+        with open(path) as fh:
             for line in fh:
                 stripped = line.strip()
                 if not stripped:
@@ -148,8 +148,6 @@ class GeneFilter:
                 genes.add(stripped.upper())
 
         if not genes:
-            raise ValueError(
-                f"Gene list file contains no valid gene " f"symbols: {path}"
-            )
+            raise ValueError(f"Gene list file contains no valid gene symbols: {path}")
 
         return frozenset(genes)

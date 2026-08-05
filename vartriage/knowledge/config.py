@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 VALID_INHERITANCE_MODES = frozenset({"AD", "AR", "XL", "XLD", "XLR", "MT"})
 
@@ -43,9 +42,9 @@ class KnowledgeBaseConfig:
         If inheritance_mode is not a recognized mode.
     """
 
-    data_dir: Optional[Path] = field(default=None)
+    data_dir: Path | None = field(default=None)
     hpo_terms: frozenset[str] = field(default_factory=frozenset)
-    inheritance_mode: Optional[str] = field(default=None)
+    inheritance_mode: str | None = field(default=None)
     flag_actionable: bool = False
 
     def __post_init__(self) -> None:

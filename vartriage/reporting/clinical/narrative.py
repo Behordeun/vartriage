@@ -10,8 +10,12 @@ from __future__ import annotations
 import html
 import math
 
-from vartriage.models.variant import (ClassifiedVariant, EvidenceTag,
-                                      FunctionalConsequence, ScoredVariant)
+from vartriage.models.variant import (
+    ClassifiedVariant,
+    EvidenceTag,
+    FunctionalConsequence,
+    ScoredVariant,
+)
 
 # Template constants for narrative construction.
 _GENE_CONSEQUENCE_TEMPLATE = "{gene}: {consequence} at {chrom}:{pos} ({ref}>{alt})."
@@ -249,10 +253,7 @@ class EvidenceNarrativeBuilder:
             Formatted string like "REVEL 0.95 (scale 0-1, threshold 0.7)".
         """
         context = _SCORE_CONTEXT.get(score_name, "")
-        if score_name == "CADD":
-            value_str = f"{value:.1f}"
-        else:
-            value_str = f"{value:.2f}"
+        value_str = f"{value:.1f}" if score_name == "CADD" else f"{value:.2f}"
 
         if context:
             return f"{score_name} {value_str} ({context})"  # nosec: score_name from internal constants, value_str is numeric
@@ -307,5 +308,5 @@ class EvidenceNarrativeBuilder:
         for word in self.BANNED_VOCABULARY:
             if word in text_lower:
                 raise ValueError(
-                    f"Narrative contains banned vocabulary " f"'{word}': {text!r}"
+                    f"Narrative contains banned vocabulary '{word}': {text!r}"
                 )

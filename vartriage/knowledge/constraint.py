@@ -11,7 +11,6 @@ from __future__ import annotations
 import csv
 import logging
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.knowledge.models import GeneConstraint
@@ -51,9 +50,14 @@ class ConstraintDB:
                 mis_z_raw = row.get("mis_z", "").strip()
 
                 # Skip rows with missing numeric data (dot or empty)
-                if not pli_raw or pli_raw == "." or \
-                   not loeuf_raw or loeuf_raw == "." or \
-                   not mis_z_raw or mis_z_raw == ".":
+                if (
+                    not pli_raw
+                    or pli_raw == "."
+                    or not loeuf_raw
+                    or loeuf_raw == "."
+                    or not mis_z_raw
+                    or mis_z_raw == "."
+                ):
                     continue
 
                 try:
@@ -75,7 +79,7 @@ class ConstraintDB:
             len(self._index),
         )
 
-    def lookup(self, gene_symbol: str) -> Optional[GeneConstraint]:
+    def lookup(self, gene_symbol: str) -> GeneConstraint | None:
         """Return constraint metrics for a gene.
 
         Parameters

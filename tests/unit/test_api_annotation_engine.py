@@ -3,20 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 httpx = pytest.importorskip("httpx")
 
-from vartriage.api._cache import ResponseCache
 from vartriage.api.annotation_engine import APIAnnotationEngine
 from vartriage.api.config import APIConfig
 from vartriage.api.score_provider import APIScoreProvider
 from vartriage.api.vep_client import VEPAnnotation
-from vartriage.models.variant import (ClinVarAssertion, FunctionalConsequence,
-                                      Variant)
+from vartriage.models.variant import ClinVarAssertion, FunctionalConsequence, Variant
 
 # --- Helpers ---
 
@@ -32,8 +29,8 @@ def _make_variant(
 def _make_vep_annotation(
     consequence: FunctionalConsequence = FunctionalConsequence.MISSENSE,
     gene_name: str = "BRCA1",
-    allele_frequency: Optional[float] = 0.002,
-    cadd_phred: Optional[float] = 24.5,
+    allele_frequency: float | None = 0.002,
+    cadd_phred: float | None = 24.5,
 ) -> VEPAnnotation:
     return VEPAnnotation(
         consequence=consequence,

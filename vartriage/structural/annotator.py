@@ -14,16 +14,16 @@ from __future__ import annotations
 
 import csv
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Optional
 
 from vartriage.structural.models import (
     AnnotatedSV,
     GeneOverlap,
+    StructuralVariant,
     SVConsequence,
     SVType,
-    StructuralVariant,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,8 +46,8 @@ class DosageEntry:
     """ClinGen dosage sensitivity for a single gene."""
 
     gene_symbol: str
-    hi_score: Optional[float]
-    ts_score: Optional[float]
+    hi_score: float | None
+    ts_score: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,9 +90,9 @@ class SVAnnotator:
 
     def __init__(
         self,
-        gene_annotation_path: Optional[Path] = None,
-        dosage_sensitivity_path: Optional[Path] = None,
-        gnomad_sv_path: Optional[Path] = None,
+        gene_annotation_path: Path | None = None,
+        dosage_sensitivity_path: Path | None = None,
+        gnomad_sv_path: Path | None = None,
         reciprocal_overlap: float = 0.5,
         whole_gene_threshold: float = 0.8,
     ) -> None:
@@ -110,9 +110,7 @@ class SVAnnotator:
         if gnomad_sv_path is not None:
             self._load_sv_frequency(gnomad_sv_path)
 
-    def annotate(
-        self, variants: Iterator[StructuralVariant]
-    ) -> Iterator[AnnotatedSV]:
+    def annotate(self, variants: Iterator[StructuralVariant]) -> Iterator[AnnotatedSV]:
         """Annotate a stream of structural variants.
 
         Parameters
@@ -148,7 +146,9 @@ class SVAnnotator:
             hi_genes_affected=hi_count,
         )
 
-    def _gene_overlap(self, sv: StructuralVariant, gene: "GeneRecord") -> GeneOverlap | None:
+    def _gene_overlap(
+        self, sv: StructuralVariant, gene: GeneRecord
+    ) -> GeneOverlap | None:
         """Return a GeneOverlap for one gene, or None if no overlap."""
         overlap_start = max(sv.start, gene.start)
         overlap_end = min(sv.end, gene.end)
@@ -159,7 +159,11 @@ class SVAnnotator:
         overlap_bp = overlap_end - overlap_start + 1
         overlap_fraction = overlap_bp / gene_length if gene_length > 0 else 0.0
         is_whole = overlap_fraction >= self._whole_gene_threshold
-        exons_affected = gene.exon_count if is_whole else max(1, int(gene.exon_count * overlap_fraction))
+        exons_affected = (
+            gene.exon_count
+            if is_whole
+            else max(1, int(gene.exon_count * overlap_fraction))
+        )
 
         dosage = self._dosage.get(gene.symbol)
         hi_score = dosage.hi_score if dosage else None
@@ -184,7 +188,11 @@ class SVAnnotator:
         """Find all protein-coding genes overlapping the SV span."""
         chrom_genes = self._genes.get(sv.chrom, [])
         if not chrom_genes:
-            alt_chrom = sv.chrom.replace("chr", "") if sv.chrom.startswith("chr") else f"chr{sv.chrom}"
+            alt_chrom = (
+                sv.chrom.replace("chr", "")
+                if sv.chrom.startswith("chr")
+                else f"chr{sv.chrom}"
+            )
             chrom_genes = self._genes.get(alt_chrom, [])
 
         hits = [self._gene_overlap(sv, g) for g in chrom_genes]
@@ -196,17 +204,33 @@ class SVAnnotator:
     def _del_dup_consequence(sv_type: SVType, is_whole: bool) -> SVConsequence:
         """Consequence for DEL or DUP based on whole-gene status."""
         if sv_type == SVType.DEL:
-            return SVConsequence.WHOLE_GENE_DELETION if is_whole else SVConsequence.PARTIAL_GENE_DELETION
-        return SVConsequence.WHOLE_GENE_DUPLICATION if is_whole else SVConsequence.PARTIAL_GENE_DUPLICATION
+            return (
+                SVConsequence.WHOLE_GENE_DELETION
+                if is_whole
+                else SVConsequence.PARTIAL_GENE_DELETION
+            )
+        return (
+            SVConsequence.WHOLE_GENE_DUPLICATION
+            if is_whole
+            else SVConsequence.PARTIAL_GENE_DUPLICATION
+        )
 
     @staticmethod
     def _cnv_consequence(sv: StructuralVariant, is_whole: bool) -> SVConsequence:
         """Consequence for CNV based on copy number."""
         if sv.copy_number is not None:
             if sv.copy_number < 2:
-                return SVConsequence.WHOLE_GENE_DELETION if is_whole else SVConsequence.PARTIAL_GENE_DELETION
+                return (
+                    SVConsequence.WHOLE_GENE_DELETION
+                    if is_whole
+                    else SVConsequence.PARTIAL_GENE_DELETION
+                )
             if sv.copy_number > 2:
-                return SVConsequence.WHOLE_GENE_DUPLICATION if is_whole else SVConsequence.PARTIAL_GENE_DUPLICATION
+                return (
+                    SVConsequence.WHOLE_GENE_DUPLICATION
+                    if is_whole
+                    else SVConsequence.PARTIAL_GENE_DUPLICATION
+                )
         return SVConsequence.GENE_DISRUPTION
 
     def _sv_consequence(
@@ -230,7 +254,7 @@ class SVAnnotator:
 
     def _reciprocal_freq(
         self, sv_start: int, sv_end: int, sv_type_str: str, ref_sv: object
-    ) -> tuple[float, Optional[float]] | None:
+    ) -> tuple[float, float | None] | None:
         """Return (reciprocal_overlap, allele_frequency) for a matching ref SV, or None."""
         if ref_sv.sv_type != sv_type_str:  # type: ignore[attr-defined]
             return None
@@ -245,9 +269,7 @@ class SVAnnotator:
         frac_ref = overlap_bp / ref_length if ref_length > 0 else 0.0
         return min(frac_query, frac_ref), ref_sv.allele_frequency  # type: ignore[attr-defined]
 
-    def _lookup_frequency(
-        self, sv: StructuralVariant
-    ) -> tuple[Optional[float], bool]:
+    def _lookup_frequency(self, sv: StructuralVariant) -> tuple[float | None, bool]:
         """Match SV against gnomAD-SV using reciprocal overlap.
 
         Returns (frequency, frequency_unknown). If no reference database
@@ -258,15 +280,23 @@ class SVAnnotator:
 
         chrom_svs = self._sv_database.get(sv.chrom, [])
         if not chrom_svs:
-            alt_chrom = sv.chrom.replace("chr", "") if sv.chrom.startswith("chr") else f"chr{sv.chrom}"
+            alt_chrom = (
+                sv.chrom.replace("chr", "")
+                if sv.chrom.startswith("chr")
+                else f"chr{sv.chrom}"
+            )
             chrom_svs = self._sv_database.get(alt_chrom, [])
 
-        best_freq: Optional[float] = None
+        best_freq: float | None = None
         best_overlap: float = 0.0
 
         for ref_sv in chrom_svs:
             match = self._reciprocal_freq(sv.start, sv.end, sv.sv_type.value, ref_sv)
-            if match is not None and match[0] >= self._reciprocal_overlap and match[0] > best_overlap:
+            if (
+                match is not None
+                and match[0] >= self._reciprocal_overlap
+                and match[0] > best_overlap
+            ):
                 best_overlap, best_freq = match
 
         return (best_freq, False) if best_freq is not None else (None, True)
@@ -285,11 +315,18 @@ class SVAnnotator:
         gene_name = _extract_attribute(attributes, "gene_name")
         if gene_name is None:
             return
-        gene_type = _extract_attribute(attributes, "gene_type") or _extract_attribute(attributes, "gene_biotype")
+        gene_type = _extract_attribute(attributes, "gene_type") or _extract_attribute(
+            attributes, "gene_biotype"
+        )
         if gene_type is not None and gene_type != "protein_coding":
             return
         if feature_type == "gene":
-            gene_records[gene_name] = (fields[0], int(fields[3]), int(fields[4]), fields[6])
+            gene_records[gene_name] = (
+                fields[0],
+                int(fields[3]),
+                int(fields[4]),
+                fields[6],
+            )
             gene_exon_counts.setdefault(gene_name, 0)
         else:
             gene_exon_counts[gene_name] = gene_exon_counts.get(gene_name, 0) + 1
@@ -307,7 +344,7 @@ class SVAnnotator:
         gene_exon_counts: dict[str, int] = {}
         gene_records: dict[str, tuple[str, int, int, str]] = {}
 
-        with open(gtf_path, "r") as fh:
+        with open(gtf_path) as fh:
             for line in fh:
                 if line.startswith("#"):
                     continue
@@ -317,7 +354,11 @@ class SVAnnotator:
 
         for symbol, (chrom, start, end, strand) in gene_records.items():
             record = GeneRecord(
-                symbol=symbol, chrom=chrom, start=start, end=end, strand=strand,
+                symbol=symbol,
+                chrom=chrom,
+                start=start,
+                end=end,
+                strand=strand,
                 exon_count=max(1, gene_exon_counts.get(symbol, 1)),
             )
             self._genes.setdefault(chrom, []).append(record)
@@ -338,7 +379,7 @@ class SVAnnotator:
         if not path.exists():
             raise FileNotFoundError(f"Dosage sensitivity file not found: {path}")
 
-        with open(path, "r") as fh:
+        with open(path) as fh:
             reader = csv.DictReader(fh, delimiter="\t")
             for row in reader:
                 symbol = row.get("gene_symbol") or row.get("Gene Symbol") or ""
@@ -358,7 +399,9 @@ class SVAnnotator:
                     ts_score=ts_score,
                 )
 
-        logger.info("Loaded dosage sensitivity for %d genes from %s", len(self._dosage), path)
+        logger.info(
+            "Loaded dosage sensitivity for %d genes from %s", len(self._dosage), path
+        )
 
     def _load_sv_frequency(self, path: Path) -> None:
         """Load gnomAD-SV reference for population frequency matching.
@@ -369,7 +412,7 @@ class SVAnnotator:
         if not path.exists():
             raise FileNotFoundError(f"gnomAD-SV file not found: {path}")
 
-        with open(path, "r") as fh:
+        with open(path) as fh:
             for line in fh:
                 if line.startswith("#"):
                     continue
@@ -409,7 +452,7 @@ class SVAnnotator:
         logger.info("Loaded %d reference SVs from %s", total, path)
 
 
-def _extract_attribute(attributes: str, key: str) -> Optional[str]:
+def _extract_attribute(attributes: str, key: str) -> str | None:
     """Extract a value from GTF attribute string (key "value"; format)."""
     for attr in attributes.split(";"):
         attr = attr.strip()
@@ -424,7 +467,7 @@ def _extract_attribute(attributes: str, key: str) -> Optional[str]:
     return None
 
 
-def _parse_score(raw: Optional[str]) -> Optional[float]:
+def _parse_score(raw: str | None) -> float | None:
     """Parse a numeric score, returning None for missing/invalid values."""
     if raw is None:
         return None

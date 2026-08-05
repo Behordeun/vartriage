@@ -10,22 +10,31 @@ import json
 import os
 import stat
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from vartriage.models.config import ClinicalReportConfig
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClassifiedVariant,
+    ClinVarAssertion,
+    EvidenceTag,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
 from vartriage.reporting.clinical.audit import AuditTrailWriter
 from vartriage.reporting.clinical.generator import ClinicalReportGenerator
-from vartriage.reporting.clinical.models import (EvidenceCardData,
-                                                 ExecutiveSummaryData,
-                                                 FindingsRow, HeaderData,
-                                                 MethodologyData,
-                                                 ReportSections, SignOffData)
+from vartriage.reporting.clinical.models import (
+    EvidenceCardData,
+    ExecutiveSummaryData,
+    FindingsRow,
+    HeaderData,
+    MethodologyData,
+    ReportSections,
+    SignOffData,
+)
 from vartriage.reporting.clinical.narrative import EvidenceNarrativeBuilder
 from vartriage.reporting.clinical.template_engine import ReportTemplateEngine
 
@@ -569,9 +578,11 @@ class TestRenderPdf:
         engine = ReportTemplateEngine()
         import unittest.mock as mock
 
-        with mock.patch("builtins.__import__", side_effect=mock_import):
-            with pytest.raises(ImportError, match="weasyprint"):
-                engine.render_pdf(sample_sections, tmp_path / "report.pdf")
+        with (
+            mock.patch("builtins.__import__", side_effect=mock_import),
+            pytest.raises(ImportError, match="weasyprint"),
+        ):
+            engine.render_pdf(sample_sections, tmp_path / "report.pdf")
 
     def test_render_pdf_calls_weasyprint_correctly(
         self, sample_sections: ReportSections, tmp_path: Path
@@ -617,9 +628,11 @@ class TestRenderDocx:
         engine = ReportTemplateEngine()
         import unittest.mock as mock
 
-        with mock.patch("builtins.__import__", side_effect=mock_import):
-            with pytest.raises(ImportError, match="python-docx"):
-                engine.render_docx(sample_sections, tmp_path / "report.docx")
+        with (
+            mock.patch("builtins.__import__", side_effect=mock_import),
+            pytest.raises(ImportError, match="python-docx"),
+        ):
+            engine.render_docx(sample_sections, tmp_path / "report.docx")
 
     def test_render_docx_calls_python_docx_correctly(
         self, sample_sections: ReportSections, tmp_path: Path

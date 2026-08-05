@@ -6,7 +6,6 @@ import logging
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Optional
 from unittest.mock import patch
 
 import pytest
@@ -17,10 +16,10 @@ from tests.generators.variants import evidence_tag_set, scored_variant
 from vartriage._internal.warning_accumulator import MissingDataSummaryWarning
 from vartriage.exceptions import VarTriageWarning
 from vartriage.models.config import ReportConfig
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.variant import (
+    ACMGClassification,
+    ClassifiedVariant,
+)
 from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
 from vartriage.prioritization.scoring import ScoreValidationWarning
 from vartriage.reporting.generator import ReportGenerator
@@ -188,7 +187,7 @@ class TestScoreLoaderRoundTrip:
         results = loader.lookup_batch(truly_missing, loaded)
         for i, result in enumerate(results):
             assert result is None, (
-                f"Expected None for missing key {truly_missing[i]}, " f"got {result}"
+                f"Expected None for missing key {truly_missing[i]}, got {result}"
             )
 
     @given(
@@ -331,14 +330,15 @@ class TestWarningHierarchy:
             warnings.simplefilter("always")
             warnings.filterwarnings("ignore", category=VarTriageWarning)
 
-            warnings.warn("score issue", ScoreValidationWarning)
+            warnings.warn("score issue", ScoreValidationWarning, stacklevel=2)
             warnings.warn(
                 MissingDataSummaryWarning(
                     total_count=5,
                     sources=frozenset({"gnomAD"}),
                     not_found_count=3,
                     connection_failure_count=2,
-                )
+                ),
+                stacklevel=2,
             )
 
         vartriage_warnings = [
@@ -397,7 +397,7 @@ class TestScoreLoaderUnit:
 
     def test_missing_coordinate_returns_none(self, tmp_path: Path) -> None:
         """Absent coordinates come back as None in batch lookups."""
-        tsv_content = "#chrom\tpos\tref\talt\tscore\n" "chr1\t100\tA\tT\t25.3\n"
+        tsv_content = "#chrom\tpos\tref\talt\tscore\nchr1\t100\tA\tT\t25.3\n"
         tsv_path = tmp_path / "cadd.tsv"
         tsv_path.write_text(tsv_content, encoding="utf-8")
 

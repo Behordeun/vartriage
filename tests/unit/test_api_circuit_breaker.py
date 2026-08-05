@@ -6,8 +6,11 @@ import time
 
 import pytest
 
-from vartriage.api._circuit_breaker import (CircuitBreaker, CircuitBreakerOpen,
-                                            CircuitState)
+from vartriage.api._circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerOpen,
+    CircuitState,
+)
 
 
 class TestClosedState:

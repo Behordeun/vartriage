@@ -11,9 +11,8 @@ import hashlib
 import json
 import os
 import platform
-import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from vartriage._internal.path_safety import resolve_path, safe_read_path
 from vartriage.models.config import ClinicalReportConfig
@@ -68,9 +67,7 @@ class AuditTrailWriter:
             If the sidecar file cannot be written due to filesystem
             errors.
         """
-        sidecar_path = resolve_path(
-            Path(str(output_path.resolve()) + ".audit.json")
-        )
+        sidecar_path = resolve_path(Path(str(output_path.resolve()) + ".audit.json"))
         sidecar_path.parent.mkdir(parents=True, exist_ok=True)
 
         audit_data = {
@@ -93,8 +90,8 @@ class AuditTrailWriter:
             )
             os.chmod(sidecar_path, 0o600)
         except OSError as exc:
-            raise IOError(
-                f"Failed to write audit sidecar at " f"{sidecar_path}: {exc}"
+            raise OSError(
+                f"Failed to write audit sidecar at {sidecar_path}: {exc}"
             ) from exc
 
         return sidecar_path
@@ -127,9 +124,7 @@ class AuditTrailWriter:
                         break
                     sha256.update(chunk)
         except OSError as exc:
-            raise IOError(
-                f"Failed to read file for checksum at " f"{path}: {exc}"
-            ) from exc
+            raise OSError(f"Failed to read file for checksum at {path}: {exc}") from exc
 
         return f"sha256:{sha256.hexdigest()}"
 

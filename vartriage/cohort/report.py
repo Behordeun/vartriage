@@ -129,9 +129,7 @@ class CohortReportGenerator:
         logger.info("CSV reports written to %s", self._output_dir)
         return paths
 
-    def _write_variants_csv(
-        self, path: Path, variants: list[CohortVariant]
-    ) -> None:
+    def _write_variants_csv(self, path: Path, variants: list[CohortVariant]) -> None:
         """Write cohort variants to CSV."""
         fieldnames = [
             "chrom",
@@ -179,9 +177,7 @@ class CohortReportGenerator:
                     }
                 )
 
-    def _write_burden_csv(
-        self, path: Path, burdens: list[GeneBurden]
-    ) -> None:
+    def _write_burden_csv(self, path: Path, burdens: list[GeneBurden]) -> None:
         """Write gene burden table to CSV."""
         fieldnames = [
             "gene_name",

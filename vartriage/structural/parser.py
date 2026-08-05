@@ -13,13 +13,13 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Optional
 
 import pysam
 
 from vartriage.io.exceptions import ParseError
-from vartriage.structural.models import SVType, StructuralVariant
+from vartriage.structural.models import StructuralVariant, SVType
 
 logger = logging.getLogger(__name__)
 
@@ -66,27 +66,27 @@ _SVTYPE_MAP: dict[str, SVType] = {
 # Each caller stores coordinates slightly differently.
 # Priority order: caller-specific fields first, then standard fields.
 _CALLER_END_FIELDS: tuple[str, ...] = (
-    "END",       # VCF 4.3 standard
-    "END2",      # GRIDSS
+    "END",  # VCF 4.3 standard
+    "END2",  # GRIDSS
     "CHR2_POS",  # Some LUMPY versions
 )
 
 _CALLER_SVLEN_FIELDS: tuple[str, ...] = (
-    "SVLEN",     # Standard
-    "INSLEN",    # Manta insertion length
-    "HOMLEN",    # Microhomology length (not SV length, but used as fallback)
+    "SVLEN",  # Standard
+    "INSLEN",  # Manta insertion length
+    "HOMLEN",  # Microhomology length (not SV length, but used as fallback)
 )
 
 _CALLER_COPY_NUMBER_FIELDS: tuple[str, ...] = (
-    "CN",        # Standard
-    "CNVAL",     # GATK-SV
-    "TCN",       # Total copy number (some callers)
+    "CN",  # Standard
+    "CNVAL",  # GATK-SV
+    "TCN",  # Total copy number (some callers)
 )
 
 _CALLER_MATE_FIELDS: tuple[str, ...] = (
-    "MATEID",    # Standard BND mate
-    "PARID",     # GRIDSS partner ID
-    "EVENT",     # Manta groups BND pairs by event
+    "MATEID",  # Standard BND mate
+    "PARID",  # GRIDSS partner ID
+    "EVENT",  # Manta groups BND pairs by event
 )
 
 
@@ -119,14 +119,14 @@ class SVParser:
         min_size: int = 50,
         max_size: int = 0,
         min_quality: float = 0.0,
-        sv_types: Optional[set[SVType]] = None,
+        sv_types: set[SVType] | None = None,
     ) -> None:
         self._file_path = Path(file_path)
         self._min_size = min_size
         self._max_size = max_size
         self._min_quality = min_quality
         self._sv_types = sv_types
-        self._vcf: Optional[pysam.VariantFile] = None
+        self._vcf: pysam.VariantFile | None = None
         self._closed: bool = False
 
         self._validate_file()
@@ -168,9 +168,7 @@ class SVParser:
                 continue
             yield sv
 
-    def _try_parse_sv(
-        self, record: pysam.VariantRecord
-    ) -> Optional[StructuralVariant]:
+    def _try_parse_sv(self, record: pysam.VariantRecord) -> StructuralVariant | None:
         """Attempt to parse a VCF record as a structural variant.
 
         Returns None if the record is not an SV (no SVTYPE and no
@@ -184,7 +182,7 @@ class SVParser:
         start = record.pos
         variant_id = record.id if record.id != "." else None
 
-        qual: Optional[float] = None
+        qual: float | None = None
         if record.qual is not None:
             qual = float(record.qual)
 
@@ -216,7 +214,7 @@ class SVParser:
             info=info,
         )
 
-    def _resolve_sv_type(self, record: pysam.VariantRecord) -> Optional[SVType]:
+    def _resolve_sv_type(self, record: pysam.VariantRecord) -> SVType | None:
         """Determine SV type from SVTYPE INFO or symbolic ALT."""
         # Try INFO/SVTYPE first (most SV callers set this)
         svtype_raw = record.info.get("SVTYPE")
@@ -270,7 +268,7 @@ class SVParser:
         record: pysam.VariantRecord,
         start: int,
         end: int,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Extract SV length from caller-specific or standard fields."""
         for field_name in _CALLER_SVLEN_FIELDS:
             svlen_val = record.info.get(field_name)
@@ -281,9 +279,7 @@ class SVParser:
             return end - start + 1
         return None
 
-    def _resolve_copy_number(
-        self, record: pysam.VariantRecord
-    ) -> Optional[int]:
+    def _resolve_copy_number(self, record: pysam.VariantRecord) -> int | None:
         """Extract copy number from caller-specific fields."""
         for field_name in _CALLER_COPY_NUMBER_FIELDS:
             cn = record.info.get(field_name)
@@ -309,7 +305,7 @@ class SVParser:
                 pass
         return (0, 0)
 
-    def _resolve_mate_id(self, record: pysam.VariantRecord) -> Optional[str]:
+    def _resolve_mate_id(self, record: pysam.VariantRecord) -> str | None:
         """Extract mate/partner ID for BND records from caller-specific fields."""
         for field_name in _CALLER_MATE_FIELDS:
             mate = record.info.get(field_name)
@@ -349,11 +345,11 @@ class SVParser:
                 return False
 
         # Quality filter
-        if self._min_quality > 0.0 and sv.qual is not None:
-            if sv.qual < self._min_quality:
-                return False
-
-        return True
+        return not (
+            self._min_quality > 0.0
+            and sv.qual is not None
+            and sv.qual < self._min_quality
+        )
 
     def close(self) -> None:
         """Release file handles."""
@@ -363,7 +359,7 @@ class SVParser:
             self._vcf.close()
             self._closed = True
 
-    def __enter__(self) -> "SVParser":
+    def __enter__(self) -> SVParser:
         return self
 
     def __exit__(self, *_args: object) -> None:

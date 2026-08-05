@@ -12,10 +12,9 @@ Each protocol has two implementations:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
-from vartriage.models.variant import (ClinVarAssertion, FunctionalConsequence,
-                                      Variant)
+from vartriage.models.variant import ClinVarAssertion, FunctionalConsequence, Variant
 
 
 class IntervalIndex(Protocol):
@@ -67,7 +66,7 @@ class IntervalIndex(Protocol):
         """
         ...
 
-    def assign_batch(self, variants: list["Variant"]) -> list["FunctionalConsequence"]:
+    def assign_batch(self, variants: list[Variant]) -> list[FunctionalConsequence]:
         """Assign consequences to a batch of variants.
 
         Returns a list of the same length as the input, positionally
@@ -114,7 +113,7 @@ class FrequencyDatabase(Protocol):
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[float]]:
+    ) -> list[float | None]:
         """Batch lookup of allele frequencies by genomic coordinate.
 
         Parameters
@@ -159,7 +158,7 @@ class ClinVarDatabase(Protocol):
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[ClinVarAssertion]]:
+    ) -> list[ClinVarAssertion | None]:
         """Batch lookup of ClinVar clinical significance assertions.
 
         Parameters

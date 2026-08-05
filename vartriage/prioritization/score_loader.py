@@ -14,7 +14,6 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 
@@ -94,7 +93,7 @@ class ScoreLoader:
         self,
         variants: list[CoordinateKey],
         score_dict: dict[CoordinateKey, float],
-    ) -> list[Optional[float]]:
+    ) -> list[float | None]:
         """Look up scores for a list of coordinates.
 
         Parameters

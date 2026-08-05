@@ -10,7 +10,6 @@ from __future__ import annotations
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Optional
 
 from vartriage.exceptions import VarTriageWarning
 from vartriage.models.config import MissingDataConfig
@@ -34,7 +33,7 @@ _NOT_FOUND_REASONS = frozenset(
 )
 
 
-def is_connection_failure(reason: Optional[str]) -> bool:
+def is_connection_failure(reason: str | None) -> bool:
     """Determine whether a warning reason indicates a connection/timeout failure.
 
     Parameters
@@ -109,7 +108,7 @@ class WarningAccumulator:
     True
     """
 
-    def __init__(self, config: Optional[MissingDataConfig] = None) -> None:
+    def __init__(self, config: MissingDataConfig | None = None) -> None:
         self._config = config or MissingDataConfig()
         self._warnings: list[MissingDataWarning] = []
         self._count_by_source: defaultdict[str, int] = defaultdict(int)

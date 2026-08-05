@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Sequence
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -96,7 +96,7 @@ class BundleDownloader:
         self,
         url: str,
         dest: Path,
-        expected_size: Optional[int] = None,
+        expected_size: int | None = None,
         expected_checksum: str = "",
         resume: bool = True,
     ) -> DownloadResult:
@@ -179,10 +179,10 @@ class BundleDownloader:
         url: str,
         dest: Path,
         start_offset: int,
-        expected_size: Optional[int],
+        expected_size: int | None,
     ) -> int:
         """Download with exponential backoff retry."""
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for attempt in range(self._max_retries + 1):
             if attempt > 0:
@@ -219,7 +219,7 @@ class BundleDownloader:
         url: str,
         dest: Path,
         start_offset: int,
-        expected_size: Optional[int],
+        expected_size: int | None,
     ) -> int:
         """Stream download to disk with optional resume."""
         request = Request(url)
@@ -240,7 +240,7 @@ class BundleDownloader:
             mode = "wb"
 
         # Set up progress display
-        progress: Optional[ProgressBar] = None
+        progress: ProgressBar | None = None
         if self._show_progress:
             filename = dest.name.replace(".partial", "")
             progress = ProgressBar(filename, expected_size)
@@ -286,7 +286,7 @@ class DownloadRequest:
 
     url: str
     dest: Path
-    expected_size: Optional[int] = None
+    expected_size: int | None = None
     expected_checksum: str = ""
     label: str = ""
 

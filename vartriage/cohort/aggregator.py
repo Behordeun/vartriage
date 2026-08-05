@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
 
 from vartriage.models.cohort import (
     CohortConfig,
@@ -20,8 +19,8 @@ from vartriage.models.cohort import (
     VariantKey,
 )
 from vartriage.models.variant import (
-    ACMGClassification,
     CLASSIFICATION_SEVERITY_ORDER,
+    ACMGClassification,
     ClassifiedVariant,
     EvidenceTag,
     FunctionalConsequence,
@@ -207,15 +206,11 @@ class CohortAggregator:
             if sample_count < min_rec and sample_count > 1:
                 continue
 
-            cohort_variant = self._build_cohort_variant(
-                key, occurrences, total_samples
-            )
+            cohort_variant = self._build_cohort_variant(key, occurrences, total_samples)
             results.append(cohort_variant)
 
         # Sort: highest recurrence first, then by coordinate for stability
-        results.sort(
-            key=lambda v: (-v.sample_count, v.chrom, v.pos, v.ref, v.alt)
-        )
+        results.sort(key=lambda v: (-v.sample_count, v.chrom, v.pos, v.ref, v.alt))
 
         logger.info(
             "Aggregation complete: %d variants (%d shared, %d singletons)",
@@ -259,9 +254,7 @@ class CohortAggregator:
         chrom, pos, ref, alt = key
 
         # Collect classifications and consequences across samples
-        classifications = [
-            occ.classified.classification for occ in occurrences
-        ]
+        classifications = [occ.classified.classification for occ in occurrences]
         consequences = [
             occ.classified.scored.annotated.consequence for occ in occurrences
         ]
@@ -272,7 +265,7 @@ class CohortAggregator:
             all_tags.update(occ.classified.evidence_tags)
 
         # Gene name: take the first non-None value
-        gene_name: Optional[str] = None
+        gene_name: str | None = None
         for occ in occurrences:
             gn = occ.classified.scored.annotated.gene_name
             if gn is not None:
@@ -280,7 +273,7 @@ class CohortAggregator:
                 break
 
         # Allele frequency: consensus (use first non-None)
-        allele_frequency: Optional[float] = None
+        allele_frequency: float | None = None
         for occ in occurrences:
             af = occ.classified.scored.annotated.allele_frequency
             if af is not None:

@@ -13,7 +13,7 @@ gene overlap and no frequency data receive None (unscoreable).
 from __future__ import annotations
 
 import logging
-from typing import Iterator, Optional
+from collections.abc import Iterator
 
 from vartriage.structural.models import (
     AnnotatedSV,

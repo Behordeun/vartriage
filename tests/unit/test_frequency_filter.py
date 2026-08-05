@@ -3,8 +3,7 @@
 import pytest
 
 from vartriage.models.config import PrioritizationConfig
-from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
-                                      Variant)
+from vartriage.models.variant import AnnotatedVariant, FunctionalConsequence, Variant
 from vartriage.prioritization.frequency_filter import FrequencyFilter
 
 

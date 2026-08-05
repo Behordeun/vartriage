@@ -21,7 +21,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ReferenceFileError
@@ -64,9 +63,7 @@ class ProteinPositionEntry:
         Requires at least one pathogenic missense that differs from the query.
         The reference AA must match (same position), but the alt must differ.
         """
-        return any(
-            v.ref_aa == ref_aa and v.alt_aa != alt_aa for v in self.variants
-        )
+        return any(v.ref_aa == ref_aa and v.alt_aa != alt_aa for v in self.variants)
 
     def is_different_nucleotide(
         self,
@@ -116,7 +113,7 @@ class ClinVarProteinIndex:
         self._loaded: bool = False
 
     @classmethod
-    def from_variants(cls, variants: list[PathogenicMissense]) -> "ClinVarProteinIndex":
+    def from_variants(cls, variants: list[PathogenicMissense]) -> ClinVarProteinIndex:
         """Build an in-memory index from a list of PathogenicMissense entries.
 
         Useful for testing and programmatic construction without a TSV file.
@@ -175,7 +172,9 @@ class ClinVarProteinIndex:
             )
 
         try:
-            self._parse_tsv(reference_path, strict=strict, max_skipped=max_skipped_lines)
+            self._parse_tsv(
+                reference_path, strict=strict, max_skipped=max_skipped_lines
+            )
         except ReferenceFileError:
             raise
         except Exception as exc:
@@ -323,12 +322,12 @@ class ClinVarProteinIndex:
                 gene = parts[0]
                 try:
                     position = int(parts[1])
-                except ValueError:
+                except ValueError as exc:
                     skipped += 1
                     if strict:
                         raise ReferenceFileError(
                             f"{path}:{line_num}: non-integer position '{parts[1]}'"
-                        )
+                        ) from exc
                     logger.warning(
                         "Skipping line %d: non-integer position '%s'",
                         line_num,
@@ -338,7 +337,7 @@ class ClinVarProteinIndex:
                         raise ReferenceFileError(
                             f"{path}: too many malformed lines ({skipped}), "
                             f"exceeds threshold of {max_skipped}"
-                        )
+                        ) from exc
                     continue
 
                 ref_aa = parts[2]
@@ -347,12 +346,12 @@ class ClinVarProteinIndex:
 
                 try:
                     genomic_pos = int(parts[5])
-                except ValueError:
+                except ValueError as exc:
                     skipped += 1
                     if strict:
                         raise ReferenceFileError(
                             f"{path}:{line_num}: non-integer genomic position '{parts[5]}'"
-                        )
+                        ) from exc
                     logger.warning(
                         "Skipping line %d: non-integer genomic position '%s'",
                         line_num,
@@ -362,7 +361,7 @@ class ClinVarProteinIndex:
                         raise ReferenceFileError(
                             f"{path}: too many malformed lines ({skipped}), "
                             f"exceeds threshold of {max_skipped}"
-                        )
+                        ) from exc
                     continue
 
                 ref_allele = parts[6]

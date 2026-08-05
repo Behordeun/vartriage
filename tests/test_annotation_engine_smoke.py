@@ -7,9 +7,12 @@ import pytest
 
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.models.config import AnnotationConfig
-from vartriage.models.variant import (AnnotatedVariant, ClinVarAssertion,
-                                      FunctionalConsequence, Variant)
-from vartriage.models.warnings import MissingDataWarning
+from vartriage.models.variant import (
+    AnnotatedVariant,
+    ClinVarAssertion,
+    FunctionalConsequence,
+    Variant,
+)
 
 # Minimal GTF content
 SAMPLE_GTF = """\

@@ -7,9 +7,9 @@ are frozen dataclasses with startup validation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from vartriage.models.variant import (
     ACMGClassification,
@@ -85,18 +85,14 @@ class CohortConfig:
                 f"got {len(self.sample_vcfs)}"
             )
         if self.min_recurrence < 1:
-            raise ValueError(
-                f"min_recurrence must be >= 1, got {self.min_recurrence}"
-            )
+            raise ValueError(f"min_recurrence must be >= 1, got {self.min_recurrence}")
         if not (0.0 <= self.max_af_threshold <= 1.0):
             raise ValueError(
                 f"max_af_threshold must be between 0.0 and 1.0, "
                 f"got {self.max_af_threshold}"
             )
         if self.max_workers < 1:
-            raise ValueError(
-                f"max_workers must be >= 1, got {self.max_workers}"
-            )
+            raise ValueError(f"max_workers must be >= 1, got {self.max_workers}")
 
     @property
     def sample_count(self) -> int:
@@ -177,14 +173,14 @@ class CohortVariant:
     pos: int
     ref: str
     alt: str
-    gene_name: Optional[str]
+    gene_name: str | None
     consequence: FunctionalConsequence
     sample_count: int
     total_samples: int
     occurrences: tuple[SampleOccurrence, ...]
     max_classification: ACMGClassification
     all_evidence_tags: frozenset[EvidenceTag]
-    allele_frequency: Optional[float] = None
+    allele_frequency: float | None = None
 
     @property
     def key(self) -> VariantKey:

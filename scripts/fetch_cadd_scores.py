@@ -19,7 +19,6 @@ Requirements:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
@@ -88,7 +87,7 @@ def fetch_single_score(chrom: str, pos: int, ref: str, alt: str) -> float | None
                     return float(data[0].get("PHRED", 0))
                 return None
             elif response.status_code == 429:
-                time.sleep(backoff * (2 ** attempt))
+                time.sleep(backoff * (2**attempt))
                 continue
             else:
                 return None
@@ -98,9 +97,7 @@ def fetch_single_score(chrom: str, pos: int, ref: str, alt: str) -> float | None
     return None
 
 
-def write_scores(
-    scores: dict[str, float], output_path: Path
-) -> None:
+def write_scores(scores: dict[str, float], output_path: Path) -> None:
     """Write all scores to the output TSV."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
@@ -111,7 +108,10 @@ def write_scores(
 
 
 def _print_progress(
-    done: int, total: int, fetched: int, failed: int,
+    done: int,
+    total: int,
+    fetched: int,
+    failed: int,
     start_time: float,
 ) -> None:
     """Print a progress line every 100 variants."""
@@ -184,7 +184,7 @@ def main() -> None:
 
     snvs = extract_snvs(args.vcf)
     if args.limit > 0:
-        snvs = snvs[:args.limit]
+        snvs = snvs[: args.limit]
 
     # Load existing progress
     scores = load_progress(args.output)
@@ -202,8 +202,10 @@ def main() -> None:
     write_scores(scores, args.output)
 
     elapsed = time.time() - start_time
-    print(f"\nDone in {elapsed:.0f}s. Scored: {len(scores)}/{total} "
-          f"({100 * len(scores) / total:.1f}%)")
+    print(
+        f"\nDone in {elapsed:.0f}s. Scored: {len(scores)}/{total} "
+        f"({100 * len(scores) / total:.1f}%)"
+    )
     print(f"Failed: {failed}. Output: {args.output}")
 
 

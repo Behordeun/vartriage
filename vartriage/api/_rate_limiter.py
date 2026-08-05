@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass
 from datetime import datetime as dt
 from datetime import timezone
 
@@ -35,7 +34,7 @@ class DailyLimitExhausted(Exception):
         self.limit = limit
         self.resets_at = resets_at
         super().__init__(
-            f"Daily limit ({limit}) exhausted for {service}. " f"Resets at {resets_at}."
+            f"Daily limit ({limit}) exhausted for {service}. Resets at {resets_at}."
         )
 
 

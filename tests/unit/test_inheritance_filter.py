@@ -36,8 +36,14 @@ def _make_variant(
     if gene is not None:
         info["gene"] = gene
     return Variant(
-        chrom=chrom, pos=pos, id=None, ref="A", alt="T",
-        qual=30.0, filter_status="PASS", info=info,
+        chrom=chrom,
+        pos=pos,
+        id=None,
+        ref="A",
+        alt="T",
+        qual=30.0,
+        filter_status="PASS",
+        info=info,
     )
 
 
@@ -171,14 +177,18 @@ class TestXLinked:
     def test_x_linked_detected(self) -> None:
         config = _config(["x_linked"])
         filt = InheritanceFilter(config, ["child", "mom", "dad"])
-        v = _make_variant(chrom="chrX", proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0))
+        v = _make_variant(
+            chrom="chrX", proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0)
+        )
         results = list(filt.apply(iter([v])))
         assert "x_linked" in results[0].info["inheritance_pattern"]
 
     def test_not_x_linked_on_autosome(self) -> None:
         config = _config(["x_linked"])
         filt = InheritanceFilter(config, ["child", "mom", "dad"])
-        v = _make_variant(chrom="chr1", proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0))
+        v = _make_variant(
+            chrom="chr1", proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0)
+        )
         results = list(filt.apply(iter([v])))
         assert "x_linked" not in results[0].info["inheritance_pattern"]
 
@@ -188,9 +198,13 @@ class TestCompoundHet:
         config = _config(["compound_het"])
         filt = InheritanceFilter(config, ["child", "mom", "dad"])
         # Variant 1: alt from mother (mother het, father hom-ref)
-        v1 = _make_variant(pos=100, proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0), gene="BRCA1")
+        v1 = _make_variant(
+            pos=100, proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0), gene="BRCA1"
+        )
         # Variant 2: alt from father (father het, mother hom-ref)
-        v2 = _make_variant(pos=200, proband_gt=(0, 1), mother_gt=(0, 0), father_gt=(0, 1), gene="BRCA1")
+        v2 = _make_variant(
+            pos=200, proband_gt=(0, 1), mother_gt=(0, 0), father_gt=(0, 1), gene="BRCA1"
+        )
 
         results = list(filt.apply(iter([v1, v2])))
         assert len(results) == 2
@@ -201,8 +215,12 @@ class TestCompoundHet:
         config = _config(["compound_het"])
         filt = InheritanceFilter(config, ["child", "mom", "dad"])
         # Both variants from mother — cis, not trans
-        v1 = _make_variant(pos=100, proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0), gene="TP53")
-        v2 = _make_variant(pos=200, proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0), gene="TP53")
+        v1 = _make_variant(
+            pos=100, proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0), gene="TP53"
+        )
+        v2 = _make_variant(
+            pos=200, proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0), gene="TP53"
+        )
 
         results = list(filt.apply(iter([v1, v2])))
         assert "compound_het" not in results[0].info["inheritance_pattern"]
@@ -211,8 +229,20 @@ class TestCompoundHet:
     def test_gene_boundary_triggers_flush(self) -> None:
         config = _config(["compound_het"])
         filt = InheritanceFilter(config, ["child", "mom", "dad"])
-        v1 = _make_variant(pos=100, proband_gt=(0, 1), mother_gt=(0, 1), father_gt=(0, 0), gene="GENE_A")
-        v2 = _make_variant(pos=200, proband_gt=(0, 1), mother_gt=(0, 0), father_gt=(0, 1), gene="GENE_B")
+        v1 = _make_variant(
+            pos=100,
+            proband_gt=(0, 1),
+            mother_gt=(0, 1),
+            father_gt=(0, 0),
+            gene="GENE_A",
+        )
+        v2 = _make_variant(
+            pos=200,
+            proband_gt=(0, 1),
+            mother_gt=(0, 0),
+            father_gt=(0, 1),
+            gene="GENE_B",
+        )
 
         results = list(filt.apply(iter([v1, v2])))
         assert len(results) == 2

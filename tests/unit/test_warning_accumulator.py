@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import warnings
 
-import pytest
-
-from vartriage._internal.warning_accumulator import (MissingDataSummaryWarning,
-                                                     WarningAccumulator,
-                                                     is_connection_failure)
+from vartriage._internal.warning_accumulator import (
+    MissingDataSummaryWarning,
+    WarningAccumulator,
+    is_connection_failure,
+)
 from vartriage.models.config import MissingDataConfig
 from vartriage.models.warnings import MissingDataWarning
 

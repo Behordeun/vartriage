@@ -19,8 +19,6 @@ httpx = pytest.importorskip("httpx")
 
 from vartriage.api._cache import ResponseCache
 from vartriage.api._circuit_breaker import CircuitBreaker
-from vartriage.api._consequence_map import map_vep_most_severe
-from vartriage.api._notation import vcf_to_vep_notation
 from vartriage.api._rate_limiter import RateLimiter
 from vartriage.api.vep_client import VEPClient
 from vartriage.models.variant import FunctionalConsequence
@@ -136,6 +134,6 @@ class TestConsequenceConcordance:
         for i, annotation in enumerate(results):
             if annotation is None:
                 continue
-            assert (
-                annotation.gene_name is not None
-            ), f"Variant {coding_variants[i]} should have a gene name"
+            assert annotation.gene_name is not None, (
+                f"Variant {coding_variants[i]} should have a gene name"
+            )

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from vartriage._internal.path_safety import resolve_path
 
@@ -18,8 +18,13 @@ try:
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import cm
-    from reportlab.platypus import (PageBreak, Paragraph, SimpleDocTemplate,
-                                    Spacer, Table, TableStyle)
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
 
     HAS_REPORTLAB = True
 except ImportError:
@@ -70,12 +75,12 @@ def _extract_row(variant: ClassifiedVariant) -> list[str]:
     consequence_str = (
         annotated.consequence.value if annotated.consequence is not None else None
     )
-    af_str: Optional[str] = (
+    af_str: str | None = (
         f"{annotated.allele_frequency:.8g}"
         if annotated.allele_frequency is not None
         else None
     )
-    rank_str: Optional[str] = (
+    rank_str: str | None = (
         f"{scored.composite_rank:.4f}" if scored.composite_rank is not None else None
     )
     clinvar_str = (

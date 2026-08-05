@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import platform
 import resource
-import tempfile
 import time
 from pathlib import Path
 
@@ -21,12 +20,17 @@ import pytest
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (AnnotationConfig, QualityFilterConfig,
-                                     ReportConfig)
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.config import AnnotationConfig, QualityFilterConfig, ReportConfig
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClassifiedVariant,
+    ClinVarAssertion,
+    EvidenceTag,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
 from vartriage.reporting.generator import ReportGenerator
 
 
@@ -59,8 +63,7 @@ def _write_minimal_gtf(path: Path) -> None:
     """Write a minimal GTF with a single gene for annotation testing."""
     lines = [
         "##format: gtf",
-        "chr1\thavana\tgene\t1\t100000\t.\t+\t.\t"
-        'gene_id "TEST1"; gene_name "TEST1";',
+        'chr1\thavana\tgene\t1\t100000\t.\t+\t.\tgene_id "TEST1"; gene_name "TEST1";',
         "chr1\thavana\ttranscript\t1\t100000\t.\t+\t.\t"
         'gene_id "TEST1"; transcript_id "TEST1.1"; gene_name "TEST1";',
         "chr1\thavana\texon\t1\t100000\t.\t+\t.\t"
@@ -152,13 +155,13 @@ class TestMemoryBounds:
         vcf_path = tmp_path / "large_input.vcf"
         _write_synthetic_vcf(vcf_path, self.VARIANT_COUNT)
 
-        rss_before = _get_rss_bytes()
+        _get_rss_bytes()
 
         parser = VCFParser(vcf_path)
         qf = QualityFilter(QualityFilterConfig(min_qual=20.0))
 
         count = 0
-        for variant in qf.apply(iter(parser)):
+        for _variant in qf.apply(iter(parser)):
             count += 1
             if count % 500_000 == 0:
                 current_rss = _get_rss_bytes()

@@ -34,3 +34,5 @@ See [Getting Started](getting-started.md) for installation options and a full wa
 For zero-config annotation without local reference files, see [API Mode](api-mode.md).
 
 For multi-sample cohort analysis (shared variants, gene burden), see [Cohort Analysis](cohort-analysis.md).
+
+For the full ACMG/AMP classification reference (criteria, thresholds, PS1/PM5 setup, combining rules), see [ACMG Criteria](acmg-criteria.md).

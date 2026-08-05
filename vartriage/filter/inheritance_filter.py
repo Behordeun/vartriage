@@ -8,7 +8,7 @@ more inheritance patterns, and emits enriched Variant objects.
 from __future__ import annotations
 
 import re
-from typing import Generator, Iterator
+from collections.abc import Generator, Iterator
 
 from vartriage.models.config import InheritanceConfig
 from vartriage.models.variant import Variant
@@ -330,9 +330,7 @@ class InheritanceFilter:
             return False
         if not self._is_hom_ref(mother_gt):
             return False
-        if not self._is_hom_ref(father_gt):
-            return False
-        return True
+        return self._is_hom_ref(father_gt)
 
     def _classify_dominant(
         self,
@@ -368,9 +366,7 @@ class InheritanceFilter:
             return False
         if not self._is_het(mother_gt):
             return False
-        if not self._is_het(father_gt):
-            return False
-        return True
+        return self._is_het(father_gt)
 
     def _classify_x_linked(
         self,
@@ -387,9 +383,7 @@ class InheritanceFilter:
             return False
         if not self._has_alt_allele(proband_gt):
             return False
-        if not self._is_het(mother_gt):
-            return False
-        return True
+        return self._is_het(mother_gt)
 
     def _evaluate_compound_het(
         self,

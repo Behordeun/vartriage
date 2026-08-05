@@ -9,8 +9,8 @@ on MemoryError to handle large datasets gracefully.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from itertools import islice
-from typing import Iterator
 
 from vartriage.models.config import PrioritizationConfig
 from vartriage.models.variant import AnnotatedVariant, ScoredVariant
@@ -184,8 +184,7 @@ class PrioritizationEngine:
                 all_scored.extend(scored_chunk)
             except MemoryError:
                 logger.error(
-                    "MemoryError persists even with chunk_size=%d. "
-                    "Reducing further.",
+                    "MemoryError persists even with chunk_size=%d. Reducing further.",
                     chunk_size,
                 )
                 smaller_size = max(1, chunk_size // 2)

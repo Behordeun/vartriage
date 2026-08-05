@@ -6,17 +6,23 @@ and that combining rules produce the correct final classification.
 
 from __future__ import annotations
 
-from hypothesis import assume, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tests.generators.variants import evidence_tag_set, scored_variant
+from tests.generators.variants import evidence_tag_set
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.classification.combining import combine_evidence
-from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
-                                      ACMGClassification, AnnotatedVariant,
-                                      ClinVarAssertion, EvidenceStrength,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.variant import (
+    EVIDENCE_STRENGTH_MAP,
+    ACMGClassification,
+    AnnotatedVariant,
+    ClinVarAssertion,
+    EvidenceStrength,
+    EvidenceTag,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -145,12 +151,11 @@ def test_pvs1_assigned_iff_nonsense_or_frameshift(variant: ScoredVariant) -> Non
 
     if pvs1_expected:
         assert EvidenceTag.PVS1 in classified.evidence_tags, (
-            f"PVS1 should be assigned for {consequence.value} " f"(spliceai={spliceai})"
+            f"PVS1 should be assigned for {consequence.value} (spliceai={spliceai})"
         )
     else:
         assert EvidenceTag.PVS1 not in classified.evidence_tags, (
-            f"PVS1 should NOT be assigned for {consequence.value} "
-            f"(spliceai={spliceai})"
+            f"PVS1 should NOT be assigned for {consequence.value} (spliceai={spliceai})"
         )
 
 
@@ -166,20 +171,20 @@ def test_pm2_assigned_iff_af_below_threshold(variant: ScoredVariant) -> None:
 
     if af is None:
         # Data unavailable, PM2 should be omitted
-        assert (
-            EvidenceTag.PM2 not in classified.evidence_tags
-        ), "PM2 should be omitted when allele frequency is unavailable"
-        assert (
-            "gnomAD" in classified.missing_data_sources
-        ), "gnomAD should be listed as missing when AF is None"
+        assert EvidenceTag.PM2 not in classified.evidence_tags, (
+            "PM2 should be omitted when allele frequency is unavailable"
+        )
+        assert "gnomAD" in classified.missing_data_sources, (
+            "gnomAD should be listed as missing when AF is None"
+        )
     elif af < 0.0001:
-        assert (
-            EvidenceTag.PM2 in classified.evidence_tags
-        ), f"PM2 should be assigned for AF={af} < 0.0001"
+        assert EvidenceTag.PM2 in classified.evidence_tags, (
+            f"PM2 should be assigned for AF={af} < 0.0001"
+        )
     else:
-        assert (
-            EvidenceTag.PM2 not in classified.evidence_tags
-        ), f"PM2 should NOT be assigned for AF={af} >= 0.0001"
+        assert EvidenceTag.PM2 not in classified.evidence_tags, (
+            f"PM2 should NOT be assigned for AF={af} >= 0.0001"
+        )
 
 
 @given(variant=scored_variant_for_classification())
@@ -212,15 +217,15 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
 
     # REVEL path: moderate level (> 0.773) or supporting level (> 0.644)
     if revel_available and revel > 0.773:
-        assert (
-            EvidenceTag.PP3_MODERATE in classified.evidence_tags
-        ), f"PP3_Moderate should be assigned for REVEL={revel} > 0.773"
+        assert EvidenceTag.PP3_MODERATE in classified.evidence_tags, (
+            f"PP3_Moderate should be assigned for REVEL={revel} > 0.773"
+        )
         return
 
     if revel_available and revel > 0.644:
-        assert (
-            EvidenceTag.PP3 in classified.evidence_tags
-        ), f"PP3 should be assigned for REVEL={revel} > 0.644"
+        assert EvidenceTag.PP3 in classified.evidence_tags, (
+            f"PP3 should be assigned for REVEL={revel} > 0.644"
+        )
         return
 
     # SpliceAI path triggers PP3 on splice-adjacent
@@ -252,20 +257,20 @@ def test_pp5_assigned_iff_clinvar_pathogenic(variant: ScoredVariant) -> None:
     assertion = variant.annotated.clinvar_assertion
 
     if assertion is None:
-        assert (
-            EvidenceTag.PP5 not in classified.evidence_tags
-        ), "PP5 should be omitted when ClinVar data is unavailable"
-        assert (
-            "ClinVar" in classified.missing_data_sources
-        ), "ClinVar should be listed as missing when assertion is None"
+        assert EvidenceTag.PP5 not in classified.evidence_tags, (
+            "PP5 should be omitted when ClinVar data is unavailable"
+        )
+        assert "ClinVar" in classified.missing_data_sources, (
+            "ClinVar should be listed as missing when assertion is None"
+        )
     elif assertion == ClinVarAssertion.PATHOGENIC:
-        assert (
-            EvidenceTag.PP5 in classified.evidence_tags
-        ), "PP5 should be assigned when ClinVar is Pathogenic"
+        assert EvidenceTag.PP5 in classified.evidence_tags, (
+            "PP5 should be assigned when ClinVar is Pathogenic"
+        )
     else:
-        assert (
-            EvidenceTag.PP5 not in classified.evidence_tags
-        ), f"PP5 should NOT be assigned for ClinVar={assertion.value}"
+        assert EvidenceTag.PP5 not in classified.evidence_tags, (
+            f"PP5 should NOT be assigned for ClinVar={assertion.value}"
+        )
 
 
 @given(variant=scored_variant_for_classification())
@@ -288,9 +293,7 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     if consequence in (
         FunctionalConsequence.NONSENSE,
         FunctionalConsequence.FRAMESHIFT,
-    ):
-        expected_tags.add(EvidenceTag.PVS1)
-    elif (
+    ) or (
         consequence == FunctionalConsequence.SPLICE_SITE
         and spliceai is not None
         and spliceai > 0.8
@@ -332,15 +335,17 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     if revel_available or spliceai_available:
         if revel_available and revel > 0.773:
             expected_tags.add(EvidenceTag.PP3_MODERATE)
-        elif revel_available and revel > 0.644:
-            expected_tags.add(EvidenceTag.PP3)
         elif (
-            spliceai_available
-            and spliceai > 0.5
-            and consequence
-            in (
-                FunctionalConsequence.SPLICE_SITE,
-                FunctionalConsequence.MISSENSE,
+            revel_available
+            and revel > 0.644
+            or (
+                spliceai_available
+                and spliceai > 0.5
+                and consequence
+                in (
+                    FunctionalConsequence.SPLICE_SITE,
+                    FunctionalConsequence.MISSENSE,
+                )
             )
         ):
             expected_tags.add(EvidenceTag.PP3)
@@ -386,13 +391,16 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
                 expected_tags.add(EvidenceTag.BP4)
 
     # BP7: synonymous + SpliceAI < 0.1
-    if consequence == FunctionalConsequence.SYNONYMOUS:
-        if spliceai is not None and spliceai < 0.1:
-            expected_tags.add(EvidenceTag.BP7)
+    if (
+        consequence == FunctionalConsequence.SYNONYMOUS
+        and spliceai is not None
+        and spliceai < 0.1
+    ):
+        expected_tags.add(EvidenceTag.BP7)
 
-    assert classified.evidence_tags == frozenset(
-        expected_tags
-    ), f"Expected tags {expected_tags}, got {classified.evidence_tags}"
+    assert classified.evidence_tags == frozenset(expected_tags), (
+        f"Expected tags {expected_tags}, got {classified.evidence_tags}"
+    )
 
 
 @given(variant=scored_variant_for_classification())
@@ -446,13 +454,16 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
             expected_missing.add("SpliceAI")
 
     # PVS1 missing source tracking for SPLICE_SITE
-    if consequence == FunctionalConsequence.SPLICE_SITE:
-        if consequence not in (
+    if (
+        consequence == FunctionalConsequence.SPLICE_SITE
+        and consequence
+        not in (
             FunctionalConsequence.NONSENSE,
             FunctionalConsequence.FRAMESHIFT,
-        ):
-            if spliceai is None:
-                expected_missing.add("SpliceAI")
+        )
+        and spliceai is None
+    ):
+        expected_missing.add("SpliceAI")
 
     # PS1/PM5 missing source tracking for MISSENSE variants
     # Without protein_change (no codon resolution), classifier reports it as missing
@@ -479,9 +490,9 @@ def test_empty_tags_produce_vus(data: st.DataObject) -> None:
     """Empty tag sets always produce VUS classification."""
     tags: frozenset[EvidenceTag] = frozenset()
     result = combine_evidence(tags)
-    assert (
-        result == ACMGClassification.VUS
-    ), f"Empty tag set should yield VUS, got {result.value}"
+    assert result == ACMGClassification.VUS, (
+        f"Empty tag set should yield VUS, got {result.value}"
+    )
 
 
 @given(tags=evidence_tag_set())
@@ -533,13 +544,13 @@ def test_combining_rules_match_specification(
 
         if bs_count >= 2:
             assert result == ACMGClassification.BENIGN
-        elif bs_count >= 1 and bp_count >= 1:
-            assert result == ACMGClassification.LIKELY_BENIGN
-        elif bs_count >= 1 and bm_count >= 1:
-            assert result == ACMGClassification.LIKELY_BENIGN
-        elif bm_count >= 1 and bp_count >= 2:
-            assert result == ACMGClassification.LIKELY_BENIGN
-        elif bm_count >= 2:
+        elif (
+            bs_count >= 1
+            and bp_count >= 1
+            or bs_count >= 1
+            and bm_count >= 1
+            or (bm_count >= 1 and bp_count >= 2 or bm_count >= 2)
+        ):
             assert result == ACMGClassification.LIKELY_BENIGN
         else:
             assert result == ACMGClassification.VUS
@@ -566,7 +577,7 @@ def test_combining_rules_match_specification(
         (vs >= 1 and s >= 1) or (s >= 2 and sup >= 1) or (vs >= 1 and sup >= 2)
     )
     is_likely_pathogenic = (
-        (vs >= 1 and m >= 1) or (s >= 1 and 1 <= m <= 2) or (s >= 1 and sup >= 2)
+        (vs >= 1 and m >= 1) or (s >= 1 and m >= 1) or (s >= 1 and sup >= 2)
     )
 
     if not tags:
@@ -619,9 +630,9 @@ def test_pvs1_plus_pp3_pp5_yields_pathogenic(data: st.DataObject) -> None:
     """
     tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PP3, EvidenceTag.PP5})
     result = combine_evidence(tags)
-    assert (
-        result == ACMGClassification.PATHOGENIC
-    ), f"PVS1+PP3+PP5 should be Pathogenic, got {result.value}"
+    assert result == ACMGClassification.PATHOGENIC, (
+        f"PVS1+PP3+PP5 should be Pathogenic, got {result.value}"
+    )
 
 
 @given(data=st.data())
@@ -633,9 +644,9 @@ def test_pvs1_plus_pm2_yields_likely_pathogenic(data: st.DataObject) -> None:
     """
     tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PM2})
     result = combine_evidence(tags)
-    assert (
-        result == ACMGClassification.LIKELY_PATHOGENIC
-    ), f"PVS1+PM2 should be Likely_Pathogenic, got {result.value}"
+    assert result == ACMGClassification.LIKELY_PATHOGENIC, (
+        f"PVS1+PM2 should be Likely_Pathogenic, got {result.value}"
+    )
 
 
 @given(data=st.data())
@@ -648,6 +659,6 @@ def test_single_supporting_tag_yields_vus(data: st.DataObject) -> None:
     tag = data.draw(st.sampled_from([EvidenceTag.PP3, EvidenceTag.PP5]))
     tags = frozenset({tag})
     result = combine_evidence(tags)
-    assert (
-        result == ACMGClassification.VUS
-    ), f"Single {tag.value} should yield VUS, got {result.value}"
+    assert result == ACMGClassification.VUS, (
+        f"Single {tag.value} should yield VUS, got {result.value}"
+    )

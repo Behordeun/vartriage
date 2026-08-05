@@ -18,7 +18,6 @@ Clinical significance string values map to ClinVarAssertion enum members:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 try:
     import polars as pl
@@ -71,7 +70,7 @@ class PolarsClinVarDatabase:
                 "polars is required for PolarsClinVarDatabase. "
                 "Install with: pip install vartriage[accelerated]"
             )
-        self._reference_df: Optional[pl.LazyFrame] = None
+        self._reference_df: pl.LazyFrame | None = None
         self._loaded: bool = False
 
     def load(self, reference_path: Path) -> None:
@@ -130,7 +129,7 @@ class PolarsClinVarDatabase:
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[ClinVarAssertion]]:
+    ) -> list[ClinVarAssertion | None]:
         """Batch lookup of ClinVar assertions using polars left join.
 
         Parameters
@@ -172,7 +171,7 @@ class PolarsClinVarDatabase:
 
         # Map significance strings back to enum values
         sig_column = result_df["clinical_significance"]
-        results: list[Optional[ClinVarAssertion]] = []
+        results: list[ClinVarAssertion | None] = []
 
         for value in sig_column:
             if value is None:

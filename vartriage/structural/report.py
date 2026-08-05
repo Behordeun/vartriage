@@ -9,13 +9,12 @@ as an additional section alongside SNV findings.
 from __future__ import annotations
 
 import html
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence
 
 from vartriage.structural.models import (
     ClassifiedSV,
     SVClassification,
-    SVConsequence,
 )
 
 
@@ -130,9 +129,7 @@ class SVReportBuilder:
         sv = classified.scored.annotated.sv
         annotated = classified.scored.annotated
 
-        genes = ", ".join(
-            o.gene_symbol for o in annotated.gene_overlaps[:5]
-        )
+        genes = ", ".join(o.gene_symbol for o in annotated.gene_overlaps[:5])
         if annotated.genes_affected > 5:
             genes += f" (+{annotated.genes_affected - 5} more)"
 
@@ -162,17 +159,11 @@ class SVReportBuilder:
             1 for s in svs if s.classification == SVClassification.PATHOGENIC
         )
         lp_count = sum(
-            1 for s in svs
-            if s.classification == SVClassification.LIKELY_PATHOGENIC
+            1 for s in svs if s.classification == SVClassification.LIKELY_PATHOGENIC
         )
-        vus_count = sum(
-            1 for s in svs if s.classification == SVClassification.VUS
-        )
+        vus_count = sum(1 for s in svs if s.classification == SVClassification.VUS)
 
-        syndromes = [
-            s.syndrome_name for s in svs
-            if s.syndrome_name is not None
-        ]
+        syndromes = [s.syndrome_name for s in svs if s.syndrome_name is not None]
 
         hi_genes: list[str] = []
         for sv in svs:
@@ -203,8 +194,7 @@ class SVReportBuilder:
         size_str = _format_size(sv.length)
         chrom_safe = html.escape(sv.chrom)
         parts.append(
-            f"{sv.sv_type.value} at {chrom_safe}:{sv.start}-{sv.end} "
-            f"({size_str})"
+            f"{sv.sv_type.value} at {chrom_safe}:{sv.start}-{sv.end} ({size_str})"
         )
 
         # Gene content
@@ -219,30 +209,27 @@ class SVReportBuilder:
                 f"({gene.exons_affected}/{gene.total_exons} exons)."
             )
         else:
-            parts.append(
-                f"overlaps {annotated.genes_affected} protein-coding genes."
-            )
+            parts.append(f"overlaps {annotated.genes_affected} protein-coding genes.")
 
         # Dosage sensitivity
         if annotated.hi_genes_affected > 0:
             hi_names = [
-                html.escape(o.gene_symbol) for o in annotated.gene_overlaps
+                html.escape(o.gene_symbol)
+                for o in annotated.gene_overlaps
                 if o.is_haploinsufficient
             ]
-            parts.append(
-                f"Haploinsufficient gene(s) affected: {', '.join(hi_names)}."
-            )
+            parts.append(f"Haploinsufficient gene(s) affected: {', '.join(hi_names)}.")
 
         # Syndrome match
         if classified.syndrome_name:
             syndrome_safe = html.escape(classified.syndrome_name)
-            parts.append(
-                f"Matches known pathogenic region: {syndrome_safe}."
-            )
+            parts.append(f"Matches known pathogenic region: {syndrome_safe}.")
 
         # Population frequency
         if annotated.frequency_unknown:
-            parts.append("Not observed in gnomAD-SV (absent from population databases).")
+            parts.append(
+                "Not observed in gnomAD-SV (absent from population databases)."
+            )
         elif annotated.population_frequency is not None:
             af_pct = f"{annotated.population_frequency * 100:.3f}%"
             parts.append(f"Population frequency: {af_pct}.")

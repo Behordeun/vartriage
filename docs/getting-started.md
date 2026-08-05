@@ -109,16 +109,17 @@ vartriage --help
 
 ## What you need
 
-| Item                      | Purpose                           | Where to get it                                                  |
-| ------------------------- | --------------------------------- | ---------------------------------------------------------------- |
-| VCF file                  | Input variants                    | Your sequencing pipeline (GATK, DeepVariant, etc.)               |
-| Gene annotation (GTF/GFF) | Functional consequence assignment | [GENCODE](https://www.gencodegenes.org/human/)                   |
-| gnomAD frequency file     | Population frequency filtering    | [gnomAD downloads](https://gnomad.broadinstitute.org/downloads)  |
-| ClinVar file (optional)   | Clinical significance lookup      | [ClinVar FTP](https://ftp.ncbi.nlm.nih.gov/pub/clinvar/)         |
-| CADD scores (optional)    | Pathogenicity scoring             | [CADD download](https://cadd.gs.washington.edu/download)         |
-| REVEL scores (optional)   | Pathogenicity scoring             | [REVEL download](https://sites.google.com/site/revelgenomics/)   |
-| SpliceAI scores (optional)| Splice impact prediction          | [SpliceAI precomputed](https://basespace.illumina.com/s/otSPW8hnhaZR) |
-| Reference FASTA (optional)| Codon-level consequence calling   | [UCSC or Ensembl](https://hgdownload.soe.ucsc.edu/goldenPath/)   |
+| Item                             | Purpose                                                                           | Where to get it                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| VCF file                         | Input variants                                                                    | Your sequencing pipeline (GATK, DeepVariant, etc.)                        |
+| Gene annotation (GTF/GFF)        | Functional consequence assignment                                                 | [GENCODE](https://www.gencodegenes.org/human/)                            |
+| gnomAD frequency file            | Population frequency filtering                                                    | [gnomAD downloads](https://gnomad.broadinstitute.org/downloads)           |
+| ClinVar file (optional)          | Clinical significance lookup                                                      | [ClinVar FTP](https://ftp.ncbi.nlm.nih.gov/pub/clinvar/)                  |
+| CADD scores (optional)           | Pathogenicity scoring                                                             | [CADD download](https://cadd.gs.washington.edu/download)                  |
+| REVEL scores (optional)          | Pathogenicity scoring                                                             | [REVEL download](https://sites.google.com/site/revelgenomics/)            |
+| SpliceAI scores (optional)       | Splice impact prediction                                                          | [SpliceAI precomputed](https://basespace.illumina.com/s/otSPW8hnhaZR)     |
+| ClinVar protein index (optional) | PS1/PM5 evidence criteria (same/different missense at known pathogenic positions) | Generated from ClinVar VCF via `scripts/prepare_clinvar_protein_index.py` |
+| Reference FASTA (optional)       | Codon-level consequence calling                                                   | [UCSC or Ensembl](https://hgdownload.soe.ucsc.edu/goldenPath/)            |
 
 Or skip manual downloads entirely using the bundle downloader (v0.6.0+):
 

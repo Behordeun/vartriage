@@ -7,12 +7,19 @@ import warnings
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tests.generators.variants import (FILTER_FAIL_VALUES, FILTER_PASS_VALUES,
-                                       chromosome, genomic_position,
-                                       snv_allele)
+from tests.generators.variants import (
+    FILTER_FAIL_VALUES,
+    FILTER_PASS_VALUES,
+    chromosome,
+    genomic_position,
+    snv_allele,
+)
 from vartriage.filter.quality_filter import QualityFilter
-from vartriage.models.config import (AnnotationConfig, PrioritizationConfig,
-                                     QualityFilterConfig)
+from vartriage.models.config import (
+    AnnotationConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+)
 from vartriage.models.variant import Variant
 from vartriage.models.warnings import MissingDataWarning
 
@@ -105,9 +112,9 @@ def test_quality_filter_correctness(variant: Variant, threshold: float) -> None:
             and w.message.args
             and isinstance(w.message.args[0], MissingDataWarning)
         ]
-        assert (
-            len(missing_qual_warnings) == 1
-        ), "Expected exactly one MissingDataWarning for missing QUAL"
+        assert len(missing_qual_warnings) == 1, (
+            "Expected exactly one MissingDataWarning for missing QUAL"
+        )
         warning_obj: MissingDataWarning = missing_qual_warnings[0].message.args[0]  # type: ignore[union-attr]
         assert variant.chrom in warning_obj.reason  # type: ignore[operator]
         assert str(variant.pos) in warning_obj.reason  # type: ignore[operator]
@@ -141,9 +148,9 @@ def test_filtering_preserves_ordering(
         and v.qual >= threshold
     ]
 
-    assert (
-        result == expected
-    ), "Filtered output does not preserve the relative input ordering"
+    assert result == expected, (
+        "Filtered output does not preserve the relative input ordering"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -169,11 +176,11 @@ def test_quality_filter_config_rejects_out_of_range(value: float) -> None:
     """QualityFilterConfig rejects min_qual outside [0, 1_000_000]."""
     try:
         QualityFilterConfig(min_qual=value)
-        assert False, f"Expected ValueError for min_qual={value}"
+        raise AssertionError(f"Expected ValueError for min_qual={value}")
     except ValueError as exc:
-        assert "0" in str(exc) and "1000000" in str(
-            exc
-        ), f"Error message should specify valid range, got: {exc}"
+        assert "0" in str(exc) and "1000000" in str(exc), (
+            f"Error message should specify valid range, got: {exc}"
+        )
 
 
 @given(
@@ -196,11 +203,11 @@ def test_prioritization_config_rejects_out_of_range_af(value: float) -> None:
     """PrioritizationConfig rejects max_allele_frequency outside [0.0, 1.0]."""
     try:
         PrioritizationConfig(max_allele_frequency=value)
-        assert False, f"Expected ValueError for max_allele_frequency={value}"
+        raise AssertionError(f"Expected ValueError for max_allele_frequency={value}")
     except ValueError as exc:
-        assert "0.0" in str(exc) and "1.0" in str(
-            exc
-        ), f"Error message should specify valid range, got: {exc}"
+        assert "0.0" in str(exc) and "1.0" in str(exc), (
+            f"Error message should specify valid range, got: {exc}"
+        )
 
 
 @given(
@@ -220,11 +227,11 @@ def test_annotation_config_rejects_out_of_range_batch_size(value: int) -> None:
             gnomad_path=Path("/fake/gnomad.tsv"),
             batch_size=value,
         )
-        assert False, f"Expected ValueError for batch_size={value}"
+        raise AssertionError(f"Expected ValueError for batch_size={value}")
     except ValueError as exc:
-        assert "1000" in str(exc) and "100000" in str(
-            exc
-        ), f"Error message should specify valid range, got: {exc}"
+        assert "1000" in str(exc) and "100000" in str(exc), (
+            f"Error message should specify valid range, got: {exc}"
+        )
 
 
 @given(
@@ -240,8 +247,8 @@ def test_prioritization_config_rejects_out_of_range_batch_size(
     """PrioritizationConfig rejects batch_size outside [1_000, 100_000]."""
     try:
         PrioritizationConfig(batch_size=value)
-        assert False, f"Expected ValueError for batch_size={value}"
+        raise AssertionError(f"Expected ValueError for batch_size={value}")
     except ValueError as exc:
-        assert "1000" in str(exc) and "100000" in str(
-            exc
-        ), f"Error message should specify valid range, got: {exc}"
+        assert "1000" in str(exc) and "100000" in str(exc), (
+            f"Error message should specify valid range, got: {exc}"
+        )

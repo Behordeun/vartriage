@@ -17,10 +17,18 @@ from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (AnnotationConfig, PrioritizationConfig,
-                                     QualityFilterConfig, ReportConfig)
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, FunctionalConsequence)
+from vartriage.models.config import (
+    AnnotationConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+    ReportConfig,
+)
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClassifiedVariant,
+    FunctionalConsequence,
+)
 from vartriage.prioritization.scoring import score_variants
 from vartriage.reporting.generator import ReportGenerator
 
@@ -142,15 +150,14 @@ def _write_gtf(tmp_dir: Path) -> Path:
     gtf_path = tmp_dir / "genes.gtf"
     gtf_lines = [
         "##format: gtf",
-        "chr1\thavana\tgene\t900\t2100\t.\t+\t.\t"
-        'gene_id "BRCA1"; gene_name "BRCA1";',
+        'chr1\thavana\tgene\t900\t2100\t.\t+\t.\tgene_id "BRCA1"; gene_name "BRCA1";',
         "chr1\thavana\ttranscript\t900\t2100\t.\t+\t.\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
         "chr1\thavana\texon\t900\t2100\t.\t+\t.\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
         "chr1\thavana\tCDS\t1000\t2000\t.\t+\t0\t"
         'gene_id "BRCA1"; transcript_id "BRCA1.1"; gene_name "BRCA1";',
-        "chr3\thavana\tgene\t2900\t4100\t.\t+\t.\t" 'gene_id "TP53"; gene_name "TP53";',
+        'chr3\thavana\tgene\t2900\t4100\t.\t+\t.\tgene_id "TP53"; gene_name "TP53";',
         "chr3\thavana\ttranscript\t2900\t4100\t.\t+\t.\t"
         'gene_id "TP53"; transcript_id "TP53.1"; gene_name "TP53";',
         "chr3\thavana\texon\t2900\t4100\t.\t+\t.\t"
@@ -630,7 +637,7 @@ class TestJSONOutput:
         assert len(data) == len(classified)
 
         # Verify key fields match the in-memory classified list
-        for record, cv in zip(data, classified):
+        for record, cv in zip(data, classified, strict=False):
             base = cv.scored.annotated.variant
             assert record["chromosome"] == base.chrom
             assert record["position"] == base.pos
@@ -736,9 +743,9 @@ class TestCSVOutput:
 
         header_count = len(rows[0])
         for i, row in enumerate(rows[1:], start=2):
-            assert (
-                len(row) == header_count
-            ), f"Row {i} has {len(row)} fields, expected {header_count}"
+            assert len(row) == header_count, (
+                f"Row {i} has {len(row)} fields, expected {header_count}"
+            )
 
     def test_csv_empty_fields_for_null_values(
         self, pipeline_data: dict[str, Path]

@@ -7,8 +7,9 @@ ordering. Only one variant is in memory at a time (beyond the I/O buffer).
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any, Iterator, Sequence, Union
+from typing import Any
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import ClassifiedVariant
@@ -97,7 +98,7 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
 
 
 def write_json(
-    variants: Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]],
+    variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
     output_path: Path,
 ) -> Path:
     """Write classified variants to a JSON file, streaming one at a time.
@@ -143,6 +144,6 @@ def write_json(
                 output_path.unlink()
         except OSError:
             pass
-        raise IOError(f"Failed to write JSON report: {exc}") from exc
+        raise OSError(f"Failed to write JSON report: {exc}") from exc
 
     return output_path

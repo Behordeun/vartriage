@@ -12,56 +12,73 @@ Example
 >>> output = pipeline.run(vcf_path=config.vcf_path)
 """
 
+# PS1/PM5 protein index (v0.14.0)
+from vartriage.annotation.clinvar_protein_index import ClinVarProteinIndex
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
-from vartriage.exceptions import VarTriageWarning
-from vartriage.filter.quality_filter import QualityFilter
-from vartriage.io.exceptions import (ConfigurationError, ParseError,
-                                     ReferenceFileError,
-                                     VariantPrioritizationError)
-from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (AnnotationConfig, MissingDataConfig,
-                                     PipelineConfig, PrioritizationConfig,
-                                     QualityFilterConfig, ReportConfig)
-from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
-                                      ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceStrength, EvidenceTag,
-                                      FunctionalConsequence, ScoredVariant,
-                                      Variant)
-from vartriage.models.warnings import MissingDataWarning
-from vartriage.pipeline import Pipeline
-from vartriage.prioritization.engine import PrioritizationEngine
-from vartriage.reporting.generator import ReportGenerator
 
 # Cohort analysis (v0.11.0)
 from vartriage.cohort.aggregator import CohortAggregator
 from vartriage.cohort.pipeline import CohortPipeline
 from vartriage.cohort.report import CohortReportGenerator
 from vartriage.cohort.statistics import CohortStatistics
+from vartriage.exceptions import VarTriageWarning
+from vartriage.filter.quality_filter import QualityFilter
+from vartriage.io.exceptions import (
+    ConfigurationError,
+    ParseError,
+    ReferenceFileError,
+    VariantPrioritizationError,
+)
+from vartriage.io.vcf_parser import VCFParser
 from vartriage.models.cohort import (
     CohortConfig,
     CohortSummary,
     CohortVariant,
     GeneBurden,
 )
+from vartriage.models.config import (
+    AnnotationConfig,
+    MissingDataConfig,
+    PipelineConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+    ReportConfig,
+)
+from vartriage.models.variant import (
+    EVIDENCE_STRENGTH_MAP,
+    ACMGClassification,
+    AnnotatedVariant,
+    ClassifiedVariant,
+    ClinVarAssertion,
+    EvidenceStrength,
+    EvidenceTag,
+    FunctionalConsequence,
+    ProteinChange,
+    ScoredVariant,
+    Variant,
+)
+from vartriage.models.warnings import MissingDataWarning
+from vartriage.pipeline import Pipeline
+from vartriage.prioritization.engine import PrioritizationEngine
+from vartriage.reporting.generator import ReportGenerator
 
 # Structural variant triage (v0.13.0)
 from vartriage.structural import (
-    SVTriagePipeline,
-    SVParser,
-    SVAnnotator,
-    SVScorer,
-    SVClassifier,
-    SVTriageConfig,
-    StructuralVariant,
     AnnotatedSV,
-    ScoredSV,
     ClassifiedSV,
-    SVType,
-    SVConsequence,
+    ScoredSV,
+    StructuralVariant,
+    SVAnnotator,
     SVClassification,
+    SVClassifier,
+    SVConsequence,
     SVEvidenceCategory,
+    SVParser,
+    SVScorer,
+    SVTriageConfig,
+    SVTriagePipeline,
+    SVType,
 )
 
 try:
@@ -133,4 +150,18 @@ __all__ = [
     # Warnings
     "VarTriageWarning",
     "MissingDataWarning",
+    # v0.14.0: PS1/PM5 and gnomAD API
+    "ProteinChange",
+    "ClinVarProteinIndex",
+    "GnomADClient",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazy import for GnomADClient to avoid httpx import at module level."""
+    if name == "GnomADClient":
+        from vartriage.api.gnomad_client import GnomADClient
+
+        globals()["GnomADClient"] = GnomADClient
+        return GnomADClient
+    raise AttributeError(f"module 'vartriage' has no attribute {name!r}")

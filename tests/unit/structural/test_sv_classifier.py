@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-import pytest
-
 from vartriage.structural.classifier import SVClassifier
 from vartriage.structural.models import (
     AnnotatedSV,
-    ClassifiedSV,
     GeneOverlap,
     ScoredSV,
+    StructuralVariant,
     SVClassification,
     SVConsequence,
     SVEvidenceCategory,
     SVType,
-    StructuralVariant,
 )
 
 
@@ -32,7 +29,10 @@ def _make_scored_sv(
     pathogenicity_score: float | None = 0.8,
 ) -> ScoredSV:
     sv = StructuralVariant(
-        chrom=chrom, start=start, end=end, sv_type=sv_type,
+        chrom=chrom,
+        start=start,
+        end=end,
+        sv_type=sv_type,
     )
     annotated = AnnotatedSV(
         sv=sv,
@@ -82,7 +82,10 @@ class TestClassifierHIGeneDeletion:
             SVClassification.PATHOGENIC,
             SVClassification.LIKELY_PATHOGENIC,
         )
-        assert SVEvidenceCategory.CONTAINS_ESTABLISHED_HI_GENE in result.evidence_categories
+        assert (
+            SVEvidenceCategory.CONTAINS_ESTABLISHED_HI_GENE
+            in result.evidence_categories
+        )
         assert SVEvidenceCategory.GENE_FULLY_CONTAINED in result.evidence_categories
 
     def test_hi_gene_partial_deletion_is_likely_pathogenic_or_vus(self) -> None:
@@ -174,7 +177,9 @@ class TestClassifierPathogenicRegionMatch:
         )
 
         pathogenic_regions = [("chr22", 18916842, 21465659)]
-        region_names = {("chr22", 18916842, 21465659): "22q11.2 deletion syndrome (DiGeorge)"}
+        region_names = {
+            ("chr22", 18916842, 21465659): "22q11.2 deletion syndrome (DiGeorge)"
+        }
 
         classifier = SVClassifier(
             pathogenic_regions=pathogenic_regions,
@@ -182,7 +187,9 @@ class TestClassifierPathogenicRegionMatch:
         )
         result = list(classifier.classify(iter([scored])))[0]
 
-        assert SVEvidenceCategory.COMPLETE_OVERLAP_PATHOGENIC in result.evidence_categories
+        assert (
+            SVEvidenceCategory.COMPLETE_OVERLAP_PATHOGENIC in result.evidence_categories
+        )
         assert result.syndrome_name == "22q11.2 deletion syndrome (DiGeorge)"
         assert result.evidence_score >= 0.45
 

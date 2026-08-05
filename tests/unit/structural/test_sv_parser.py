@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from vartriage.structural.models import SVType, StructuralVariant
+from vartriage.structural.models import StructuralVariant, SVType
 from vartriage.structural.parser import (
-    SVParser,
     _BND_PATTERN,
     _SVTYPE_MAP,
     _SYMBOLIC_ALT_PATTERN,
+    SVParser,
 )
 
 
@@ -101,32 +101,47 @@ class TestStructuralVariantModel:
 
     def test_length_from_svlen(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=1000, end=2000, sv_type=SVType.DEL,
+            chrom="chr1",
+            start=1000,
+            end=2000,
+            sv_type=SVType.DEL,
             svlen=-1001,
         )
         assert sv.length == 1001
 
     def test_length_from_coordinates_when_svlen_none(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=1000, end=5000, sv_type=SVType.DUP,
+            chrom="chr1",
+            start=1000,
+            end=5000,
+            sv_type=SVType.DUP,
         )
         assert sv.length == 4001
 
     def test_is_intrachromosomal_del(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=500, sv_type=SVType.DEL,
+            chrom="chr1",
+            start=100,
+            end=500,
+            sv_type=SVType.DEL,
         )
         assert sv.is_intrachromosomal is True
 
     def test_bnd_not_intrachromosomal(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=100, sv_type=SVType.BND,
+            chrom="chr1",
+            start=100,
+            end=100,
+            sv_type=SVType.BND,
         )
         assert sv.is_intrachromosomal is False
 
     def test_frozen_dataclass(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=500, sv_type=SVType.DEL,
+            chrom="chr1",
+            start=100,
+            end=500,
+            sv_type=SVType.DEL,
         )
         with pytest.raises(AttributeError):
             sv.start = 200  # type: ignore[misc]
@@ -137,7 +152,10 @@ class TestSVParserFiltering:
 
     def test_sv_below_min_size_filtered(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=120, sv_type=SVType.DEL,
+            chrom="chr1",
+            start=100,
+            end=120,
+            sv_type=SVType.DEL,
             svlen=-21,
         )
         # Simulate the filter check
@@ -150,7 +168,10 @@ class TestSVParserFiltering:
 
     def test_sv_above_min_size_passes(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=200, sv_type=SVType.DEL,
+            chrom="chr1",
+            start=100,
+            end=200,
+            sv_type=SVType.DEL,
             svlen=-101,
         )
         parser = object.__new__(SVParser)
@@ -162,7 +183,10 @@ class TestSVParserFiltering:
 
     def test_sv_above_max_size_filtered(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=200000, sv_type=SVType.DEL,
+            chrom="chr1",
+            start=100,
+            end=200000,
+            sv_type=SVType.DEL,
         )
         parser = object.__new__(SVParser)
         parser._min_size = 50
@@ -173,7 +197,10 @@ class TestSVParserFiltering:
 
     def test_bnd_bypasses_size_filter(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=100, sv_type=SVType.BND,
+            chrom="chr1",
+            start=100,
+            end=100,
+            sv_type=SVType.BND,
         )
         parser = object.__new__(SVParser)
         parser._min_size = 50
@@ -184,7 +211,10 @@ class TestSVParserFiltering:
 
     def test_low_quality_filtered(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=500, sv_type=SVType.DEL,
+            chrom="chr1",
+            start=100,
+            end=500,
+            sv_type=SVType.DEL,
             qual=10.0,
         )
         parser = object.__new__(SVParser)
@@ -196,7 +226,10 @@ class TestSVParserFiltering:
 
     def test_type_filter_excludes_unwanted(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=500, sv_type=SVType.INV,
+            chrom="chr1",
+            start=100,
+            end=500,
+            sv_type=SVType.INV,
         )
         parser = object.__new__(SVParser)
         parser._min_size = 50
@@ -207,7 +240,10 @@ class TestSVParserFiltering:
 
     def test_type_filter_passes_wanted(self) -> None:
         sv = StructuralVariant(
-            chrom="chr1", start=100, end=500, sv_type=SVType.DEL,
+            chrom="chr1",
+            start=100,
+            end=500,
+            sv_type=SVType.DEL,
         )
         parser = object.__new__(SVParser)
         parser._min_size = 50
@@ -220,6 +256,6 @@ class TestSVParserFiltering:
 class TestSVParserFileValidation:
     """Tests for file validation in SVParser."""
 
-    def test_missing_file_raises(self, tmp_path: "pytest.TempPathFactory") -> None:
+    def test_missing_file_raises(self, tmp_path: pytest.TempPathFactory) -> None:
         with pytest.raises(FileNotFoundError, match="VCF file not found"):
             SVParser(tmp_path / "nonexistent.vcf")  # type: ignore[arg-type]

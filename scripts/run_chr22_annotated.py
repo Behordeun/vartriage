@@ -5,8 +5,13 @@ import time
 import warnings
 from pathlib import Path
 
-from vartriage import (AnnotationConfig, Pipeline, PipelineConfig,
-                       PrioritizationConfig, ReportConfig)
+from vartriage import (
+    AnnotationConfig,
+    Pipeline,
+    PipelineConfig,
+    PrioritizationConfig,
+    ReportConfig,
+)
 
 warnings.filterwarnings("ignore")
 
@@ -39,6 +44,6 @@ print("--- Chr22 Annotated Benchmark ---")
 print(f"Wall time:    {elapsed:.1f}s")
 print(f"Peak RSS:     {peak_rss_mb:.0f} MB")
 print(f"Output:       {result}")
-print(f"Output size:  {result.stat().st_size / (1024*1024):.1f} MB")
+print(f"Output size:  {result.stat().st_size / (1024 * 1024):.1f} MB")
 print(f"Warnings:     {pipeline.warning_accumulator.total_count}")
 print(f"Memory OK:    {'YES' if peak_rss_mb < 2048 else 'NO'}")

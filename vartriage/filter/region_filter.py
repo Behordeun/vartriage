@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import bisect
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ParseError
@@ -118,7 +118,7 @@ class RegionFilter:
             raise FileNotFoundError(f"BED file not found: {bed_path}")
 
         bed_path = resolve_path(bed_path)
-        with open(bed_path, "r") as fh:
+        with open(bed_path) as fh:
             for line_num, raw_line in enumerate(fh, start=1):
                 line = raw_line.strip()
                 if self._is_skippable_line(line):
@@ -160,7 +160,7 @@ class RegionFilter:
         try:
             start = int(fields[1])
             end = int(fields[2])
-        except ValueError:
+        except ValueError as exc:
             raise ParseError(
                 line_number=line_num,
                 detail=(
@@ -168,22 +168,20 @@ class RegionFilter:
                     f"integers: {fields[1]!r}, "
                     f"{fields[2]!r}"
                 ),
-            )
+            ) from exc
 
         if start < 0 or end < 0:
             raise ParseError(
                 line_number=line_num,
                 detail=(
-                    "Coordinates must be non-negative, " f"got start={start}, end={end}"
+                    f"Coordinates must be non-negative, got start={start}, end={end}"
                 ),
             )
 
         if start >= end:
             raise ParseError(
                 line_number=line_num,
-                detail=(
-                    "Start must be less than end, " f"got start={start}, end={end}"
-                ),
+                detail=(f"Start must be less than end, got start={start}, end={end}"),
             )
 
         return chrom, start, end

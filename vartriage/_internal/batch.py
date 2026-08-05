@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import logging
 import numbers
+from collections.abc import Callable, Iterable, Iterator
 from itertools import islice
-from typing import Callable, Iterable, Iterator, TypeVar
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -105,11 +106,12 @@ def process_with_memory_fallback(
     ValueError
         If initial_chunk_size is not a positive integer.
     """
-    if initial_chunk_size is not None:
-        if not isinstance(initial_chunk_size, int) or initial_chunk_size < 1:
-            raise ValueError(
-                f"initial_chunk_size must be a positive integer, got {initial_chunk_size}"
-            )
+    if initial_chunk_size is not None and (
+        not isinstance(initial_chunk_size, int) or initial_chunk_size < 1
+    ):
+        raise ValueError(
+            f"initial_chunk_size must be a positive integer, got {initial_chunk_size}"
+        )
     try:
         return processor(items)
     except MemoryError:
@@ -130,7 +132,7 @@ def process_with_memory_fallback(
         except MemoryError:
             if chunk_size <= _MIN_CHUNK_SIZE:
                 logger.error(
-                    "MemoryError persists at minimum chunk size (%d). " "Re-raising.",
+                    "MemoryError persists at minimum chunk size (%d). Re-raising.",
                     _MIN_CHUNK_SIZE,
                 )
                 raise

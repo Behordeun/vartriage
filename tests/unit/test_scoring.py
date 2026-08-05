@@ -6,15 +6,22 @@ import warnings
 
 import pytest
 
-from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
-                                      ScoredVariant, Variant)
-from vartriage.prioritization.scoring import (CADD_WEIGHT, REVEL_WEIGHT,
-                                              ScoreValidationWarning,
-                                              compute_composite_ranks,
-                                              normalize_cadd_scores,
-                                              score_variants,
-                                              sort_by_composite_rank,
-                                              validate_revel_scores)
+from vartriage.models.variant import (
+    AnnotatedVariant,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
+from vartriage.prioritization.scoring import (
+    CADD_WEIGHT,
+    REVEL_WEIGHT,
+    ScoreValidationWarning,
+    compute_composite_ranks,
+    normalize_cadd_scores,
+    score_variants,
+    sort_by_composite_rank,
+    validate_revel_scores,
+)
 
 
 def _make_annotated_variant(
@@ -226,7 +233,7 @@ class TestScoreVariants:
 
     def test_negative_cadd_excluded_from_composite(self) -> None:
         variants = [_make_annotated_variant(pos=1)]
-        with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             result = score_variants(variants, [-5.0], [0.8])
             assert result[0].cadd_normalized is None
@@ -236,7 +243,7 @@ class TestScoreVariants:
 
     def test_out_of_range_revel_excluded(self) -> None:
         variants = [_make_annotated_variant(pos=1)]
-        with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             result = score_variants(variants, [30.0], [1.5])
             assert result[0].revel_score is None

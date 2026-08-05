@@ -11,12 +11,14 @@ from vartriage.structural.annotator import (
     _extract_attribute,
     _parse_score,
 )
-from vartriage.structural.models import SVConsequence, SVType, StructuralVariant
+from vartriage.structural.models import StructuralVariant, SVConsequence, SVType
 
 
 class TestExtractAttribute:
     def test_quoted_value(self) -> None:
-        attrs = 'gene_id "ENSG00000141510"; gene_name "TP53"; gene_type "protein_coding";'
+        attrs = (
+            'gene_id "ENSG00000141510"; gene_name "TP53"; gene_type "protein_coding";'
+        )
         assert _extract_attribute(attrs, "gene_name") == "TP53"
         assert _extract_attribute(attrs, "gene_type") == "protein_coding"
 
@@ -57,12 +59,12 @@ class TestGTFLoading:
     def test_loads_protein_coding_genes(self, tmp_path: Path) -> None:
         gtf = tmp_path / "genes.gtf"
         gtf.write_text(
-            '# GTF file\n'
-            'chr17\tENSEMBL\tgene\t7565097\t7590856\t.\t-\t.\t'
+            "# GTF file\n"
+            "chr17\tENSEMBL\tgene\t7565097\t7590856\t.\t-\t.\t"
             'gene_id "ENSG00000141510"; gene_name "TP53"; gene_type "protein_coding";\n'
-            'chr17\tENSEMBL\texon\t7565097\t7565332\t.\t-\t.\t'
+            "chr17\tENSEMBL\texon\t7565097\t7565332\t.\t-\t.\t"
             'gene_id "ENSG00000141510"; gene_name "TP53"; gene_type "protein_coding";\n'
-            'chr17\tENSEMBL\texon\t7572927\t7573008\t.\t-\t.\t'
+            "chr17\tENSEMBL\texon\t7572927\t7573008\t.\t-\t.\t"
             'gene_id "ENSG00000141510"; gene_name "TP53"; gene_type "protein_coding";\n'
         )
         annotator = SVAnnotator(gene_annotation_path=gtf)
@@ -75,7 +77,7 @@ class TestGTFLoading:
     def test_skips_non_protein_coding(self, tmp_path: Path) -> None:
         gtf = tmp_path / "genes.gtf"
         gtf.write_text(
-            'chr1\tENSEMBL\tgene\t100\t500\t.\t+\t.\t'
+            "chr1\tENSEMBL\tgene\t100\t500\t.\t+\t.\t"
             'gene_id "ENSG0001"; gene_name "lncRNA1"; gene_type "lncRNA";\n'
         )
         annotator = SVAnnotator(gene_annotation_path=gtf)
@@ -109,9 +111,7 @@ class TestFrequencyDBLoading:
     def test_loads_sv_frequency_records(self, tmp_path: Path) -> None:
         freq_file = tmp_path / "gnomad_sv.tsv"
         freq_file.write_text(
-            "# gnomAD-SV\n"
-            "chr1\t1000\t5000\tDEL\t0.005\n"
-            "chr1\t10000\t20000\tDUP\t0.01\n"
+            "# gnomAD-SV\nchr1\t1000\t5000\tDEL\t0.005\nchr1\t10000\t20000\tDUP\t0.01\n"
         )
         annotator = SVAnnotator(gnomad_sv_path=freq_file)
         assert len(annotator._sv_database["chr1"]) == 2
@@ -140,9 +140,9 @@ class TestAnnotatorEndToEnd:
     def test_full_annotation_with_all_references(self, tmp_path: Path) -> None:
         gtf = tmp_path / "genes.gtf"
         gtf.write_text(
-            'chr22\tENSEMBL\tgene\t19744226\t19771115\t.\t+\t.\t'
+            "chr22\tENSEMBL\tgene\t19744226\t19771115\t.\t+\t.\t"
             'gene_id "ENSG0001"; gene_name "TBX1"; gene_type "protein_coding";\n'
-            'chr22\tENSEMBL\texon\t19744226\t19750000\t.\t+\t.\t'
+            "chr22\tENSEMBL\texon\t19744226\t19750000\t.\t+\t.\t"
             'gene_id "ENSG0001"; gene_name "TBX1"; gene_type "protein_coding";\n'
         )
         dosage = tmp_path / "dosage.tsv"
@@ -159,7 +159,9 @@ class TestAnnotatorEndToEnd:
         )
 
         sv = StructuralVariant(
-            chrom="chr22", start=18916842, end=21465659,
+            chrom="chr22",
+            start=18916842,
+            end=21465659,
             sv_type=SVType.DEL,
         )
         result = annotator._annotate_single(sv)

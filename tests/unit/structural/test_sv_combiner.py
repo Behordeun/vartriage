@@ -4,25 +4,20 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from vartriage.models.variant import ACMGClassification, FunctionalConsequence
 from vartriage.structural.combiner import (
-    CombinedFinding,
-    merge_findings,
-    _serialize_snv,
     _serialize_sv,
+    merge_findings,
 )
 from vartriage.structural.models import (
     AnnotatedSV,
     ClassifiedSV,
     GeneOverlap,
     ScoredSV,
+    StructuralVariant,
     SVClassification,
     SVConsequence,
-    SVEvidenceCategory,
     SVType,
-    StructuralVariant,
 )
 
 
@@ -49,18 +44,29 @@ def _make_sv_classified(
     score: float = 0.6,
 ) -> ClassifiedSV:
     sv = StructuralVariant(
-        chrom="chr22", start=18916842, end=21465659, sv_type=SVType.DEL,
+        chrom="chr22",
+        start=18916842,
+        end=21465659,
+        sv_type=SVType.DEL,
     )
     overlap = GeneOverlap(
-        gene_symbol="TBX1", gene_chrom="chr22",
-        gene_start=19744226, gene_end=19771115,
-        overlap_fraction=1.0, is_whole_gene=True,
-        exons_affected=9, total_exons=9,
-        hi_score=3.0, ts_score=None,
+        gene_symbol="TBX1",
+        gene_chrom="chr22",
+        gene_start=19744226,
+        gene_end=19771115,
+        overlap_fraction=1.0,
+        is_whole_gene=True,
+        exons_affected=9,
+        total_exons=9,
+        hi_score=3.0,
+        ts_score=None,
     )
     annotated = AnnotatedSV(
-        sv=sv, consequence=SVConsequence.WHOLE_GENE_DELETION,
-        gene_overlaps=(overlap,), genes_affected=1, hi_genes_affected=1,
+        sv=sv,
+        consequence=SVConsequence.WHOLE_GENE_DELETION,
+        gene_overlaps=(overlap,),
+        genes_affected=1,
+        hi_genes_affected=1,
     )
     scored = ScoredSV(annotated=annotated, pathogenicity_score=score)
     return ClassifiedSV(

@@ -74,7 +74,7 @@ def build_spike_vcf(source_vcf: Path, output_vcf: Path) -> int:
 
             for rec in vcf_in:
                 if not spike_inserted and rec.pos >= first_spike_pos:
-                    for pos, ref, alt, desc in sorted(NF2_SPIKE_VARIANTS):
+                    for pos, ref, alt, _desc in sorted(NF2_SPIKE_VARIANTS):
                         new_rec = vcf_out.new_record()
                         new_rec.contig = "chr22"
                         new_rec.pos = pos
@@ -147,9 +147,9 @@ def run_pipeline(
 
     hpo_terms = frozenset(NF2_HPO_TERMS)
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("RUNNING PIPELINE")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"  VCF: {vcf_path.name}")
     print(f"  HPO terms: {', '.join(NF2_HPO_TERMS)}")
     print(f"  Knowledge dir: {knowledge_dir}")
@@ -226,12 +226,13 @@ def _print_classification_distribution(results: list) -> None:  # type: ignore[t
 
 def _print_pathogenic_findings(results: list) -> None:  # type: ignore[type-arg]
     pathogenic = [
-        r for r in results
+        r
+        for r in results
         if r.get("acmg_classification") in ("Pathogenic", "Likely_Pathogenic")
     ]
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"PATHOGENIC / LIKELY PATHOGENIC FINDINGS: {len(pathogenic)}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     for v in pathogenic[:10]:
         _print_variant_detail(v)
 
@@ -239,9 +240,9 @@ def _print_pathogenic_findings(results: list) -> None:  # type: ignore[type-arg]
 def _print_nf2_detail(nf2_variants: list) -> None:  # type: ignore[type-arg]
     if not nf2_variants:
         return
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("NF2 VARIANTS DETAIL")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     for v in nf2_variants:
         print(f"  {_format_nf2_summary(v)}")
 
@@ -249,31 +250,48 @@ def _print_nf2_detail(nf2_variants: list) -> None:  # type: ignore[type-arg]
 def _build_nf2_checks(nf2_variants: list) -> list[tuple[str, str, bool]]:  # type: ignore[type-arg]
     nf2_with_disease = [v for v in nf2_variants if v.get("disease_associations")]
     nf2_with_pheno = [
-        v for v in nf2_variants
+        v
+        for v in nf2_variants
         if v.get("phenotype_match_score") and v["phenotype_match_score"] > 0
     ]
     nf2_actionable = [v for v in nf2_variants if v.get("is_actionable")]
     nf2_constrained = [v for v in nf2_variants if v.get("gene_constraint")]
 
-    score_detail = f" ({nf2_with_pheno[0]['phenotype_match_score']:.2f})" if nf2_with_pheno else ""
-    pli_detail = f" (pLI={nf2_constrained[0]['gene_constraint']['pli']})" if nf2_constrained else ""
+    score_detail = (
+        f" ({nf2_with_pheno[0]['phenotype_match_score']:.2f})" if nf2_with_pheno else ""
+    )
+    pli_detail = (
+        f" (pLI={nf2_constrained[0]['gene_constraint']['pli']})"
+        if nf2_constrained
+        else ""
+    )
 
     return [
-        ("NF2 variants detected in output",
-         "No NF2 variants found",
-         len(nf2_variants) > 0),
-        ("NF2 variants have disease associations attached",
-         "NF2 variants missing disease associations",
-         bool(nf2_with_disease)),
-        (f"NF2 variants have phenotype match score > 0{score_detail}",
-         "NF2 variants have zero phenotype match",
-         bool(nf2_with_pheno)),
-        ("NF2 variants flagged as actionable",
-         "NF2 variants not flagged actionable",
-         bool(nf2_actionable)),
-        (f"NF2 constraint metrics present{pli_detail}",
-         "NF2 missing constraint metrics",
-         bool(nf2_constrained)),
+        (
+            "NF2 variants detected in output",
+            "No NF2 variants found",
+            len(nf2_variants) > 0,
+        ),
+        (
+            "NF2 variants have disease associations attached",
+            "NF2 variants missing disease associations",
+            bool(nf2_with_disease),
+        ),
+        (
+            f"NF2 variants have phenotype match score > 0{score_detail}",
+            "NF2 variants have zero phenotype match",
+            bool(nf2_with_pheno),
+        ),
+        (
+            "NF2 variants flagged as actionable",
+            "NF2 variants not flagged actionable",
+            bool(nf2_actionable),
+        ),
+        (
+            f"NF2 constraint metrics present{pli_detail}",
+            "NF2 missing constraint metrics",
+            bool(nf2_constrained),
+        ),
     ]
 
 
@@ -282,9 +300,9 @@ def analyze_results(output_path: Path) -> None:
     with open(safe_read_path(output_path, "Pipeline output")) as f:
         results = json.load(f)
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("RESULTS ANALYSIS")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"Total classified variants: {len(results)}")
 
     with_context = [r for r in results if "disease_associations" in r]
@@ -299,9 +317,9 @@ def analyze_results(output_path: Path) -> None:
 
     checks = _build_nf2_checks(nf2_variants)
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("VALIDATION")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     checks_passed = sum(
         _print_check(pass_msg, fail_msg, condition)
@@ -344,9 +362,9 @@ def main() -> None:
 
         # Build spike-in VCF
         spiked_vcf = tmp_path / "patient_nf2.vcf.gz"
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print("SPIKE-IN VCF CONSTRUCTION")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"Source: {source_vcf} (HG002, healthy)")
         print(f"Target: {spiked_vcf}")
         print(f"Injecting {len(NF2_SPIKE_VARIANTS)} pathogenic NF2 variants...")
