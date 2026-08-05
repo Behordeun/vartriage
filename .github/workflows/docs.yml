@@ -30,11 +30,16 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install mkdocs mkdocs-material mkdocstrings[python]
+        run: pip install -e ".[docs]"
 
       - name: Build docs
         run: |
-          cp CONTRIBUTING.md docs/contributing.md
+          if [ -f CONTRIBUTING.md ]; then
+            cp CONTRIBUTING.md docs/contributing.md
+          else
+            echo "Error: CONTRIBUTING.md not found"
+            exit 1
+          fi
           mkdocs build --strict
 
       - name: Upload artifact
