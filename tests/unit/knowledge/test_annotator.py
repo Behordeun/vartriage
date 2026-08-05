@@ -40,20 +40,16 @@ def knowledge_dir(tmp_path: Path) -> Path:
         "BRCA1\tBreast cancer\t604370\tAD\n"
     )
     (d / "hpo_gene_annotations.tsv").write_text(
-        "gene_symbol\thpo_terms\n"
-        "BRCA1\tHP:0003002;HP:0002894;HP:0010619\n"
+        "gene_symbol\thpo_terms\nBRCA1\tHP:0003002;HP:0002894;HP:0010619\n"
     )
     (d / "clingen_validity.tsv").write_text(
-        "gene_symbol\tvalidity_level\n"
-        "BRCA1\tDefinitive\n"
+        "gene_symbol\tvalidity_level\nBRCA1\tDefinitive\n"
     )
     (d / "gnomad_constraint.tsv").write_text(
-        "gene_symbol\tpli\tloeuf\tmis_z\n"
-        "BRCA1\t0.00\t1.17\t0.07\n"
+        "gene_symbol\tpli\tloeuf\tmis_z\nBRCA1\t0.00\t1.17\t0.07\n"
     )
     (d / "clingen_actionability.tsv").write_text(
-        "gene_symbol\tintervention_type\n"
-        "BRCA1\tsurveillance\n"
+        "gene_symbol\tintervention_type\nBRCA1\tsurveillance\n"
     )
     return d
 

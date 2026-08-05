@@ -40,11 +40,7 @@ def test_unknown_gene_returns_none(validity_tsv: Path) -> None:
 
 def test_keeps_strongest_when_duplicated(tmp_path: Path) -> None:
     """When a gene appears twice, the more definitive level wins."""
-    content = (
-        "gene_symbol\tvalidity_level\n"
-        "MLH1\tModerate\n"
-        "MLH1\tDefinitive\n"
-    )
+    content = "gene_symbol\tvalidity_level\nMLH1\tModerate\nMLH1\tDefinitive\n"
     tsv = tmp_path / "test.tsv"
     tsv.write_text(content)
     db = ClinGenValidityDB(tsv)
@@ -52,11 +48,7 @@ def test_keeps_strongest_when_duplicated(tmp_path: Path) -> None:
 
 
 def test_skips_unrecognized_levels(tmp_path: Path) -> None:
-    content = (
-        "gene_symbol\tvalidity_level\n"
-        "GENE1\tInventedLevel\n"
-        "GENE2\tStrong\n"
-    )
+    content = "gene_symbol\tvalidity_level\nGENE1\tInventedLevel\nGENE2\tStrong\n"
     tsv = tmp_path / "test.tsv"
     tsv.write_text(content)
     db = ClinGenValidityDB(tsv)

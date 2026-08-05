@@ -22,6 +22,8 @@ from vartriage.structural.annotator import SVAnnotator
 from vartriage.structural.classifier import SVClassifier
 from vartriage.structural.config import SVTriageConfig
 from vartriage.structural.models import (
+    SV_CONSEQUENCE_SEVERITY,
+    SV_EVIDENCE_POINTS,
     AnnotatedSV,
     Breakpoint,
     ClassifiedSV,
@@ -30,9 +32,7 @@ from vartriage.structural.models import (
     StructuralVariant,
     SVClassification,
     SVConsequence,
-    SV_CONSEQUENCE_SEVERITY,
     SVEvidenceCategory,
-    SV_EVIDENCE_POINTS,
     SVType,
 )
 from vartriage.structural.parser import SVParser

@@ -194,7 +194,7 @@ class TestRegionFilterBEDLoading:
 
     def test_track_and_browser_lines_skipped(self) -> None:
         """Track and browser header lines are skipped."""
-        content = "browser position chr1:1-1000\n" "track name=test\n" "chr1\t50\t150\n"
+        content = "browser position chr1:1-1000\ntrack name=test\nchr1\t50\t150\n"
         bed_path = _write_bed(content)
         try:
             config = RegionFilterConfig(bed_path=bed_path)

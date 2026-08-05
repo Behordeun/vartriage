@@ -11,7 +11,6 @@ are sent to SpliceAI. All others return None without a network call.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from vartriage.api._base import APIClientError, BaseAPIClient
 from vartriage.api._cache import ResponseCache
@@ -68,7 +67,7 @@ class SpliceAIClient:
         max_retries: int = 3,
         timeout: tuple[float, float] = (10.0, 30.0),
         user_agent: str = "vartriage/0.7.0 (https://github.com/Behordeun/vartriage)",
-        proxy_url: Optional[str] = None,
+        proxy_url: str | None = None,
     ) -> None:
         self._genome_build = genome_build
         self._cache = cache
@@ -92,8 +91,8 @@ class SpliceAIClient:
         pos: int,
         ref: str,
         alt: str,
-        consequence: Optional[FunctionalConsequence] = None,
-    ) -> Optional[float]:
+        consequence: FunctionalConsequence | None = None,
+    ) -> float | None:
         """Look up SpliceAI max delta score for a single variant.
 
         Skips the query entirely if the variant's consequence is not
@@ -162,8 +161,8 @@ class SpliceAIClient:
     def lookup_batch(
         self,
         variants: list[tuple[str, int, str, str]],
-        consequences: Optional[list[Optional[FunctionalConsequence]]] = None,
-    ) -> list[Optional[float]]:
+        consequences: list[FunctionalConsequence | None] | None = None,
+    ) -> list[float | None]:
         """Look up SpliceAI scores for multiple variants with smart filtering.
 
         Parameters
@@ -179,7 +178,7 @@ class SpliceAIClient:
         list[Optional[float]]
             Max delta scores in input order. None for filtered/unavailable.
         """
-        results: list[Optional[float]] = []
+        results: list[float | None] = []
 
         for i, (chrom, pos, ref, alt) in enumerate(variants):
             consequence = consequences[i] if consequences else None
@@ -188,7 +187,7 @@ class SpliceAIClient:
 
         return results
 
-    def _parse_response(self, response: object) -> Optional[float]:
+    def _parse_response(self, response: object) -> float | None:
         """Extract max delta score from SpliceAI Lookup response.
 
         Response format (JSON):

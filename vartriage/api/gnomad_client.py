@@ -12,7 +12,7 @@ are cached in the local SQLite database to avoid re-querying.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from vartriage import __version__
 from vartriage.api._base import APIClientError, BaseAPIClient
@@ -69,17 +69,21 @@ _POP_MAP: dict[str, str] = {
 }
 
 
-_VALID_DATASETS: frozenset[str] = frozenset({
-    "gnomad_r4",
-    "gnomad_r3",
-    "gnomad_r2_1",
-})
+_VALID_DATASETS: frozenset[str] = frozenset(
+    {
+        "gnomad_r4",
+        "gnomad_r3",
+        "gnomad_r2_1",
+    }
+)
 
-_VALID_SOURCES: frozenset[str] = frozenset({
-    "combined",
-    "exome",
-    "genome",
-})
+_VALID_SOURCES: frozenset[str] = frozenset(
+    {
+        "combined",
+        "exome",
+        "genome",
+    }
+)
 
 
 class GnomADClient:
@@ -142,7 +146,7 @@ class GnomADClient:
 
     def lookup_frequency(
         self, chrom: str, pos: int, ref: str, alt: str
-    ) -> Optional[PopulationFrequencies]:
+    ) -> PopulationFrequencies | None:
         """Look up population allele frequencies for a single variant.
 
         Parameters
@@ -165,7 +169,9 @@ class GnomADClient:
         variant_id = f"{chrom_clean}-{pos}-{ref}-{alt}"
 
         # Check cache (use normalized chrom to avoid duplicate entries for chr1 vs 1)
-        cache_key = ResponseCache.build_key("gnomad", self._dataset, chrom_clean, pos, ref, alt)
+        cache_key = ResponseCache.build_key(
+            "gnomad", self._dataset, chrom_clean, pos, ref, alt
+        )
         cached = self._cache.get(cache_key)
         if cached is not None:
             return self._parse_cached(cached)
@@ -226,7 +232,7 @@ class GnomADClient:
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[PopulationFrequencies]]:
+    ) -> list[PopulationFrequencies | None]:
         """Look up frequencies for multiple variants (sequential, cached).
 
         gnomAD API doesn't support batch queries, so this iterates
@@ -238,7 +244,9 @@ class GnomADClient:
             for chrom, pos, ref, alt in variants
         ]
 
-    def _parse_variant_data(self, variant_data: dict[str, Any]) -> Optional[PopulationFrequencies]:
+    def _parse_variant_data(
+        self, variant_data: dict[str, Any]
+    ) -> PopulationFrequencies | None:
         """Extract population frequencies from gnomAD response."""
         exome = variant_data.get("exome")
         genome = variant_data.get("genome")
@@ -251,9 +259,14 @@ class GnomADClient:
         global_af = source.get("af")
         populations = source.get("populations", [])
 
-        pop_freqs: dict[str, Optional[float]] = {
-            "afr": None, "amr": None, "asj": None,
-            "eas": None, "fin": None, "nfe": None, "sas": None,
+        pop_freqs: dict[str, float | None] = {
+            "afr": None,
+            "amr": None,
+            "asj": None,
+            "eas": None,
+            "fin": None,
+            "nfe": None,
+            "sas": None,
         }
 
         for pop in populations:
@@ -281,7 +294,9 @@ class GnomADClient:
             sas=pop_freqs["sas"],
         )
 
-    def _select_source(self, exome: Optional[dict[str, Any]], genome: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    def _select_source(
+        self, exome: dict[str, Any] | None, genome: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
         """Pick the gnomAD data source based on preference."""
         if self._prefer_source == "exome":
             return exome or genome
@@ -298,7 +313,7 @@ class GnomADClient:
             return genome
         return exome
 
-    def _parse_cached(self, cached: dict[str, Any]) -> Optional[PopulationFrequencies]:
+    def _parse_cached(self, cached: dict[str, Any]) -> PopulationFrequencies | None:
         """Reconstruct PopulationFrequencies from cached dict."""
         if cached.get("not_found"):
             return None
@@ -314,7 +329,7 @@ class GnomADClient:
         )
 
     @staticmethod
-    def _frequencies_to_dict(freq: PopulationFrequencies) -> dict[str, Optional[float]]:
+    def _frequencies_to_dict(freq: PopulationFrequencies) -> dict[str, float | None]:
         """Serialize PopulationFrequencies for cache storage."""
         return {
             "global_af": freq.global_af,

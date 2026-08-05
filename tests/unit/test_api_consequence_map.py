@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
-
-from vartriage.api._consequence_map import (map_so_term, map_vep_most_severe,
-                                            most_severe_consequence)
+from vartriage.api._consequence_map import (
+    map_so_term,
+    map_vep_most_severe,
+    most_severe_consequence,
+)
 from vartriage.models.variant import FunctionalConsequence
 
 

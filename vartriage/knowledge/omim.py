@@ -12,7 +12,6 @@ from __future__ import annotations
 import csv
 import logging
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.knowledge.models import DiseaseAssociation
@@ -70,9 +69,7 @@ class OMIMDatabase:
                 accumulator[gene].append(assoc)
 
         # Freeze lists into tuples for immutability
-        self._index = {
-            gene: tuple(assocs) for gene, assocs in accumulator.items()
-        }
+        self._index = {gene: tuple(assocs) for gene, assocs in accumulator.items()}
 
         logger.info(
             "OMIM database loaded: %d genes, %d associations",

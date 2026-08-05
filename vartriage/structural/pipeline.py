@@ -8,11 +8,12 @@ a streaming fashion.
 
 from __future__ import annotations
 
-import json
 import csv as csv_module
+import json
 import logging
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from vartriage.structural.annotator import SVAnnotator
 from vartriage.structural.classifier import SVClassifier
@@ -54,28 +55,32 @@ class SVTriagePipeline:
     def _validate_config(self) -> None:
         """Fail-fast on missing files and invalid configuration."""
         if not self._config.vcf_path.exists():
+            raise FileNotFoundError(f"Input VCF not found: {self._config.vcf_path}")
+
+        if (
+            self._config.gene_annotation_path is not None
+            and not self._config.gene_annotation_path.exists()
+        ):
             raise FileNotFoundError(
-                f"Input VCF not found: {self._config.vcf_path}"
+                f"Gene annotation not found: {self._config.gene_annotation_path}"
             )
 
-        if self._config.gene_annotation_path is not None:
-            if not self._config.gene_annotation_path.exists():
-                raise FileNotFoundError(
-                    f"Gene annotation not found: {self._config.gene_annotation_path}"
-                )
+        if (
+            self._config.dosage_sensitivity_path is not None
+            and not self._config.dosage_sensitivity_path.exists()
+        ):
+            raise FileNotFoundError(
+                f"Dosage sensitivity file not found: "
+                f"{self._config.dosage_sensitivity_path}"
+            )
 
-        if self._config.dosage_sensitivity_path is not None:
-            if not self._config.dosage_sensitivity_path.exists():
-                raise FileNotFoundError(
-                    f"Dosage sensitivity file not found: "
-                    f"{self._config.dosage_sensitivity_path}"
-                )
-
-        if self._config.gnomad_sv_path is not None:
-            if not self._config.gnomad_sv_path.exists():
-                raise FileNotFoundError(
-                    f"gnomAD-SV file not found: {self._config.gnomad_sv_path}"
-                )
+        if (
+            self._config.gnomad_sv_path is not None
+            and not self._config.gnomad_sv_path.exists()
+        ):
+            raise FileNotFoundError(
+                f"gnomAD-SV file not found: {self._config.gnomad_sv_path}"
+            )
 
     def run(self) -> Path:
         """Execute the full SV triage pipeline.
@@ -140,7 +145,7 @@ class SVTriagePipeline:
         return self._config.output_path
 
     def _collect_results(
-        self, classified: "Iterator[ClassifiedSV]"
+        self, classified: Iterator[ClassifiedSV]
     ) -> list[ClassifiedSV]:
         """Collect classified SVs, applying output filtering."""
         results: list[ClassifiedSV] = []
@@ -221,17 +226,19 @@ class SVTriagePipeline:
 
         gene_details = []
         for overlap in annotated.gene_overlaps:
-            gene_details.append({
-                "symbol": overlap.gene_symbol,
-                "overlap_fraction": round(overlap.overlap_fraction, 4),
-                "is_whole_gene": overlap.is_whole_gene,
-                "exons_affected": overlap.exons_affected,
-                "total_exons": overlap.total_exons,
-                "is_haploinsufficient": overlap.is_haploinsufficient,
-                "is_triplosensitive": overlap.is_triplosensitive,
-                "hi_score": overlap.hi_score,
-                "ts_score": overlap.ts_score,
-            })
+            gene_details.append(
+                {
+                    "symbol": overlap.gene_symbol,
+                    "overlap_fraction": round(overlap.overlap_fraction, 4),
+                    "is_whole_gene": overlap.is_whole_gene,
+                    "exons_affected": overlap.exons_affected,
+                    "total_exons": overlap.total_exons,
+                    "is_haploinsufficient": overlap.is_haploinsufficient,
+                    "is_triplosensitive": overlap.is_triplosensitive,
+                    "hi_score": overlap.hi_score,
+                    "ts_score": overlap.ts_score,
+                }
+            )
 
         return {
             "chrom": sv.chrom,
@@ -277,9 +284,7 @@ class SVTriagePipeline:
         sv = classified.scored.annotated.sv
         annotated = classified.scored.annotated
 
-        gene_symbols = ",".join(
-            o.gene_symbol for o in annotated.gene_overlaps
-        )
+        gene_symbols = ",".join(o.gene_symbol for o in annotated.gene_overlaps)
         evidence_cats = ",".join(
             sorted(cat.value for cat in classified.evidence_categories)
         )
@@ -309,9 +314,7 @@ class SVTriagePipeline:
             "gene_symbols": gene_symbols,
         }
 
-    def _load_regions(
-        self, path: Optional[Path]
-    ) -> list[tuple[str, int, int]]:
+    def _load_regions(self, path: Path | None) -> list[tuple[str, int, int]]:
         """Load BED regions (chrom, start, end) from a file."""
         if path is None:
             return []
@@ -321,7 +324,7 @@ class SVTriagePipeline:
 
         regions: list[tuple[str, int, int]] = []
 
-        with open(path, "r") as fh:
+        with open(path) as fh:
             for line in fh:
                 if line.startswith(("#", "track")):
                     continue
@@ -340,7 +343,7 @@ class SVTriagePipeline:
         return regions
 
     def _load_regions_with_names(
-        self, path: Optional[Path]
+        self, path: Path | None
     ) -> tuple[list[tuple[str, int, int]], dict[tuple[str, int, int], str]]:
         """Load BED regions with optional 4th-column syndrome names."""
         if path is None:
@@ -352,7 +355,7 @@ class SVTriagePipeline:
         regions: list[tuple[str, int, int]] = []
         names: dict[tuple[str, int, int], str] = {}
 
-        with open(path, "r") as fh:
+        with open(path) as fh:
             for line in fh:
                 if line.startswith(("#", "track")):
                     continue

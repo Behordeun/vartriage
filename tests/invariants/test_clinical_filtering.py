@@ -376,7 +376,7 @@ def test_order_preservation_sample_extractor(
         result = list(extractor.apply(iter(enriched)))
 
     assert len(result) == len(enriched)
-    for i, (r, e) in enumerate(zip(result, enriched)):
+    for _i, (r, e) in enumerate(zip(result, enriched, strict=False)):
         assert r.chrom == e.chrom and r.pos == e.pos
 
 

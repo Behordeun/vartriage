@@ -2,23 +2,26 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
-from vartriage.bundle._checksums import (ChecksumMismatchError, compute_sha256,
-                                         verify_checksum)
-from vartriage.bundle._disk import (available_space_bytes, check_disk_space,
-                                    format_bytes)
+from vartriage.bundle._checksums import (
+    ChecksumMismatchError,
+    compute_sha256,
+    verify_checksum,
+)
+from vartriage.bundle._disk import available_space_bytes, check_disk_space, format_bytes
 from vartriage.bundle.config import BundleConfig
 from vartriage.bundle.downloader import BundleDownloader, DownloadError
 from vartriage.bundle.manifest import BundleManifest
-from vartriage.bundle.registry import BundleEntry, BundleRegistry
+from vartriage.bundle.registry import BundleRegistry
 from vartriage.bundle.storage import BundleStorage
-from vartriage.bundle.transformer import (TRANSFORM_REGISTRY,
-                                          PassthroughTransformer,
-                                          get_transformer)
+from vartriage.bundle.transformer import (
+    TRANSFORM_REGISTRY,
+    PassthroughTransformer,
+    get_transformer,
+)
 
 
 class TestBundleRegistry:
@@ -256,7 +259,6 @@ class TestBundleDownloader:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Mock urlopen returning data, verify file written and .partial removed."""
-        import io
         from unittest.mock import MagicMock
 
         fake_response = MagicMock()

@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from importlib import resources
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -71,7 +69,7 @@ class BundleRegistry:
     bundles: dict[str, BundleEntry]
 
     @classmethod
-    def load(cls, path: Optional[Path] = None) -> "BundleRegistry":
+    def load(cls, path: Path | None = None) -> BundleRegistry:
         """Load the registry from a JSON file.
 
         Parameters
@@ -105,7 +103,7 @@ class BundleRegistry:
         return cls._parse(raw)
 
     @classmethod
-    def _parse(cls, raw_json: str) -> "BundleRegistry":
+    def _parse(cls, raw_json: str) -> BundleRegistry:
         """Parse raw JSON into a BundleRegistry."""
         try:
             data = json.loads(raw_json)
@@ -143,7 +141,7 @@ class BundleRegistry:
 
         return cls(version=version, updated_at=updated_at, bundles=bundles)
 
-    def get(self, name: str, build: str = "grch38") -> Optional[BundleEntry]:
+    def get(self, name: str, build: str = "grch38") -> BundleEntry | None:
         """Look up a bundle by name, filtered by genome build.
 
         Returns None if the bundle doesn't exist or doesn't

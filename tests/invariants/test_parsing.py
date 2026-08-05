@@ -63,38 +63,38 @@ class TestVCFParsingRoundTrip:
             with VCFParser(tmp_path) as parser:
                 variants = list(parser)
 
-            assert len(variants) == len(
-                data_lines
-            ), f"Expected {len(data_lines)} variants, got {len(variants)}"
+            assert len(variants) == len(data_lines), (
+                f"Expected {len(data_lines)} variants, got {len(variants)}"
+            )
 
-            for variant, raw_line in zip(variants, data_lines):
+            for variant, raw_line in zip(variants, data_lines, strict=False):
                 expected = _parse_data_line(raw_line)
 
-                assert (
-                    variant.chrom == expected["chrom"]
-                ), f"CHROM mismatch: {variant.chrom!r} != {expected['chrom']!r}"
-                assert (
-                    variant.pos == expected["pos"]
-                ), f"POS mismatch: {variant.pos} != {expected['pos']}"
-                assert (
-                    variant.id == expected["id"]
-                ), f"ID mismatch: {variant.id!r} != {expected['id']!r}"
-                assert (
-                    variant.ref == expected["ref"]
-                ), f"REF mismatch: {variant.ref!r} != {expected['ref']!r}"
-                assert (
-                    variant.alt == expected["alt"]
-                ), f"ALT mismatch: {variant.alt!r} != {expected['alt']!r}"
+                assert variant.chrom == expected["chrom"], (
+                    f"CHROM mismatch: {variant.chrom!r} != {expected['chrom']!r}"
+                )
+                assert variant.pos == expected["pos"], (
+                    f"POS mismatch: {variant.pos} != {expected['pos']}"
+                )
+                assert variant.id == expected["id"], (
+                    f"ID mismatch: {variant.id!r} != {expected['id']!r}"
+                )
+                assert variant.ref == expected["ref"], (
+                    f"REF mismatch: {variant.ref!r} != {expected['ref']!r}"
+                )
+                assert variant.alt == expected["alt"], (
+                    f"ALT mismatch: {variant.alt!r} != {expected['alt']!r}"
+                )
 
                 if expected["qual"] is None:
-                    assert (
-                        variant.qual is None
-                    ), f"QUAL should be None, got {variant.qual}"
+                    assert variant.qual is None, (
+                        f"QUAL should be None, got {variant.qual}"
+                    )
                 else:
                     assert variant.qual is not None, "QUAL should not be None"
-                    assert (
-                        abs(variant.qual - expected["qual"]) < 0.01
-                    ), f"QUAL mismatch: {variant.qual} != {expected['qual']}"
+                    assert abs(variant.qual - expected["qual"]) < 0.01, (
+                        f"QUAL mismatch: {variant.qual} != {expected['qual']}"
+                    )
 
                 assert variant.filter_status == expected["filter_status"], (
                     f"FILTER mismatch: {variant.filter_status!r} != "
@@ -137,9 +137,9 @@ class TestMalformedVCFDetection:
                         pass
             except ParseError as exc:
                 parse_error_raised = True
-                assert (
-                    exc.line_number >= 1
-                ), f"ParseError line_number should be >= 1, got {exc.line_number}"
+                assert exc.line_number >= 1, (
+                    f"ParseError line_number should be >= 1, got {exc.line_number}"
+                )
                 assert exc.detail, "ParseError detail should not be empty"
 
             if violation_type not in self.PYSAM_TOLERANT_VIOLATIONS:

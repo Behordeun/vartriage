@@ -9,9 +9,9 @@ from remote APIs rather than local files.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from itertools import islice
-from typing import Iterator, Optional
 
 from vartriage.api._cache import ResponseCache
 from vartriage.api._circuit_breaker import CircuitBreaker
@@ -19,8 +19,12 @@ from vartriage.api._rate_limiter import RateLimiter
 from vartriage.api.clinvar_client import ClinVarClient
 from vartriage.api.config import APIConfig
 from vartriage.api.vep_client import VEPAnnotation, VEPClient
-from vartriage.models.variant import (AnnotatedVariant, ClinVarAssertion,
-                                      FunctionalConsequence, Variant)
+from vartriage.models.variant import (
+    AnnotatedVariant,
+    ClinVarAssertion,
+    FunctionalConsequence,
+    Variant,
+)
 from vartriage.models.warnings import MissingDataWarning
 
 logger = logging.getLogger(__name__)
@@ -130,16 +134,16 @@ class APIAnnotationEngine:
         # Compose AnnotatedVariant records
         results: list[AnnotatedVariant] = []
         for i, variant in enumerate(batch):
-            vep_ann: Optional[VEPAnnotation] = (
+            vep_ann: VEPAnnotation | None = (
                 vep_results[i] if i < len(vep_results) else None
             )
-            clinvar_assertion: Optional[ClinVarAssertion] = (
+            clinvar_assertion: ClinVarAssertion | None = (
                 clinvar_results[i] if i < len(clinvar_results) else None
             )
 
             consequence = FunctionalConsequence.INTERGENIC
-            gene_name: Optional[str] = None
-            allele_frequency: Optional[float] = None
+            gene_name: str | None = None
+            allele_frequency: float | None = None
 
             if vep_ann is not None:
                 consequence = vep_ann.consequence

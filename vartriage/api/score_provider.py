@@ -12,7 +12,6 @@ REVEL has no public API. PP3 evidence from REVEL requires a local file.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from vartriage.api._cache import ResponseCache
 from vartriage.api._circuit_breaker import CircuitBreaker
@@ -48,9 +47,7 @@ class APIScoreProvider:
         Shared response cache (same instance as annotation engine).
     """
 
-    def __init__(
-        self, config: APIConfig, cache: Optional[ResponseCache] = None
-    ) -> None:
+    def __init__(self, config: APIConfig, cache: ResponseCache | None = None) -> None:
         self._config = config
         self._revel_warned = False
 
@@ -96,8 +93,8 @@ class APIScoreProvider:
     def lookup_cadd_batch(
         self,
         keys: list[CoordinateKey],
-        vep_annotations: Optional[list[Optional[VEPAnnotation]]] = None,
-    ) -> list[Optional[float]]:
+        vep_annotations: list[VEPAnnotation | None] | None = None,
+    ) -> list[float | None]:
         """Look up CADD Phred scores with VEP-first hierarchy.
 
         For each variant:
@@ -117,12 +114,12 @@ class APIScoreProvider:
         list[Optional[float]]
             CADD Phred scores in input order. None where unavailable.
         """
-        results: list[Optional[float]] = []
+        results: list[float | None] = []
         cadd_api_needed: list[tuple[int, CoordinateKey]] = []
 
         for i, key in enumerate(keys):
             # Check VEP plugin data first
-            vep_cadd: Optional[float] = None
+            vep_cadd: float | None = None
             if vep_annotations and i < len(vep_annotations):
                 vep_ann = vep_annotations[i]
                 if vep_ann is not None and vep_ann.cadd_phred is not None:
@@ -148,8 +145,8 @@ class APIScoreProvider:
     def lookup_spliceai_batch(
         self,
         keys: list[CoordinateKey],
-        consequences: Optional[list[Optional[FunctionalConsequence]]] = None,
-    ) -> list[Optional[float]]:
+        consequences: list[FunctionalConsequence | None] | None = None,
+    ) -> list[float | None]:
         """Look up SpliceAI delta scores with consequence-based filtering.
 
         Only queries splice-relevant variants (MISSENSE, SPLICE_SITE,
@@ -170,7 +167,7 @@ class APIScoreProvider:
         variants_for_api = [(c, p, r, a) for c, p, r, a in keys]
         return self._spliceai.lookup_batch(variants_for_api, consequences)
 
-    def lookup_revel_batch(self, keys: list[CoordinateKey]) -> list[Optional[float]]:
+    def lookup_revel_batch(self, keys: list[CoordinateKey]) -> list[float | None]:
         """REVEL has no public API. Returns None for all variants.
 
         Logs a warning on first call to inform the user that PP3

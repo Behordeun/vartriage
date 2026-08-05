@@ -15,7 +15,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from vartriage._internal.path_safety import resolve_path
 
@@ -59,9 +59,11 @@ def _merge_toml_values(toml_values: dict[str, object]) -> dict[str, object]:
     merged: dict[str, object] = {}
     for key, val in toml_values.items():
         mapping = _TOML_SECTION_KEYS.get(key)
-        if mapping is None and key not in _TOML_SECTION_KEYS:
-            merged[key] = val
-        elif not isinstance(val, dict):
+        if (
+            mapping is None
+            and key not in _TOML_SECTION_KEYS
+            or not isinstance(val, dict)
+        ):
             merged[key] = val
         elif mapping is None:
             merged.update(val)
@@ -132,7 +134,7 @@ class APIConfig:
 
     mode: Literal["local", "api", "hybrid"] = "local"
     genome_build: Literal["grch37", "grch38"] = "grch38"
-    ncbi_api_key: Optional[str] = None
+    ncbi_api_key: str | None = None
     cache_path: Path = field(
         default_factory=lambda: Path.home() / ".vartriage" / "api_cache.db"
     )
@@ -145,8 +147,8 @@ class APIConfig:
     clinvar_rate_limit: float = 10.0
     cadd_rate_limit: float = 2.0
     spliceai_rate_limit: float = 0.08
-    vep_daily_limit: Optional[int] = 55_000
-    proxy_url: Optional[str] = None
+    vep_daily_limit: int | None = 55_000
+    proxy_url: str | None = None
     preferred_frequency_source: Literal["gnomad_exome", "gnomad_genome"] = (
         "gnomad_exome"
     )
@@ -179,7 +181,7 @@ class APIConfig:
         cls,
         config_path: Path | None = None,
         **overrides: object,
-    ) -> "APIConfig":
+    ) -> APIConfig:
         """Build APIConfig from TOML file + env vars + explicit overrides.
 
         Priority (highest wins): overrides > env vars > TOML > defaults.

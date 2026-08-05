@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "pysam>=0.22.0,<1.0",
     "numpy>=1.24.0,<3.0",
+    "ruff>=0.16.1",
 ]
 
 [project.optional-dependencies]
@@ -112,6 +113,10 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E402"]
+"scripts/**/*.py" = ["E402"]
 
 [tool.coverage.run]
 source_pkgs = ["vartriage"]

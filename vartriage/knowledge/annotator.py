@@ -12,8 +12,8 @@ stage.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from dataclasses import replace
-from typing import Iterator, Optional
 
 from vartriage.knowledge.config import KnowledgeBaseConfig
 from vartriage.knowledge.registry import GeneKnowledgeRegistry, apply_phenotype_boost
@@ -38,7 +38,7 @@ class GeneKnowledgeAnnotator:
 
     def __init__(self, config: KnowledgeBaseConfig) -> None:
         self._registry = GeneKnowledgeRegistry(config)
-        self._inheritance_mode: Optional[str] = config.inheritance_mode
+        self._inheritance_mode: str | None = config.inheritance_mode
         self._flag_actionable: bool = config.flag_actionable
 
     @property
@@ -81,15 +81,16 @@ class GeneKnowledgeAnnotator:
 
             # Actionability filter: when --flag-actionable is set, only
             # yield variants in actionable genes (intergenic passes through)
-            if self._flag_actionable and gene_symbol is not None:
-                if not gene_context.is_actionable:
-                    continue
+            if (
+                self._flag_actionable
+                and gene_symbol is not None
+                and not gene_context.is_actionable
+            ):
+                continue
 
             yield replace(variant, gene_context=gene_context)
 
-    def boost_scores(
-        self, scored: Iterator[ScoredVariant]
-    ) -> Iterator[ScoredVariant]:
+    def boost_scores(self, scored: Iterator[ScoredVariant]) -> Iterator[ScoredVariant]:
         """Apply phenotype-based boost to prioritization scores.
 
         Multiplies prioritization_score by (1 + phenotype_match_score).

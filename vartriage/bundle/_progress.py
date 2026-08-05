@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 import time
-from typing import Any, Optional
+from typing import Any
 
 from vartriage.bundle._disk import format_bytes
 
@@ -22,8 +22,8 @@ class ProgressBar:
     def __init__(
         self,
         filename: str,
-        total_bytes: Optional[int] = None,
-        stream: "Any" = None,
+        total_bytes: int | None = None,
+        stream: Any = None,
     ) -> None:
         self._filename = filename
         self._total = total_bytes

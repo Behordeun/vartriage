@@ -8,36 +8,24 @@ import pytest
 
 from vartriage.models.cohort import (
     CohortConfig,
-    CohortSummary,
     CohortVariant,
     GeneBurden,
-    SampleOccurrence,
 )
 from vartriage.models.config import (
     AnnotationConfig,
-    ClinicalReportConfig,
-    InheritanceConfig,
     PipelineConfig,
     PrioritizationConfig,
     QualityFilterConfig,
     ReportConfig,
-    SampleConfig,
 )
 from vartriage.models.variant import (
     ACMGClassification,
     AnnotatedVariant,
-    ClassifiedVariant,
-    ClinVarAssertion,
-    EvidenceStrength,
-    EvidenceTag,
     FunctionalConsequence,
     PopulationFrequencies,
     ScoredVariant,
     Variant,
-    VariantQualityMetrics,
-    Zygosity,
 )
-
 
 # --------------------------------------------------------------------------
 # models/variant.py
@@ -64,8 +52,12 @@ class TestPopulationFrequencies:
 
     def test_max_population_af_all_none(self) -> None:
         pf = PopulationFrequencies(
-            global_af=None, afr=None, amr=None,
-            eas=None, nfe=None, sas=None,
+            global_af=None,
+            afr=None,
+            amr=None,
+            eas=None,
+            nfe=None,
+            sas=None,
         )
         assert pf.max_population_af is None
 
@@ -88,14 +80,30 @@ class TestPopulationFrequencies:
 
 class TestVariant:
     def test_creation(self) -> None:
-        v = Variant(chrom="chr17", pos=7577120, id=None, ref="G", alt="A", qual=99.0, filter_status="PASS")
+        v = Variant(
+            chrom="chr17",
+            pos=7577120,
+            id=None,
+            ref="G",
+            alt="A",
+            qual=99.0,
+            filter_status="PASS",
+        )
         assert v.chrom == "chr17"
         assert v.pos == 7577120
 
 
 class TestScoredVariant:
     def test_composite_rank_syncs_to_prioritization_score(self) -> None:
-        v = Variant(chrom="chr1", pos=100, id=None, ref="A", alt="T", qual=99.0, filter_status="PASS")
+        v = Variant(
+            chrom="chr1",
+            pos=100,
+            id=None,
+            ref="A",
+            alt="T",
+            qual=99.0,
+            filter_status="PASS",
+        )
         av = AnnotatedVariant(
             variant=v,
             gene_name="TEST",
@@ -105,7 +113,15 @@ class TestScoredVariant:
         assert scored.prioritization_score == 0.75
 
     def test_prioritization_score_syncs_to_composite_rank(self) -> None:
-        v = Variant(chrom="chr1", pos=100, id=None, ref="A", alt="T", qual=99.0, filter_status="PASS")
+        v = Variant(
+            chrom="chr1",
+            pos=100,
+            id=None,
+            ref="A",
+            alt="T",
+            qual=99.0,
+            filter_status="PASS",
+        )
         av = AnnotatedVariant(
             variant=v,
             gene_name="TEST",
@@ -186,44 +202,64 @@ class TestCohortConfig:
 class TestCohortVariant:
     def test_cohort_frequency(self) -> None:
         cv = CohortVariant(
-            chrom="chr1", pos=100, ref="A", alt="T",
+            chrom="chr1",
+            pos=100,
+            ref="A",
+            alt="T",
             gene_name="TP53",
             consequence=FunctionalConsequence.MISSENSE,
-            sample_count=3, total_samples=10,
-            occurrences=(), max_classification=ACMGClassification.VUS,
+            sample_count=3,
+            total_samples=10,
+            occurrences=(),
+            max_classification=ACMGClassification.VUS,
             all_evidence_tags=frozenset(),
         )
         assert cv.cohort_frequency == pytest.approx(0.3)
 
     def test_is_singleton(self) -> None:
         cv = CohortVariant(
-            chrom="chr1", pos=100, ref="A", alt="T",
+            chrom="chr1",
+            pos=100,
+            ref="A",
+            alt="T",
             gene_name=None,
             consequence=FunctionalConsequence.MISSENSE,
-            sample_count=1, total_samples=5,
-            occurrences=(), max_classification=ACMGClassification.VUS,
+            sample_count=1,
+            total_samples=5,
+            occurrences=(),
+            max_classification=ACMGClassification.VUS,
             all_evidence_tags=frozenset(),
         )
         assert cv.is_singleton is True
 
     def test_is_universal(self) -> None:
         cv = CohortVariant(
-            chrom="chr1", pos=100, ref="A", alt="T",
+            chrom="chr1",
+            pos=100,
+            ref="A",
+            alt="T",
             gene_name=None,
             consequence=FunctionalConsequence.SYNONYMOUS,
-            sample_count=5, total_samples=5,
-            occurrences=(), max_classification=ACMGClassification.BENIGN,
+            sample_count=5,
+            total_samples=5,
+            occurrences=(),
+            max_classification=ACMGClassification.BENIGN,
             all_evidence_tags=frozenset(),
         )
         assert cv.is_universal is True
 
     def test_key_property(self) -> None:
         cv = CohortVariant(
-            chrom="chrX", pos=999, ref="C", alt="G",
+            chrom="chrX",
+            pos=999,
+            ref="C",
+            alt="G",
             gene_name=None,
             consequence=FunctionalConsequence.MISSENSE,
-            sample_count=2, total_samples=4,
-            occurrences=(), max_classification=ACMGClassification.VUS,
+            sample_count=2,
+            total_samples=4,
+            occurrences=(),
+            max_classification=ACMGClassification.VUS,
             all_evidence_tags=frozenset(),
         )
         assert cv.key == ("chrX", 999, "C", "G")

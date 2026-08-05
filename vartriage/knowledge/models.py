@@ -7,7 +7,6 @@ ClinGen, HPO, and gnomAD constraint databases.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,10 +85,10 @@ class GeneAnnotation:
     """
 
     disease_associations: tuple[DiseaseAssociation, ...]
-    clingen_validity: Optional[str] = None
-    constraint: Optional[GeneConstraint] = None
+    clingen_validity: str | None = None
+    constraint: GeneConstraint | None = None
     is_actionable: bool = False
-    actionability_type: Optional[str] = None
+    actionability_type: str | None = None
     hpo_terms: frozenset[str] = frozenset()
 
 
@@ -127,7 +126,7 @@ class GeneContext:
     """
 
     disease_associations: tuple[DiseaseAssociation, ...]
-    clingen_validity: Optional[str] = None
-    constraint: Optional[GeneConstraint] = None
+    clingen_validity: str | None = None
+    constraint: GeneConstraint | None = None
     is_actionable: bool = False
     phenotype_match_score: float = 0.0

@@ -49,9 +49,7 @@ class HPODatabase:
                 if not raw_terms:
                     continue
 
-                terms = frozenset(
-                    t.strip() for t in raw_terms.split(";") if t.strip()
-                )
+                terms = frozenset(t.strip() for t in raw_terms.split(";") if t.strip())
                 if terms:
                     self._index[gene] = terms
 

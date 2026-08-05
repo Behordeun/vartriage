@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, cast
+from typing import TYPE_CHECKING, Literal, TypeVar, cast
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
@@ -304,7 +305,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[list[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Run the vartriage CLI.
 
     Parameters
@@ -373,7 +374,7 @@ def _handle_unexpected_error(exc: Exception) -> None:
 def _run_pipeline(
     args: argparse.Namespace,
     vcf_path: Path,
-    clinical_config: Optional[ClinicalReportConfig] = None,
+    clinical_config: ClinicalReportConfig | None = None,
 ) -> Path:
     """Assemble pipeline config from parsed args and run it.
 
@@ -382,10 +383,14 @@ def _run_pipeline(
     Path
         Path to the generated report.
     """
-    from vartriage.models.config import (AnnotationConfig, GeneFilterConfig,
-                                         PipelineConfig, PrioritizationConfig,
-                                         RegionFilterConfig, ReportConfig,
-                                         SampleConfig)
+    from vartriage.models.config import (
+        AnnotationConfig,
+        GeneFilterConfig,
+        PipelineConfig,
+        PrioritizationConfig,
+        RegionFilterConfig,
+        ReportConfig,
+    )
     from vartriage.pipeline import Pipeline
 
     output_format: str = args.output_format
@@ -400,7 +405,7 @@ def _run_pipeline(
 
     paths = _resolve_reference_paths(args, use_bundles, genome_build)
 
-    annotation_config: Optional[AnnotationConfig] = None
+    annotation_config: AnnotationConfig | None = None
     if paths["gene_annotation"] is not None and paths["gnomad"] is not None:
         annotation_config = AnnotationConfig(
             gene_annotation_path=paths["gene_annotation"],
@@ -469,7 +474,7 @@ def _build_api_config(
     args: argparse.Namespace,
     mode: str,
     genome_build: str,
-) -> "Optional[object]":
+) -> object | None:
     """Build APIConfig if mode is api or hybrid. Returns None for local mode."""
     if mode == "local":
         return None
@@ -484,7 +489,7 @@ def _build_api_config(
         )
         sys.exit(1)
 
-    api_key: Optional[str] = getattr(args, "api_key", None)
+    api_key: str | None = getattr(args, "api_key", None)
 
     return APIConfig.load(
         mode=mode,
@@ -495,9 +500,9 @@ def _build_api_config(
 
 def _resolve_reference_paths(
     args: argparse.Namespace, use_bundles: bool, genome_build: str
-) -> dict[str, Optional[Path]]:
+) -> dict[str, Path | None]:
     """Resolve reference file paths, filling from bundles if enabled."""
-    paths: dict[str, Optional[Path]] = {
+    paths: dict[str, Path | None] = {
         "gene_annotation": args.gene_annotation,
         "gnomad": args.gnomad,
         "clinvar": args.clinvar,
@@ -535,15 +540,15 @@ ConfigT = TypeVar("ConfigT")
 
 
 def _build_optional_config(
-    value: Optional[Path], factory: Callable[[Path], ConfigT]
-) -> Optional[ConfigT]:
+    value: Path | None, factory: Callable[[Path], ConfigT]
+) -> ConfigT | None:
     """Build an optional config if value is not None."""
     return factory(value) if value is not None else None
 
 
 def _build_sample_config(
     args: argparse.Namespace,
-) -> Optional["SampleConfig"]:
+) -> SampleConfig | None:
     """Build SampleConfig from args, validating --min-gq requires --sample."""
     from vartriage.models.config import SampleConfig
 
@@ -559,14 +564,14 @@ def _build_sample_config(
 
 def _build_knowledge_config(
     args: argparse.Namespace,
-) -> "Optional[KnowledgeBaseConfig]":
+) -> KnowledgeBaseConfig | None:
     """Build KnowledgeBaseConfig if gene-disease linkage features are requested."""
     from vartriage.knowledge.config import KnowledgeBaseConfig
 
-    hpo_terms_raw: Optional[str] = getattr(args, "hpo_terms", None)
-    knowledge_dir: Optional[Path] = getattr(args, "knowledge_dir", None)
+    hpo_terms_raw: str | None = getattr(args, "hpo_terms", None)
+    knowledge_dir: Path | None = getattr(args, "knowledge_dir", None)
     flag_actionable: bool = getattr(args, "flag_actionable", False)
-    inheritance_mode: Optional[str] = getattr(args, "inheritance_mode", None)
+    inheritance_mode: str | None = getattr(args, "inheritance_mode", None)
 
     # Only create config when at least one gene-knowledge feature is active
     has_knowledge_request = (
@@ -595,7 +600,7 @@ def _build_knowledge_config(
 def _build_clinical_config(
     args: argparse.Namespace,
     output_format: str,
-) -> Optional[ClinicalReportConfig]:
+) -> ClinicalReportConfig | None:
     """Build ClinicalReportConfig if clinical format is requested."""
     if not output_format.startswith("clinical-"):
         return None
@@ -615,14 +620,14 @@ def _build_clinical_config(
 
 def _build_inheritance_config(
     args: argparse.Namespace,
-) -> Optional[InheritanceConfig]:
+) -> InheritanceConfig | None:
     """Build InheritanceConfig from trio arguments."""
     from vartriage.models.config import InheritanceConfig as _IC
 
-    proband: Optional[str] = args.proband
-    mother: Optional[str] = args.mother
-    father: Optional[str] = args.father
-    sample: Optional[str] = getattr(args, "sample", None)
+    proband: str | None = args.proband
+    mother: str | None = args.mother
+    father: str | None = args.father
+    sample: str | None = getattr(args, "sample", None)
 
     trio_args = [proband, mother, father]
     trio_provided = [a for a in trio_args if a is not None]
@@ -767,7 +772,11 @@ def _run_cohort_cli(argv: list[str]) -> None:
     args = parser.parse_args(argv)
 
     # Resolve sample VCF list
-    from vartriage.cohort.runner import CohortCLIConfig, parse_cohort_manifest, run_cohort
+    from vartriage.cohort.runner import (
+        CohortCLIConfig,
+        parse_cohort_manifest,
+        run_cohort,
+    )
 
     sample_vcfs: list[Path]
     sample_labels: dict[str, str] | None = None

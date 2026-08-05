@@ -1,7 +1,6 @@
 """Warning models for missing data and validation events."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,4 +50,4 @@ class MissingDataWarning:
     ref: str
     alt: str
     source: str
-    reason: Optional[str] = None
+    reason: str | None = None

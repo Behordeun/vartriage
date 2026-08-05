@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class SVType(Enum):
@@ -202,15 +202,15 @@ class StructuralVariant:
     start: int
     end: int
     sv_type: SVType
-    id: Optional[str] = None
-    svlen: Optional[int] = None
-    qual: Optional[float] = None
+    id: str | None = None
+    svlen: int | None = None
+    qual: float | None = None
     filter_status: str = "PASS"
     alt: str = ""
-    copy_number: Optional[int] = None
+    copy_number: int | None = None
     start_ci: tuple[int, int] = (0, 0)
     end_ci: tuple[int, int] = (0, 0)
-    mate_id: Optional[str] = None
+    mate_id: str | None = None
     info: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -244,8 +244,8 @@ class GeneOverlap:
     total_exons: int
     is_haploinsufficient: bool = False
     is_triplosensitive: bool = False
-    hi_score: Optional[float] = None
-    ts_score: Optional[float] = None
+    hi_score: float | None = None
+    ts_score: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -273,7 +273,7 @@ class AnnotatedSV:
     sv: StructuralVariant
     consequence: SVConsequence
     gene_overlaps: tuple[GeneOverlap, ...] = ()
-    population_frequency: Optional[float] = None
+    population_frequency: float | None = None
     frequency_unknown: bool = True
     genes_affected: int = 0
     hi_genes_affected: int = 0
@@ -306,8 +306,8 @@ class ScoredSV:
     """
 
     annotated: AnnotatedSV
-    pathogenicity_score: Optional[float] = None
-    dosage_score: Optional[float] = None
+    pathogenicity_score: float | None = None
+    dosage_score: float | None = None
     size_score: float = 0.0
     frequency_score: float = 1.0
 
@@ -340,4 +340,4 @@ class ClassifiedSV:
     )
     evidence_score: float = 0.0
     missing_data_sources: frozenset[str] = field(default_factory=frozenset)
-    syndrome_name: Optional[str] = None
+    syndrome_name: str | None = None

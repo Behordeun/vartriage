@@ -13,7 +13,6 @@ from vartriage.models.config import (
     PipelineConfig,
     PrioritizationConfig,
     RegionFilterConfig,
-    SampleConfig,
 )
 from vartriage.models.variant import (
     AnnotatedVariant,
@@ -197,9 +196,7 @@ class TestReattachAnnotations:
 class TestCollectReferencePaths:
     """_collect_reference_paths gathers paths from annotation + prioritization configs."""
 
-    def test_collects_annotation_and_prioritization_paths(
-        self, tmp_path: Path
-    ) -> None:
+    def test_collects_annotation_and_prioritization_paths(self, tmp_path: Path) -> None:
         gene_file = tmp_path / "genes.gtf"
         gene_file.write_text("")
         gnomad_file = tmp_path / "gnomad.vcf.gz"
@@ -357,9 +354,7 @@ class TestGenerateReport:
         mock_gen = MagicMock()
         mock_gen.generate.return_value = output_path
 
-        result = pipeline._generate_report(
-            mock_gen, iter([]), output_path, vcf_path
-        )
+        result = pipeline._generate_report(mock_gen, iter([]), output_path, vcf_path)
         mock_gen.generate.assert_called_once_with(
             mock_gen.generate.call_args[0][0], output_path, vcf_path
         )
@@ -381,9 +376,7 @@ class TestGenerateReport:
         mock_gen = MagicMock()
         mock_gen.generate.return_value = output_path
 
-        result = pipeline._generate_report(
-            mock_gen, iter([]), output_path, vcf_path
-        )
+        result = pipeline._generate_report(mock_gen, iter([]), output_path, vcf_path)
         # Non-VCF format: no source_vcf_path argument
         call_args = mock_gen.generate.call_args
         assert len(call_args[0]) == 2

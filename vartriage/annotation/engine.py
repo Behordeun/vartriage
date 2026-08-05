@@ -9,17 +9,21 @@ when the optional deps aren't installed.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from itertools import islice
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import AnnotationConfig
-from vartriage.models.variant import (AnnotatedVariant, ClinVarAssertion,
-                                      ProteinChange, Variant)
+from vartriage.models.variant import (
+    AnnotatedVariant,
+    ClinVarAssertion,
+    ProteinChange,
+    Variant,
+)
 from vartriage.models.warnings import MissingDataWarning
-from vartriage.protocols import (ClinVarDatabase, FrequencyDatabase,
-                                 IntervalIndex)
+from vartriage.protocols import ClinVarDatabase, FrequencyDatabase, IntervalIndex
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +102,7 @@ class AnnotationEngine:
         )
 
         # Initialize ClinVar database (optional)
-        self._clinvar_db: Optional[ClinVarDatabase] = self._build_clinvar_db(
+        self._clinvar_db: ClinVarDatabase | None = self._build_clinvar_db(
             config.clinvar_path
         )
 
@@ -156,7 +160,7 @@ class AnnotationEngine:
         frequencies = self._frequency_db.lookup_batch(variant_keys)
 
         # ClinVar lookup
-        clinvar_assertions: list[Optional[ClinVarAssertion]] = []
+        clinvar_assertions: list[ClinVarAssertion | None] = []
         if self._clinvar_db is not None:
             clinvar_assertions = self._clinvar_db.lookup_batch(variant_keys)
         else:
@@ -213,7 +217,7 @@ class AnnotationEngine:
 
     def _extract_gene_and_protein(
         self, batch: list[Variant]
-    ) -> tuple[list[Optional[str]], list[Optional[ProteinChange]]]:
+    ) -> tuple[list[str | None], list[ProteinChange | None]]:
         """Extract gene names and protein changes for a batch of variants.
 
         Uses the consequence annotator's overlap() method per variant to find
@@ -230,8 +234,8 @@ class AnnotationEngine:
         tuple[list[Optional[str]], list[Optional[ProteinChange]]]
             Gene names and protein changes positionally matched to the batch.
         """
-        gene_names: list[Optional[str]] = []
-        protein_changes: list[Optional[ProteinChange]] = []
+        gene_names: list[str | None] = []
+        protein_changes: list[ProteinChange | None] = []
 
         for variant in batch:
             overlaps = self._consequence_annotator.overlap(
@@ -260,7 +264,7 @@ class AnnotationEngine:
     @staticmethod
     def _first_nonsynonymous_protein_change(
         overlaps: list[dict[str, Any]],
-    ) -> Optional[ProteinChange]:
+    ) -> ProteinChange | None:
         """Extract ProteinChange from the first non-synonymous codon context."""
         for overlap in overlaps:
             ctx = overlap.get("codon_context")
@@ -274,7 +278,7 @@ class AnnotationEngine:
             )
         return None
 
-    def _extract_gene_names(self, batch: list[Variant]) -> list[Optional[str]]:
+    def _extract_gene_names(self, batch: list[Variant]) -> list[str | None]:
         """Extract gene names for a batch of variants.
 
         Delegates to _extract_gene_and_protein for consistency.
@@ -286,7 +290,7 @@ class AnnotationEngine:
         """Fail fast if any required reference file is missing."""
         if not config.gene_annotation_path.exists():
             raise FileNotFoundError(
-                f"Gene annotation file not found: " f"{config.gene_annotation_path}"
+                f"Gene annotation file not found: {config.gene_annotation_path}"
             )
 
         if not config.gnomad_path.exists():
@@ -329,8 +333,9 @@ class AnnotationEngine:
         annotation_path = resolve_path(annotation_path)
         if _pyranges_available():
             try:
-                from vartriage.annotation.consequence_pyranges import \
-                    PyRangesConsequenceAnnotator
+                from vartriage.annotation.consequence_pyranges import (
+                    PyRangesConsequenceAnnotator,
+                )
 
                 logger.info("Using pyranges backend for consequence annotation")
                 return PyRangesConsequenceAnnotator(annotation_path)
@@ -390,8 +395,7 @@ class AnnotationEngine:
         """
         gnomad_name = gnomad_path.name
         if gnomad_name.endswith((".vcf.bgz", ".vcf.gz")):
-            from vartriage.annotation.frequency_tabix import \
-                TabixFrequencyDatabase
+            from vartriage.annotation.frequency_tabix import TabixFrequencyDatabase
 
             logger.info("Using tabix VCF backend for frequency lookup")
             freq_db: FrequencyDatabase = TabixFrequencyDatabase()
@@ -400,8 +404,9 @@ class AnnotationEngine:
 
         if _polars_available():
             try:
-                from vartriage.annotation.frequency_polars import \
-                    PolarsFrequencyDatabase
+                from vartriage.annotation.frequency_polars import (
+                    PolarsFrequencyDatabase,
+                )
 
                 logger.info("Using polars backend for frequency lookup")
                 polars_db: FrequencyDatabase = PolarsFrequencyDatabase()
@@ -409,8 +414,7 @@ class AnnotationEngine:
                 return polars_db
             except Exception as exc:
                 logger.warning(
-                    "polars frequency backend failed, falling back to "
-                    "pure-Python: %s",
+                    "polars frequency backend failed, falling back to pure-Python: %s",
                     exc,
                 )
 
@@ -421,9 +425,7 @@ class AnnotationEngine:
         freq_db.load(gnomad_path)
         return freq_db
 
-    def _build_clinvar_db(
-        self, clinvar_path: Optional[Path]
-    ) -> Optional[ClinVarDatabase]:
+    def _build_clinvar_db(self, clinvar_path: Path | None) -> ClinVarDatabase | None:
         """Pick the best ClinVar backend, or None if no path given.
 
         Parameters
@@ -441,8 +443,7 @@ class AnnotationEngine:
 
         if _polars_available():
             try:
-                from vartriage.annotation.clinvar_polars import \
-                    PolarsClinVarDatabase
+                from vartriage.annotation.clinvar_polars import PolarsClinVarDatabase
 
                 logger.info("Using polars backend for ClinVar lookup")
                 clinvar_db: ClinVarDatabase = PolarsClinVarDatabase()
@@ -450,7 +451,7 @@ class AnnotationEngine:
                 return clinvar_db
             except Exception as exc:
                 logger.warning(
-                    "polars ClinVar backend failed, falling back to " "pure-Python: %s",
+                    "polars ClinVar backend failed, falling back to pure-Python: %s",
                     exc,
                 )
 

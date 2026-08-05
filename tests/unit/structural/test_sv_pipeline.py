@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
 import pytest
@@ -14,11 +13,11 @@ from vartriage.structural.models import (
     ClassifiedSV,
     GeneOverlap,
     ScoredSV,
+    StructuralVariant,
     SVClassification,
     SVConsequence,
     SVEvidenceCategory,
     SVType,
-    StructuralVariant,
 )
 from vartriage.structural.pipeline import SVTriagePipeline
 
@@ -31,23 +30,41 @@ def _make_classified(
     end: int = 21465659,
 ) -> ClassifiedSV:
     sv = StructuralVariant(
-        chrom=chrom, start=start, end=end, sv_type=SVType.DEL,
-        id="test_del", qual=999.0, filter_status="PASS", alt="<DEL>",
+        chrom=chrom,
+        start=start,
+        end=end,
+        sv_type=SVType.DEL,
+        id="test_del",
+        qual=999.0,
+        filter_status="PASS",
+        alt="<DEL>",
     )
     overlap = GeneOverlap(
-        gene_symbol="TBX1", gene_chrom="chr22",
-        gene_start=19744226, gene_end=19771115,
-        overlap_fraction=1.0, is_whole_gene=True,
-        exons_affected=9, total_exons=9,
-        is_haploinsufficient=True, hi_score=3.0, ts_score=None,
+        gene_symbol="TBX1",
+        gene_chrom="chr22",
+        gene_start=19744226,
+        gene_end=19771115,
+        overlap_fraction=1.0,
+        is_whole_gene=True,
+        exons_affected=9,
+        total_exons=9,
+        is_haploinsufficient=True,
+        hi_score=3.0,
+        ts_score=None,
     )
     annotated = AnnotatedSV(
-        sv=sv, consequence=SVConsequence.WHOLE_GENE_DELETION,
-        gene_overlaps=(overlap,), genes_affected=1, hi_genes_affected=1,
+        sv=sv,
+        consequence=SVConsequence.WHOLE_GENE_DELETION,
+        gene_overlaps=(overlap,),
+        genes_affected=1,
+        hi_genes_affected=1,
     )
     scored = ScoredSV(
-        annotated=annotated, pathogenicity_score=pathogenicity_score,
-        dosage_score=1.0, size_score=0.9, frequency_score=1.0,
+        annotated=annotated,
+        pathogenicity_score=pathogenicity_score,
+        dosage_score=1.0,
+        size_score=0.9,
+        frequency_score=1.0,
     )
     return ClassifiedSV(
         scored=scored,
@@ -130,7 +147,10 @@ class TestCollectResults:
         low = _make_classified(SVClassification.VUS, pathogenicity_score=0.3)
         high = _make_classified(SVClassification.VUS, pathogenicity_score=0.9)
         results = pipeline._collect_results(iter([low, high]))
-        assert results[0].scored.pathogenicity_score > results[1].scored.pathogenicity_score
+        assert (
+            results[0].scored.pathogenicity_score
+            > results[1].scored.pathogenicity_score
+        )
 
     def test_none_scores_sorted_last(self, tmp_path: Path) -> None:
         pipeline = self._make_pipeline(tmp_path)
@@ -183,9 +203,7 @@ class TestLoadRegions:
         pipeline = self._make_pipeline(tmp_path)
         bed = tmp_path / "regions.bed"
         bed.write_text(
-            "# header\n"
-            "chr22\t18916842\t21465659\n"
-            "chr15\t20143000\t20570000\n"
+            "# header\nchr22\t18916842\t21465659\nchr15\t20143000\t20570000\n"
         )
         regions = pipeline._load_regions(bed)
         assert len(regions) == 2

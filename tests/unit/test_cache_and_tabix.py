@@ -18,8 +18,12 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vartriage._internal.cache import (CacheEnvelope, cache_path_for,
-                                       try_load_cache, try_write_cache)
+from vartriage._internal.cache import (
+    CacheEnvelope,
+    cache_path_for,
+    try_load_cache,
+    try_write_cache,
+)
 
 # ---------------------------------------------------------------------------
 # Task 7.1: Property test for cache path computation (Property 1)
@@ -192,9 +196,11 @@ class TestCacheWriteFailure:
         source = tmp_path / "data.tsv"
         source.write_text("content", encoding="utf-8")
 
-        with patch("os.replace", side_effect=OSError("disk full")):
-            with caplog.at_level(logging.WARNING):
-                try_write_cache(source, {"key": "value"})
+        with (
+            patch("os.replace", side_effect=OSError("disk full")),
+            caplog.at_level(logging.WARNING),
+        ):
+            try_write_cache(source, {"key": "value"})
 
         assert "Failed to write cache" in caplog.text
         assert not cache_path_for(source).exists()
@@ -399,15 +405,12 @@ class TestAnnotationEngineBackendSelection:
     def _make_engine(self, tmp_path: Path) -> object:
         """Create an AnnotationEngine instance with mocked internals."""
         from vartriage.annotation.engine import AnnotationEngine
-        from vartriage.models.config import AnnotationConfig
 
         with patch.object(AnnotationEngine, "__init__", lambda self, config: None):
             engine = AnnotationEngine.__new__(AnnotationEngine)
             return engine
 
     def test_vcf_bgz_selects_tabix(self, tmp_path: Path) -> None:
-        from vartriage.annotation.engine import AnnotationEngine
-
         engine = self._make_engine(tmp_path)
         gnomad_path = tmp_path / "gnomad.vcf.bgz"
         gnomad_path.write_bytes(b"fake")
@@ -425,8 +428,6 @@ class TestAnnotationEngineBackendSelection:
         assert result is mock_instance
 
     def test_vcf_gz_selects_tabix(self, tmp_path: Path) -> None:
-        from vartriage.annotation.engine import AnnotationEngine
-
         engine = self._make_engine(tmp_path)
         gnomad_path = tmp_path / "gnomad.vcf.gz"
         gnomad_path.write_bytes(b"fake")
@@ -443,23 +444,22 @@ class TestAnnotationEngineBackendSelection:
         assert result is mock_instance
 
     def test_tsv_does_not_select_tabix(self, tmp_path: Path) -> None:
-        from vartriage.annotation.engine import AnnotationEngine
-
         engine = self._make_engine(tmp_path)
         gnomad_path = tmp_path / "gnomad_frequencies.tsv"
         gnomad_path.write_text("chr1\t100\tA\tG\t0.01\n", encoding="utf-8")
 
-        with patch(
-            "vartriage.annotation.frequency_tabix.TabixFrequencyDatabase"
-        ) as mock_tabix_cls:
-            # Mock the dict/polars backend that will actually be used
-            with patch(
+        with (
+            patch(
+                "vartriage.annotation.frequency_tabix.TabixFrequencyDatabase"
+            ) as mock_tabix_cls,
+            patch(
                 "vartriage.annotation.frequency.DictFrequencyDatabase"
-            ) as mock_dict_cls:
-                mock_dict_instance = MagicMock()
-                mock_dict_cls.return_value = mock_dict_instance
+            ) as mock_dict_cls,
+        ):
+            mock_dict_instance = MagicMock()
+            mock_dict_cls.return_value = mock_dict_instance
 
-                result = engine._build_frequency_db(gnomad_path)
+            result = engine._build_frequency_db(gnomad_path)
 
         mock_tabix_cls.assert_not_called()
         assert result is mock_dict_instance
@@ -467,8 +467,6 @@ class TestAnnotationEngineBackendSelection:
     def test_backend_name_logged_at_info_level(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        from vartriage.annotation.engine import AnnotationEngine
-
         engine = self._make_engine(tmp_path)
         gnomad_path = tmp_path / "gnomad.vcf.bgz"
         gnomad_path.write_bytes(b"fake")

@@ -348,8 +348,10 @@ class TestImportGuard:
                 raise ImportError("No module named 'httpx'")
             return original_import(name, *args, **kwargs)
 
-        with patch("builtins.__import__", side_effect=mock_import):
-            with pytest.raises(ImportError, match="pip install vartriage\\[api\\]"):
-                from vartriage.api._base import _check_httpx_available
+        with (
+            patch("builtins.__import__", side_effect=mock_import),
+            pytest.raises(ImportError, match="pip install vartriage\\[api\\]"),
+        ):
+            from vartriage.api._base import _check_httpx_available
 
-                _check_httpx_available()
+            _check_httpx_available()

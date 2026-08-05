@@ -8,8 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vartriage.models.config import GeneFilterConfig, PipelineConfig
-from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
-                                      Variant)
+from vartriage.models.variant import AnnotatedVariant, FunctionalConsequence, Variant
 from vartriage.pipeline import Pipeline
 
 

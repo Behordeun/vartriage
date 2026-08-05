@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import pytest
-
 from vartriage.classification.acmg import ACMGClassifier
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClinVarAssertion, EvidenceTag,
-                                      FunctionalConsequence,
-                                      PopulationFrequencies, ScoredVariant,
-                                      Variant)
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClinVarAssertion,
+    EvidenceTag,
+    FunctionalConsequence,
+    PopulationFrequencies,
+    ScoredVariant,
+    Variant,
+)
 
 
 def _make_variant(

@@ -18,7 +18,6 @@ Clinical significance string values map to ClinVarAssertion enum members:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ReferenceFileError
@@ -82,14 +81,14 @@ class DictClinVarDatabase:
             raise
         except Exception as exc:
             raise ReferenceFileError(
-                f"{reference_path}: failed to parse ClinVar reference: " f"{exc}"
+                f"{reference_path}: failed to parse ClinVar reference: {exc}"
             ) from exc
 
         self._loaded = True
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[ClinVarAssertion]]:
+    ) -> list[ClinVarAssertion | None]:
         """Batch lookup of ClinVar assertions by genomic coordinate.
 
         Parameters
@@ -150,11 +149,11 @@ class DictClinVarDatabase:
                 chrom = parts[0]
                 try:
                     pos = int(parts[1])
-                except ValueError:
+                except ValueError as exc:
                     raise ReferenceFileError(
                         f"{path}: line {line_num} has non-integer "
                         f"position value '{parts[1]}'"
-                    )
+                    ) from exc
 
                 ref = parts[2]
                 alt = parts[3]

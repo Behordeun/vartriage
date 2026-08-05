@@ -7,21 +7,26 @@ and rank ordering of scored variants.
 from __future__ import annotations
 
 import warnings
-from typing import Optional
 
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from tests.generators.variants import chromosome, genomic_position, snv_allele
 from vartriage.models.config import PrioritizationConfig
-from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.variant import (
+    AnnotatedVariant,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
 from vartriage.prioritization.frequency_filter import FrequencyFilter
-from vartriage.prioritization.scoring import (compute_composite_ranks,
-                                              normalize_cadd_scores,
-                                              score_variants,
-                                              sort_by_composite_rank,
-                                              validate_revel_scores)
+from vartriage.prioritization.scoring import (
+    compute_composite_ranks,
+    normalize_cadd_scores,
+    score_variants,
+    sort_by_composite_rank,
+    validate_revel_scores,
+)
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -47,8 +52,8 @@ VALID_REVEL = st.floats(
 @st.composite
 def annotated_variant_for_frequency_filter(
     draw: st.DrawFn,
-    af: Optional[float] = None,
-    frequency_unknown: Optional[bool] = None,
+    af: float | None = None,
+    frequency_unknown: bool | None = None,
 ) -> AnnotatedVariant:
     """Generate an AnnotatedVariant with configurable AF and frequency_unknown."""
     chrom = draw(chromosome())
@@ -58,7 +63,7 @@ def annotated_variant_for_frequency_filter(
     consequence = draw(st.sampled_from(list(FunctionalConsequence)))
 
     if af is None:
-        allele_frequency: Optional[float] = draw(
+        allele_frequency: float | None = draw(
             st.one_of(st.none(), VALID_ALLELE_FREQUENCY)
         )
     else:
@@ -227,9 +232,9 @@ def test_composite_revel_only(revel_score: float) -> None:
     result = composites[0]
 
     assert result is not None
-    assert (
-        abs(result - revel_score) < 1e-10
-    ), f"Composite {result} != REVEL {revel_score} when CADD is missing"
+    assert abs(result - revel_score) < 1e-10, (
+        f"Composite {result} != REVEL {revel_score} when CADD is missing"
+    )
 
 
 @given(cadd_phred=VALID_CADD_PHRED)
@@ -242,31 +247,31 @@ def test_composite_cadd_only(cadd_phred: float) -> None:
 
     assert cadd_normalized[0] is not None
 
-    revel_validated: list[Optional[float]] = [None]
+    revel_validated: list[float | None] = [None]
     composites = compute_composite_ranks(cadd_normalized, revel_validated)
     result = composites[0]
 
     expected = min(cadd_phred / 99.0, 1.0)
 
     assert result is not None
-    assert (
-        abs(result - expected) < 1e-10
-    ), f"Composite {result} != expected CADD_norm {expected} when REVEL is missing"
+    assert abs(result - expected) < 1e-10, (
+        f"Composite {result} != expected CADD_norm {expected} when REVEL is missing"
+    )
 
 
 @settings(max_examples=100)
 @given(data=st.data())
 def test_composite_neither_score_is_null(data: st.DataObject) -> None:
     """When neither CADD nor REVEL is available, composite is null."""
-    cadd_normalized: list[Optional[float]] = [None]
-    revel_validated: list[Optional[float]] = [None]
+    cadd_normalized: list[float | None] = [None]
+    revel_validated: list[float | None] = [None]
 
     composites = compute_composite_ranks(cadd_normalized, revel_validated)
     result = composites[0]
 
-    assert (
-        result is None
-    ), f"Composite should be None when neither score is available, got {result}"
+    assert result is None, (
+        f"Composite should be None when neither score is available, got {result}"
+    )
 
 
 @given(
@@ -281,9 +286,9 @@ def test_cadd_normalization_formula(cadd_phred: float) -> None:
 
     expected = min(cadd_phred / 99.0, 1.0)
     assert result[0] is not None
-    assert (
-        abs(result[0] - expected) < 1e-10
-    ), f"Normalized CADD {result[0]} != expected {expected} for input {cadd_phred}"
+    assert abs(result[0] - expected) < 1e-10, (
+        f"Normalized CADD {result[0]} != expected {expected} for input {cadd_phred}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +297,7 @@ def test_cadd_normalization_formula(cadd_phred: float) -> None:
 @st.composite
 def scored_variant_with_rank(
     draw: st.DrawFn,
-    rank: Optional[float] = None,
+    rank: float | None = None,
 ) -> ScoredVariant:
     """Generate a ScoredVariant with a specified or random composite_rank."""
     chrom = draw(chromosome())
@@ -320,7 +325,7 @@ def scored_variant_with_rank(
     )
 
     if rank is None:
-        composite_rank: Optional[float] = draw(
+        composite_rank: float | None = draw(
             st.one_of(
                 st.none(),
                 st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
@@ -364,7 +369,7 @@ def test_rank_ordering_descending_nulls_last(
         assert ranked[i + 1].composite_rank is not None
         assert ranked[i].composite_rank >= ranked[i + 1].composite_rank, (
             f"Rank ordering violated: {ranked[i].composite_rank} < "
-            f"{ranked[i + 1].composite_rank} at positions {i}, {i+1}"
+            f"{ranked[i + 1].composite_rank} at positions {i}, {i + 1}"
         )
 
 
@@ -377,8 +382,8 @@ def test_score_variants_output_ordering(data: st.DataObject) -> None:
     n = data.draw(st.integers(min_value=1, max_value=20))
 
     variants: list[AnnotatedVariant] = []
-    cadd_scores: list[Optional[float]] = []
-    revel_scores: list[Optional[float]] = []
+    cadd_scores: list[float | None] = []
+    revel_scores: list[float | None] = []
 
     for _ in range(n):
         v = data.draw(annotated_variant_for_frequency_filter(frequency_unknown=False))
@@ -392,16 +397,16 @@ def test_score_variants_output_ordering(data: st.DataObject) -> None:
 
     # Verify descending order with nulls last
     ranked = [sv for sv in result if sv.composite_rank is not None]
-    null_ranked = [sv for sv in result if sv.composite_rank is None]
+    [sv for sv in result if sv.composite_rank is None]
 
     # All ranked come before nulls
     for i, sv in enumerate(result):
         if sv.composite_rank is None:
             # Everything after this should also be None
             for j in range(i, len(result)):
-                assert (
-                    result[j].composite_rank is None
-                ), f"Found non-null rank after null at position {j}"
+                assert result[j].composite_rank is None, (
+                    f"Found non-null rank after null at position {j}"
+                )
             break
 
     # Ranked variants are in descending order

@@ -13,8 +13,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from vartriage.api._cache import ResponseCache
-from vartriage.api._circuit_breaker import CircuitBreaker, CircuitBreakerOpen
-from vartriage.api._rate_limiter import DailyLimitExhausted, RateLimiter
+from vartriage.api._circuit_breaker import CircuitBreaker
+from vartriage.api._rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -155,40 +155,60 @@ class BaseAPIClient:
         start_time = time.monotonic()
         try:
             response = self._client.request(
-                method=method, url=path, json=json_body,
-                params=params, headers=headers,
+                method=method,
+                url=path,
+                json=json_body,
+                params=params,
+                headers=headers,
             )
         except (httpx.TimeoutException, httpx.ConnectError) as exc:
             elapsed = time.monotonic() - start_time
             logger.warning(
                 "API %s %s %s network error after %.2fs attempt=%d/%d: %s",
-                self._service_name, method, path,
-                elapsed, attempt, self._max_retries, str(exc)[:100],
+                self._service_name,
+                method,
+                path,
+                elapsed,
+                attempt,
+                self._max_retries,
+                str(exc)[:100],
             )
             return _AttemptOutcome(
-                response=None, status_code=None,
-                retryable=True, already_delayed=False, error=exc,
+                response=None,
+                status_code=None,
+                retryable=True,
+                already_delayed=False,
+                error=exc,
             )
 
         elapsed = time.monotonic() - start_time
         logger.info(
             "API %s %s %s status=%d latency=%.2fs attempt=%d/%d",
-            self._service_name, method, path,
-            response.status_code, elapsed, attempt, self._max_retries,
+            self._service_name,
+            method,
+            path,
+            response.status_code,
+            elapsed,
+            attempt,
+            self._max_retries,
         )
 
         if response.status_code < 400:
             self._circuit_breaker.record_success()
             return _AttemptOutcome(
-                response=response, status_code=response.status_code,
-                retryable=False, already_delayed=False,
+                response=response,
+                status_code=response.status_code,
+                retryable=False,
+                already_delayed=False,
             )
 
         if response.status_code not in _RETRYABLE_STATUS_CODES:
             self._circuit_breaker.record_success()
             return _AttemptOutcome(
-                response=None, status_code=response.status_code,
-                retryable=False, already_delayed=False,
+                response=None,
+                status_code=response.status_code,
+                retryable=False,
+                already_delayed=False,
                 error=APIClientError(
                     self._service_name,
                     f"HTTP {response.status_code}: {response.text[:200]}",
@@ -196,12 +216,14 @@ class BaseAPIClient:
                 ),
             )
 
-        already_delayed = (
-            response.status_code == 429 and self._handle_retry_after(response)
+        already_delayed = response.status_code == 429 and self._handle_retry_after(
+            response
         )
         return _AttemptOutcome(
-            response=None, status_code=response.status_code,
-            retryable=True, already_delayed=already_delayed,
+            response=None,
+            status_code=response.status_code,
+            retryable=True,
+            already_delayed=already_delayed,
             error=APIClientError(
                 self._service_name,
                 f"HTTP {response.status_code} (attempt {attempt}/{self._max_retries})",

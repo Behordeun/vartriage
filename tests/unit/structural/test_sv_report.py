@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import pytest
-
 from vartriage.structural.models import (
     AnnotatedSV,
     ClassifiedSV,
     GeneOverlap,
     ScoredSV,
+    StructuralVariant,
     SVClassification,
     SVConsequence,
-    SVEvidenceCategory,
     SVType,
-    StructuralVariant,
 )
 from vartriage.structural.report import SVReportBuilder, _format_size
 
@@ -37,11 +34,16 @@ def _make_classified(
     if gene_overlaps is None:
         gene_overlaps = ()
     sv = StructuralVariant(
-        chrom=chrom, start=start, end=end, sv_type=sv_type,
+        chrom=chrom,
+        start=start,
+        end=end,
+        sv_type=sv_type,
     )
     annotated = AnnotatedSV(
-        sv=sv, consequence=consequence,
-        gene_overlaps=gene_overlaps, genes_affected=genes_affected,
+        sv=sv,
+        consequence=consequence,
+        gene_overlaps=gene_overlaps,
+        genes_affected=genes_affected,
         hi_genes_affected=hi_genes_affected,
         population_frequency=population_frequency,
         frequency_unknown=frequency_unknown,
@@ -102,11 +104,17 @@ class TestSVReportBuilderSummary:
 
     def test_summary_tracks_hi_genes(self) -> None:
         overlap = GeneOverlap(
-            gene_symbol="TBX1", gene_chrom="chr22",
-            gene_start=100, gene_end=500,
-            overlap_fraction=1.0, is_whole_gene=True,
-            exons_affected=9, total_exons=9,
-            is_haploinsufficient=True, hi_score=3.0, ts_score=None,
+            gene_symbol="TBX1",
+            gene_chrom="chr22",
+            gene_start=100,
+            gene_end=500,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=9,
+            total_exons=9,
+            is_haploinsufficient=True,
+            hi_score=3.0,
+            ts_score=None,
         )
         builder = SVReportBuilder()
         results = [_make_classified(gene_overlaps=(overlap,), hi_genes_affected=1)]
@@ -118,7 +126,9 @@ class TestSVReportBuilderFindings:
     def test_findings_sorted_by_severity(self) -> None:
         builder = SVReportBuilder()
         vus = _make_classified(classification=SVClassification.VUS, evidence_score=0.3)
-        pathogenic = _make_classified(classification=SVClassification.PATHOGENIC, evidence_score=1.0)
+        pathogenic = _make_classified(
+            classification=SVClassification.PATHOGENIC, evidence_score=1.0
+        )
         section = builder.build([vus, pathogenic])
 
         assert section.findings[0].classification == "Pathogenic"
@@ -126,18 +136,25 @@ class TestSVReportBuilderFindings:
 
     def test_findings_row_fields(self) -> None:
         overlap = GeneOverlap(
-            gene_symbol="BRCA1", gene_chrom="chr17",
-            gene_start=100, gene_end=500,
-            overlap_fraction=0.9, is_whole_gene=True,
-            exons_affected=23, total_exons=23,
-            hi_score=3.0, ts_score=None,
+            gene_symbol="BRCA1",
+            gene_chrom="chr17",
+            gene_start=100,
+            gene_end=500,
+            overlap_fraction=0.9,
+            is_whole_gene=True,
+            exons_affected=23,
+            total_exons=23,
+            hi_score=3.0,
+            ts_score=None,
         )
         builder = SVReportBuilder()
-        results = [_make_classified(
-            gene_overlaps=(overlap,),
-            genes_affected=1,
-            syndrome_name="Test syndrome",
-        )]
+        results = [
+            _make_classified(
+                gene_overlaps=(overlap,),
+                genes_affected=1,
+                syndrome_name="Test syndrome",
+            )
+        ]
         section = builder.build(results)
         row = section.findings[0]
 
@@ -158,21 +175,28 @@ class TestSVReportBuilderNarrative:
 
     def test_narrative_mentions_intergenic(self) -> None:
         builder = SVReportBuilder()
-        results = [_make_classified(
-            consequence=SVConsequence.INTERGENIC,
-            genes_affected=0,
-            gene_overlaps=(),
-        )]
+        results = [
+            _make_classified(
+                consequence=SVConsequence.INTERGENIC,
+                genes_affected=0,
+                gene_overlaps=(),
+            )
+        ]
         section = builder.build(results)
         assert "does not overlap" in section.narratives[0]
 
     def test_narrative_mentions_single_gene_overlap(self) -> None:
         overlap = GeneOverlap(
-            gene_symbol="TP53", gene_chrom="chr17",
-            gene_start=100, gene_end=500,
-            overlap_fraction=0.65, is_whole_gene=False,
-            exons_affected=7, total_exons=11,
-            hi_score=None, ts_score=None,
+            gene_symbol="TP53",
+            gene_chrom="chr17",
+            gene_start=100,
+            gene_end=500,
+            overlap_fraction=0.65,
+            is_whole_gene=False,
+            exons_affected=7,
+            total_exons=11,
+            hi_score=None,
+            ts_score=None,
         )
         builder = SVReportBuilder()
         results = [_make_classified(gene_overlaps=(overlap,), genes_affected=1)]
@@ -194,20 +218,27 @@ class TestSVReportBuilderNarrative:
 
     def test_narrative_mentions_population_frequency(self) -> None:
         builder = SVReportBuilder()
-        results = [_make_classified(
-            population_frequency=0.003,
-            frequency_unknown=False,
-        )]
+        results = [
+            _make_classified(
+                population_frequency=0.003,
+                frequency_unknown=False,
+            )
+        ]
         section = builder.build(results)
         assert "0.300%" in section.narratives[0]
 
     def test_narrative_escapes_html(self) -> None:
         overlap = GeneOverlap(
-            gene_symbol="<script>alert</script>", gene_chrom="chr1",
-            gene_start=100, gene_end=500,
-            overlap_fraction=1.0, is_whole_gene=True,
-            exons_affected=5, total_exons=5,
-            hi_score=None, ts_score=None,
+            gene_symbol="<script>alert</script>",
+            gene_chrom="chr1",
+            gene_start=100,
+            gene_end=500,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=5,
+            total_exons=5,
+            hi_score=None,
+            ts_score=None,
         )
         builder = SVReportBuilder()
         results = [_make_classified(gene_overlaps=(overlap,), genes_affected=1)]

@@ -7,8 +7,9 @@ tabix index.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 import pysam
 
@@ -49,7 +50,7 @@ class VCFParser:
 
     def __init__(self, file_path: Path, extract_samples: bool = False) -> None:
         self._file_path = Path(file_path).resolve()
-        self._vcf: Optional[pysam.VariantFile] = None
+        self._vcf: pysam.VariantFile | None = None
         self._closed: bool = False
         self._extract_samples = extract_samples
 
@@ -205,7 +206,7 @@ class VCFParser:
                 detail=f"POS must be a positive integer, got {pos}",
             )
 
-        variant_id: Optional[str] = record.id if record.id else None
+        variant_id: str | None = record.id if record.id else None
 
         try:
             ref = record.ref
@@ -234,7 +235,7 @@ class VCFParser:
 
         alt = alts[0] if alts else "."
 
-        qual: Optional[float] = None
+        qual: float | None = None
         try:
             raw_qual = record.qual
             if raw_qual is not None:
@@ -370,7 +371,7 @@ class VCFParser:
             self._vcf.close()
             self._closed = True
 
-    def __enter__(self) -> "VCFParser":
+    def __enter__(self) -> VCFParser:
         """Enter context manager, returning self.
 
         Returns

@@ -5,18 +5,18 @@ from __future__ import annotations
 import pytest
 
 from vartriage.structural.models import (
+    SV_CONSEQUENCE_SEVERITY,
+    SV_EVIDENCE_POINTS,
     AnnotatedSV,
     Breakpoint,
     ClassifiedSV,
     GeneOverlap,
     ScoredSV,
+    StructuralVariant,
     SVClassification,
     SVConsequence,
-    SV_CONSEQUENCE_SEVERITY,
     SVEvidenceCategory,
-    SV_EVIDENCE_POINTS,
     SVType,
-    StructuralVariant,
 )
 
 

@@ -365,12 +365,14 @@ class TestReportGeneratorErrorWrapping:
         gen = ReportGenerator(config)
         output = tmp_path / "report.json"
 
-        with patch(
-            "vartriage.reporting.generator.write_json",
-            side_effect=RuntimeError("unexpected"),
+        with (
+            patch(
+                "vartriage.reporting.generator.write_json",
+                side_effect=RuntimeError("unexpected"),
+            ),
+            pytest.raises(IOError, match="Failed to generate JSON"),
         ):
-            with pytest.raises(IOError, match="Failed to generate JSON"):
-                gen.generate([_make_classified()], output)
+            gen.generate([_make_classified()], output)
 
         # Temp file should be cleaned up
         tmp_files = list(tmp_path.glob(".report_*"))
@@ -385,12 +387,14 @@ class TestReportGeneratorTempCleanup:
         gen = ReportGenerator(config)
         output = tmp_path / "report.csv"
 
-        with patch(
-            "vartriage.reporting.generator.write_csv",
-            side_effect=OSError("disk full"),
+        with (
+            patch(
+                "vartriage.reporting.generator.write_csv",
+                side_effect=OSError("disk full"),
+            ),
+            pytest.raises(IOError),
         ):
-            with pytest.raises(IOError):
-                gen.generate([_make_classified()], output)
+            gen.generate([_make_classified()], output)
 
         assert not output.exists()
         tmp_files = list(tmp_path.glob(".report_*"))

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from vartriage.api._notation import _sanitize_genomic_input, _strip_chr_prefix, vcf_to_vep_notation
+from vartriage.api._notation import (
+    _sanitize_genomic_input,
+    _strip_chr_prefix,
+    vcf_to_vep_notation,
+)
 
 
 class TestSNVs:
@@ -122,7 +126,7 @@ class TestSanitizeGenomicInput:
         with pytest.raises(ValueError):
             _sanitize_genomic_input("\x00", "A", "T")
         with pytest.raises(ValueError):
-            _sanitize_genomic_input("\x1Fchr1", "A", "T")
+            _sanitize_genomic_input("\x1fchr1", "A", "T")
 
     def test_rejects_html_in_chrom(self) -> None:
         with pytest.raises(ValueError):

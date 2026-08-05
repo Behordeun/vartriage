@@ -1,7 +1,5 @@
 """Exception hierarchy for the variant prioritization library."""
 
-from typing import Optional
-
 
 class VariantPrioritizationError(Exception):
     """Base exception for all library errors.
@@ -67,10 +65,10 @@ class ParseError(VariantPrioritizationError):
         self,
         line_number: int,
         detail: str,
-        field: Optional[str] = None,
+        field: str | None = None,
     ) -> None:
         self.line_number: int = line_number
-        self.field: Optional[str] = field
+        self.field: str | None = field
         self.detail: str = detail
 
         if field is not None:

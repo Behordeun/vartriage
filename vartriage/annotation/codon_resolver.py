@@ -17,12 +17,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
-from vartriage._internal.genetic_code import (reverse_complement,
-                                              translate_codon)
-from vartriage.annotation.transcript_index import (TranscriptCDS,
-                                                   TranscriptCDSIndex)
+from vartriage._internal.genetic_code import reverse_complement, translate_codon
+from vartriage.annotation.transcript_index import TranscriptCDS, TranscriptCDSIndex
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +90,8 @@ class CodonResolver:
         pos: int,
         ref: str,
         alt: str,
-        transcript_id: Optional[str] = None,
-    ) -> Optional[CodonContext]:
+        transcript_id: str | None = None,
+    ) -> CodonContext | None:
         """Resolve a CDS-overlapping SNV to its amino acid change.
 
         Parameters
@@ -183,8 +180,8 @@ class CodonResolver:
         )
 
     def _find_transcript(
-        self, chrom: str, genomic_pos_0: int, transcript_id: Optional[str]
-    ) -> Optional[TranscriptCDS]:
+        self, chrom: str, genomic_pos_0: int, transcript_id: str | None
+    ) -> TranscriptCDS | None:
         """Find the transcript to resolve against."""
         if transcript_id is not None:
             return self._transcripts.get_transcript(transcript_id)
@@ -197,9 +194,7 @@ class CodonResolver:
         # Pick the transcript with the longest CDS (proxy for canonical)
         return max(overlapping, key=lambda t: t.cds_length)
 
-    def _extract_codon(
-        self, transcript: TranscriptCDS, codon_index: int
-    ) -> Optional[str]:
+    def _extract_codon(self, transcript: TranscriptCDS, codon_index: int) -> str | None:
         """Extract a 3bp codon from the reference genome.
 
         Handles split codons (codon spans an exon-intron junction) by
@@ -247,7 +242,7 @@ class CodonResolver:
 
         return codon
 
-    def _cds_to_genomic(self, transcript: TranscriptCDS, cds_pos: int) -> Optional[int]:
+    def _cds_to_genomic(self, transcript: TranscriptCDS, cds_pos: int) -> int | None:
         """Map a CDS position back to a genomic position.
 
         Inverse of TranscriptCDS.genomic_to_cds_position().

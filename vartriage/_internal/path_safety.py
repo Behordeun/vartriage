@@ -117,6 +117,4 @@ def _reject_traversal(path: Path) -> None:
     """Raise ValueError if path contains directory traversal."""
     path_str = str(path)
     if ".." in path.parts or "/.." in path_str or "\\.." in path_str:
-        raise ValueError(
-            f"Path contains directory traversal sequence: {path}"
-        )
+        raise ValueError(f"Path contains directory traversal sequence: {path}")

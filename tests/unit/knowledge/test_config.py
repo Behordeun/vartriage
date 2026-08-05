@@ -10,9 +10,7 @@ from vartriage.knowledge.config import KnowledgeBaseConfig
 
 
 def test_valid_hpo_terms_accepted() -> None:
-    config = KnowledgeBaseConfig(
-        hpo_terms=frozenset({"HP:0001250", "HP:0001249"})
-    )
+    config = KnowledgeBaseConfig(hpo_terms=frozenset({"HP:0001250", "HP:0001249"}))
     assert len(config.hpo_terms) == 2
 
 

@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
-
-import pytest
 
 from vartriage.structural.annotator import GeneRecord, SVAnnotator
 from vartriage.structural.classifier import SVClassifier
 from vartriage.structural.models import (
+    StructuralVariant,
     SVClassification,
     SVConsequence,
     SVEvidenceCategory,
     SVType,
-    StructuralVariant,
 )
 from vartriage.structural.scoring import SVScorer
 
@@ -60,6 +57,7 @@ class TestFullPipeline22q11Deletion:
         }
         # TBX1 is haploinsufficient
         from vartriage.structural.annotator import DosageEntry
+
         annotator._dosage = {
             "TBX1": DosageEntry("TBX1", hi_score=3.0, ts_score=None),
             "HIRA": DosageEntry("HIRA", hi_score=2.0, ts_score=None),
@@ -99,8 +97,14 @@ class TestFullPipeline22q11Deletion:
             SVClassification.LIKELY_PATHOGENIC,
         )
         assert classified.syndrome_name == "22q11.2 deletion syndrome (DiGeorge)"
-        assert SVEvidenceCategory.CONTAINS_ESTABLISHED_HI_GENE in classified.evidence_categories
-        assert SVEvidenceCategory.COMPLETE_OVERLAP_PATHOGENIC in classified.evidence_categories
+        assert (
+            SVEvidenceCategory.CONTAINS_ESTABLISHED_HI_GENE
+            in classified.evidence_categories
+        )
+        assert (
+            SVEvidenceCategory.COMPLETE_OVERLAP_PATHOGENIC
+            in classified.evidence_categories
+        )
 
     def test_common_intergenic_sv_classified_vus_or_benign(self) -> None:
         """A common intergenic SV should not be classified pathogenic."""
@@ -124,10 +128,9 @@ class TestFullPipeline22q11Deletion:
         annotator._dosage = {}
         # SV is common in population
         from vartriage.structural.annotator import SVFrequencyRecord
+
         annotator._sv_database = {
-            "chr8": [
-                SVFrequencyRecord("chr8", 39227735, 39377735, "DEL", 0.05)
-            ]
+            "chr8": [SVFrequencyRecord("chr8", 39227735, 39377735, "DEL", 0.05)]
         }
 
         annotated = annotator._annotate_single(sv)
@@ -143,11 +146,14 @@ class TestFullPipeline22q11Deletion:
 
     def test_pipeline_json_output_format(self, tmp_path: Path) -> None:
         """Verify JSON output structure from the pipeline report writer."""
-        from vartriage.structural.pipeline import SVTriagePipeline
         from vartriage.structural.config import SVTriageConfig
         from vartriage.structural.models import (
-            AnnotatedSV, ClassifiedSV, ScoredSV, GeneOverlap,
+            AnnotatedSV,
+            ClassifiedSV,
+            GeneOverlap,
+            ScoredSV,
         )
+        from vartriage.structural.pipeline import SVTriagePipeline
 
         # Instead of running full pipeline (needs VCF), test the report writer
         pipeline = object.__new__(SVTriagePipeline)
@@ -158,34 +164,52 @@ class TestFullPipeline22q11Deletion:
         )
 
         sv = StructuralVariant(
-            chrom="chr22", start=18916842, end=21465659,
-            sv_type=SVType.DEL, id="test_del", qual=999.0,
-            filter_status="PASS", alt="<DEL>",
+            chrom="chr22",
+            start=18916842,
+            end=21465659,
+            sv_type=SVType.DEL,
+            id="test_del",
+            qual=999.0,
+            filter_status="PASS",
+            alt="<DEL>",
         )
         overlap = GeneOverlap(
-            gene_symbol="TBX1", gene_chrom="chr22",
-            gene_start=19744226, gene_end=19771115,
-            overlap_fraction=1.0, is_whole_gene=True,
-            exons_affected=9, total_exons=9,
-            is_haploinsufficient=True, is_triplosensitive=False,
-            hi_score=3.0, ts_score=None,
+            gene_symbol="TBX1",
+            gene_chrom="chr22",
+            gene_start=19744226,
+            gene_end=19771115,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=9,
+            total_exons=9,
+            is_haploinsufficient=True,
+            is_triplosensitive=False,
+            hi_score=3.0,
+            ts_score=None,
         )
         annotated = AnnotatedSV(
-            sv=sv, consequence=SVConsequence.WHOLE_GENE_DELETION,
-            gene_overlaps=(overlap,), genes_affected=1,
+            sv=sv,
+            consequence=SVConsequence.WHOLE_GENE_DELETION,
+            gene_overlaps=(overlap,),
+            genes_affected=1,
             hi_genes_affected=1,
         )
         scored = ScoredSV(
-            annotated=annotated, pathogenicity_score=0.85,
-            dosage_score=1.0, size_score=0.9, frequency_score=1.0,
+            annotated=annotated,
+            pathogenicity_score=0.85,
+            dosage_score=1.0,
+            size_score=0.9,
+            frequency_score=1.0,
         )
         classified = ClassifiedSV(
             scored=scored,
             classification=SVClassification.LIKELY_PATHOGENIC,
-            evidence_categories=frozenset({
-                SVEvidenceCategory.CONTAINS_ESTABLISHED_HI_GENE,
-                SVEvidenceCategory.GENE_FULLY_CONTAINED,
-            }),
+            evidence_categories=frozenset(
+                {
+                    SVEvidenceCategory.CONTAINS_ESTABLISHED_HI_GENE,
+                    SVEvidenceCategory.GENE_FULLY_CONTAINED,
+                }
+            ),
             evidence_score=0.90,
             syndrome_name="22q11.2 deletion syndrome (DiGeorge)",
         )

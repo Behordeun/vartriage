@@ -8,7 +8,6 @@ polars is installed (``pip install vartriage[accelerated]``).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 try:
     import polars as pl
@@ -63,7 +62,7 @@ class PolarsFrequencyDatabase:
                 "Install with: pip install "
                 "vartriage[accelerated]"
             )
-        self._lazy_frame: Optional[pl.LazyFrame] = None
+        self._lazy_frame: pl.LazyFrame | None = None
         self.warnings: list[MissingDataWarning] = []
 
     def load(self, reference_path: Path) -> None:
@@ -106,7 +105,7 @@ class PolarsFrequencyDatabase:
             )
         except Exception as exc:
             raise ReferenceFileError(
-                f"{reference_path}: failed to parse with polars: " f"{exc}"
+                f"{reference_path}: failed to parse with polars: {exc}"
             ) from exc
 
         column_names = {col.lower() for col in df.columns}
@@ -115,7 +114,7 @@ class PolarsFrequencyDatabase:
         if not expected_columns.issubset(column_names):
             missing = expected_columns - column_names
             raise ReferenceFileError(
-                f"{reference_path}: missing required columns: " f"{sorted(missing)}"
+                f"{reference_path}: missing required columns: {sorted(missing)}"
             )
 
         # Normalize column names to lowercase
@@ -126,7 +125,7 @@ class PolarsFrequencyDatabase:
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[float]]:
+    ) -> list[float | None]:
         """Batch lookup of allele frequencies via polars left join.
 
         For each variant tuple not found in the loaded reference,
@@ -173,7 +172,7 @@ class PolarsFrequencyDatabase:
         )
 
         af_series = result["af"]
-        results: list[Optional[float]] = []
+        results: list[float | None] = []
 
         for i, freq_val in enumerate(af_series):
             if freq_val is None:

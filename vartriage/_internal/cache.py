@@ -10,6 +10,7 @@ propagate exceptions to callers.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import pickle
@@ -17,7 +18,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from vartriage._internal.path_safety import safe_read_path, safe_write_path
 
@@ -76,7 +77,7 @@ def cache_path_for(source_path: Path) -> Path:
     return resolved.parent / (resolved.name + ".vartriage.cache")
 
 
-def try_load_cache(source_path: Path) -> Optional[Any]:
+def try_load_cache(source_path: Path) -> Any | None:
     """Attempt to load cached data for source_path.
 
     Returns the cached data if:
@@ -205,7 +206,7 @@ def try_write_cache(source_path: Path, data: Any) -> None:
     tmp_fd = None
     tmp_path = None
     try:
-        tmp_fd = tempfile.NamedTemporaryFile(
+        tmp_fd = tempfile.NamedTemporaryFile(  # noqa: SIM115
             dir=cp.parent,
             prefix=".vartriage_cache_",
             suffix=".tmp",
@@ -220,15 +221,11 @@ def try_write_cache(source_path: Path, data: Any) -> None:
     except (OSError, pickle.PicklingError) as exc:
         logger.warning("Failed to write cache for %s: %s", source_path, exc)
         if tmp_fd is not None:
-            try:
+            with contextlib.suppress(OSError):
                 tmp_fd.close()
-            except OSError:
-                pass
         if tmp_path is not None:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
 
 
 def _delete_cache(cache_path: Path) -> None:

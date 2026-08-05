@@ -4,18 +4,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
 from vartriage.filter.gene_filter import GeneFilter
 from vartriage.models.config import GeneFilterConfig
-from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
-                                      Variant)
+from vartriage.models.variant import AnnotatedVariant, FunctionalConsequence, Variant
 
 
 def _make_variant(
-    gene_name: Optional[str] = "BRCA1",
+    gene_name: str | None = "BRCA1",
     chrom: str = "chr1",
     pos: int = 100,
 ) -> AnnotatedVariant:

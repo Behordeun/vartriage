@@ -11,7 +11,6 @@ the response by matching ref/alt allele.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from vartriage.api._base import APIClientError, BaseAPIClient
 from vartriage.api._cache import ResponseCache
@@ -56,7 +55,7 @@ class CADDClient:
         max_retries: int = 3,
         timeout: tuple[float, float] = (10.0, 30.0),
         user_agent: str = "vartriage/0.7.0 (https://github.com/Behordeun/vartriage)",
-        proxy_url: Optional[str] = None,
+        proxy_url: str | None = None,
     ) -> None:
         self._genome_build = genome_build
         self._cache = cache
@@ -77,7 +76,7 @@ class CADDClient:
             proxy_url=proxy_url,
         )
 
-    def lookup_score(self, chrom: str, pos: int, ref: str, alt: str) -> Optional[float]:
+    def lookup_score(self, chrom: str, pos: int, ref: str, alt: str) -> float | None:
         """Look up CADD Phred score for a single variant.
 
         Parameters
@@ -128,7 +127,7 @@ class CADDClient:
 
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[float]]:
+    ) -> list[float | None]:
         """Look up CADD scores for multiple variants.
 
         Queries each variant individually (CADD API doesn't support
@@ -148,7 +147,7 @@ class CADDClient:
             self.lookup_score(chrom, pos, ref, alt) for chrom, pos, ref, alt in variants
         ]
 
-    def _parse_response(self, response: object, ref: str, alt: str) -> Optional[float]:
+    def _parse_response(self, response: object, ref: str, alt: str) -> float | None:
         """Extract CADD Phred score matching the specific ref/alt pair.
 
         The CADD API returns a list-of-lists where the first row is headers

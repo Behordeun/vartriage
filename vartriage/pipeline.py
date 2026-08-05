@@ -9,8 +9,9 @@ accumulation across stages, and batch-based memory management.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage._internal.warning_accumulator import WarningAccumulator
@@ -18,8 +19,11 @@ from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (AnnotationConfig, PipelineConfig,
-                                     PrioritizationConfig)
+from vartriage.models.config import (
+    AnnotationConfig,
+    PipelineConfig,
+    PrioritizationConfig,
+)
 
 if TYPE_CHECKING:
     from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
@@ -62,7 +66,7 @@ class Pipeline:
         self._validate_config(config)
 
         # Gene-disease linkage annotator: constructed once, reused across runs
-        self._gene_knowledge_annotator: Optional["GeneKnowledgeAnnotator"] = None
+        self._gene_knowledge_annotator: GeneKnowledgeAnnotator | None = None
         if config.knowledge is not None:
             from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
 
@@ -85,7 +89,7 @@ class Pipeline:
         self,
     ) -> tuple[
         QualityFilter,
-        Optional[AnnotationEngine],
+        AnnotationEngine | None,
         object,
         PrioritizationEngine,
         ACMGClassifier,
@@ -94,7 +98,7 @@ class Pipeline:
         """Construct all pipeline stage objects."""
         quality_filter = QualityFilter(self._config.quality_filter)
 
-        annotation_engine: Optional[AnnotationEngine] = None
+        annotation_engine: AnnotationEngine | None = None
         api_annotation_engine = None
 
         if self._config.api is not None:
@@ -136,7 +140,7 @@ class Pipeline:
         return report_generator.generate(classified, output_path)
 
     def run(
-        self, vcf_path: Optional[Path] = None, output_path: Optional[Path] = None
+        self, vcf_path: Path | None = None, output_path: Path | None = None
     ) -> Path:
         """Execute the full variant prioritization pipeline.
 
@@ -197,11 +201,15 @@ class Pipeline:
             extract_samples=extract_samples,
         ) as parser:
             annotated = self._build_annotated_stream(
-                parser, quality_filter, annotation_engine, api_annotation_engine,
+                parser,
+                quality_filter,
+                annotation_engine,
+                api_annotation_engine,
             )
 
             if self._config.gene_filter is not None:
                 from vartriage.filter.gene_filter import GeneFilter
+
                 annotated = GeneFilter(self._config.gene_filter).apply(annotated)
 
             if self._gene_knowledge_annotator is not None:
@@ -229,7 +237,7 @@ class Pipeline:
         return result_path
 
     def run_to_classification(
-        self, vcf_path: Optional[Path] = None
+        self, vcf_path: Path | None = None
     ) -> Iterator[ClassifiedVariant]:
         """Execute the pipeline through classification without report generation.
 
@@ -267,7 +275,7 @@ class Pipeline:
 
         quality_filter = QualityFilter(self._config.quality_filter)
 
-        annotation_engine: Optional[AnnotationEngine] = None
+        annotation_engine: AnnotationEngine | None = None
         if self._config.annotation is not None:
             annotation_engine = AnnotationEngine(self._config.annotation)
 
@@ -326,9 +334,7 @@ class Pipeline:
 
         # Derive SV output path from the main output
         main_output = self._config.output_path
-        sv_output = main_output.parent / (
-            main_output.stem + "_sv" + main_output.suffix
-        )
+        sv_output = main_output.parent / (main_output.stem + "_sv" + main_output.suffix)
 
         sv_config = SVTriageConfig(
             vcf_path=sv_path,
@@ -339,7 +345,8 @@ class Pipeline:
                 else None
             ),
             output_format=(
-                "json" if self._config.report.output_format in ("json", "vcf", "pdf")
+                "json"
+                if self._config.report.output_format in ("json", "vcf", "pdf")
                 else "csv"
             ),
         )
@@ -370,7 +377,7 @@ class Pipeline:
                     ref_path,
                     checksum,
                 )
-            except IOError as exc:
+            except OSError as exc:
                 logger.warning(
                     "Could not compute checksum for %s: %s",
                     ref_path,
@@ -423,7 +430,7 @@ class Pipeline:
                 continue
             try:
                 checksums[str(ref_path)] = audit_writer.compute_file_checksum(ref_path)
-            except IOError as exc:
+            except OSError as exc:
                 logger.warning(
                     "Could not compute checksum for %s: %s",
                     ref_path,
@@ -436,9 +443,9 @@ class Pipeline:
         self,
         parser: VCFParser,
         quality_filter: QualityFilter,
-        annotation_engine: Optional[AnnotationEngine],
+        annotation_engine: AnnotationEngine | None,
         api_annotation_engine: object = None,
-    ) -> Iterator["AnnotatedVariant"]:
+    ) -> Iterator[AnnotatedVariant]:
         """Build the filtered and annotated variant stream."""
         stream: Iterator[Variant] = iter(parser)
 
@@ -554,7 +561,7 @@ class Pipeline:
 
     def _validate_annotation_config(
         self,
-        ann_config: "AnnotationConfig",
+        ann_config: AnnotationConfig,
     ) -> None:
         """Validate annotation reference file paths exist."""
         self._check_path(ann_config.gene_annotation_path, "Gene annotation file")
@@ -577,8 +584,8 @@ class Pipeline:
     def _reattach_annotations(
         self,
         inherited_variants: list[Variant],
-        annotated_list: list["AnnotatedVariant"],
-    ) -> list["AnnotatedVariant"]:
+        annotated_list: list[AnnotatedVariant],
+    ) -> list[AnnotatedVariant]:
         """Re-attach annotation data to variants after inheritance filtering.
 
         Builds a coordinate lookup from the original annotated variants
@@ -600,16 +607,15 @@ class Pipeline:
             Annotated variants with inheritance metadata preserved
             in the underlying variant's info dict.
         """
-        from vartriage.models.variant import (AnnotatedVariant,
-                                              FunctionalConsequence)
+        from vartriage.models.variant import AnnotatedVariant, FunctionalConsequence
 
         # Build lookup by (chrom, pos, ref, alt)
-        ann_lookup: dict[tuple[str, int, str, str], "AnnotatedVariant"] = {}
+        ann_lookup: dict[tuple[str, int, str, str], AnnotatedVariant] = {}
         for av in annotated_list:
             key = (av.variant.chrom, av.variant.pos, av.variant.ref, av.variant.alt)
             ann_lookup[key] = av
 
-        results: list["AnnotatedVariant"] = []
+        results: list[AnnotatedVariant] = []
         for v in inherited_variants:
             key = (v.chrom, v.pos, v.ref, v.alt)
             original = ann_lookup.get(key)
@@ -639,8 +645,8 @@ class Pipeline:
         return results
 
     def _variants_with_gene_info(
-        self, annotated: Iterator["AnnotatedVariant"]
-    ) -> Iterator["Variant"]:
+        self, annotated: Iterator[AnnotatedVariant]
+    ) -> Iterator[Variant]:
         """Extract Variant objects with gene_name copied into info dict.
 
         Used when compound_het needs gene grouping from annotation
@@ -674,8 +680,8 @@ class Pipeline:
             )
 
     def _passthrough_annotation(
-        self, variants: Iterator["Variant"]
-    ) -> Iterator["AnnotatedVariant"]:
+        self, variants: Iterator[Variant]
+    ) -> Iterator[AnnotatedVariant]:
         """Create AnnotatedVariant wrappers when no annotation config exists.
 
         Used when the pipeline is run without annotation references. Each
@@ -692,8 +698,7 @@ class Pipeline:
         AnnotatedVariant
             Minimally annotated variant records.
         """
-        from vartriage.models.variant import (AnnotatedVariant,
-                                              FunctionalConsequence)
+        from vartriage.models.variant import AnnotatedVariant, FunctionalConsequence
 
         for variant in variants:
             yield AnnotatedVariant(

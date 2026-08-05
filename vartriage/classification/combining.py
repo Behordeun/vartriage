@@ -21,9 +21,12 @@ Conflicting Evidence:
 
 from __future__ import annotations
 
-from vartriage.models.variant import (EVIDENCE_STRENGTH_MAP,
-                                      ACMGClassification, EvidenceStrength,
-                                      EvidenceTag)
+from vartriage.models.variant import (
+    EVIDENCE_STRENGTH_MAP,
+    ACMGClassification,
+    EvidenceStrength,
+    EvidenceTag,
+)
 
 # Benign tags are those with STANDALONE, STRONG (benign), or SUPPORTING (benign) strength
 _BENIGN_TAGS: frozenset[EvidenceTag] = frozenset(
@@ -175,10 +178,7 @@ def _meets_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
         return True
     if s >= 2 and sup >= 1:
         return True
-    if vs >= 1 and sup >= 2:
-        return True
-
-    return False
+    return bool(vs >= 1 and sup >= 2)
 
 
 def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
@@ -192,7 +192,4 @@ def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
         return True
     if s >= 1 and m >= 1:
         return True
-    if s >= 1 and sup >= 2:
-        return True
-
-    return False
+    return bool(s >= 1 and sup >= 2)

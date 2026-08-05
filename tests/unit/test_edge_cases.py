@@ -7,11 +7,8 @@ and file I/O error simulation across all pipeline stages.
 from __future__ import annotations
 
 import os
-import tempfile
 import warnings
 from pathlib import Path
-from typing import Iterator
-from unittest.mock import patch
 
 import pytest
 
@@ -30,16 +27,27 @@ from vartriage.classification.acmg import ACMGClassifier
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.exceptions import ParseError
 from vartriage.io.vcf_parser import VCFParser
-from vartriage.models.config import (AnnotationConfig, PrioritizationConfig,
-                                     QualityFilterConfig, ReportConfig)
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.config import (
+    AnnotationConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+    ReportConfig,
+)
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClassifiedVariant,
+    ClinVarAssertion,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
 from vartriage.prioritization.frequency_filter import FrequencyFilter
-from vartriage.prioritization.scoring import (normalize_cadd_scores,
-                                              score_variants,
-                                              validate_revel_scores)
+from vartriage.prioritization.scoring import (
+    normalize_cadd_scores,
+    score_variants,
+    validate_revel_scores,
+)
 from vartriage.reporting.generator import ReportGenerator
 
 

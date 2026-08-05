@@ -9,25 +9,24 @@ Marked @pytest.mark.slow because they do real file I/O and subprocess calls.
 from __future__ import annotations
 
 import gzip
-import hashlib
 import json
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from threading import Thread
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
 from vartriage.bundle._checksums import compute_sha256
-from vartriage.bundle.config import BundleConfig
-from vartriage.bundle.downloader import BundleDownloader, DownloadResult
+from vartriage.bundle.downloader import BundleDownloader
 from vartriage.bundle.manifest import BundleManifest
-from vartriage.bundle.registry import BundleEntry, BundleRegistry
+from vartriage.bundle.registry import BundleRegistry
 from vartriage.bundle.storage import BundleStorage
-from vartriage.bundle.transformer import (CsvToTsvTransformer,
-                                          PassthroughTransformer,
-                                          get_transformer)
+from vartriage.bundle.transformer import (
+    CsvToTsvTransformer,
+    PassthroughTransformer,
+    get_transformer,
+)
 
 # Minimal VCF content for ClinVar-like data
 _CLINVAR_VCF_CONTENT = """\
@@ -286,7 +285,7 @@ class TestBundleDownloadTransformE2E:
         downloader = BundleDownloader(
             timeout=(5, 10), max_retries=1, show_progress=False
         )
-        result = downloader.download(
+        downloader.download(
             url=f"{base_url}/large.bin",
             dest=dest,
             resume=True,

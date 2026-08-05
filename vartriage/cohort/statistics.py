@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from collections import Counter, defaultdict
-from typing import Optional
 
 from vartriage.models.cohort import (
     CohortConfig,
@@ -17,8 +16,8 @@ from vartriage.models.cohort import (
     GeneBurden,
 )
 from vartriage.models.variant import (
-    ACMGClassification,
     CLASSIFICATION_SEVERITY_ORDER,
+    ACMGClassification,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,9 +45,7 @@ class CohortStatistics:
         Aggregated cohort variants to analyze.
     """
 
-    def __init__(
-        self, config: CohortConfig, variants: list[CohortVariant]
-    ) -> None:
+    def __init__(self, config: CohortConfig, variants: list[CohortVariant]) -> None:
         self._config = config
         self._variants = variants
 
@@ -57,9 +54,7 @@ class CohortStatistics:
         """Total distinct variants in the cohort."""
         return len(self._variants)
 
-    def compute_summary(
-        self, samples_processed: list[str]
-    ) -> CohortSummary:
+    def compute_summary(self, samples_processed: list[str]) -> CohortSummary:
         """Produce the top-level cohort summary.
 
         Parameters

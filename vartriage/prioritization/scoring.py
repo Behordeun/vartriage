@@ -12,14 +12,17 @@ processing 1,000+ variants to avoid iterative Python loops.
 from __future__ import annotations
 
 import warnings
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 
 from vartriage.exceptions import VarTriageWarning
-from vartriage.models.variant import (AnnotatedVariant, FunctionalConsequence,
-                                      ScoredVariant)
+from vartriage.models.variant import (
+    AnnotatedVariant,
+    FunctionalConsequence,
+    ScoredVariant,
+)
 from vartriage.models.warnings import MissingDataWarning
 
 REVEL_WEIGHT: float = 0.6
@@ -36,8 +39,8 @@ class ScoreValidationWarning(VarTriageWarning):
 
 
 def normalize_cadd_scores(
-    scores: Sequence[Optional[float]],
-) -> list[Optional[float]]:
+    scores: Sequence[float | None],
+) -> list[float | None]:
     """Normalize CADD Phred scores to the 0.0-1.0 scale using vectorized ops.
 
     Parameters
@@ -56,7 +59,7 @@ def normalize_cadd_scores(
     if n == 0:
         return []
 
-    result: list[Optional[float]] = [None] * n
+    result: list[float | None] = [None] * n
     valid_indices: list[int] = []
     valid_values: list[float] = []
 
@@ -77,15 +80,15 @@ def normalize_cadd_scores(
     if valid_values:
         arr: NDArray[np.float64] = np.array(valid_values, dtype=np.float64)
         normalized = np.minimum(arr / CADD_MAX_PHRED, 1.0)
-        for idx, norm_val in zip(valid_indices, normalized):
+        for idx, norm_val in zip(valid_indices, normalized, strict=False):
             result[idx] = float(norm_val)
 
     return result
 
 
 def validate_revel_scores(
-    scores: Sequence[Optional[float]],
-) -> list[Optional[float]]:
+    scores: Sequence[float | None],
+) -> list[float | None]:
     """Validate REVEL scores are within the 0.0-1.0 range.
 
     Parameters
@@ -103,7 +106,7 @@ def validate_revel_scores(
     if n == 0:
         return []
 
-    result: list[Optional[float]] = [None] * n
+    result: list[float | None] = [None] * n
 
     for i, score in enumerate(scores):
         if score is None:
@@ -122,8 +125,8 @@ def validate_revel_scores(
 
 
 def validate_spliceai_scores(
-    scores: Sequence[Optional[float]],
-) -> list[Optional[float]]:
+    scores: Sequence[float | None],
+) -> list[float | None]:
     """Validate SpliceAI scores are within the 0.0-1.0 range.
 
     Parameters
@@ -141,7 +144,7 @@ def validate_spliceai_scores(
     if n == 0:
         return []
 
-    result: list[Optional[float]] = [None] * n
+    result: list[float | None] = [None] * n
 
     for i, score in enumerate(scores):
         if score is None:
@@ -160,10 +163,10 @@ def validate_spliceai_scores(
 
 
 def compute_composite_ranks(
-    cadd_normalized: Sequence[Optional[float]],
-    revel_scores: Sequence[Optional[float]],
-    spliceai_scores: Optional[Sequence[Optional[float]]] = None,
-) -> list[Optional[float]]:
+    cadd_normalized: Sequence[float | None],
+    revel_scores: Sequence[float | None],
+    spliceai_scores: Sequence[float | None] | None = None,
+) -> list[float | None]:
     """Compute composite pathogenicity ranks from normalized scores.
 
     When ``spliceai_scores`` is None (SpliceAI not configured), the legacy
@@ -219,9 +222,9 @@ def compute_composite_ranks(
 
 
 def _compute_legacy_ranks(
-    cadd_normalized: Sequence[Optional[float]],
-    revel_scores: Sequence[Optional[float]],
-) -> list[Optional[float]]:
+    cadd_normalized: Sequence[float | None],
+    revel_scores: Sequence[float | None],
+) -> list[float | None]:
     """Legacy two-score composite rank using REVEL*0.6 + CADD*0.4."""
     n = len(cadd_normalized)
 
@@ -245,7 +248,7 @@ def _compute_legacy_ranks(
     composite[cadd_only_mask] = cadd_arr[cadd_only_mask]
     composite[revel_only_mask] = revel_arr[revel_only_mask]
 
-    result: list[Optional[float]] = []
+    result: list[float | None] = []
     for val in composite:
         if np.isnan(val):
             result.append(None)
@@ -264,12 +267,14 @@ _THREE_SCORE_WEIGHTS: tuple[tuple[float, int], ...] = (
 
 
 def _rank_three_scores(
-    revel: Optional[float], cadd: Optional[float], splice: Optional[float]
-) -> Optional[float]:
+    revel: float | None, cadd: float | None, splice: float | None
+) -> float | None:
     """Compute composite rank for one variant with proportional weight redistribution."""
     scores = (revel, cadd, splice)
     present = [
-        (w, s) for (w, _), s in zip(_THREE_SCORE_WEIGHTS, scores) if s is not None
+        (w, s)
+        for (w, _), s in zip(_THREE_SCORE_WEIGHTS, scores, strict=False)
+        if s is not None
     ]
     if not present:
         return None
@@ -280,10 +285,10 @@ def _rank_three_scores(
 
 
 def _compute_three_score_ranks(
-    cadd_normalized: Sequence[Optional[float]],
-    revel_scores: Sequence[Optional[float]],
-    spliceai_scores: Sequence[Optional[float]],
-) -> list[Optional[float]]:
+    cadd_normalized: Sequence[float | None],
+    revel_scores: Sequence[float | None],
+    spliceai_scores: Sequence[float | None],
+) -> list[float | None]:
     """Three-score composite rank with dynamic proportional weight redistribution.
 
     Base weights: REVEL=0.5, CADD=0.3, SpliceAI=0.2.
@@ -298,9 +303,9 @@ def _compute_three_score_ranks(
 
 def score_variants(
     variants: Sequence[AnnotatedVariant],
-    cadd_scores: Sequence[Optional[float]],
-    revel_scores: Sequence[Optional[float]],
-    spliceai_scores: Optional[Sequence[Optional[float]]] = None,
+    cadd_scores: Sequence[float | None],
+    revel_scores: Sequence[float | None],
+    spliceai_scores: Sequence[float | None] | None = None,
 ) -> list[ScoredVariant]:
     """Score a batch of annotated variants and sort by composite rank.
 
@@ -352,7 +357,7 @@ def score_variants(
     cadd_normalized = normalize_cadd_scores(cadd_scores)
     revel_validated = validate_revel_scores(revel_scores)
 
-    spliceai_validated: Optional[list[Optional[float]]] = None
+    spliceai_validated: list[float | None] | None = None
     if spliceai_scores is not None:
         spliceai_validated = validate_spliceai_scores(spliceai_scores)
 
@@ -367,7 +372,7 @@ def score_variants(
         raw_cadd = cadd_scores[i] if cadd_normalized[i] is not None else None
         composite = composites[i]
 
-        splice_score: Optional[float] = None
+        splice_score: float | None = None
         if spliceai_validated is not None:
             splice_score = spliceai_validated[i]
 
@@ -400,7 +405,7 @@ def score_variants(
 
     for w in missing_data_warnings:
         warnings.warn(
-            f"MissingDataWarning: {w.chrom}:{w.pos} {w.ref}>{w.alt} - " f"{w.reason}",
+            f"MissingDataWarning: {w.chrom}:{w.pos} {w.ref}>{w.alt} - {w.reason}",
             UserWarning,
             stacklevel=2,
         )
@@ -433,10 +438,10 @@ def sort_by_composite_rank(variants: list[ScoredVariant]) -> list[ScoredVariant]
 
 def compute_prioritization_score(
     consequence: FunctionalConsequence,
-    revel_score: Optional[float],
-    spliceai_score: Optional[float],
-    cadd_phred: Optional[float],
-) -> Optional[float]:
+    revel_score: float | None,
+    spliceai_score: float | None,
+    cadd_phred: float | None,
+) -> float | None:
     """Compute a prioritization score: max across available predictor scores.
 
     Takes the maximum of all available scores (REVEL, SpliceAI, normalized

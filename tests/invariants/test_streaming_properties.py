@@ -8,20 +8,19 @@ Covers:
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
-from typing import Iterator
-from unittest.mock import patch
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from tests.generators.variants import evidence_tag_set, scored_variant
 from vartriage.models.config import ReportConfig
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.variant import (
+    ACMGClassification,
+    ClassifiedVariant,
+)
 from vartriage.prioritization.score_loader import ScoreLoader
 from vartriage.reporting.csv_writer import write_csv
 from vartriage.reporting.generator import ReportGenerator
@@ -75,7 +74,7 @@ class CountingIterator:
         self.consumed_count = 0
         self.max_concurrent = 0
 
-    def __iter__(self) -> "CountingIterator":
+    def __iter__(self) -> CountingIterator:
         return self
 
     def __next__(self) -> ClassifiedVariant:
@@ -103,9 +102,9 @@ def test_json_streaming_bounded_buffer(
         counter = CountingIterator(variants)
         write_json(counter, output_path)
 
-        assert counter.consumed_count == len(
-            variants
-        ), f"Expected {len(variants)} consumed, got {counter.consumed_count}"
+        assert counter.consumed_count == len(variants), (
+            f"Expected {len(variants)} consumed, got {counter.consumed_count}"
+        )
         assert output_path.exists()
 
 
@@ -120,9 +119,9 @@ def test_csv_streaming_bounded_buffer(
         counter = CountingIterator(variants)
         write_csv(counter, output_path)
 
-        assert counter.consumed_count == len(
-            variants
-        ), f"Expected {len(variants)} consumed, got {counter.consumed_count}"
+        assert counter.consumed_count == len(variants), (
+            f"Expected {len(variants)} consumed, got {counter.consumed_count}"
+        )
         assert output_path.exists()
 
 
@@ -139,14 +138,14 @@ class FailingIterator:
         self._fail_at = fail_at
         self._index = 0
 
-    def __iter__(self) -> "FailingIterator":
+    def __iter__(self) -> FailingIterator:
         return self
 
     def __next__(self) -> ClassifiedVariant:
         if self._index >= len(self._items):
             raise StopIteration
         if self._index == self._fail_at:
-            raise IOError(f"Simulated write error at item {self._fail_at}")
+            raise OSError(f"Simulated write error at item {self._fail_at}")
         item = self._items[self._index]
         self._index += 1
         return item
@@ -172,10 +171,8 @@ def test_write_error_cleanup_json(
 
         failing_iter = FailingIterator(variants, fail_at=injection_point)
 
-        try:
+        with contextlib.suppress(OSError):
             generator.generate(failing_iter, output_path)
-        except (IOError, OSError):
-            pass
 
         assert not output_path.exists(), (
             f"Target path {output_path} should not exist after write error, "
@@ -203,10 +200,8 @@ def test_write_error_cleanup_csv(
 
         failing_iter = FailingIterator(variants, fail_at=injection_point)
 
-        try:
+        with contextlib.suppress(OSError):
             generator.generate(failing_iter, output_path)
-        except (IOError, OSError):
-            pass
 
         assert not output_path.exists(), (
             f"Target path {output_path} should not exist after write error, "
@@ -301,10 +296,7 @@ def test_malformed_line_resilience(
     """ScoreLoader loads only good lines, skips bad ones silently."""
     all_lines: list[str] = [line for line, _, _ in valid_lines] + malformed_lines
 
-    if all_lines:
-        shuffled = data.draw(st.permutations(all_lines))
-    else:
-        shuffled = []
+    shuffled = data.draw(st.permutations(all_lines)) if all_lines else []
 
     expected: dict[tuple[str, int, str, str], float] = {}
     for _, key, score in valid_lines:
@@ -326,11 +318,11 @@ def test_malformed_line_resilience(
 
     for key, score in result.items():
         assert key in expected, f"Unexpected key {key} in result, not from a valid line"
-        assert (
-            score == expected[key]
-        ), f"Score mismatch for {key}: got {score}, expected {expected[key]}"
+        assert score == expected[key], (
+            f"Score mismatch for {key}: got {score}, expected {expected[key]}"
+        )
 
     for key in expected:
-        assert (
-            key in result
-        ), f"Expected key {key} missing from result. Valid line was skipped"
+        assert key in result, (
+            f"Expected key {key} missing from result. Valid line was skipped"
+        )

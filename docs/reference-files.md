@@ -258,7 +258,7 @@ The `scripts/download_test_data.sh` script handles this automatically when downl
 
 ```bash
 # For whole-genome pre-scored (SNVs only, ~80 GB compressed):
-zcat whole_genome_SNVs.tsv.gz | awk 'BEGIN{OFS="\t"; print "#chrom","pos","ref","alt","score"} 
+zcat whole_genome_SNVs.tsv.gz | awk 'BEGIN{OFS="\t"; print "#chrom","pos","ref","alt","score"}
     !/^#/ {print "chr"$1, $2, $3, $4, $6}' > cadd_prescored.tsv
 ```
 

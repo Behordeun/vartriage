@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.cohort.pipeline import CohortPipeline
@@ -45,14 +45,14 @@ class CohortCLIConfig:
     max_workers: int = 4
     use_bundles: bool = False
     genome_build: str = "grch38"
-    gene_list: Optional[Path] = None
-    gene_annotation: Optional[Path] = None
-    gnomad: Optional[Path] = None
-    clinvar: Optional[Path] = None
-    cadd_scores: Optional[Path] = None
-    revel_scores: Optional[Path] = None
-    spliceai_scores: Optional[Path] = None
-    sample_labels: Optional[dict[str, str]] = field(default=None)
+    gene_list: Path | None = None
+    gene_annotation: Path | None = None
+    gnomad: Path | None = None
+    clinvar: Path | None = None
+    cadd_scores: Path | None = None
+    revel_scores: Path | None = None
+    spliceai_scores: Path | None = None
+    sample_labels: dict[str, str] | None = field(default=None)
 
 
 def run_cohort(config: CohortCLIConfig) -> list[Path]:
@@ -77,21 +77,15 @@ def run_cohort(config: CohortCLIConfig) -> list[Path]:
     """
     paths = _resolve_paths(config)
 
-    annotation_config: Optional[AnnotationConfig] = None
+    annotation_config: AnnotationConfig | None = None
     gene_annotation_path = paths["gene_annotation"]
     gnomad_path = paths["gnomad"]
 
     # Annotation requires both gene_annotation and gnomad. Reject
     # partial input so users don't silently lose annotation.
     if (gene_annotation_path is None) != (gnomad_path is None):
-        missing = (
-            "gene_annotation" if gene_annotation_path is None
-            else "gnomad"
-        )
-        provided = (
-            "gnomad" if gene_annotation_path is None
-            else "gene_annotation"
-        )
+        missing = "gene_annotation" if gene_annotation_path is None else "gnomad"
+        provided = "gnomad" if gene_annotation_path is None else "gene_annotation"
         raise ValueError(
             f"Incomplete annotation config: --{provided} was provided "
             f"without --{missing}. Both are required for annotation."
@@ -208,13 +202,13 @@ def _stem_from_path(vcf_path: Path) -> str:
     return stem
 
 
-def _resolve_paths(config: CohortCLIConfig) -> dict[str, Optional[Path]]:
+def _resolve_paths(config: CohortCLIConfig) -> dict[str, Path | None]:
     """Resolve reference file paths, filling from bundles if enabled.
 
     When use_bundles is True, attempts to resolve missing paths from
     installed bundles. Logs warnings for bundles that cannot be resolved.
     """
-    paths: dict[str, Optional[Path]] = {
+    paths: dict[str, Path | None] = {
         "gene_annotation": config.gene_annotation,
         "gnomad": config.gnomad,
         "clinvar": config.clinvar,

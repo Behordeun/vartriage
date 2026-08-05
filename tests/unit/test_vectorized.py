@@ -8,21 +8,21 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pytest
-from numpy.typing import NDArray
 
-from vartriage._internal.vectorized import (_FALLBACK_CHUNK_SIZE,
-                                            _MAX_MEMORY_BYTES,
-                                            batch_coordinate_overlap_join,
-                                            batch_frequency_join,
-                                            batch_normalize_scores,
-                                            compute_composite_vectorized,
-                                            normalize_cadd_phred_vectorized,
-                                            polars_available,
-                                            validate_revel_vectorized)
+from vartriage._internal.vectorized import (
+    _FALLBACK_CHUNK_SIZE,
+    _MAX_MEMORY_BYTES,
+    batch_coordinate_overlap_join,
+    batch_frequency_join,
+    batch_normalize_scores,
+    compute_composite_vectorized,
+    normalize_cadd_phred_vectorized,
+    polars_available,
+    validate_revel_vectorized,
+)
 
 
 class TestNormalizeCaddPhredVectorized:
@@ -201,8 +201,8 @@ class TestBatchNormalizeScores:
 
     def test_large_batch_processes_correctly(self) -> None:
         n = 5000
-        cadd_in: list[Optional[float]] = [float(i % 100) for i in range(n)]
-        revel_in: list[Optional[float]] = [float(i % 100) / 100.0 for i in range(n)]
+        cadd_in: list[float | None] = [float(i % 100) for i in range(n)]
+        revel_in: list[float | None] = [float(i % 100) / 100.0 for i in range(n)]
         cadd_out, revel_out, comp_out = batch_normalize_scores(cadd_in, revel_in)
         assert len(cadd_out) == n
         assert len(revel_out) == n

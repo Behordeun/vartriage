@@ -8,12 +8,17 @@ data sources are unavailable and recording which sources were missing.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterator, Optional
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from vartriage.classification.combining import combine_evidence
-from vartriage.models.variant import (ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant)
+from vartriage.models.variant import (
+    ClassifiedVariant,
+    ClinVarAssertion,
+    EvidenceTag,
+    FunctionalConsequence,
+    ScoredVariant,
+)
 
 if TYPE_CHECKING:
     from vartriage.annotation.clinvar_protein_index import ClinVarProteinIndex
@@ -93,7 +98,7 @@ class ACMGClassifier:
 
     def __init__(
         self,
-        protein_index: Optional["ClinVarProteinIndex"] = None,
+        protein_index: ClinVarProteinIndex | None = None,
     ) -> None:
         """Initialize the classifier with optional protein-level ClinVar index.
 

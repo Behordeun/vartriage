@@ -7,7 +7,7 @@ FILTER field value and the Phred-scaled QUAL score.
 from __future__ import annotations
 
 import warnings
-from typing import Iterator
+from collections.abc import Iterator
 
 from vartriage.models.config import QualityFilterConfig
 from vartriage.models.variant import Variant
@@ -90,8 +90,7 @@ class QualityFilter:
 
             if variant.qual is None:
                 reason = (
-                    f"Missing QUAL score for variant at "
-                    f"{variant.chrom}:{variant.pos}"
+                    f"Missing QUAL score for variant at {variant.chrom}:{variant.pos}"
                 )
                 warning_data = MissingDataWarning(
                     chrom=variant.chrom,

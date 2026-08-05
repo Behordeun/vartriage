@@ -11,15 +11,15 @@ CADD) to replicate.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from vartriage.api._base import APIClientError, BaseAPIClient
 from vartriage.api._cache import ResponseCache
 from vartriage.api._circuit_breaker import CircuitBreaker, CircuitBreakerOpen
-from vartriage.api._consequence_map import (map_vep_most_severe,
-                                            most_severe_consequence)
+from vartriage.api._consequence_map import map_vep_most_severe
 from vartriage.api._notation import vcf_to_vep_notation
 from vartriage.api._rate_limiter import DailyLimitExhausted, RateLimiter
 from vartriage.models.variant import FunctionalConsequence
@@ -41,13 +41,13 @@ class VEPAnnotation:
     """Parsed annotation from a single VEP response entry."""
 
     consequence: FunctionalConsequence
-    gene_name: Optional[str]
-    allele_frequency: Optional[float]
-    cadd_phred: Optional[float]
-    transcript_id: Optional[str]
-    hgvsc: Optional[str]
-    hgvsp: Optional[str]
-    ensembl_release: Optional[str]
+    gene_name: str | None
+    allele_frequency: float | None
+    cadd_phred: float | None
+    transcript_id: str | None
+    hgvsc: str | None
+    hgvsp: str | None
+    ensembl_release: str | None
 
 
 class VEPClient:
@@ -87,7 +87,7 @@ class VEPClient:
         max_retries: int = 3,
         timeout: tuple[float, float] = (10.0, 30.0),
         user_agent: str = "vartriage/0.7.0 (https://github.com/Behordeun/vartriage)",
-        proxy_url: Optional[str] = None,
+        proxy_url: str | None = None,
         preferred_frequency_source: str = "gnomad_exome",
     ) -> None:
         base_url = _VEP_GRCH38_URL if genome_build == "grch38" else _VEP_GRCH37_URL
@@ -95,7 +95,7 @@ class VEPClient:
         self._genome_build = genome_build
         self._cache = cache
         self._preferred_freq = preferred_frequency_source
-        self._ensembl_release: Optional[str] = None
+        self._ensembl_release: str | None = None
 
         self._http = BaseAPIClient(
             base_url=base_url,
@@ -110,13 +110,13 @@ class VEPClient:
         )
 
     @property
-    def ensembl_release(self) -> Optional[str]:
+    def ensembl_release(self) -> str | None:
         """Ensembl release version from the most recent response."""
         return self._ensembl_release
 
     def annotate_batch(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[VEPAnnotation]]:
+    ) -> list[VEPAnnotation | None]:
         """Annotate a batch of variants via VEP POST endpoint.
 
         Splits into sub-batches of self._batch_size (max 200) and sends
@@ -134,7 +134,7 @@ class VEPClient:
             Annotations in input order. None for variants that failed
             annotation (cache miss + API error after all recovery attempts).
         """
-        results: list[Optional[VEPAnnotation]] = [None] * len(variants)
+        results: list[VEPAnnotation | None] = [None] * len(variants)
 
         for start in range(0, len(variants), self._batch_size):
             chunk = variants[start : start + self._batch_size]
@@ -146,7 +146,7 @@ class VEPClient:
 
     def _annotate_with_recovery(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[VEPAnnotation]]:
+    ) -> list[VEPAnnotation | None]:
         """Annotate a chunk with progressive failure recovery.
 
         Recovery strategy:
@@ -188,14 +188,14 @@ class VEPClient:
 
     def _annotate_individually(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[VEPAnnotation]]:
+    ) -> list[VEPAnnotation | None]:
         """Last-resort: query each variant individually.
 
         Slow but maximizes the number of successfully annotated variants
         when batch requests are failing (server-side issue with specific
         variants can poison an entire batch).
         """
-        results: list[Optional[VEPAnnotation]] = []
+        results: list[VEPAnnotation | None] = []
         for variant in variants:
             single_result = self._annotate_chunk([variant])
             results.append(single_result[0] if single_result else None)
@@ -203,14 +203,14 @@ class VEPClient:
 
     def _annotate_chunk(
         self, variants: list[tuple[str, int, str, str]]
-    ) -> list[Optional[VEPAnnotation]]:
+    ) -> list[VEPAnnotation | None]:
         """Send a single VEP POST request for a chunk (<=200 variants).
 
         Checks the cache first per-variant. Only sends uncached variants
         to the API, then merges cached + fresh results in input order.
         """
         # Separate cached from uncached
-        results: list[Optional[VEPAnnotation]] = [None] * len(variants)
+        results: list[VEPAnnotation | None] = [None] * len(variants)
         uncached_indices: list[int] = []
         uncached_variants: list[tuple[str, int, str, str]] = []
 
@@ -291,8 +291,8 @@ class VEPClient:
         vep_notations: list[str],
         uncached_indices: list[int],
         uncached_variants: list[tuple[str, int, str, str]],
-        results: list[Optional[VEPAnnotation]],
-        release: Optional[str],
+        results: list[VEPAnnotation | None],
+        release: str | None,
     ) -> None:
         """Parse VEP responses, populate results, and cache entries."""
         for idx_in_uncached, notation in enumerate(vep_notations):
@@ -321,11 +321,11 @@ class VEPClient:
         consequence = map_vep_most_severe(most_severe_str)
 
         # Gene name + transcript details from transcript_consequences
-        gene_name: Optional[str] = None
-        transcript_id: Optional[str] = None
-        hgvsc: Optional[str] = None
-        hgvsp: Optional[str] = None
-        cadd_phred: Optional[float] = None
+        gene_name: str | None = None
+        transcript_id: str | None = None
+        hgvsc: str | None = None
+        hgvsp: str | None = None
+        cadd_phred: float | None = None
 
         transcript_consequences = entry.get("transcript_consequences", [])
         if transcript_consequences:
@@ -339,10 +339,8 @@ class VEPClient:
             # CADD from plugin data (may appear at transcript level)
             cadd_raw = canonical.get("cadd_phred")
             if cadd_raw is not None:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     cadd_phred = float(cadd_raw)
-                except (ValueError, TypeError):
-                    pass
 
         # gnomAD frequency from colocated_variants
         allele_frequency = self._extract_frequency(entry)
@@ -382,7 +380,7 @@ class VEPClient:
 
         return transcripts[0] if transcripts else {}
 
-    def _extract_frequency(self, entry: dict[str, Any]) -> Optional[float]:
+    def _extract_frequency(self, entry: dict[str, Any]) -> float | None:
         """Extract gnomAD allele frequency from colocated_variants.
 
         Priority:
@@ -413,7 +411,7 @@ class VEPClient:
     @staticmethod
     def _freq_from_sources(
         sources: object, primary_key: str, fallback_key: str
-    ) -> Optional[float]:
+    ) -> float | None:
         """Try to extract a float frequency from a sources dict."""
         if not isinstance(sources, dict):
             return None

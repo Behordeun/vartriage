@@ -11,13 +11,11 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from vartriage._internal.cache import try_load_cache, try_write_cache
 from vartriage._internal.interval_tree import SortedArrayIntervalIndex
 from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
 
@@ -67,12 +65,10 @@ def _build_gtf_content(intervals: list[dict]) -> str:
     """Convert interval dicts into minimal GTF text lines."""
     lines: list[str] = []
     for iv in intervals:
-        attrs = (
-            f'gene_name "{iv["gene_name"]}"; ' f'transcript_id "{iv["transcript_id"]}";'
-        )
+        attrs = f'gene_name "{iv["gene_name"]}"; transcript_id "{iv["transcript_id"]}";'
         line = (
-            f'{iv["chrom"]}\ttest\t{iv["feature_type"]}\t'
-            f'{iv["start"]}\t{iv["end"]}\t.\t{iv["strand"]}\t.\t{attrs}'
+            f"{iv['chrom']}\ttest\t{iv['feature_type']}\t"
+            f"{iv['start']}\t{iv['end']}\t.\t{iv['strand']}\t.\t{attrs}"
         )
         lines.append(line)
     return "\n".join(lines) + "\n"
@@ -126,19 +122,21 @@ def test_gtf_cache_round_trip_correctness(
             f"cached={len(cached_results)}"
         )
 
-        for i, (orig, cached) in enumerate(zip(original_results, cached_results)):
-            assert (
-                orig["gene_name"] == cached["gene_name"]
-            ), f"Gene name mismatch at index {i}"
-            assert (
-                orig["feature_type"] == cached["feature_type"]
-            ), f"Feature type mismatch at index {i}"
-            assert (
-                orig["transcript_id"] == cached["transcript_id"]
-            ), f"Transcript ID mismatch at index {i}"
-            assert (
-                orig["consequence"] == cached["consequence"]
-            ), f"Consequence mismatch at index {i}"
+        for i, (orig, cached) in enumerate(
+            zip(original_results, cached_results, strict=False)
+        ):
+            assert orig["gene_name"] == cached["gene_name"], (
+                f"Gene name mismatch at index {i}"
+            )
+            assert orig["feature_type"] == cached["feature_type"], (
+                f"Feature type mismatch at index {i}"
+            )
+            assert orig["transcript_id"] == cached["transcript_id"], (
+                f"Transcript ID mismatch at index {i}"
+            )
+            assert orig["consequence"] == cached["consequence"], (
+                f"Consequence mismatch at index {i}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -274,9 +272,9 @@ def test_tabix_lookup_positional_correspondence(
 
     results = db.lookup_batch(variants)
 
-    assert len(results) == len(
-        variants
-    ), f"Output length {len(results)} != input length {len(variants)}"
+    assert len(results) == len(variants), (
+        f"Output length {len(results)} != input length {len(variants)}"
+    )
 
     # Each element should be Optional[float] (None in this case since
     # mock returns no records)
@@ -344,9 +342,9 @@ def test_tabix_lookup_positional_correspondence_with_hits(
 
     results = db.lookup_batch(variants)
 
-    assert len(results) == len(
-        variants
-    ), f"Output length {len(results)} != input length {len(variants)}"
+    assert len(results) == len(variants), (
+        f"Output length {len(results)} != input length {len(variants)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -390,12 +388,12 @@ def _routes_to_tsv_backend(filename: str) -> bool:
 @settings(max_examples=100)
 def test_vcf_extension_routes_to_tabix(filename: str) -> None:
     """Files ending with .vcf.bgz or .vcf.gz route to tabix backend."""
-    assert _routes_to_tabix(
-        filename
-    ), f"Expected '{filename}' to route to tabix backend"
-    assert not _routes_to_tsv_backend(
-        filename
-    ), f"Expected '{filename}' NOT to route to TSV backend"
+    assert _routes_to_tabix(filename), (
+        f"Expected '{filename}' to route to tabix backend"
+    )
+    assert not _routes_to_tsv_backend(filename), (
+        f"Expected '{filename}' NOT to route to TSV backend"
+    )
 
 
 @given(
@@ -404,12 +402,12 @@ def test_vcf_extension_routes_to_tabix(filename: str) -> None:
 @settings(max_examples=100)
 def test_tsv_extension_does_not_route_to_tabix(filename: str) -> None:
     """Files ending with .tsv or .tsv.gz do NOT route to tabix backend."""
-    assert not _routes_to_tabix(
-        filename
-    ), f"Expected '{filename}' NOT to route to tabix backend"
-    assert _routes_to_tsv_backend(
-        filename
-    ), f"Expected '{filename}' to route to TSV backend"
+    assert not _routes_to_tabix(filename), (
+        f"Expected '{filename}' NOT to route to tabix backend"
+    )
+    assert _routes_to_tsv_backend(filename), (
+        f"Expected '{filename}' to route to TSV backend"
+    )
 
 
 @given(

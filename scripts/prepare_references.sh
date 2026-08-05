@@ -39,7 +39,7 @@ detect_chr_style() {
     local file="$1"
     local first_chrom
     first_chrom=$(awk -F'\t' 'NR>1 && $0 !~ /^#/ {print $1; exit}' "$file" 2>/dev/null)
-    
+
     if [ -z "$first_chrom" ]; then
         echo "empty"
     elif [[ "$first_chrom" == chr* ]]; then
@@ -52,9 +52,9 @@ detect_chr_style() {
 add_chr_prefix() {
     local file="$1"
     local tmp="${file}.tmp"
-    
+
     echo "    Fixing: adding 'chr' prefix to chromosome names..."
-    awk -F'\t' 'BEGIN{OFS="\t"} 
+    awk -F'\t' 'BEGIN{OFS="\t"}
         NR==1 || /^#/ {print; next}
         {$1="chr"$1; print}
     ' "$file" > "$tmp" && mv "$tmp" "$file"
@@ -64,11 +64,11 @@ validate_header() {
     local file="$1"
     shift
     local expected_cols=("$@")
-    
+
     # Get first non-comment line as header
     local header
     header=$(awk '/^[^#]/{print; exit}' "$file")
-    
+
     for col in "${expected_cols[@]}"; do
         if ! echo "$header" | grep -qi "$col"; then
             echo "    WARNING: Missing expected column '$col' in header"
@@ -148,7 +148,7 @@ if [ -n "$CADD_FILE" ]; then
         echo "    WARNING: file appears empty or unreadable"
         ((ISSUES++))
     fi
-    
+
     # CADD uses #chrom header style
     line_count=$(grep -cv "^#" "$CADD_FILE" 2>/dev/null || echo "0")
     echo "    Entries: ${line_count}"

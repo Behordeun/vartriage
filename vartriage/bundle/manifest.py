@@ -7,9 +7,8 @@ when it was downloaded, what version, and the integrity checksums.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -79,7 +78,7 @@ class BundleManifest:
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     @classmethod
-    def load(cls, path: Path) -> "BundleManifest":
+    def load(cls, path: Path) -> BundleManifest:
         """Load manifest from a JSON file.
 
         Parameters

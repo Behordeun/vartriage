@@ -3,8 +3,10 @@
 import tempfile
 from pathlib import Path
 
-from vartriage._internal.interval_tree import (SortedArrayIntervalIndex,
-                                               _parse_attributes)
+from vartriage._internal.interval_tree import (
+    SortedArrayIntervalIndex,
+    _parse_attributes,
+)
 from vartriage.annotation.consequence import ConsequenceAnnotator
 from vartriage.models.variant import FunctionalConsequence, Variant
 
@@ -98,7 +100,7 @@ class TestSortedArrayIntervalIndex:
         index = SortedArrayIntervalIndex()
         try:
             index.load(Path("/nonexistent/file.gtf"))
-            assert False, "Should have raised FileNotFoundError"
+            raise AssertionError("Should have raised FileNotFoundError")
         except FileNotFoundError:
             pass
 

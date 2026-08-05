@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import bisect
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any
 
 from vartriage._internal.cache import try_load_cache, try_write_cache
 from vartriage.io.exceptions import ReferenceFileError
@@ -144,8 +145,8 @@ class SortedArrayIntervalIndex:
         self._chromosomes: dict[str, _ChromIndex] = {}
         self._loaded: bool = False
         self._exon_boundaries: dict[str, list[tuple[int, int, str]]] = {}
-        self._codon_resolver: Optional["CodonResolver"] = None
-        self._transcript_index: Optional["TranscriptCDSIndex"] = None
+        self._codon_resolver: CodonResolver | None = None
+        self._transcript_index: TranscriptCDSIndex | None = None
 
     def load(self, annotation_path: Path) -> None:
         """Load gene annotation from a GTF/GFF file.
@@ -282,8 +283,7 @@ class SortedArrayIntervalIndex:
     ) -> None:
         """Add a CDS exon to the TranscriptCDSIndex."""
         if self._transcript_index is None:
-            from vartriage.annotation.transcript_index import \
-                TranscriptCDSIndex
+            from vartriage.annotation.transcript_index import TranscriptCDSIndex
 
             self._transcript_index = TranscriptCDSIndex()
         try:
@@ -309,7 +309,7 @@ class SortedArrayIntervalIndex:
         self._codon_resolver = resolver
 
     @property
-    def transcript_index(self) -> Optional[TranscriptCDSIndex]:
+    def transcript_index(self) -> TranscriptCDSIndex | None:
         """Access the TranscriptCDSIndex built during GTF parsing."""
         return self._transcript_index
 
@@ -425,7 +425,7 @@ def _snv_consequence(
     ref: str,
     alt: str,
     transcript_id: str,
-) -> tuple[str, Optional["CodonContext"]]:
+) -> tuple[str, CodonContext | None]:
     """Consequence for a coding SNV, using codon resolution when available.
 
     Returns a tuple of (consequence_string, CodonContext_or_None).
@@ -462,11 +462,11 @@ def _determine_consequence(
     alt: str,
     feature_type: str,
     is_splice_site: bool,
-    codon_resolver: Optional[CodonResolver] = None,
+    codon_resolver: CodonResolver | None = None,
     chrom: str = "",
     pos: int = 0,
     transcript_id: str = "",
-) -> tuple[str, Optional["CodonContext"]]:
+) -> tuple[str, CodonContext | None]:
     """Determine functional consequence based on variant type and genomic context.
 
     When a CodonResolver is provided, SNVs in CDS regions get proper

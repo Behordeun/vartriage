@@ -14,9 +14,9 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from tests.generators.variants import chromosome, genomic_position, snv_allele
-from vartriage._internal.warning_accumulator import (MissingDataSummaryWarning,
-                                                     WarningAccumulator)
-from vartriage.annotation.clinvar import DictClinVarDatabase
+from vartriage._internal.warning_accumulator import (
+    WarningAccumulator,
+)
 from vartriage.annotation.engine import AnnotationEngine
 from vartriage.annotation.frequency import DictFrequencyDatabase
 from vartriage.models.config import AnnotationConfig, MissingDataConfig
@@ -155,10 +155,10 @@ def test_missing_data_warning_has_all_required_fields(
         db.lookup_batch(absent_keys)
 
         assert len(db.warnings) == len(absent_keys), (
-            f"Expected {len(absent_keys)} warnings, " f"got {len(db.warnings)}"
+            f"Expected {len(absent_keys)} warnings, got {len(db.warnings)}"
         )
 
-        for warning, key in zip(db.warnings, absent_keys):
+        for warning, key in zip(db.warnings, absent_keys, strict=False):
             # Every warning must have all required fields populated
             assert warning.chrom is not None and warning.chrom != ""
             assert warning.pos is not None and warning.pos > 0
@@ -167,21 +167,21 @@ def test_missing_data_warning_has_all_required_fields(
             assert warning.source is not None and warning.source != ""
 
             # Fields must match the queried variant
-            assert (
-                warning.chrom == key[0]
-            ), f"Warning chrom={warning.chrom} != queried {key[0]}"
-            assert (
-                warning.pos == key[1]
-            ), f"Warning pos={warning.pos} != queried {key[1]}"
-            assert (
-                warning.ref == key[2]
-            ), f"Warning ref={warning.ref} != queried {key[2]}"
-            assert (
-                warning.alt == key[3]
-            ), f"Warning alt={warning.alt} != queried {key[3]}"
-            assert (
-                warning.source == "gnomAD"
-            ), f"Warning source={warning.source}, expected 'gnomAD'"
+            assert warning.chrom == key[0], (
+                f"Warning chrom={warning.chrom} != queried {key[0]}"
+            )
+            assert warning.pos == key[1], (
+                f"Warning pos={warning.pos} != queried {key[1]}"
+            )
+            assert warning.ref == key[2], (
+                f"Warning ref={warning.ref} != queried {key[2]}"
+            )
+            assert warning.alt == key[3], (
+                f"Warning alt={warning.alt} != queried {key[3]}"
+            )
+            assert warning.source == "gnomAD", (
+                f"Warning source={warning.source}, expected 'gnomAD'"
+            )
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -475,9 +475,9 @@ def test_partial_multi_source_uses_available_frequency(
         for i, key in enumerate(all_keys):
             result = results[i]
             if key in gnomad_db:
-                assert (
-                    result.allele_frequency is not None
-                ), f"Key {key} is in gnomAD but got None frequency"
+                assert result.allele_frequency is not None, (
+                    f"Key {key} is in gnomAD but got None frequency"
+                )
                 assert abs(result.allele_frequency - gnomad_db[key]) < 1e-7
                 assert result.frequency_unknown is False
             else:
@@ -505,16 +505,16 @@ def test_partial_multi_source_uses_available_frequency(
         # Every gnomAD warning matches an absent key
         for warning in gnomad_warnings:
             w_key = (warning.chrom, warning.pos, warning.ref, warning.alt)
-            assert (
-                w_key not in gnomad_db
-            ), f"Got gnomAD warning for key {w_key} that IS in the DB"
+            assert w_key not in gnomad_db, (
+                f"Got gnomAD warning for key {w_key} that IS in the DB"
+            )
 
         # Every ClinVar warning matches an absent key
         for warning in clinvar_warnings:
             w_key = (warning.chrom, warning.pos, warning.ref, warning.alt)
-            assert (
-                w_key not in clinvar_db
-            ), f"Got ClinVar warning for key {w_key} that IS in the DB"
+            assert w_key not in clinvar_db, (
+                f"Got ClinVar warning for key {w_key} that IS in the DB"
+            )
     finally:
         gnomad_path.unlink(missing_ok=True)
         clinvar_path.unlink(missing_ok=True)
@@ -601,9 +601,9 @@ def test_partial_resolution_no_warning_for_present_sources(
                     for w in engine.warnings
                     if w.source == "gnomAD" and (w.chrom, w.pos, w.ref, w.alt) == key
                 ]
-                assert (
-                    len(gnomad_warnings_for_key) == 0
-                ), f"Unexpected gnomAD warning for present key {key}"
+                assert len(gnomad_warnings_for_key) == 0, (
+                    f"Unexpected gnomAD warning for present key {key}"
+                )
 
             if key in clinvar_db:
                 clinvar_warnings_for_key = [
@@ -611,9 +611,9 @@ def test_partial_resolution_no_warning_for_present_sources(
                     for w in engine.warnings
                     if w.source == "ClinVar" and (w.chrom, w.pos, w.ref, w.alt) == key
                 ]
-                assert (
-                    len(clinvar_warnings_for_key) == 0
-                ), f"Unexpected ClinVar warning for present key {key}"
+                assert len(clinvar_warnings_for_key) == 0, (
+                    f"Unexpected ClinVar warning for present key {key}"
+                )
     finally:
         gnomad_path.unlink(missing_ok=True)
         clinvar_path.unlink(missing_ok=True)

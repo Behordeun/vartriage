@@ -15,9 +15,13 @@ from typing import Any
 from vartriage.bundle._checksums import compute_sha256
 from vartriage.bundle._disk import format_bytes
 from vartriage.bundle.config import BundleConfig
-from vartriage.bundle.downloader import (BatchDownloadResult, BundleDownloader,
-                                         DownloadError, DownloadRequest,
-                                         download_many)
+from vartriage.bundle.downloader import (
+    BatchDownloadResult,
+    BundleDownloader,
+    DownloadError,
+    DownloadRequest,
+    download_many,
+)
 from vartriage.bundle.manifest import BundleManifest
 from vartriage.bundle.registry import BundleEntry, BundleRegistry
 from vartriage.bundle.storage import BundleStorage
@@ -134,7 +138,7 @@ def _sanitize_filename(raw_name: str) -> str:
 
 
 def _cmd_download(
-    args: "argparse.Namespace",
+    args: argparse.Namespace,
     config: BundleConfig,
     build: str,
 ) -> int:

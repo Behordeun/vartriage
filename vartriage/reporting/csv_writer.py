@@ -11,8 +11,8 @@ as they are consumed from the iterator.
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Iterator, Sequence, Union
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import ClassifiedVariant
@@ -155,7 +155,7 @@ def _variant_to_row(variant: ClassifiedVariant) -> list[str]:
 
 
 def write_csv(
-    variants: Union[Iterator[ClassifiedVariant], Sequence[ClassifiedVariant]],
+    variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
     output_path: Path,
 ) -> Path:
     """Serialize classified variants to an RFC 4180 compliant CSV file.

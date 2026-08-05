@@ -5,12 +5,16 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-import pytest
-
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, ClinVarAssertion,
-                                      EvidenceTag, FunctionalConsequence,
-                                      ScoredVariant, Variant)
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClassifiedVariant,
+    ClinVarAssertion,
+    EvidenceTag,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
 from vartriage.reporting.csv_writer import CSV_FIELDS, write_csv
 
 

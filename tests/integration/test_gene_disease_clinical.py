@@ -22,7 +22,6 @@ This validates that the gene-disease linkage feature correctly:
 
 from __future__ import annotations
 
-import csv
 import json
 from pathlib import Path
 
@@ -30,14 +29,12 @@ import pytest
 
 from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
 from vartriage.knowledge.config import KnowledgeBaseConfig
-from vartriage.knowledge.registry import GeneKnowledgeRegistry
 from vartriage.models.variant import (
     AnnotatedVariant,
     ClinVarAssertion,
     FunctionalConsequence,
     Variant,
 )
-
 
 # --- Synthetic data builders ---
 
@@ -79,8 +76,7 @@ def _write_epilepsy_knowledge_dir(base: Path) -> Path:
     )
 
     (d / "clingen_actionability.tsv").write_text(
-        "gene_symbol\tintervention_type\n"
-        "BRCA1\tsurveillance\n"
+        "gene_symbol\tintervention_type\nBRCA1\tsurveillance\n"
     )
 
     return d
@@ -184,12 +180,14 @@ def clinical_setup(tmp_path: Path) -> dict[str, object]:
     knowledge_dir = _write_epilepsy_knowledge_dir(tmp_path)
 
     # Patient HPO: seizures, intellectual disability, regression, speech delay
-    patient_hpo = frozenset({
-        "HP:0001250",  # Seizures
-        "HP:0001249",  # Intellectual disability
-        "HP:0002197",  # Seizure onset in first year of life / developmental regression
-        "HP:0001263",  # Global developmental delay / speech delay
-    })
+    patient_hpo = frozenset(
+        {
+            "HP:0001250",  # Seizures
+            "HP:0001249",  # Intellectual disability
+            "HP:0002197",  # Seizure onset in first year of life / developmental regression
+            "HP:0001263",  # Global developmental delay / speech delay
+        }
+    )
 
     config = KnowledgeBaseConfig(
         data_dir=knowledge_dir,
@@ -285,7 +283,9 @@ class TestDiseaseAssociationEnrichment:
 
         disease_names = [a.disease_name for a in ctx.disease_associations]
         assert "Dravet syndrome" in disease_names
-        assert "Generalized epilepsy with febrile seizures plus, type 2" in disease_names
+        assert (
+            "Generalized epilepsy with febrile seizures plus, type 2" in disease_names
+        )
 
     def test_scn1a_inheritance_is_autosomal_dominant(
         self, clinical_setup: dict[str, object]
@@ -352,9 +352,7 @@ class TestGeneConstraintMetrics:
 class TestActionabilityAnnotation:
     """Verify actionability flags for medically actionable genes."""
 
-    def test_brca1_is_actionable(
-        self, clinical_setup: dict[str, object]
-    ) -> None:
+    def test_brca1_is_actionable(self, clinical_setup: dict[str, object]) -> None:
         """BRCA1 has ClinGen actionability (surveillance recommended)."""
         annotator: GeneKnowledgeAnnotator = clinical_setup["annotator"]  # type: ignore[assignment]
         variants: list[AnnotatedVariant] = clinical_setup["variants"]  # type: ignore[assignment]
@@ -364,9 +362,7 @@ class TestActionabilityAnnotation:
         assert ctx is not None
         assert ctx.is_actionable is True
 
-    def test_scn1a_is_not_actionable(
-        self, clinical_setup: dict[str, object]
-    ) -> None:
+    def test_scn1a_is_not_actionable(self, clinical_setup: dict[str, object]) -> None:
         """SCN1A doesn't have a ClinGen actionability curation in our data."""
         annotator: GeneKnowledgeAnnotator = clinical_setup["annotator"]  # type: ignore[assignment]
         variants: list[AnnotatedVariant] = clinical_setup["variants"]  # type: ignore[assignment]
@@ -464,8 +460,11 @@ class TestJsonOutputWithAffectedPatient:
         self, clinical_setup: dict[str, object], tmp_path: Path
     ) -> None:
         """Full JSON output includes disease associations and constraint."""
-        from vartriage.models.variant import ScoredVariant, ClassifiedVariant
-        from vartriage.models.variant import ACMGClassification, EvidenceTag
+        from vartriage.models.variant import (
+            ACMGClassification,
+            ClassifiedVariant,
+            ScoredVariant,
+        )
         from vartriage.reporting.json_writer import write_json
 
         annotator: GeneKnowledgeAnnotator = clinical_setup["annotator"]  # type: ignore[assignment]
@@ -498,7 +497,9 @@ class TestJsonOutputWithAffectedPatient:
         scn1a_record = data[0]
         assert "disease_associations" in scn1a_record
         assert len(scn1a_record["disease_associations"]) == 2
-        assert scn1a_record["disease_associations"][0]["disease_name"] == "Dravet syndrome"
+        assert (
+            scn1a_record["disease_associations"][0]["disease_name"] == "Dravet syndrome"
+        )
         assert scn1a_record["disease_associations"][0]["inheritance_mode"] == "AD"
         assert scn1a_record["clingen_validity"] == "Definitive"
         assert scn1a_record["gene_constraint"]["pli"] == pytest.approx(1.0)

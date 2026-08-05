@@ -10,7 +10,7 @@ processing in bounded chunks when needed.
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -152,11 +152,11 @@ def compute_composite_vectorized(
 
 
 def batch_normalize_scores(
-    cadd_scores: Sequence[Optional[float]],
-    revel_scores: Sequence[Optional[float]],
+    cadd_scores: Sequence[float | None],
+    revel_scores: Sequence[float | None],
     revel_weight: float = 0.6,
     cadd_weight: float = 0.4,
-) -> tuple[list[Optional[float]], list[Optional[float]], list[Optional[float]]]:
+) -> tuple[list[float | None], list[float | None], list[float | None]]:
     """Batch normalize and compute composite scores using numpy vectorization.
 
     Converts Python sequences to numpy arrays, applies vectorized
@@ -200,9 +200,9 @@ def batch_normalize_scores(
     # Determine chunk size based on memory budget
     chunk_size = min(n, _MAX_CHUNK_SIZE)
 
-    cadd_out: list[Optional[float]] = []
-    revel_out: list[Optional[float]] = []
-    composite_out: list[Optional[float]] = []
+    cadd_out: list[float | None] = []
+    revel_out: list[float | None] = []
+    composite_out: list[float | None] = []
 
     for start in range(0, n, chunk_size):
         end = min(start + chunk_size, n)
@@ -231,11 +231,11 @@ def batch_normalize_scores(
 
 
 def _process_score_chunk(
-    cadd_scores: Sequence[Optional[float]],
-    revel_scores: Sequence[Optional[float]],
+    cadd_scores: Sequence[float | None],
+    revel_scores: Sequence[float | None],
     revel_weight: float,
     cadd_weight: float,
-) -> tuple[list[Optional[float]], list[Optional[float]], list[Optional[float]]]:
+) -> tuple[list[float | None], list[float | None], list[float | None]]:
     """Process a single chunk of scores through vectorized normalization."""
     cadd_arr = np.array(
         [s if s is not None else np.nan for s in cadd_scores],
@@ -260,18 +260,18 @@ def _process_score_chunk(
 
 
 def _process_with_fallback(
-    cadd_scores: Sequence[Optional[float]],
-    revel_scores: Sequence[Optional[float]],
+    cadd_scores: Sequence[float | None],
+    revel_scores: Sequence[float | None],
     revel_weight: float,
     cadd_weight: float,
-) -> tuple[list[Optional[float]], list[Optional[float]], list[Optional[float]]]:
+) -> tuple[list[float | None], list[float | None], list[float | None]]:
     """Process scores in smaller fallback chunks after MemoryError."""
     n = len(cadd_scores)
     chunk_size = min(n, _FALLBACK_CHUNK_SIZE)
 
-    cadd_out: list[Optional[float]] = []
-    revel_out: list[Optional[float]] = []
-    composite_out: list[Optional[float]] = []
+    cadd_out: list[float | None] = []
+    revel_out: list[float | None] = []
+    composite_out: list[float | None] = []
 
     for start in range(0, n, chunk_size):
         end = min(start + chunk_size, n)
@@ -290,10 +290,10 @@ def _process_with_fallback(
 
 def _ndarray_to_optional_list(
     arr: NDArray[np.float64],
-) -> list[Optional[float]]:
+) -> list[float | None]:
     """Convert a numpy array to a list of Optional[float], NaN -> None."""
     mask = np.isnan(arr)
-    result: list[Optional[float]] = []
+    result: list[float | None] = []
     for i in range(len(arr)):
         if mask[i]:
             result.append(None)
@@ -328,7 +328,7 @@ def polars_available() -> bool:
 def batch_frequency_join(
     variants: list[tuple[str, int, str, str]],
     reference_path: str,
-) -> list[Optional[float]]:
+) -> list[float | None]:
     """Perform a batch left join for frequency lookups using polars.
 
     Reads the reference TSV into a LazyFrame and joins against the

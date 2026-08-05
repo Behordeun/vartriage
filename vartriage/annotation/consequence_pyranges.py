@@ -8,11 +8,14 @@ is installed; otherwise falls back to SortedArrayIntervalIndex.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from vartriage.io.exceptions import ReferenceFileError
-from vartriage.models.variant import (CONSEQUENCE_SEVERITY_ORDER,
-                                      FunctionalConsequence, Variant)
+from vartriage.models.variant import (
+    CONSEQUENCE_SEVERITY_ORDER,
+    FunctionalConsequence,
+    Variant,
+)
 
 try:
     import pandas as pd
@@ -52,8 +55,8 @@ class PyRangesIntervalIndex:
                 "pyranges is required for PyRangesIntervalIndex. "
                 "Install with: pip install vartriage[accelerated]"
             )
-        self._gr: Optional[pr.PyRanges] = None
-        self._exon_gr: Optional[pr.PyRanges] = None
+        self._gr: pr.PyRanges | None = None
+        self._exon_gr: pr.PyRanges | None = None
         self._loaded: bool = False
 
     def load(self, annotation_path: Path) -> None:
@@ -287,7 +290,7 @@ class PyRangesConsequenceAnnotator:
 
         return _most_severe_consequence_pyranges(overlaps)
 
-    def gene_names_batch(self, variants: list[Variant]) -> list[Optional[str]]:
+    def gene_names_batch(self, variants: list[Variant]) -> list[str | None]:
         """Extract gene names for a batch using a single vectorized join.
 
         Parameters
@@ -325,7 +328,7 @@ class PyRangesConsequenceAnnotator:
         hits = self._index._gr.join(query_gr)
         hits_df = hits.df
 
-        gene_names: list[Optional[str]] = [None] * len(variants)
+        gene_names: list[str | None] = [None] * len(variants)
 
         if hits_df.empty:
             return gene_names

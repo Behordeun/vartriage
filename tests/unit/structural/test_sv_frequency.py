@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from vartriage.structural.annotator import SVAnnotator, SVFrequencyRecord
-from vartriage.structural.models import SVType, StructuralVariant
+from vartriage.structural.models import StructuralVariant, SVType
 
 
 def _make_sv(
@@ -15,7 +13,10 @@ def _make_sv(
     sv_type: SVType = SVType.DEL,
 ) -> StructuralVariant:
     return StructuralVariant(
-        chrom=chrom, start=start, end=end, sv_type=sv_type,
+        chrom=chrom,
+        start=start,
+        end=end,
+        sv_type=sv_type,
     )
 
 
@@ -27,9 +28,7 @@ class TestReciprocalOverlapMatching:
         annotator._genes = {}
         annotator._dosage = {}
         annotator._sv_database = {
-            "chr1": [
-                SVFrequencyRecord("chr1", 1000, 5000, "DEL", 0.005)
-            ]
+            "chr1": [SVFrequencyRecord("chr1", 1000, 5000, "DEL", 0.005)]
         }
 
         sv = _make_sv(start=1000, end=5000)
@@ -43,9 +42,7 @@ class TestReciprocalOverlapMatching:
         annotator._genes = {}
         annotator._dosage = {}
         annotator._sv_database = {
-            "chr1": [
-                SVFrequencyRecord("chr1", 50000, 60000, "DEL", 0.01)
-            ]
+            "chr1": [SVFrequencyRecord("chr1", 50000, 60000, "DEL", 0.01)]
         }
 
         sv = _make_sv(start=1000, end=5000)
@@ -65,9 +62,7 @@ class TestReciprocalOverlapMatching:
         # Frac of ref: 2001/9001 = 0.22
         # Reciprocal = min(1.0, 0.22) = 0.22 < 0.5
         annotator._sv_database = {
-            "chr1": [
-                SVFrequencyRecord("chr1", 1000, 10000, "DEL", 0.02)
-            ]
+            "chr1": [SVFrequencyRecord("chr1", 1000, 10000, "DEL", 0.02)]
         }
 
         sv = _make_sv(start=1000, end=3000)
@@ -87,9 +82,7 @@ class TestReciprocalOverlapMatching:
         # Frac of ref: 4001/5001 = 0.80
         # Reciprocal = min(0.80, 0.80) = 0.80 >= 0.5
         annotator._sv_database = {
-            "chr1": [
-                SVFrequencyRecord("chr1", 1000, 6000, "DEL", 0.003)
-            ]
+            "chr1": [SVFrequencyRecord("chr1", 1000, 6000, "DEL", 0.003)]
         }
 
         sv = _make_sv(start=2000, end=7000)
@@ -104,9 +97,7 @@ class TestReciprocalOverlapMatching:
         annotator._dosage = {}
         # Same coordinates but different type
         annotator._sv_database = {
-            "chr1": [
-                SVFrequencyRecord("chr1", 1000, 5000, "DUP", 0.01)
-            ]
+            "chr1": [SVFrequencyRecord("chr1", 1000, 5000, "DUP", 0.01)]
         }
 
         sv = _make_sv(start=1000, end=5000, sv_type=SVType.DEL)
@@ -150,9 +141,7 @@ class TestReciprocalOverlapMatching:
         annotator._genes = {}
         annotator._dosage = {}
         annotator._sv_database = {
-            "chr1": [
-                SVFrequencyRecord("chr1", 1000, 5000, "DEL", 0.005)
-            ]
+            "chr1": [SVFrequencyRecord("chr1", 1000, 5000, "DEL", 0.005)]
         }
 
         # Query SV without chr prefix should still match

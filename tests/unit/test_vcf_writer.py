@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
-from typing import Optional
 
 import pysam
 import pytest
 
-from vartriage.models.variant import (ACMGClassification, AnnotatedVariant,
-                                      ClassifiedVariant, EvidenceTag,
-                                      FunctionalConsequence, ScoredVariant,
-                                      Variant)
-from vartriage.reporting.vcf_writer import (_build_lookup, _inject_info_fields,
-                                            write_vcf)
+from vartriage.models.variant import (
+    ACMGClassification,
+    AnnotatedVariant,
+    ClassifiedVariant,
+    EvidenceTag,
+    FunctionalConsequence,
+    ScoredVariant,
+    Variant,
+)
+from vartriage.reporting.vcf_writer import _build_lookup, write_vcf
 
 
 def _make_classified(
@@ -23,8 +25,8 @@ def _make_classified(
     ref: str = "A",
     alt: str = "T",
     consequence: FunctionalConsequence = FunctionalConsequence.MISSENSE,
-    allele_frequency: Optional[float] = 0.001,
-    composite_rank: Optional[float] = 0.85,
+    allele_frequency: float | None = 0.001,
+    composite_rank: float | None = 0.85,
     classification: ACMGClassification = ACMGClassification.LIKELY_PATHOGENIC,
     evidence_tags: frozenset[EvidenceTag] = frozenset({EvidenceTag.PP3}),
 ) -> ClassifiedVariant:
@@ -66,7 +68,7 @@ def _create_source_vcf(path: Path, records: list[dict]) -> None:
     for chrom in sorted(chroms):
         header.add_line(f"##contig=<ID={chrom},length=1000000>")
 
-    header.add_line("##FORMAT=<ID=GT,Number=1,Type=String," 'Description="Genotype">')
+    header.add_line('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">')
 
     with pysam.VariantFile(str(path), "wz", header=header) as out:
         for rec in records:

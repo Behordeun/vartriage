@@ -9,8 +9,6 @@ internal concern of this registry.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Optional
 
 from vartriage.knowledge.actionability import ActionabilityDB
 from vartriage.knowledge.clingen_validity import ClinGenValidityDB
@@ -27,9 +25,7 @@ from vartriage.knowledge.omim import OMIMDatabase
 logger = logging.getLogger(__name__)
 
 
-def apply_phenotype_boost(
-    base_score: Optional[float], overlap: float
-) -> Optional[float]:
+def apply_phenotype_boost(base_score: float | None, overlap: float) -> float | None:
     """Apply phenotype boost: score * (1 + overlap).
 
     The boost factor ranges from 1.0 (no overlap) to 2.0 (perfect
@@ -94,7 +90,7 @@ class GeneKnowledgeRegistry:
         """True if patient HPO terms were provided (boosting is enabled)."""
         return len(self._patient_hpo_terms) > 0
 
-    def phenotype_overlap(self, gene_symbol: Optional[str]) -> float:
+    def phenotype_overlap(self, gene_symbol: str | None) -> float:
         """Fraction of patient HPO terms matching this gene's phenotype.
 
         Returns 0.0 when no patient terms are configured, gene is None,
@@ -120,7 +116,7 @@ class GeneKnowledgeRegistry:
         overlap = self._patient_hpo_terms & gene_terms
         return len(overlap) / len(self._patient_hpo_terms)
 
-    def annotate_gene(self, gene_symbol: Optional[str]) -> GeneAnnotation:
+    def annotate_gene(self, gene_symbol: str | None) -> GeneAnnotation:
         """Return all gene-level annotations for a gene symbol.
 
         Uses a flyweight cache so repeated lookups for the same gene
@@ -175,7 +171,7 @@ class GeneKnowledgeRegistry:
         self._cache[gene_symbol] = annotation
         return annotation
 
-    def build_gene_context(self, gene_symbol: Optional[str]) -> GeneContext:
+    def build_gene_context(self, gene_symbol: str | None) -> GeneContext:
         """Build a GeneContext for attachment to a variant.
 
         Computes phenotype overlap internally and combines it with

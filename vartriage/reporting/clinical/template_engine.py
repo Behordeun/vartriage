@@ -12,23 +12,47 @@ import html
 from pathlib import Path
 from typing import Any
 
-from vartriage.reporting.clinical.models import (EvidenceCardData,
-                                                 ExecutiveSummaryData,
-                                                 FindingsRow, HeaderData,
-                                                 MethodologyData,
-                                                 ReportSections, SignOffData)
+from vartriage.reporting.clinical.models import (
+    EvidenceCardData,
+    ExecutiveSummaryData,
+    FindingsRow,
+    HeaderData,
+    MethodologyData,
+    ReportSections,
+    SignOffData,
+)
 from vartriage.reporting.clinical.templates import (
-    EVIDENCE_CARD_AF_LINE, EVIDENCE_CARD_CLINVAR_LINE,
-    EVIDENCE_CARD_INHERITANCE_LINE, EVIDENCE_CARD_SCORES_LINE,
-    EVIDENCE_CARD_TAGS_LINE, EVIDENCE_CARD_TEMPLATE, EVIDENCE_CARDS_FOOTER,
-    EVIDENCE_CARDS_HEADER, EXECUTIVE_SUMMARY_TEMPLATE, FINDINGS_TABLE_FOOTER,
-    FINDINGS_TABLE_HEADER, FINDINGS_TABLE_ROW, HEADER_TEMPLATE, HTML_SKELETON,
-    LIMITATIONS_ITEM, LIMITATIONS_NONE_TEMPLATE, LIMITATIONS_TEMPLATE_FOOTER,
-    LIMITATIONS_TEMPLATE_HEADER, METHODOLOGY_PARAM_ROW, METHODOLOGY_REF_ROW,
-    METHODOLOGY_TEMPLATE, REPORT_CSS, SECTION_ID_EVIDENCE_CARDS,
-    SECTION_ID_EXECUTIVE_SUMMARY, SECTION_ID_FINDINGS_TABLE, SECTION_ID_HEADER,
-    SECTION_ID_LIMITATIONS, SECTION_ID_METHODOLOGY, SECTION_ID_SIGN_OFF,
-    SIGN_OFF_TEMPLATE)
+    EVIDENCE_CARD_AF_LINE,
+    EVIDENCE_CARD_CLINVAR_LINE,
+    EVIDENCE_CARD_INHERITANCE_LINE,
+    EVIDENCE_CARD_SCORES_LINE,
+    EVIDENCE_CARD_TAGS_LINE,
+    EVIDENCE_CARD_TEMPLATE,
+    EVIDENCE_CARDS_FOOTER,
+    EVIDENCE_CARDS_HEADER,
+    EXECUTIVE_SUMMARY_TEMPLATE,
+    FINDINGS_TABLE_FOOTER,
+    FINDINGS_TABLE_HEADER,
+    FINDINGS_TABLE_ROW,
+    HEADER_TEMPLATE,
+    HTML_SKELETON,
+    LIMITATIONS_ITEM,
+    LIMITATIONS_NONE_TEMPLATE,
+    LIMITATIONS_TEMPLATE_FOOTER,
+    LIMITATIONS_TEMPLATE_HEADER,
+    METHODOLOGY_PARAM_ROW,
+    METHODOLOGY_REF_ROW,
+    METHODOLOGY_TEMPLATE,
+    REPORT_CSS,
+    SECTION_ID_EVIDENCE_CARDS,
+    SECTION_ID_EXECUTIVE_SUMMARY,
+    SECTION_ID_FINDINGS_TABLE,
+    SECTION_ID_HEADER,
+    SECTION_ID_LIMITATIONS,
+    SECTION_ID_METHODOLOGY,
+    SECTION_ID_SIGN_OFF,
+    SIGN_OFF_TEMPLATE,
+)
 
 # Empty findings table message when no variants are present.
 _EMPTY_FINDINGS_MESSAGE = (
@@ -389,8 +413,7 @@ class ReportTemplateEngine:
                 )
         else:
             parts.append(
-                f'            <tr><td colspan="5">'
-                f"{_EMPTY_FINDINGS_MESSAGE}</td></tr>\n"
+                f'            <tr><td colspan="5">{_EMPTY_FINDINGS_MESSAGE}</td></tr>\n'
             )
 
         parts.append(FINDINGS_TABLE_FOOTER)

@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import logging
 import os
+
 # Python 3.11+ has tomllib in stdlib; for 3.10 we use tomli
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from vartriage._internal.path_safety import resolve_path
 
@@ -70,7 +70,7 @@ class BundleConfig:
     https_proxy: str = ""
 
     @classmethod
-    def load(cls, path: Optional[Path] = None) -> "BundleConfig":
+    def load(cls, path: Path | None = None) -> BundleConfig:
         """Load config from TOML file with env var overrides.
 
         Parameters
@@ -147,9 +147,7 @@ class BundleConfig:
             try:
                 self.storage_path = _resolve_storage_config(env_storage)
             except (OSError, ValueError) as exc:
-                log.warning(
-                    "Ignoring invalid VARTRIAGE_BUNDLE_STORAGE: %s", exc
-                )
+                log.warning("Ignoring invalid VARTRIAGE_BUNDLE_STORAGE: %s", exc)
 
         env_build = os.environ.get("VARTRIAGE_DEFAULT_BUILD")
         if env_build:
