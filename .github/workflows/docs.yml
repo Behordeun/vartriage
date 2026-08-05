@@ -7,6 +7,8 @@ on:
       - "docs/**"
       - "mkdocs.yml"
       - "CONTRIBUTING.md"
+      - "vartriage/**"
+      - "pyproject.toml"
   workflow_dispatch:
 
 permissions:
@@ -33,14 +35,7 @@ jobs:
         run: pip install -e ".[docs]"
 
       - name: Build docs
-        run: |
-          if [ -f CONTRIBUTING.md ]; then
-            cp CONTRIBUTING.md docs/contributing.md
-          else
-            echo "Error: CONTRIBUTING.md not found"
-            exit 1
-          fi
-          mkdocs build --strict
+        run: mkdocs build --strict
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -76,7 +76,24 @@ nav:
       - Reference Files: reference-files.md
       - Examples: examples.md
       - Tutorial: tutorial.md
+  - API Reference:
+      - Overview: api/index.md
+      - Pipeline: api/pipeline.md
+      - Parser: api/parser.md
+      - Annotation: api/annotation.md
+      - Filter: api/filter.md
+      - Prioritization: api/prioritization.md
+      - Classification: api/classification.md
+      - Reporting: api/reporting.md
+      - Cohort: api/cohort.md
+      - Models: api/models.md
+      - Config: api/config.md
+      - Exceptions: api/exceptions.md
   - Development:
       - Contributing: contributing.md
       - Changelog: changelog.md
       - Validation: validation.md
+
+not_in_nav: |
+  /archives/**
+  /examples/README.md
