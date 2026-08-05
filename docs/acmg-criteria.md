@@ -4,7 +4,7 @@ How vartriage evaluates ACMG/AMP 2015 evidence criteria and combines them into a
 
 ## Overview
 
-The `ACMGClassifier` evaluates each scored variant against 12 evidence criteria (6 pathogenic, 6 benign) and applies ACMG/AMP 2015 combining rules to produce a final classification: Pathogenic, Likely Pathogenic, VUS, Likely Benign, or Benign.
+The `ACMGClassifier` evaluates each scored variant against 10 evidence criteria (6 pathogenic, 4 benign) and applies ACMG/AMP 2015 combining rules to produce a final classification: Pathogenic, Likely Pathogenic, VUS, Likely Benign, or Benign. PP3 and BP4 each fire at two strength levels (supporting or moderate) based on ClinGen-calibrated thresholds, but they are single criteria with strength modulation, not separate criteria.
 
 When a required data source is unavailable for a criterion, that criterion is skipped and the source is recorded in `missing_data_sources` on the output. This makes the system additive: providing more reference data enables more criteria without changing behavior for the criteria you already have.
 

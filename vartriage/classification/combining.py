@@ -6,7 +6,7 @@ applies threshold patterns from ACMG Table 5.
 
 Pathogenic Combining Rules:
 - PATHOGENIC: 1 VS + 1 S, or 2 S + 1 Sup, or 1 VS + 2 Sup
-- LIKELY_PATHOGENIC: 1 VS + 1 M, or 1 S + 1-2 M, or 1 S + 2 Sup
+- LIKELY_PATHOGENIC: 1 VS + 1 M, or 1 S + >= 1 M, or 1 S + 2 Sup
 
 Benign Combining Rules:
 - BENIGN: 1 BA (standalone), or 2 BS

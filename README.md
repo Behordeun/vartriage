@@ -399,20 +399,20 @@ When only two scores are available, weights redistribute proportionally. Single 
 
 **ACMG classification** - Tags evidence per ACMG/AMP 2015 guidelines with ClinGen SVI-calibrated thresholds (Pejaver et al. 2022):
 
-| Tag  | Strength    | Condition                                                                                                        |
-| ---- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| PVS1 | Very Strong | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8                                                            |
-| PS1  | Strong      | Same amino acid change as ClinVar Pathogenic via different nucleotide (requires protein index + reference FASTA) |
-| PM2  | Moderate    | All population AFs < 0.0001 (population-aware)                                                                   |
-| PM5  | Moderate    | Novel missense at amino acid position with known pathogenic missense in ClinVar (requires protein index)         |
-| PP3  | Supporting  | REVEL > 0.644 or SpliceAI > 0.5 on splice-adjacent                                                               |
-| PP3  | Moderate    | REVEL > 0.773 (ClinGen-calibrated)                                                                               |
-| PP5  | Supporting  | ClinVar Pathogenic without conflicting Benign                                                                    |
-| BA1  | Standalone  | Any population AF > 5% (standalone Benign)                                                                       |
-| BS1  | Strong      | Any population AF > 1% (strong benign)                                                                           |
-| BP4  | Supporting  | REVEL < 0.290 (missense) or CADD < 10 (non-missense)                                                             |
-| BP4  | Moderate    | REVEL < 0.183 (ClinGen-calibrated)                                                                               |
-| BP7  | Supporting  | Synonymous + SpliceAI < 0.1                                                                                      |
+| Tag           | Strength    | Condition                                                                                                        |
+| ------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| PVS1          | Very Strong | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8                                                            |
+| PS1           | Strong      | Same amino acid change as ClinVar Pathogenic via different nucleotide (requires protein index + reference FASTA) |
+| PM2           | Moderate    | All population AFs < 0.0001 (population-aware)                                                                   |
+| PM5           | Moderate    | Novel missense at amino acid position with known pathogenic missense in ClinVar (requires protein index)         |
+| PP3           | Supporting  | REVEL > 0.644 or SpliceAI > 0.5 on splice-adjacent                                                               |
+| PP3_MODERATE  | Moderate    | REVEL > 0.773 (ClinGen-calibrated)                                                                               |
+| PP5           | Supporting  | ClinVar Pathogenic without conflicting Benign                                                                    |
+| BA1           | Standalone  | Any population AF > 5% (standalone Benign)                                                                       |
+| BS1           | Strong      | Any population AF > 1% (strong benign)                                                                           |
+| BP4           | Supporting  | REVEL < 0.290 (missense) or CADD < 10 (non-missense)                                                             |
+| BP4_MODERATE  | Moderate    | REVEL < 0.183 (ClinGen-calibrated)                                                                               |
+| BP7           | Supporting  | Synonymous + SpliceAI < 0.1                                                                                      |
 
 Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign. Conflicting pathogenic + benign evidence yields VUS. Missing data sources mean the tag is simply omitted.
 
