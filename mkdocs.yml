@@ -1,27 +1,40 @@
 site_name: vartriage
-site_description: A streaming pipeline for identifying and classifying pathogenic genetic variants from VCF data
+site_url: https://behordeun.github.io/vartriage/
+site_description: Clinical variant triage for gene panels. VCF in, ACMG-classified report out.
+site_author: Muhammad Abiodun SULAIMAN
 repo_url: https://github.com/Behordeun/vartriage
+repo_name: Behordeun/vartriage
+edit_uri: edit/main/docs/
 
 theme:
   name: material
   palette:
-    - scheme: default
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: teal
-      accent: green
+      accent: deep orange
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    - scheme: slate
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       primary: teal
-      accent: green
+      accent: deep orange
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   features:
+    - navigation.instant
+    - navigation.tracking
     - navigation.sections
     - navigation.expand
-    - content.code.copy
+    - navigation.top
+    - search.suggest
     - search.highlight
+    - content.code.copy
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
 
 plugins:
   - search
@@ -29,10 +42,9 @@ plugins:
       handlers:
         python:
           options:
-            docstring_style: numpy
-            show_source: false
+            show_source: true
             show_root_heading: true
-            members_order: source
+            heading_level: 3
 
 markdown_extensions:
   - admonition
@@ -41,6 +53,8 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
   - tables
   - toc:
       permalink: true
@@ -48,22 +62,21 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - Tutorial: tutorial.md
-  - Examples: examples.md
-  - Pipeline Stages: pipeline-stages.md
-  - Configuration: configuration.md
-  - Reference Files: reference-files.md
-  - API Reference:
-    - Overview: api/index.md
-    - Pipeline: api/pipeline.md
-    - VCFParser: api/parser.md
-    - QualityFilter: api/filter.md
-    - AnnotationEngine: api/annotation.md
-    - PrioritizationEngine: api/prioritization.md
-    - ACMGClassifier: api/classification.md
-    - ReportGenerator: api/reporting.md
-    - Data Models: api/models.md
-    - Configuration Classes: api/config.md
-    - Exceptions: api/exceptions.md
-  - Architecture: architecture.md
-  - Changelog: changelog.md
+  - User Guides:
+      - ACMG Classification: acmg-criteria.md
+      - API Mode: api-mode.md
+      - Structural Variants: structural-variants.md
+      - Gene-Disease Linkage: gene-disease-linkage.md
+      - Cohort Analysis: cohort-analysis.md
+      - Score Bundles: bundles.md
+  - Reference:
+      - Configuration: configuration.md
+      - Pipeline Stages: pipeline-stages.md
+      - Architecture: architecture.md
+      - Reference Files: reference-files.md
+      - Examples: examples.md
+      - Tutorial: tutorial.md
+  - Development:
+      - Contributing: contributing.md
+      - Changelog: changelog.md
+      - Validation: validation.md
