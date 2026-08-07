@@ -13,6 +13,7 @@ from __future__ import annotations
 import csv
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import ClassifiedVariant
@@ -185,5 +186,58 @@ def write_csv(
         writer.writerow(CSV_FIELDS)
         for variant in variants:
             writer.writerow(_variant_to_row(variant))
+
+    return output_path
+
+
+def write_csv_with_mito(
+    variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
+    output_path: Path,
+    mito_results: list[Any] | None = None,
+) -> Path:
+    """Write classified variants to CSV with mitochondrial findings appended.
+
+    When mito_results is provided, appends a separate mitochondrial
+    section after the nuclear variants, separated by a blank row and
+    a header row with mitochondrial-specific columns.
+
+    When mito_results is None or empty, delegates to write_csv.
+
+    Parameters
+    ----------
+    variants
+        Nuclear classified variants.
+    output_path
+        Destination file path.
+    mito_results
+        Optional list of MitoClassifiedVariant objects.
+
+    Returns
+    -------
+    Path
+        The written file path.
+    """
+    if not mito_results:
+        return write_csv(variants, output_path)
+
+    from vartriage.mito.report import MITO_CSV_FIELDS, mito_variant_to_row
+
+    output_path = resolve_path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile, delimiter=",", quoting=csv.QUOTE_MINIMAL)
+
+        # Nuclear variants section
+        writer.writerow(CSV_FIELDS)
+        for variant in variants:
+            writer.writerow(_variant_to_row(variant))
+
+        # Separator and mitochondrial section
+        writer.writerow([])
+        writer.writerow(["# Mitochondrial Findings"])
+        writer.writerow(MITO_CSV_FIELDS)
+        for mito_variant in mito_results:
+            writer.writerow(mito_variant_to_row(mito_variant))
 
     return output_path

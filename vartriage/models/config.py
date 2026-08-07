@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from vartriage.knowledge.config import KnowledgeBaseConfig
+    from vartriage.mito.config import MitoConfig
 
 
 @dataclass(frozen=True)
@@ -369,6 +370,7 @@ class PipelineConfig:
     api: object | None = field(default=None)
     knowledge: KnowledgeBaseConfig | None = field(default=None)
     sv_vcf_path: Path | None = None
+    mito: MitoConfig | None = field(default=None)
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format

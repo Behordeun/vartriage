@@ -1,7 +1,7 @@
 site_name: vartriage
 site_url: https://behordeun.github.io/vartriage/
 site_description: Clinical variant triage for gene panels. VCF in, ACMG-classified report out.
-site_author: Muhammad Abiodun SULAIMAN
+site_author: Muhammad Abiodun SULAIMAN, Bolaji Fatai OYEYEMI
 repo_url: https://github.com/Behordeun/vartriage
 repo_name: Behordeun/vartriage
 edit_uri: edit/main/docs/
@@ -66,6 +66,7 @@ nav:
       - ACMG Classification: acmg-criteria.md
       - API Mode: api-mode.md
       - Structural Variants: structural-variants.md
+      - Mitochondrial Variants: mitochondrial.md
       - Gene-Disease Linkage: gene-disease-linkage.md
       - Cohort Analysis: cohort-analysis.md
       - Score Bundles: bundles.md

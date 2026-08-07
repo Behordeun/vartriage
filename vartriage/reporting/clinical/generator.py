@@ -14,6 +14,7 @@ import tempfile
 from collections.abc import Iterator, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from vartriage.models.config import ClinicalReportConfig
 from vartriage.models.variant import ACMGClassification, ClassifiedVariant
@@ -77,6 +78,7 @@ class ClinicalReportGenerator:
         self,
         variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
         output_path: Path,
+        mito_results: list[Any] | None = None,
     ) -> Path:
         """Generate a clinical report with audit trail.
 
@@ -118,7 +120,9 @@ class ClinicalReportGenerator:
         timestamp = datetime.now(timezone.utc).isoformat()
 
         # Assemble all report sections.
-        sections = self._assemble_sections(sorted_variants, timestamp)
+        sections = self._assemble_sections(
+            sorted_variants, timestamp, mito_results=mito_results
+        )
 
         # Render and write atomically.
         self._render_atomic(sections, output_path)
@@ -168,6 +172,7 @@ class ClinicalReportGenerator:
         self,
         variants: list[ClassifiedVariant],
         timestamp: str,
+        mito_results: list[Any] | None = None,
     ) -> ReportSections:
         """Build all report section data from sorted variants."""
         header = self._build_header(timestamp)
@@ -186,6 +191,7 @@ class ClinicalReportGenerator:
             limitations=limitations,
             methodology=methodology,
             sign_off=sign_off,
+            mito_findings=mito_results or [],
         )
 
     def _build_header(self, timestamp: str) -> HeaderData:

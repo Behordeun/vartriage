@@ -97,6 +97,43 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
     return record
 
 
+def _safe_json_write(output_path: Path) -> Path:
+    """Resolve path and create parent directories for JSON writing.
+
+    Returns the resolved path. Callers handle their own file I/O
+    within a try block, using _cleanup_on_failure for error recovery.
+    """
+    output_path = resolve_path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
+
+
+def _cleanup_on_failure(output_path: Path, exc: Exception) -> OSError:
+    """Remove partial output and wrap the exception."""
+    try:
+        if output_path.exists():
+            output_path.unlink()
+    except OSError:
+        pass
+    return OSError(f"Failed to write JSON report: {exc}")
+
+
+def _write_json_object(obj: Any, output_path: Path) -> Path:
+    """Write a Python object as JSON with shared error handling.
+
+    Handles path resolution, directory creation, atomic-ish write,
+    and cleanup on failure.
+    """
+    output_path = _safe_json_write(output_path)
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2, allow_nan=False)
+            f.write("\n")
+    except (OSError, ValueError, TypeError) as exc:
+        raise _cleanup_on_failure(output_path, exc) from exc
+    return output_path
+
+
 def write_json(
     variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
     output_path: Path,
@@ -120,9 +157,8 @@ def write_json(
     IOError
         If the write fails (filesystem or encoding error).
     """
+    output_path = _safe_json_write(output_path)
     try:
-        output_path = resolve_path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("[\n")
             first = True
@@ -139,11 +175,53 @@ def write_json(
                 first = False
             f.write("\n]\n")
     except (OSError, ValueError, TypeError) as exc:
-        try:
-            if output_path.exists():
-                output_path.unlink()
-        except OSError:
-            pass
-        raise OSError(f"Failed to write JSON report: {exc}") from exc
+        raise _cleanup_on_failure(output_path, exc) from exc
 
     return output_path
+
+
+def write_json_with_mito(
+    variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
+    output_path: Path,
+    mito_results: list[Any] | None = None,
+) -> Path:
+    """Write classified variants to JSON with optional mitochondrial section.
+
+    When mito_results is provided, outputs a structured object:
+    {"variants": [...], "mitochondrial_findings": [...]}
+
+    When mito_results is None or empty, delegates to write_json for
+    backward-compatible flat array output.
+
+    Parameters
+    ----------
+    variants
+        Nuclear classified variants.
+    output_path
+        Destination file path.
+    mito_results
+        Optional list of MitoClassifiedVariant objects.
+
+    Returns
+    -------
+    Path
+        The written file path.
+    """
+    if not mito_results:
+        return write_json(variants, output_path)
+
+    from vartriage.mito.report import build_mito_json_section
+
+    variant_list = [_variant_to_dict(v) for v in variants]
+    mito_section = build_mito_json_section(mito_results)
+
+    obj = {
+        "variants": variant_list,
+        "mitochondrial_findings": mito_section,
+        "metadata": {
+            "mitochondrial_note": (
+                "Mitochondrial variants classified using mtDNA-specific criteria"
+            ),
+        },
+    }
+    return _write_json_object(obj, output_path)

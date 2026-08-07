@@ -1,0 +1,62 @@
+position	ref	alt	disease	status	locus
+583	G	A	Pigmentary retinopathy	Reported	MT-TF
+616	T	C	Mitochondrial myopathy	Reported	MT-TF
+1555	A	G	Aminoglycoside-induced deafness	Cfrm	MT-RNR1
+1606	G	A	Aminoglycoside-induced deafness	Reported	MT-RNR1
+1644	G	A	Aminoglycoside-induced deafness	Reported	MT-TV
+3243	A	G	MELAS / Leigh syndrome / Diabetes-Deafness	Cfrm	MT-TL1
+3256	C	T	MELAS	Cfrm	MT-TL1
+3260	A	G	Cardiomyopathy	Cfrm	MT-TL1
+3271	T	C	MELAS	Cfrm	MT-TL1
+3291	T	C	MELAS	Reported	MT-TL1
+3302	A	G	Cardiomyopathy	Cfrm	MT-TL1
+3303	C	T	Cardiomyopathy	Cfrm	MT-TL1
+3376	G	A	LHON	Reported	MT-ND1
+3460	G	A	LHON	Cfrm	MT-ND1
+3635	G	A	LHON	Reported	MT-ND1
+3697	G	A	MELAS overlap	Reported	MT-ND1
+3700	G	A	LHON	Reported	MT-ND1
+3733	G	A	LHON	Reported	MT-ND1
+3890	G	A	Progressive encephalopathy	Reported	MT-ND1
+4171	C	A	LHON	Reported	MT-ND1
+4298	G	A	CPEO / Myopathy	Reported	MT-TI
+4300	A	G	Cardiomyopathy	Cfrm	MT-TI
+4320	C	T	CPEO	Reported	MT-TI
+4336	T	C	Alzheimer / Parkinson risk	Reported	MT-TQ
+5537	A	T	Myoclonus epilepsy	Reported	MT-TW
+5545	C	T	Cardiomyopathy	Reported	MT-TW
+5650	G	A	Myopathy	Reported	MT-TA
+5703	G	A	Myopathy	Reported	MT-TN
+7445	A	G	Deafness	Cfrm	MT-CO1/MT-TS1
+7472	C	T	Deafness + Ataxia	Cfrm	MT-TS1
+7510	T	C	Deafness	Reported	MT-TS1
+7511	T	C	Deafness	Cfrm	MT-TS1
+8344	A	G	MERRF	Cfrm	MT-TK
+8356	T	C	MERRF	Cfrm	MT-TK
+8363	G	A	MERRF / Cardiomyopathy	Cfrm	MT-TK
+8527	T	C	Mitochondrial complex V deficiency	Reported	MT-ATP6
+8993	T	G	NARP / Leigh syndrome	Cfrm	MT-ATP6
+8993	T	C	Leigh syndrome	Cfrm	MT-ATP6
+9155	A	G	Leigh syndrome	Reported	MT-ATP6
+9176	T	C	Leigh syndrome	Cfrm	MT-ATP6
+9185	T	C	Leigh syndrome / Ataxia	Cfrm	MT-ATP6
+10158	T	C	Leigh syndrome	Reported	MT-ND3
+10191	T	C	Leigh syndrome	Cfrm	MT-ND3
+10197	G	A	Leigh syndrome / MELAS	Reported	MT-ND3
+11777	C	A	Leigh syndrome	Reported	MT-ND4
+11778	G	A	LHON	Cfrm	MT-ND4
+12706	T	C	Leigh syndrome	Reported	MT-ND5
+13042	G	A	Leigh syndrome / MELAS	Reported	MT-ND5
+13094	T	C	Leigh syndrome / MELAS	Reported	MT-ND5
+13513	G	A	Leigh syndrome / MELAS	Cfrm	MT-ND5
+13514	A	G	Leigh syndrome / MELAS	Reported	MT-ND5
+14459	G	A	LHON + Dystonia	Cfrm	MT-ND6
+14482	C	G	LHON	Reported	MT-ND6
+14482	C	A	LHON	Reported	MT-ND6
+14484	T	C	LHON	Cfrm	MT-ND6
+14487	T	C	Dystonia / Leigh syndrome	Cfrm	MT-ND6
+14568	C	T	LHON	Reported	MT-ND6
+14674	T	C	Reversible COX deficiency	Reported	MT-TE
+14709	T	C	Diabetes + Deafness	Reported	MT-TE
+14710	G	A	Mitochondrial myopathy	Reported	MT-TE
+15579	A	G	Mitochondrial myopathy	Reported	MT-CYB

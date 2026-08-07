@@ -13,6 +13,7 @@ from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
 
 if TYPE_CHECKING:
     from vartriage.knowledge.config import KnowledgeBaseConfig
+    from vartriage.mito.config import MitoConfig
     from vartriage.models.config import SampleConfig
 
 
@@ -26,6 +27,17 @@ def _get_version() -> str:
         from vartriage import __version__
 
         return __version__
+
+
+def _validated_heteroplasmy(value: str) -> float:
+    """Argparse type validator for --mt-min-heteroplasmy."""
+    try:
+        f = float(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(f"invalid float value: '{value}'") from err
+    if not (0.0 <= f <= 100.0):
+        raise argparse.ArgumentTypeError(f"must be between 0.0 and 100.0, got {f}")
+    return f
 
 
 def _add_reference_arguments(parser: argparse.ArgumentParser) -> None:
@@ -290,6 +302,27 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # Mitochondrial analysis options
+    parser.add_argument(
+        "--skip-mito",
+        action="store_true",
+        default=False,
+        help=(
+            "Skip mitochondrial variant analysis. Use for targeted panels "
+            "without mtDNA capture where chrM variants are noise."
+        ),
+    )
+    parser.add_argument(
+        "--mt-min-heteroplasmy",
+        type=_validated_heteroplasmy,
+        default=1.0,
+        help=(
+            "Minimum heteroplasmy percentage for reporting mtDNA variants "
+            "(0.0-100.0). Variants below this threshold are filtered as "
+            "sub-threshold noise. Default: 1.0%%"
+        ),
+    )
+
     # Structural variant analysis (integrated mode)
     parser.add_argument(
         "--sv-vcf",
@@ -461,6 +494,7 @@ def _run_pipeline(
         api=api_config,
         knowledge=knowledge_config,
         sv_vcf_path=getattr(args, "sv_vcf", None),
+        mito=_build_mito_config(args),
     )
 
     pipeline = Pipeline(pipeline_config)
@@ -595,6 +629,30 @@ def _build_knowledge_config(
         inheritance_mode=inheritance_mode,
         flag_actionable=flag_actionable,
     )
+
+
+def _build_mito_config(
+    args: argparse.Namespace,
+) -> MitoConfig | None:
+    """Build MitoConfig from CLI arguments.
+
+    Returns None when --skip-mito is not set and defaults are acceptable
+    (auto-detection handles the rest). Returns a MitoConfig with
+    enabled=False when --skip-mito is passed.
+    """
+    from vartriage.mito.config import MitoConfig
+
+    skip_mito: bool = getattr(args, "skip_mito", False)
+    min_heteroplasmy: float = getattr(args, "mt_min_heteroplasmy", 1.0)
+
+    if skip_mito:
+        return MitoConfig(enabled=False)
+
+    # Only create explicit config if non-default threshold was set
+    if abs(min_heteroplasmy - 1.0) > 1e-9:
+        return MitoConfig(min_heteroplasmy=min_heteroplasmy)
+
+    return None
 
 
 def _build_clinical_config(

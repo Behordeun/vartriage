@@ -10,6 +10,7 @@ SECTION_ID_HEADER = "section-header"
 SECTION_ID_EXECUTIVE_SUMMARY = "section-executive-summary"
 SECTION_ID_FINDINGS_TABLE = "section-findings-table"
 SECTION_ID_EVIDENCE_CARDS = "section-evidence-cards"
+SECTION_ID_MITOCHONDRIAL_FINDINGS = "section-mitochondrial-findings"
 SECTION_ID_LIMITATIONS = "section-limitations"
 SECTION_ID_METHODOLOGY = "section-methodology"
 SECTION_ID_SIGN_OFF = "section-sign-off"
@@ -298,6 +299,12 @@ METHODOLOGY_TEMPLATE = """\
 {parameter_rows}
         </tbody>
     </table>
+    <h3>Mitochondrial Analysis</h3>
+    <p>Mitochondrial variants (chrM/MT) are classified using mtDNA-specific \
+criteria distinct from the standard ACMG/AMP 2015 framework. Classification \
+incorporates MITOMAP disease associations, HelixMTdb population frequencies, \
+heteroplasmy levels, and mitochondrial gene context. The vertebrate \
+mitochondrial genetic code is applied for amino acid prediction.</p>
 </section>
 """
 
@@ -313,6 +320,50 @@ METHODOLOGY_PARAM_ROW = """\
                 <td>{param_name}</td>
                 <td>{param_value}</td>
             </tr>
+"""
+
+# Mitochondrial Findings section template.
+MITO_FINDINGS_HEADER = """\
+<section id="{section_id}">
+    <h2>Mitochondrial Findings</h2>
+    <p class="metadata">Mitochondrial variants classified using \
+mtDNA-specific criteria (not ACMG/AMP 2015).</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Position</th>
+                <th>Change</th>
+                <th>Gene</th>
+                <th>Classification</th>
+                <th>Heteroplasmy</th>
+                <th>MITOMAP Disease</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+
+MITO_FINDINGS_ROW = """\
+            <tr>
+                <td>m.{position}</td>
+                <td>{ref}&gt;{alt}</td>
+                <td>{gene_name}</td>
+                <td>{classification}</td>
+                <td>{heteroplasmy}</td>
+                <td>{mitomap_disease}</td>
+            </tr>
+"""
+
+MITO_FINDINGS_FOOTER = """\
+        </tbody>
+    </table>
+</section>
+"""
+
+MITO_FINDINGS_EMPTY = """\
+<section id="{section_id}">
+    <h2>Mitochondrial Findings</h2>
+    <p>No mitochondrial variants meeting reporting criteria were identified.</p>
+</section>
 """
 
 # Sign-off section template.
