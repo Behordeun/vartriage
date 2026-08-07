@@ -14,6 +14,7 @@ import os
 import tempfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.config import ClinicalReportConfig, ReportConfig
@@ -61,6 +62,7 @@ class ReportGenerator:
         variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
         output_path: Path,
         source_vcf_path: Path | None = None,
+        mito_results: list[Any] | None = None,
     ) -> Path:
         """Write classified variants to the configured format.
 
@@ -98,7 +100,9 @@ class ReportGenerator:
         fmt = self._config.output_format
 
         if fmt.startswith("clinical-"):
-            return self._generate_clinical(variants, output_path)
+            return self._generate_clinical(
+                variants, output_path, mito_results=mito_results
+            )
 
         if fmt == "vcf":
             if source_vcf_path is None:
@@ -193,6 +197,7 @@ class ReportGenerator:
         self,
         variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
         output_path: Path,
+        mito_results: list[Any] | None = None,
     ) -> Path:
         """Delegate to ClinicalReportGenerator for clinical formats.
 
@@ -226,4 +231,4 @@ class ReportGenerator:
             pipeline_version=__version__,
             reference_checksums=self._reference_checksums,
         )
-        return clinical_gen.generate(variants, output_path)
+        return clinical_gen.generate(variants, output_path, mito_results=mito_results)

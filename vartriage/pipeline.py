@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage._internal.warning_accumulator import WarningAccumulator
@@ -28,6 +28,9 @@ from vartriage.models.config import (
 from vartriage.models.variant import AnnotatedVariant, ClassifiedVariant, Variant
 from vartriage.prioritization.engine import PrioritizationEngine
 from vartriage.reporting.generator import ReportGenerator
+
+if TYPE_CHECKING:
+    from vartriage.knowledge.annotator import GeneKnowledgeAnnotator  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +69,9 @@ class Pipeline:
         # Gene-disease linkage annotator: constructed once, reused across runs
         self._gene_knowledge_annotator: GeneKnowledgeAnnotator | None = None
         if config.knowledge is not None:
-            from vartriage.knowledge.annotator import GeneKnowledgeAnnotator
+            from vartriage.knowledge.annotator import (
+                GeneKnowledgeAnnotator,  # noqa: F811
+            )
 
             self._gene_knowledge_annotator = GeneKnowledgeAnnotator(
                 config.knowledge  # type: ignore[arg-type]
@@ -152,8 +157,8 @@ class Pipeline:
     ) -> Path:
         """Dispatch report generation for VCF and non-VCF formats.
 
-        When mito_results are present and the format supports it (JSON/CSV),
-        uses the mito-aware writers that include a mitochondrial findings section.
+        When mito_results are present, uses mito-aware writers routed
+        through ReportGenerator's atomic write logic (temp file + rename).
         """
         self._mito_results = mito_results
         fmt = self._config.report.output_format
@@ -161,23 +166,61 @@ class Pipeline:
         if fmt == "vcf":
             return report_generator.generate(classified, output_path, vcf_path)
 
-        # For JSON/CSV with mito results, use mito-aware writers directly
+        # For JSON/CSV with mito results, use mito-aware writers via
+        # the atomic write strategy (temp file + os.replace)
         if mito_results and fmt in ("json", "csv"):
-            from vartriage._internal.path_safety import resolve_path as _rp
+            return self._generate_mito_report(
+                classified, output_path, fmt, mito_results
+            )
 
-            resolved = _rp(output_path)
-            resolved.parent.mkdir(parents=True, exist_ok=True)
+        # Clinical formats with mito results
+        if mito_results and fmt.startswith("clinical-"):
+            return report_generator.generate(
+                classified, output_path, mito_results=mito_results
+            )
 
+        return report_generator.generate(classified, output_path)
+
+    def _generate_mito_report(
+        self,
+        classified: Iterator[ClassifiedVariant],
+        output_path: Path,
+        fmt: str,
+        mito_results: list[Any],
+    ) -> Path:
+        """Write mito-aware JSON/CSV with atomic temp-file strategy."""
+        import os
+        import tempfile
+
+        from vartriage._internal.path_safety import resolve_path as _rp
+
+        resolved = _rp(output_path)
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+
+        tmp_fd, tmp_name = tempfile.mkstemp(
+            dir=resolved.parent,
+            prefix=".report_mito_",
+            suffix=f".{fmt}.tmp",
+        )
+        os.close(tmp_fd)
+        tmp_path = Path(tmp_name)
+
+        try:
             if fmt == "json":
                 from vartriage.reporting.json_writer import write_json_with_mito
 
-                return write_json_with_mito(classified, resolved, mito_results)
+                write_json_with_mito(classified, tmp_path, mito_results)
             else:
                 from vartriage.reporting.csv_writer import write_csv_with_mito
 
-                return write_csv_with_mito(classified, resolved, mito_results)
+                write_csv_with_mito(classified, tmp_path, mito_results)
 
-        return report_generator.generate(classified, output_path)
+            os.replace(str(tmp_path), str(resolved))
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+
+        return resolved
 
     def run(
         self, vcf_path: Path | None = None, output_path: Path | None = None
@@ -233,9 +276,7 @@ class Pipeline:
         ) = self._build_stages()
 
         extract_samples = (
-            self._config.inheritance is not None
-            or self._config.sample is not None
-            or self._mito_enabled
+            self._config.inheritance is not None or self._config.sample is not None
         )
 
         with VCFParser(
@@ -558,64 +599,9 @@ class Pipeline:
 
         # Sample extraction or inheritance (mutually exclusive)
         if self._config.inheritance is not None:
-            from vartriage.filter.inheritance_filter import InheritanceFilter
-
-            _sample_names = sample_names
-            if _sample_names is None and hasattr(parser, "sample_names"):
-                _sample_names = parser.sample_names  # type: ignore[union-attr]
-
-            if not _sample_names:
-                raise ValueError(
-                    "Inheritance filtering requires sample names from the VCF "
-                    "header, but none were available. Ensure the VCF contains "
-                    "a sample column or pass sample_names explicitly."
-                )
-
-            inheritance_filter = InheritanceFilter(
-                self._config.inheritance,
-                _sample_names,
-            )
-            compound_het_active = "compound_het" in self._config.inheritance.patterns
-
-            if compound_het_active and annotation_engine is not None:
-                # Annotate first so gene info is available for
-                # compound_het grouping
-                filtered = quality_filter.apply(stream)
-                annotated_iter = annotation_engine.annotate(filtered)
-                # Buffer annotated variants so we can pass raw
-                # Variants (with gene in info) to InheritanceFilter,
-                # then re-associate the annotation data afterward
-                annotated_list = list(annotated_iter)
-                variants_with_genes = list(
-                    self._variants_with_gene_info(iter(annotated_list))
-                )
-                inherited_variants = list(
-                    inheritance_filter.apply(iter(variants_with_genes))
-                )
-                # Re-attach annotation data to inherited variants
-                return iter(
-                    self._reattach_annotations(inherited_variants, annotated_list)
-                )
-            else:
-                stream = inheritance_filter.apply(stream)
+            stream = self._apply_inheritance_filter(stream, parser, sample_names)
         elif self._config.sample is not None:
-            from vartriage.filter.sample_extractor import SampleExtractor
-
-            _s_names = sample_names
-            if _s_names is None and hasattr(parser, "sample_names"):
-                _s_names = parser.sample_names  # type: ignore[union-attr]
-
-            if not _s_names:
-                raise ValueError(
-                    "Sample extraction requires sample names from the VCF "
-                    "header, but none were available."
-                )
-
-            sample_extractor = SampleExtractor(
-                self._config.sample,
-                _s_names,
-            )
-            stream = sample_extractor.apply(stream)
+            stream = self._apply_sample_extraction(stream, parser, sample_names)
 
         # Region filter (optional, runs before quality filter)
         if self._config.region_filter is not None:
@@ -630,6 +616,81 @@ class Pipeline:
         if api_annotation_engine is not None:
             return api_annotation_engine.annotate(filtered)  # type: ignore[attr-defined,no-any-return]
         return self._passthrough_annotation(filtered)
+
+    def _resolve_sample_names(
+        self,
+        parser: VCFParser | Iterator[Variant],
+        sample_names: list[str] | None,
+    ) -> list[str]:
+        """Resolve sample names from parameter or parser, raising on failure."""
+        names = sample_names
+        if names is None and hasattr(parser, "sample_names"):
+            names = parser.sample_names  # type: ignore[union-attr]
+        if not names:
+            raise ValueError(
+                "Sample names required but none available. Ensure the VCF "
+                "contains a sample column or pass sample_names explicitly."
+            )
+        return names
+
+    def _apply_inheritance_filter(
+        self,
+        stream: Iterator[Variant],
+        parser: VCFParser | Iterator[Variant],
+        sample_names: list[str] | None,
+    ) -> Iterator[Variant]:
+        """Apply trio inheritance filtering to the variant stream."""
+        from vartriage.filter.inheritance_filter import InheritanceFilter
+
+        names = self._resolve_sample_names(parser, sample_names)
+        inheritance_filter = InheritanceFilter(
+            self._config.inheritance,  # type: ignore[arg-type]
+            names,
+        )
+        compound_het_active = (
+            "compound_het" in self._config.inheritance.patterns  # type: ignore[union-attr]
+        )
+
+        if compound_het_active and self._config.annotation is not None:
+            return self._apply_compound_het_path(stream, inheritance_filter)
+
+        return inheritance_filter.apply(stream)
+
+    def _apply_compound_het_path(
+        self,
+        stream: Iterator[Variant],
+        inheritance_filter: object,
+    ) -> Iterator[Variant]:
+        """Handle compound het: annotate first, then filter, then re-attach."""
+        from vartriage.annotation.engine import AnnotationEngine
+
+        annotation_engine = AnnotationEngine(self._config.annotation)  # type: ignore[arg-type]
+        quality_filter = QualityFilter(self._config.quality_filter)
+        filtered = quality_filter.apply(stream)
+        annotated_iter = annotation_engine.annotate(filtered)
+
+        annotated_list = list(annotated_iter)
+        variants_with_genes = list(self._variants_with_gene_info(iter(annotated_list)))
+        inherited_variants = list(
+            inheritance_filter.apply(iter(variants_with_genes))  # type: ignore[attr-defined]
+        )
+        return iter(self._reattach_annotations(inherited_variants, annotated_list))
+
+    def _apply_sample_extraction(
+        self,
+        stream: Iterator[Variant],
+        parser: VCFParser | Iterator[Variant],
+        sample_names: list[str] | None,
+    ) -> Iterator[Variant]:
+        """Apply single-sample extraction to the variant stream."""
+        from vartriage.filter.sample_extractor import SampleExtractor
+
+        names = self._resolve_sample_names(parser, sample_names)
+        sample_extractor = SampleExtractor(
+            self._config.sample,  # type: ignore[arg-type]
+            names,
+        )
+        return sample_extractor.apply(stream)
 
     def _build_api_annotation_engine(self) -> object:
         """Construct the API annotation engine from config.

@@ -7,6 +7,7 @@ the structured content for each report section.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -188,3 +189,4 @@ class ReportSections:
     limitations: list[str]
     methodology: MethodologyData
     sign_off: SignOffData = field(default_factory=SignOffData)
+    mito_findings: list[Any] = field(default_factory=list)

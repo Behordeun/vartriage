@@ -83,22 +83,25 @@ def classify_level(percentage: float) -> HeteroplasmyCategory:
     return "sub_threshold"
 
 
-def extract_heteroplasmy(info: dict[str, Any]) -> HeteroplasmyLevel | None:
+def extract_heteroplasmy(
+    info: dict[str, Any], sample_name: str | None = None
+) -> HeteroplasmyLevel | None:
     """Extract heteroplasmy level from VCF variant info dict.
 
-    Attempts two extraction strategies in order:
-    1. AD field (allele depths): computes ALT_depth / total_depth
-    2. AF field (allele fraction): uses the value directly
-
-    The info dict is expected to carry FORMAT-level data under the keys
-    used by the VCFParser's sample extraction (AD as a tuple/list of ints,
-    AF as a float or list of floats).
+    Searches for AD/AF in three locations (first match wins):
+    1. Direct keys in info dict (INFO-level AD/AF from some callers)
+    2. Per-sample FORMAT fields in _pysam_samples[sample_name]
+    3. Per-sample FORMAT fields in _pysam_samples (first sample if
+       sample_name is None)
 
     Parameters
     ----------
     info
-        Variant info dict, potentially containing AD or AF from
-        FORMAT fields (populated by VCFParser when extract_samples=True).
+        Variant info dict, potentially containing AD or AF directly,
+        or _pysam_samples with per-sample FORMAT data from VCFParser.
+    sample_name
+        Sample to extract FORMAT data from. When None, uses the first
+        available sample in _pysam_samples.
 
     Returns
     -------
@@ -106,20 +109,50 @@ def extract_heteroplasmy(info: dict[str, Any]) -> HeteroplasmyLevel | None:
         Extracted heteroplasmy, or None if neither AD nor AF is available
         or the data is malformed.
     """
-    # Strategy 1: AD field (Mutect2 mitochondrial mode output)
+    # Strategy 1: direct INFO-level AD/AF (some callers put these in INFO)
     ad = info.get("AD")
     if ad is not None:
         result = _from_allele_depths(ad)
         if result is not None:
             return result
 
-    # Strategy 2: AF field (caller-provided allele fraction)
     af = info.get("AF")
     if af is not None:
         result = _from_allele_fraction(af)
         if result is not None:
             return result
 
+    # Strategy 2: look in _pysam_samples FORMAT fields
+    sample_data = info.get("_pysam_samples")
+    if sample_data is not None:
+        sample_entry = _get_sample_entry(sample_data, sample_name)
+        if sample_entry is not None:
+            ad = sample_entry.get("AD")
+            if ad is not None:
+                result = _from_allele_depths(ad)
+                if result is not None:
+                    return result
+            af = sample_entry.get("AF")
+            if af is not None:
+                result = _from_allele_fraction(af)
+                if result is not None:
+                    return result
+
+    return None
+
+
+def _get_sample_entry(
+    sample_data: dict[str, Any], sample_name: str | None
+) -> dict[str, Any] | None:
+    """Get the sample entry dict from _pysam_samples."""
+    if not sample_data:
+        return None
+    if sample_name is not None:
+        return sample_data.get(sample_name)
+    # Fall back to first sample
+    for entry in sample_data.values():
+        if isinstance(entry, dict):
+            return entry
     return None
 
 

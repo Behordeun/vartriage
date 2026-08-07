@@ -43,6 +43,10 @@ from vartriage.reporting.clinical.templates import (
     METHODOLOGY_PARAM_ROW,
     METHODOLOGY_REF_ROW,
     METHODOLOGY_TEMPLATE,
+    MITO_FINDINGS_EMPTY,
+    MITO_FINDINGS_FOOTER,
+    MITO_FINDINGS_HEADER,
+    MITO_FINDINGS_ROW,
     REPORT_CSS,
     SECTION_ID_EVIDENCE_CARDS,
     SECTION_ID_EXECUTIVE_SUMMARY,
@@ -50,6 +54,7 @@ from vartriage.reporting.clinical.templates import (
     SECTION_ID_HEADER,
     SECTION_ID_LIMITATIONS,
     SECTION_ID_METHODOLOGY,
+    SECTION_ID_MITOCHONDRIAL_FINDINGS,
     SECTION_ID_SIGN_OFF,
     SIGN_OFF_TEMPLATE,
 )
@@ -92,6 +97,8 @@ class ReportTemplateEngine:
         body_parts.append(self._render_executive_summary(sections))
         body_parts.append(self._render_findings_table(sections))
         body_parts.append(self._render_evidence_cards(sections))
+        if sections.mito_findings:
+            body_parts.append(self._render_mito_findings(sections))
         body_parts.append(self._render_limitations(sections))
         body_parts.append(self._render_methodology(sections))
         body_parts.append(self._render_sign_off(sections))
@@ -519,6 +526,44 @@ class ReportTemplateEngine:
             reviewer_name=(sign_off.reviewer_name_placeholder),
             review_date=sign_off.review_date_placeholder,
             digital_signature=(sign_off.digital_signature_placeholder),
+        )
+
+    def _render_mito_findings(self, sections: ReportSections) -> str:
+        """Render the Mitochondrial Findings section HTML."""
+        if not sections.mito_findings:
+            return MITO_FINDINGS_EMPTY.format(
+                section_id=SECTION_ID_MITOCHONDRIAL_FINDINGS,
+            )
+
+        rows: list[str] = []
+        for mito_var in sections.mito_findings:
+            heteroplasmy_str = ""
+            if mito_var.heteroplasmy is not None:
+                heteroplasmy_str = (
+                    f"{mito_var.heteroplasmy.percentage:.1f}% "
+                    f"({mito_var.heteroplasmy.category})"
+                )
+
+            mitomap_str = ""
+            if mito_var.mitomap_entry is not None:
+                mitomap_str = mito_var.mitomap_entry.disease
+
+            rows.append(
+                MITO_FINDINGS_ROW.format(
+                    position=mito_var.variant.pos,
+                    ref=mito_var.variant.ref,
+                    alt=mito_var.variant.alt,
+                    gene_name=mito_var.gene_context.gene_name or "intergenic",
+                    classification=mito_var.classification.value,
+                    heteroplasmy=heteroplasmy_str or "N/A",
+                    mitomap_disease=mitomap_str or "Not in MITOMAP",
+                )
+            )
+
+        return (
+            MITO_FINDINGS_HEADER.format(section_id=SECTION_ID_MITOCHONDRIAL_FINDINGS)
+            + "".join(rows)
+            + MITO_FINDINGS_FOOTER
         )
 
     @staticmethod

@@ -360,6 +360,12 @@ class VCFParser:
                 gq = sample.get("GQ")
                 if gq is not None:
                     entry["GQ"] = gq
+                ad = sample.get("AD")
+                if ad is not None:
+                    entry["AD"] = list(ad) if isinstance(ad, tuple) else ad
+                af = sample.get("AF")
+                if af is not None:
+                    entry["AF"] = list(af) if isinstance(af, tuple) else af
                 samples[str(sample_name)] = entry
         except (AttributeError, TypeError, KeyError):
             pass
