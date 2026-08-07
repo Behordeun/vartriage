@@ -94,7 +94,7 @@ def check_maternal_inheritance(
     in_father = _has_alt_allele(father_gt) if father_gt is not None else False
 
     status = _classify_status(in_mother, in_father)
-    note = _build_note(status, in_mother, in_father)
+    note = _build_note(status)
 
     return MaternalInheritanceResult(
         status=status,
@@ -194,7 +194,7 @@ def _classify_status(in_mother: bool, in_father: bool) -> MaternalStatus:
     return "unknown"
 
 
-def _build_note(status: MaternalStatus, in_mother: bool, in_father: bool) -> str:
+def _build_note(status: MaternalStatus) -> str:
     """Generate a human-readable note for the inheritance result."""
     if status == "maternal":
         return "Maternally inherited (present in mother, absent in father)"
