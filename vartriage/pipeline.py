@@ -67,7 +67,7 @@ class Pipeline:
         self._validate_config(config)
 
         # Gene-disease linkage annotator: constructed once, reused across runs
-        self._gene_knowledge_annotator: GeneKnowledgeAnnotator | None = None
+        self._gene_knowledge_annotator = None  # type: GeneKnowledgeAnnotator | None
         if config.knowledge is not None:
             from vartriage.knowledge.annotator import (
                 GeneKnowledgeAnnotator,  # noqa: F811
@@ -674,7 +674,8 @@ class Pipeline:
         inherited_variants = list(
             inheritance_filter.apply(iter(variants_with_genes))  # type: ignore[attr-defined]
         )
-        return iter(self._reattach_annotations(inherited_variants, annotated_list))
+        reattached = self._reattach_annotations(inherited_variants, annotated_list)
+        return iter(reattached)  # type: ignore[arg-type]
 
     def _apply_sample_extraction(
         self,
