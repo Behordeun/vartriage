@@ -20,6 +20,7 @@ from pathlib import Path
 
 from vartriage._internal.genetic_code import reverse_complement, translate_codon
 from vartriage.annotation.transcript_index import TranscriptCDS, TranscriptCDSIndex
+from vartriage.mito.genetic_code import is_mitochondrial, translate_codon_mt
 
 logger = logging.getLogger(__name__)
 
@@ -157,9 +158,13 @@ class CodonResolver:
             ref_codon[:codon_position] + variant_base + ref_codon[codon_position + 1 :]
         )
 
-        # Translate both
-        ref_aa = translate_codon(ref_codon)
-        alt_aa = translate_codon(alt_codon)
+        # Select translation table based on chromosome
+        if is_mitochondrial(chrom):
+            ref_aa = translate_codon_mt(ref_codon)
+            alt_aa = translate_codon_mt(alt_codon)
+        else:
+            ref_aa = translate_codon(ref_codon)
+            alt_aa = translate_codon(alt_codon)
 
         if ref_aa == "?" or alt_aa == "?":
             # Ambiguous codon (contains N), can't resolve
