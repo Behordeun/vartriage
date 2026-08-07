@@ -40,14 +40,14 @@ jobs:
         id: notes
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          # Try to extract changelog section for this version
+          VERSION="${TAG#v}"  # Strip the 'v' prefix
           if [ -f docs/changelog.md ]; then
-            NOTES=$(awk "/^## ${TAG//./\\.}/{found=1; next} /^## v[0-9]/{if(found) exit} found{print}" docs/changelog.md)
+            # Match heading like "## [0.15.0] - 2026-08-07"
+            NOTES=$(awk "/^## \\[${VERSION//./\\.}\\]/{found=1; next} /^## \\[/{if(found) exit} found{print}" docs/changelog.md)
           fi
           if [ -z "$NOTES" ]; then
             NOTES="Release ${TAG} published to PyPI."
           fi
-          # Write to file to avoid quoting issues
           echo "$NOTES" > /tmp/release_notes.md
 
       - name: Create GitHub Release
