@@ -4,6 +4,29 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-08-07
+
+### Added
+
+- **Mitochondrial variant support**: automatic detection and classification of chrM/MT variants using mtDNA-specific criteria separate from the nuclear ACMG/AMP 2015 framework.
+- **Mitochondrial genetic code**: vertebrate mitochondrial codon table (4 differences from standard). CodonResolver auto-selects the correct table based on chromosome.
+- **Heteroplasmy extraction**: computes alternate allele fraction from AD or AF fields with 5-level classification (homoplasmic/high/moderate/low/sub_threshold).
+- **MITOMAP database**: bundled pathogenic mutations (~60 entries) with disease association and confirmation status lookups.
+- **HelixMTdb frequency**: bundled population allele frequencies (~125 entries) for distinguishing haplogroup markers from rare variants.
+- **MT gene map**: all 37 mitochondrial genes with coordinate-based annotation (protein_coding/tRNA/rRNA/control_region/intergenic).
+- **MitochondrialClassifier**: rule-based classification (Pathogenic/Likely Pathogenic/VUS/Likely Benign/Benign) using MITOMAP confirmation, heteroplasmy level, and population frequency.
+- **Maternal inheritance check**: when trio data is available, verifies maternal transmission and flags potential de novo mtDNA mutations.
+- **CLI flags**: `--skip-mito` to bypass mitochondrial analysis, `--mt-min-heteroplasmy` to set the reporting threshold (default 1.0%).
+- **JSON/CSV output**: mitochondrial findings section with heteroplasmy_level, mitomap_disease, mt_classification, and gene context fields.
+- **Clinical report**: "Mitochondrial Findings" section with variant table and methodology note about mtDNA-specific criteria.
+- **Data update scripts**: `scripts/download_mitomap.py` and `scripts/download_helixmtdb.py` for refreshing bundled reference data.
+
+### Changed
+
+- `Pipeline.run()` now splits chrM/MT variants to a dedicated MitochondrialPipeline and merges results at the report stage.
+- `PipelineConfig` gained a `mito` field (optional `MitoConfig`).
+- VCFParser sample extraction is now enabled when mitochondrial analysis is active (needed for heteroplasmy AD field access).
+
 ## [0.14.0] - 2026-08-02
 
 ### Added

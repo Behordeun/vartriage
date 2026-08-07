@@ -10,7 +10,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (10 criteria: PVS1, PS1, PM2, PM5, PP3, PP5, BA1, BS1, BP4, BP7 with strength modulation), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (10 criteria: PVS1, PS1, PM2, PM5, PP3, PP5, BA1, BS1, BP4, BP7 with strength modulation), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
@@ -26,6 +26,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
 - API mode: annotate gene panels via Ensembl VEP + ClinVar + gnomAD API with zero local files
 - Outputs: JSON, CSV, PDF, HTML clinical reports, IGV-loadable annotated VCF
 - Structural variant triage: ClinGen 2020 framework for DEL/DUP/INV/INS/BND/CNV
+- Mitochondrial variant analysis: automatic chrM detection, heteroplasmy quantification, MITOMAP/HelixMTdb annotation, mtDNA-specific classification
 - Typed API with Protocol-based backends
 
 **Benchmarks:**
@@ -196,6 +197,25 @@ vartriage --vcf snv.vcf.gz --sv-vcf sv_calls.vcf.gz \
 Pipeline: SVParser (streams from VCF) -> SVAnnotator (gene overlap, dosage sensitivity, gnomAD-SV frequency) -> SVScorer (composite pathogenicity score) -> SVClassifier (ClinGen evidence sections 1-4, 5-tier classification).
 
 Supports Manta, DELLY, GATK-SV, GRIDSS, and LUMPY. See [Structural Variants Guide](https://github.com/Behordeun/vartriage/blob/main/docs/structural-variants.md) for the full CLI reference and Python API.
+
+### Mitochondrial variant analysis (new in v0.15.0)
+
+Automatic detection and classification of mitochondrial DNA variants using mtDNA-specific criteria:
+
+```bash
+# Automatic: chrM/MT variants in the VCF are detected and classified separately
+vartriage --vcf wgs.vcf.gz --output results.json
+
+# Custom heteroplasmy threshold (default: 1%)
+vartriage --vcf wgs.vcf.gz --output results.json --mt-min-heteroplasmy 5.0
+
+# Skip mitochondrial analysis (targeted panels without mtDNA capture)
+vartriage --vcf panel.vcf.gz --output results.json --skip-mito
+```
+
+The mitochondrial pipeline uses the vertebrate mitochondrial genetic code for amino acid prediction, extracts heteroplasmy levels from AD/AF fields, queries MITOMAP for disease associations, checks HelixMTdb for population frequency, and classifies variants independently of the nuclear ACMG criteria. Results appear in a dedicated "Mitochondrial Findings" section in output reports.
+
+See [Mitochondrial Variants Guide](https://github.com/Behordeun/vartriage/blob/main/docs/mitochondrial.md) for heteroplasmy thresholds, classification rules, and data update instructions.
 
 ### Full options
 
@@ -508,6 +528,18 @@ Constructed automatically when `--output-format` is a `clinical-*` value. Requir
 
 Any non-default field activates the gene-disease linkage pipeline stage.
 
+### MitoConfig
+
+| Field            | Type         | Default | Notes                                                    |
+| ---------------- | ------------ | ------- | -------------------------------------------------------- |
+| enabled          | bool         | True    | Enable/disable mitochondrial analysis                    |
+| min_heteroplasmy | float        | 1.0     | Minimum heteroplasmy % for reporting (0.0-100.0)         |
+| gene_map_path    | Path \| None | None    | Custom mt_gene_map.tsv (defaults to bundled)             |
+| mitomap_path     | Path \| None | None    | Custom mitomap_pathogenic.tsv (defaults to bundled)      |
+| helixmtdb_path   | Path \| None | None    | Custom helixmtdb_frequency.tsv (defaults to bundled)     |
+
+Mitochondrial analysis is auto-enabled when chrM/MT variants are present in the VCF. Use `--skip-mito` (CLI) or `MitoConfig(enabled=False)` to disable.
+
 ## Reference file formats
 
 All TSV with a header row. Tab-separated.
@@ -606,6 +638,7 @@ vartriage/
     prioritization/       # AF gating + CADD/REVEL/SpliceAI scoring (ScoreLoader)
     classification/       # ACMG evidence tagging
     structural/           # SV triage: parser, annotator, scorer, classifier, report
+    mito/                 # Mitochondrial: genetic code, heteroplasmy, MITOMAP, classifier
     reporting/            # JSON, CSV, PDF, VCF (streaming writers)
         clinical/         # Clinical report generation (HTML/PDF/DOCX + audit trail)
     cohort/               # Multi-sample cohort analysis
@@ -613,6 +646,7 @@ vartriage/
     bundle/               # Score bundle downloader and transformer
     api/                  # Remote API annotation (VEP, ClinVar, CADD, SpliceAI)
     data/knowledge/       # Bundled gene-disease TSV files
+    data/mito/            # Bundled mtDNA reference data (gene map, MITOMAP, HelixMTdb)
     _internal/            # Batch utils, interval tree, caching, vectorized ops
     py.typed              # PEP 561 marker
 ```
