@@ -97,6 +97,28 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
     return record
 
 
+def _write_json_object(obj: Any, output_path: Path) -> Path:
+    """Write a Python object as JSON with shared error handling.
+
+    Handles path resolution, directory creation, atomic-ish write,
+    and cleanup on failure.
+    """
+    try:
+        output_path = resolve_path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2, allow_nan=False)
+            f.write("\n")
+    except (OSError, ValueError, TypeError) as exc:
+        try:
+            if output_path.exists():
+                output_path.unlink()
+        except OSError:
+            pass
+        raise OSError(f"Failed to write JSON report: {exc}") from exc
+    return output_path
+
+
 def write_json(
     variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
     output_path: Path,
@@ -120,33 +142,8 @@ def write_json(
     IOError
         If the write fails (filesystem or encoding error).
     """
-    try:
-        output_path = resolve_path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write("[\n")
-            first = True
-            for variant in variants:
-                if not first:
-                    f.write(",\n")
-                json.dump(
-                    _variant_to_dict(variant),
-                    f,
-                    ensure_ascii=False,
-                    indent=2,
-                    allow_nan=False,
-                )
-                first = False
-            f.write("\n]\n")
-    except (OSError, ValueError, TypeError) as exc:
-        try:
-            if output_path.exists():
-                output_path.unlink()
-        except OSError:
-            pass
-        raise OSError(f"Failed to write JSON report: {exc}") from exc
-
-    return output_path
+    records = [_variant_to_dict(v) for v in variants]
+    return _write_json_object(records, output_path)
 
 
 def write_json_with_mito(
@@ -181,42 +178,16 @@ def write_json_with_mito(
 
     from vartriage.mito.report import build_mito_json_section
 
-    try:
-        output_path = resolve_path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+    variant_list = [_variant_to_dict(v) for v in variants]
+    mito_section = build_mito_json_section(mito_results)
 
-        mito_section = build_mito_json_section(mito_results)
-
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write('{\n  "variants": [\n')
-            first = True
-            for variant in variants:
-                if not first:
-                    f.write(",\n")
-                json.dump(
-                    _variant_to_dict(variant),
-                    f,
-                    ensure_ascii=False,
-                    indent=2,
-                    allow_nan=False,
-                )
-                first = False
-            f.write("\n  ],\n")
-            f.write('  "mitochondrial_findings": ')
-            json.dump(mito_section, f, ensure_ascii=False, indent=2, allow_nan=False)
-            f.write(",\n")
-            f.write('  "metadata": {\n')
-            f.write(
-                '    "mitochondrial_note": '
-                '"Mitochondrial variants classified using mtDNA-specific criteria"\n'
-            )
-            f.write("  }\n}\n")
-    except (OSError, ValueError, TypeError) as exc:
-        try:
-            if output_path.exists():
-                output_path.unlink()
-        except OSError:
-            pass
-        raise OSError(f"Failed to write JSON report: {exc}") from exc
-
-    return output_path
+    obj = {
+        "variants": variant_list,
+        "mitochondrial_findings": mito_section,
+        "metadata": {
+            "mitochondrial_note": (
+                "Mitochondrial variants classified using mtDNA-specific criteria"
+            ),
+        },
+    }
+    return _write_json_object(obj, output_path)

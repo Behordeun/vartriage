@@ -547,9 +547,16 @@ class Pipeline:
             if _sample_names is None and hasattr(parser, "sample_names"):
                 _sample_names = parser.sample_names  # type: ignore[union-attr]
 
+            if not _sample_names:
+                raise ValueError(
+                    "Inheritance filtering requires sample names from the VCF "
+                    "header, but none were available. Ensure the VCF contains "
+                    "a sample column or pass sample_names explicitly."
+                )
+
             inheritance_filter = InheritanceFilter(
                 self._config.inheritance,
-                _sample_names or [],
+                _sample_names,
             )
             compound_het_active = "compound_het" in self._config.inheritance.patterns
 

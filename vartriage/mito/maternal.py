@@ -16,6 +16,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from vartriage.io.vcf_parser import PYSAM_SAMPLES_KEY
 from vartriage.mito.classifier import MitoClassifiedVariant
 from vartriage.models.variant import Variant
 
@@ -80,8 +81,13 @@ def check_maternal_inheritance(
     MaternalInheritanceResult or None
         Result of the check, or None if trio genotype data is unavailable.
     """
-    sample_data = variant.info.get("_pysam_samples")
+    sample_data = variant.info.get(PYSAM_SAMPLES_KEY)
     if sample_data is None:
+        return None
+
+    # Verify proband actually carries the alt allele
+    proband_gt = _extract_gt_string(sample_data, proband_name)
+    if proband_gt is None or not _has_alt_allele(proband_gt):
         return None
 
     mother_gt = _extract_gt_string(sample_data, mother_name)

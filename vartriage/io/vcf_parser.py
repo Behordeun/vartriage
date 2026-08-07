@@ -16,6 +16,10 @@ import pysam
 from vartriage.io.exceptions import ParseError
 from vartriage.models.variant import Variant
 
+#: Key used in Variant.info to carry per-sample genotype data from pysam.
+#: Consumed by InheritanceFilter, SampleExtractor, and maternal inheritance checks.
+PYSAM_SAMPLES_KEY: str = "_pysam_samples"
+
 
 class VCFParser:
     """Stream Variant records from a VCF or compressed VCF file.
@@ -323,7 +327,7 @@ class VCFParser:
             pass
 
         if self._extract_samples:
-            info["_pysam_samples"] = self._extract_sample_data(record)
+            info[PYSAM_SAMPLES_KEY] = self._extract_sample_data(record)
 
         return info
 
