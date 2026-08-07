@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage._internal.warning_accumulator import WarningAccumulator
@@ -80,7 +81,7 @@ class Pipeline:
         return True
 
     @property
-    def mito_results(self) -> list | None:
+    def mito_results(self) -> list[Any] | None:
         """Access mitochondrial classification results from the last run.
 
         Returns None if mitochondrial analysis was disabled or no chrM
@@ -147,7 +148,7 @@ class Pipeline:
         classified: Iterator[ClassifiedVariant],
         output_path: Path,
         vcf_path: Path,
-        mito_results: list | None = None,
+        mito_results: list[Any] | None = None,
     ) -> Path:
         """Dispatch report generation for VCF and non-VCF formats.
 
@@ -312,7 +313,7 @@ class Pipeline:
 
         return mito, _nuclear_generator()
 
-    def _run_mito_pipeline(self, mito_variants: list[Variant]) -> list | None:
+    def _run_mito_pipeline(self, mito_variants: list[Variant]) -> list[Any] | None:
         """Run the mitochondrial pipeline if variants are present."""
         if not (self._mito_enabled and mito_variants):
             return None
@@ -578,7 +579,7 @@ class Pipeline:
 
             sample_extractor = SampleExtractor(
                 self._config.sample,
-                parser.sample_names,
+                parser.sample_names,  # type: ignore[union-attr]
             )
             stream = sample_extractor.apply(stream)
 

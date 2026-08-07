@@ -152,7 +152,7 @@ def write_json(
 def write_json_with_mito(
     variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
     output_path: Path,
-    mito_results: list | None = None,
+    mito_results: list[Any] | None = None,
 ) -> Path:
     """Write classified variants to JSON with optional mitochondrial section.
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from vartriage.mito.classifier import MitoClassifiedVariant
 from vartriage.models.variant import Variant
@@ -159,7 +159,7 @@ def annotate_maternal_inheritance(
     return annotated
 
 
-def _extract_gt_string(sample_data: dict, sample_name: str) -> str | None:
+def _extract_gt_string(sample_data: dict[str, Any], sample_name: str) -> str | None:
     """Extract genotype string from pysam sample data."""
     entry = sample_data.get(sample_name, {})
     gt = entry.get("GT")

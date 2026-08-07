@@ -13,6 +13,7 @@ from __future__ import annotations
 import csv
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.models.variant import ClassifiedVariant
@@ -192,7 +193,7 @@ def write_csv(
 def write_csv_with_mito(
     variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
     output_path: Path,
-    mito_results: list | None = None,
+    mito_results: list[Any] | None = None,
 ) -> Path:
     """Write classified variants to CSV with mitochondrial findings appended.
 

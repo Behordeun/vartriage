@@ -149,7 +149,7 @@ class MtGeneMap:
                         gene_name=row["gene_name"],
                         start=int(row["start"]),
                         end=int(row["end"]),
-                        gene_type=gene_type,
+                        gene_type=gene_type,  # type: ignore[arg-type]
                         strand=row["strand"],
                     )
                 )

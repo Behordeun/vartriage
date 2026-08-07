@@ -13,6 +13,7 @@ from vartriage.models.config import ClinicalReportConfig, InheritanceConfig
 
 if TYPE_CHECKING:
     from vartriage.knowledge.config import KnowledgeBaseConfig
+    from vartriage.mito.config import MitoConfig
     from vartriage.models.config import SampleConfig
 
 
@@ -632,7 +633,7 @@ def _build_knowledge_config(
 
 def _build_mito_config(
     args: argparse.Namespace,
-) -> object | None:
+) -> MitoConfig | None:
     """Build MitoConfig from CLI arguments.
 
     Returns None when --skip-mito is not set and defaults are acceptable
