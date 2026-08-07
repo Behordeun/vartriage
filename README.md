@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Behordeun/vartriage/actions/workflows/ci.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/ci.yml) [![Publish to PyPI](https://github.com/Behordeun/vartriage/actions/workflows/publish.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/publish.yml) [![CodeQL](https://github.com/Behordeun/vartriage/actions/workflows/codeql.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/codeql.yml)
 
-Clinical variant triage for gene panels. VCF in, ACMG-classified report out.
+Clinical variant interpretation library for gene panels and whole genomes. VCF in, ACMG-classified report out.
 
 ```bash
 pip install vartriage[all]
@@ -50,7 +50,7 @@ Optional extras:
 ```bash
 pip install vartriage[accelerated]   # polars + pyranges backends
 pip install vartriage[pdf]           # reportlab PDF reports
-pip install vartriage[clinical]      # weasyprint + python-docx for clinical reports
+pip install vartriage[clinical]      # weasyprint + python-docx for clinical HTML/PDF/DOCX reports
 pip install vartriage[api]           # httpx for API annotation mode
 pip install vartriage[all]           # everything
 ```
@@ -61,7 +61,7 @@ pip install vartriage[all]           # everything
 vartriage --vcf sample.vcf.gz --output candidates.json
 ```
 
-### Score bundles (new in v0.6.0)
+### Score bundles
 
 Download reference files automatically:
 
@@ -77,7 +77,7 @@ vartriage bundle download --bundle gnomad-exomes-chr22
 vartriage --vcf sample.vcf.gz --output results.json --use-bundles
 ```
 
-### API mode (new in v0.7.0)
+### API mode
 
 Annotate variants via remote APIs with zero local reference files:
 
@@ -94,7 +94,7 @@ vartriage --vcf panel.vcf --output results.json --mode api --api-key YOUR_KEY
 
 Queries Ensembl VEP, ClinVar, CADD, and SpliceAI. Responses are cached in SQLite for instant re-runs. See [API Mode Guide](https://github.com/Behordeun/vartriage/blob/main/docs/api-mode.md) for configuration and performance details.
 
-### Cohort analysis (new in v0.11.0)
+### Cohort analysis
 
 Analyze multiple samples together to find shared variants, compute recurrence frequencies, and generate per-gene burden reports:
 
@@ -147,7 +147,7 @@ vartriage cohort --manifest samples.tsv --output cohort_results/ \
 
 Parallel mode uses `ThreadPoolExecutor`. Per-sample work is I/O-bound (pysam releases the GIL during C-level VCF parsing), so threads are effective here without needing multiprocessing.
 
-### Gene-disease linkage (new in v0.12.0)
+### Gene-disease linkage
 
 Connect variants to clinical context with phenotype-driven prioritization:
 
@@ -177,7 +177,7 @@ Output includes per-variant: disease associations (with MIM numbers), ClinGen va
 
 See [Gene-Disease Linkage Guide](https://github.com/Behordeun/vartriage/blob/main/docs/gene-disease-linkage.md) for data file formats, Python API usage, and validation details.
 
-### Structural variant triage (new in v0.13.0)
+### Structural variant triage
 
 Classify structural variants (DEL, DUP, INV, INS, BND, CNV) using the ClinGen 2020 technical standards:
 
@@ -198,7 +198,7 @@ Pipeline: SVParser (streams from VCF) -> SVAnnotator (gene overlap, dosage sensi
 
 Supports Manta, DELLY, GATK-SV, GRIDSS, and LUMPY. See [Structural Variants Guide](https://github.com/Behordeun/vartriage/blob/main/docs/structural-variants.md) for the full CLI reference and Python API.
 
-### Mitochondrial variant analysis (new in v0.15.0)
+### Mitochondrial variant analysis
 
 Automatic detection and classification of mitochondrial DNA variants using mtDNA-specific criteria:
 
@@ -585,15 +585,16 @@ warnings.filterwarnings("ignore", category=VarTriageWarning)
 
 ## Dependencies
 
-| Package                 | Required | Extra         | Purpose                       |
-| ----------------------- | -------- | ------------- | ----------------------------- |
-| pysam >=0.22,<1.0       | yes      | -             | VCF streaming via htslib      |
-| numpy >=1.24,<3.0       | yes      | -             | Score normalization           |
-| polars >=0.20,<2.0      | no       | [accelerated] | Batch frequency/ClinVar joins |
-| pyranges >=0.1,<1.0     | no       | [accelerated] | Interval overlap queries      |
-| reportlab >=4.0,<5.0    | no       | [pdf]         | PDF report rendering          |
-| weasyprint >=60.0,<62.0 | no       | [clinical]    | Clinical PDF rendering        |
-| python-docx >=1.0,<2.0  | no       | [clinical]    | Clinical DOCX rendering       |
+| Package                 | Required | Extra         | Purpose                            |
+| ----------------------- | -------- | ------------- | ---------------------------------- |
+| pysam >=0.22,<1.0       | yes      | -             | VCF streaming via htslib           |
+| numpy >=1.24,<3.0       | yes      | -             | Score normalization                |
+| polars >=0.20,<2.0      | no       | [accelerated] | Batch frequency/ClinVar joins      |
+| pyranges >=0.1,<1.0     | no       | [accelerated] | Interval overlap queries           |
+| reportlab >=4.0,<5.0    | no       | [pdf]         | PDF report rendering               |
+| weasyprint >=60.0,<63.0 | no       | [clinical]    | Clinical PDF rendering             |
+| python-docx >=1.0,<2.0  | no       | [clinical]    | Clinical DOCX rendering            |
+| httpx >=0.27,<1.0       | no       | [api]         | Remote API annotation              |
 
 Without optional extras, the library uses pure-Python fallbacks (dict lookups, bisect-based interval tree). Same output either way; the accelerated path is faster on large reference files.
 
