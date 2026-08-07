@@ -185,31 +185,32 @@ def write_json_with_mito(
         output_path = resolve_path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        nuclear_records: list[dict[str, Any]] = []
-        for variant in variants:
-            nuclear_records.append(_variant_to_dict(variant))
-
         mito_section = build_mito_json_section(mito_results)
 
-        output_data = {
-            "variants": nuclear_records,
-            "mitochondrial_findings": mito_section,
-            "metadata": {
-                "mitochondrial_note": (
-                    "Mitochondrial variants classified using mtDNA-specific criteria"
-                ),
-            },
-        }
-
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(
-                output_data,
-                f,
-                ensure_ascii=False,
-                indent=2,
-                allow_nan=False,
+            f.write('{\n  "variants": [\n')
+            first = True
+            for variant in variants:
+                if not first:
+                    f.write(",\n")
+                json.dump(
+                    _variant_to_dict(variant),
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                    allow_nan=False,
+                )
+                first = False
+            f.write("\n  ],\n")
+            f.write('  "mitochondrial_findings": ')
+            json.dump(mito_section, f, ensure_ascii=False, indent=2, allow_nan=False)
+            f.write(",\n")
+            f.write('  "metadata": {\n')
+            f.write(
+                '    "mitochondrial_note": '
+                '"Mitochondrial variants classified using mtDNA-specific criteria"\n'
             )
-            f.write("\n")
+            f.write("  }\n}\n")
     except (OSError, ValueError, TypeError) as exc:
         try:
             if output_path.exists():

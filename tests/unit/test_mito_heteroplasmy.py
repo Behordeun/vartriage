@@ -113,3 +113,8 @@ class TestExtractHeteroplasmyFromAF:
         assert result is not None
         # AD gives 80%, AF would give 50% -- AD wins
         assert abs(result.percentage - 80.0) < 0.1
+
+    def test_negative_ad_values_returns_none(self):
+        info = {"AD": [-1, 2]}
+        result = extract_heteroplasmy(info)
+        assert result is None

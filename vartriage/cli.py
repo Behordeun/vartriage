@@ -28,6 +28,17 @@ def _get_version() -> str:
         return __version__
 
 
+def _validated_heteroplasmy(value: str) -> float:
+    """Argparse type validator for --mt-min-heteroplasmy."""
+    try:
+        f = float(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(f"invalid float value: '{value}'") from err
+    if not (0.0 <= f <= 100.0):
+        raise argparse.ArgumentTypeError(f"must be between 0.0 and 100.0, got {f}")
+    return f
+
+
 def _add_reference_arguments(parser: argparse.ArgumentParser) -> None:
     """Add shared reference file and bundle arguments to a parser.
 
@@ -302,7 +313,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mt-min-heteroplasmy",
-        type=float,
+        type=_validated_heteroplasmy,
         default=1.0,
         help=(
             "Minimum heteroplasmy percentage for reporting mtDNA variants "

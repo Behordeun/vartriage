@@ -265,11 +265,15 @@ class Pipeline:
                 scored = self._gene_knowledge_annotator.boost_scores(scored)
 
             classified = acmg_classifier.classify(scored)
+
+            # Materialize classified results so the nuclear stream is fully
+            # consumed. This populates mito_variants via the lazy generator.
+            classified_list = list(classified)
             mito_results = self._run_mito_pipeline(mito_variants)
 
             result_path = self._generate_report(
                 report_generator,
-                classified,
+                iter(classified_list),
                 effective_output_path,
                 effective_vcf_path,
                 mito_results=mito_results,
@@ -288,17 +292,25 @@ class Pipeline:
     def _split_mito_variants(
         self, parser: VCFParser
     ) -> tuple[list[Variant], Iterator[Variant]]:
-        """Partition parser variants into mitochondrial and nuclear streams."""
+        """Partition parser variants into mitochondrial and nuclear streams.
+
+        Collects chrM variants into a list (small, typically <1000) while
+        yielding nuclear variants lazily via a generator to avoid buffering
+        millions of nuclear variants in memory.
+        """
         if not self._mito_enabled:
             return [], iter(parser)
+
         mito: list[Variant] = []
-        nuclear: list[Variant] = []
-        for variant in parser:
-            if is_mitochondrial(variant.chrom):
-                mito.append(variant)
-            else:
-                nuclear.append(variant)
-        return mito, iter(nuclear)
+
+        def _nuclear_generator() -> Iterator[Variant]:
+            for variant in parser:
+                if is_mitochondrial(variant.chrom):
+                    mito.append(variant)
+                else:
+                    yield variant
+
+        return mito, _nuclear_generator()
 
     def _run_mito_pipeline(self, mito_variants: list[Variant]) -> list | None:
         """Run the mitochondrial pipeline if variants are present."""

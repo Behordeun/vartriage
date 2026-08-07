@@ -133,7 +133,7 @@ python scripts/download_helixmtdb.py --output vartriage/data/mito/helixmtdb_freq
 
 The bundled gene map covers all 37 mitochondrial genes:
 
-- 13 protein-coding genes (MT-ND1 through MT-ND6, MT-CO1-3, MT-ATP6, MT-ATP8, MT-CYB)
+- 13 protein-coding genes (MT-ND1 through MT-ND6, MT-ND4L, MT-CO1-3, MT-ATP6, MT-ATP8, MT-CYB)
 - 22 tRNA genes (MT-TF, MT-TL1, MT-TL2, MT-TK, etc.)
 - 2 rRNA genes (MT-RNR1, MT-RNR2)
 - D-loop/control region (positions 1-576 and 16024-16569)

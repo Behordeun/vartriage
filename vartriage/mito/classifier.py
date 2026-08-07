@@ -213,7 +213,7 @@ class MitochondrialClassifier:
                 f"heteroplasmy {heteroplasmy.percentage:.1f}%",  # type: ignore[union-attr]
             )
 
-        # Rule 5: Pathogenic without heteroplasmy data
+        # Rule 5: Likely Pathogenic without heteroplasmy data
         # Confirmed MITOMAP + rare, but no heteroplasmy measurement
         if (
             mitomap_entry is not None
@@ -228,12 +228,23 @@ class MitochondrialClassifier:
             )
 
         # Default: VUS
-        reason_parts = ["Novel or insufficient evidence"]
-        if gene_context.gene_name is not None:
-            reason_parts.append(f"in {gene_context.gene_name}")
-        if helix_af is None:
-            reason_parts.append("absent from HelixMTdb")
-        if heteroplasmy is not None:
-            reason_parts.append(f"heteroplasmy {heteroplasmy.percentage:.1f}%")
+        return (
+            MitoClassification.VUS,
+            self._vus_reason(gene_context, helix_af, heteroplasmy),
+        )
 
-        return (MitoClassification.VUS, ", ".join(reason_parts))
+    def _vus_reason(
+        self,
+        gene_context: MtGeneContext,
+        helix_af: float | None,
+        heteroplasmy: HeteroplasmyLevel | None,
+    ) -> str:
+        """Build the VUS classification reason string."""
+        parts = ["Novel or insufficient evidence"]
+        if gene_context.gene_name is not None:
+            parts.append(f"in {gene_context.gene_name}")
+        if helix_af is None:
+            parts.append("absent from HelixMTdb")
+        if heteroplasmy is not None:
+            parts.append(f"heteroplasmy {heteroplasmy.percentage:.1f}%")
+        return ", ".join(parts)

@@ -138,6 +138,9 @@ def _from_allele_depths(ad: Any) -> HeteroplasmyLevel | None:
     except (TypeError, ValueError):
         return None
 
+    if ref_depth < 0 or alt_depth < 0:
+        return None
+
     total = ref_depth + alt_depth
     if total <= 0:
         return None

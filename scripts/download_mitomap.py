@@ -172,7 +172,7 @@ def main(argv: list[str] | None = None) -> None:
     if not entries:
         print(
             "Warning: no entries parsed from MITOMAP HTML. "
-            "The page format may have changed. Using existing bundled data.",
+            "The page format may have changed. No output written.",
             file=sys.stderr,
         )
         sys.exit(1)
