@@ -97,25 +97,40 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
     return record
 
 
+def _safe_json_write(output_path: Path) -> Path:
+    """Resolve path and create parent directories for JSON writing.
+
+    Returns the resolved path. Callers handle their own file I/O
+    within a try block, using _cleanup_on_failure for error recovery.
+    """
+    output_path = resolve_path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
+
+
+def _cleanup_on_failure(output_path: Path, exc: Exception) -> OSError:
+    """Remove partial output and wrap the exception."""
+    try:
+        if output_path.exists():
+            output_path.unlink()
+    except OSError:
+        pass
+    return OSError(f"Failed to write JSON report: {exc}")
+
+
 def _write_json_object(obj: Any, output_path: Path) -> Path:
     """Write a Python object as JSON with shared error handling.
 
     Handles path resolution, directory creation, atomic-ish write,
     and cleanup on failure.
     """
+    output_path = _safe_json_write(output_path)
     try:
-        output_path = resolve_path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(obj, f, ensure_ascii=False, indent=2, allow_nan=False)
             f.write("\n")
     except (OSError, ValueError, TypeError) as exc:
-        try:
-            if output_path.exists():
-                output_path.unlink()
-        except OSError:
-            pass
-        raise OSError(f"Failed to write JSON report: {exc}") from exc
+        raise _cleanup_on_failure(output_path, exc) from exc
     return output_path
 
 
@@ -142,9 +157,8 @@ def write_json(
     IOError
         If the write fails (filesystem or encoding error).
     """
+    output_path = _safe_json_write(output_path)
     try:
-        output_path = resolve_path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("[\n")
             first = True
@@ -161,12 +175,7 @@ def write_json(
                 first = False
             f.write("\n]\n")
     except (OSError, ValueError, TypeError) as exc:
-        try:
-            if output_path.exists():
-                output_path.unlink()
-        except OSError:
-            pass
-        raise OSError(f"Failed to write JSON report: {exc}") from exc
+        raise _cleanup_on_failure(output_path, exc) from exc
 
     return output_path
 

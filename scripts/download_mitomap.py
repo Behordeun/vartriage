@@ -142,6 +142,64 @@ def _write_tsv(entries: list[dict[str, str]], output_path: Path) -> None:
         writer.writerows(sorted_entries)
 
 
+def _parse_local_tsv(path: Path) -> list[dict[str, str]]:
+    """Parse a local TSV/CSV file as a MITOMAP data source.
+
+    Accepts tab or comma delimited files with a header row. Supports
+    the standard output format (position/ref/alt/disease/status/locus)
+    as well as raw MITOMAP exports that may use different column names.
+    This path is more robust than HTML scraping and preferred when a
+    pre-exported data file is available.
+    """
+    entries: list[dict[str, str]] = []
+    delimiter = "\t" if path.suffix in (".tsv", ".txt") else ","
+
+    with open(path, newline="") as fh:
+        reader = csv.DictReader(fh, delimiter=delimiter)
+        if reader.fieldnames is None:
+            return []
+
+        # Normalize header names to lowercase for flexible matching
+        field_map = {f.lower().strip(): f for f in reader.fieldnames}
+
+        for row in reader:
+            # Map to canonical field names
+            pos_key = field_map.get("position") or field_map.get("pos")
+            ref_key = field_map.get("ref")
+            alt_key = field_map.get("alt")
+            disease_key = field_map.get("disease") or field_map.get("phenotype")
+            status_key = field_map.get("status")
+            locus_key = field_map.get("locus") or field_map.get("gene")
+
+            if not pos_key or not alt_key:
+                continue
+
+            pos_val = row.get(pos_key, "").strip()
+            if not pos_val or not pos_val.isdigit():
+                continue
+
+            ref_val = row.get(ref_key, "").strip().upper() if ref_key else ""
+            alt_val = row.get(alt_key, "").strip().upper()
+            if not alt_val or alt_val not in "ACGT":
+                continue
+
+            entries.append(
+                {
+                    "position": pos_val,
+                    "ref": ref_val,
+                    "alt": alt_val,
+                    "disease": row.get(disease_key, "").strip() if disease_key else "",
+                    "status": row.get(status_key, "Reported").strip()
+                    if status_key
+                    else "Reported",
+                    "locus": row.get(locus_key, "").strip() if locus_key else "",
+                }
+            )
+
+    print(f"Parsed {len(entries)} entries from local file: {path}")
+    return entries
+
+
 def main(argv: list[str] | None = None) -> None:
     """Download MITOMAP data and write processed TSV."""
     parser = argparse.ArgumentParser(
@@ -159,23 +217,36 @@ def main(argv: list[str] | None = None) -> None:
         default=MITOMAP_URL,
         help="MITOMAP source URL (override for testing)",
     )
+    parser.add_argument(
+        "--input-tsv",
+        type=Path,
+        default=None,
+        help=(
+            "Use a local pre-exported TSV/CSV instead of scraping HTML. "
+            "Expected columns: position, ref (or nucleotide_change), alt, "
+            "disease, status, locus. Bypasses the fragile HTML parser."
+        ),
+    )
     args = parser.parse_args(argv)
 
-    print(f"Downloading MITOMAP confirmed mutations from: {args.url}")
-    try:
-        html = _download_mitomap_html(args.url)
-    except Exception as exc:
-        print(f"Error: failed to download MITOMAP data: {exc}", file=sys.stderr)
-        sys.exit(1)
+    if args.input_tsv is not None:
+        entries = _parse_local_tsv(args.input_tsv)
+    else:
+        print(f"Downloading MITOMAP confirmed mutations from: {args.url}")
+        try:
+            html = _download_mitomap_html(args.url)
+        except Exception as exc:
+            print(f"Error: failed to download MITOMAP data: {exc}", file=sys.stderr)
+            sys.exit(1)
 
-    entries = _parse_mitomap_table(html)
-    if not entries:
-        print(
-            "Warning: no entries parsed from MITOMAP HTML. "
-            "The page format may have changed. No output written.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        entries = _parse_mitomap_table(html)
+        if not entries:
+            print(
+                "Warning: no entries parsed from MITOMAP HTML. "
+                "The page format may have changed. No output written.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     _write_tsv(entries, args.output)
     print(f"Wrote {len(entries)} MITOMAP entries to: {args.output}")
