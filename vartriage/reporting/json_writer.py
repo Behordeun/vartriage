@@ -142,8 +142,33 @@ def write_json(
     IOError
         If the write fails (filesystem or encoding error).
     """
-    records = [_variant_to_dict(v) for v in variants]
-    return _write_json_object(records, output_path)
+    try:
+        output_path = resolve_path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("[\n")
+            first = True
+            for variant in variants:
+                if not first:
+                    f.write(",\n")
+                json.dump(
+                    _variant_to_dict(variant),
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                    allow_nan=False,
+                )
+                first = False
+            f.write("\n]\n")
+    except (OSError, ValueError, TypeError) as exc:
+        try:
+            if output_path.exists():
+                output_path.unlink()
+        except OSError:
+            pass
+        raise OSError(f"Failed to write JSON report: {exc}") from exc
+
+    return output_path
 
 
 def write_json_with_mito(

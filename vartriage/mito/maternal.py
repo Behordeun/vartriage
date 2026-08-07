@@ -86,18 +86,19 @@ def check_maternal_inheritance(
         return None
 
     # Verify proband actually carries the alt allele
-    proband_gt = _extract_gt_string(sample_data, proband_name)
-    if proband_gt is None or not _has_alt_allele(proband_gt):
+    proband_has_alt = _sample_has_alt(sample_data, proband_name)
+    if proband_has_alt is not True:
         return None
 
-    mother_gt = _extract_gt_string(sample_data, mother_name)
-    father_gt = _extract_gt_string(sample_data, father_name)
+    in_mother_result = _sample_has_alt(sample_data, mother_name)
+    in_father_result = _sample_has_alt(sample_data, father_name)
 
-    if mother_gt is None and father_gt is None:
+    if in_mother_result is None and in_father_result is None:
         return None
 
-    in_mother = _has_alt_allele(mother_gt) if mother_gt is not None else False
-    in_father = _has_alt_allele(father_gt) if father_gt is not None else False
+    # Normalize None -> False for classification logic
+    in_mother = bool(in_mother_result)
+    in_father = bool(in_father_result)
 
     status = _classify_status(in_mother, in_father)
     note = _build_note(status)
@@ -165,25 +166,22 @@ def annotate_maternal_inheritance(
     return annotated
 
 
-def _extract_gt_string(sample_data: dict[str, Any], sample_name: str) -> str | None:
-    """Extract genotype string from pysam sample data."""
-    entry = sample_data.get(sample_name, {})
+def _sample_has_alt(sample_data: dict[str, Any], sample_name: str) -> bool | None:
+    """Check if a sample carries an alt allele from pysam GT tuple.
+
+    Returns True if alt present, False if only ref/missing, or None
+    if no genotype data exists for this sample.
+    """
+    entry = sample_data.get(sample_name)
+    if not entry:
+        return None
     gt = entry.get("GT")
     if gt is None:
         return None
-
-    # Format pysam GT tuple into string
-    parts = []
     for allele in gt:
-        parts.append(str(allele) if allele is not None else ".")
-    return "/".join(parts)
-
-
-def _has_alt_allele(gt_string: str) -> bool:
-    """Check if a genotype string contains any alt allele (non-0, non-.)."""
-    for allele in gt_string.replace("|", "/").split("/"):
-        stripped = allele.strip()
-        if stripped not in (".", "0", ""):
+        if allele is None:
+            continue
+        if str(allele) not in ("0", "."):
             return True
     return False
 

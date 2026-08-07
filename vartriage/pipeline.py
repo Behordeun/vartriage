@@ -267,18 +267,28 @@ class Pipeline:
 
             classified = acmg_classifier.classify(scored)
 
-            # Materialize classified results so the nuclear stream is fully
-            # consumed. This populates mito_variants via the lazy generator.
-            classified_list = list(classified)
-            mito_results = self._run_mito_pipeline(mito_variants)
-
-            result_path = self._generate_report(
-                report_generator,
-                iter(classified_list),
-                effective_output_path,
-                effective_vcf_path,
-                mito_results=mito_results,
-            )
+            if self._mito_enabled:
+                # Materialization needed: the lazy generator populates
+                # mito_variants as nuclear variants flow through. We need
+                # all mito variants collected before running the mito pipeline.
+                classified_list = list(classified)
+                mito_results = self._run_mito_pipeline(mito_variants)
+                result_path = self._generate_report(
+                    report_generator,
+                    iter(classified_list),
+                    effective_output_path,
+                    effective_vcf_path,
+                    mito_results=mito_results,
+                )
+            else:
+                # No mito: stream directly without materializing
+                result_path = self._generate_report(
+                    report_generator,
+                    classified,
+                    effective_output_path,
+                    effective_vcf_path,
+                    mito_results=None,
+                )
 
             if annotation_engine is not None:
                 self._warning_accumulator.add_batch(annotation_engine.warnings)
@@ -314,14 +324,21 @@ class Pipeline:
         return mito, _nuclear_generator()
 
     def _run_mito_pipeline(self, mito_variants: list[Variant]) -> list[Any] | None:
-        """Run the mitochondrial pipeline if variants are present."""
+        """Run the mitochondrial pipeline if variants are present.
+
+        Caches the MitochondrialPipeline instance on first use so
+        repeated calls (e.g. in cohort mode) don't reload TSV data.
+        """
         if not (self._mito_enabled and mito_variants):
             return None
         from vartriage.mito.config import MitoConfig
         from vartriage.mito.pipeline import MitochondrialPipeline
 
-        mito_config = self._config.mito or MitoConfig()
-        results = MitochondrialPipeline(mito_config).run(iter(mito_variants))
+        if not hasattr(self, "_mito_pipeline_instance"):
+            mito_config = self._config.mito or MitoConfig()
+            self._mito_pipeline_instance = MitochondrialPipeline(mito_config)
+
+        results = self._mito_pipeline_instance.run(iter(mito_variants))
         logger.info("Mitochondrial pipeline: %d variants classified", len(results))
         return results
 
@@ -584,9 +601,19 @@ class Pipeline:
         elif self._config.sample is not None:
             from vartriage.filter.sample_extractor import SampleExtractor
 
+            _s_names = sample_names
+            if _s_names is None and hasattr(parser, "sample_names"):
+                _s_names = parser.sample_names  # type: ignore[union-attr]
+
+            if not _s_names:
+                raise ValueError(
+                    "Sample extraction requires sample names from the VCF "
+                    "header, but none were available."
+                )
+
             sample_extractor = SampleExtractor(
                 self._config.sample,
-                parser.sample_names,  # type: ignore[union-attr]
+                _s_names,
             )
             stream = sample_extractor.apply(stream)
 

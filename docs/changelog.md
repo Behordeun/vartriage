@@ -10,7 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 - **Mitochondrial variant support**: automatic detection and classification of chrM/MT variants using mtDNA-specific criteria separate from the nuclear ACMG/AMP 2015 framework.
 - **Mitochondrial genetic code**: vertebrate mitochondrial codon table (4 differences from standard). CodonResolver auto-selects the correct table based on chromosome.
-- **Heteroplasmy extraction**: computes alternate allele fraction from AD or AF fields with 5-level classification (homoplasmic/high/moderate/low/sub_threshold).
+- **Heteroplasmy extraction**: computes alternate allele fraction from AD or AF fields with 5-level classification (homoplasmic/high/moderate/low/sub-threshold).
 - **MITOMAP database**: bundled pathogenic mutations (~60 entries) with disease association and confirmation status lookups.
 - **HelixMTdb frequency**: bundled population allele frequencies (~125 entries) for distinguishing haplogroup markers from rare variants.
 - **MT gene map**: all 37 mitochondrial genes with coordinate-based annotation (protein_coding/tRNA/rRNA/control_region/intergenic).
