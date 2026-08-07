@@ -147,3 +147,75 @@ def write_json(
         raise OSError(f"Failed to write JSON report: {exc}") from exc
 
     return output_path
+
+
+def write_json_with_mito(
+    variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
+    output_path: Path,
+    mito_results: list | None = None,
+) -> Path:
+    """Write classified variants to JSON with optional mitochondrial section.
+
+    When mito_results is provided, outputs a structured object:
+    {"variants": [...], "mitochondrial_findings": [...]}
+
+    When mito_results is None or empty, delegates to write_json for
+    backward-compatible flat array output.
+
+    Parameters
+    ----------
+    variants
+        Nuclear classified variants.
+    output_path
+        Destination file path.
+    mito_results
+        Optional list of MitoClassifiedVariant objects.
+
+    Returns
+    -------
+    Path
+        The written file path.
+    """
+    if not mito_results:
+        return write_json(variants, output_path)
+
+    from vartriage.mito.report import build_mito_json_section
+
+    try:
+        output_path = resolve_path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        nuclear_records: list[dict[str, Any]] = []
+        for variant in variants:
+            nuclear_records.append(_variant_to_dict(variant))
+
+        mito_section = build_mito_json_section(mito_results)
+
+        output_data = {
+            "variants": nuclear_records,
+            "mitochondrial_findings": mito_section,
+            "metadata": {
+                "mitochondrial_note": (
+                    "Mitochondrial variants classified using mtDNA-specific criteria"
+                ),
+            },
+        }
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(
+                output_data,
+                f,
+                ensure_ascii=False,
+                indent=2,
+                allow_nan=False,
+            )
+            f.write("\n")
+    except (OSError, ValueError, TypeError) as exc:
+        try:
+            if output_path.exists():
+                output_path.unlink()
+        except OSError:
+            pass
+        raise OSError(f"Failed to write JSON report: {exc}") from exc
+
+    return output_path
