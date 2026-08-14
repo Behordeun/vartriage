@@ -755,3 +755,171 @@ class TestCLIRemoteFlags:
 
         config = _build_remote_config(args)
         assert config is None  # both overridden, no remote needed
+
+
+# ============================================================
+# Integration: PrioritizationEngine remote CADD wiring
+# ============================================================
+
+
+class TestPrioritizationEngineRemoteCADD:
+    """Verify that PrioritizationEngine uses RemoteTabixCADD when
+    no local CADD file is configured."""
+
+    @patch("vartriage.remote.cadd.pysam.TabixFile")
+    def test_remote_cadd_used_when_no_local_scores(
+        self, mock_tabix_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        from vartriage.models.config import PrioritizationConfig
+        from vartriage.models.variant import (
+            AnnotatedVariant,
+            FunctionalConsequence,
+            Variant,
+        )
+        from vartriage.prioritization.engine import PrioritizationEngine
+        from vartriage.remote.config import RemoteTabixConfig
+
+        remote_config = RemoteTabixConfig(
+            cadd_remote_url="cadd-v1.7-grch38",
+            cache_path=tmp_path / "test_int_cadd.db",
+            cache_ttl_days=30,
+        )
+        pri_config = PrioritizationConfig(cadd_scores_path=None)
+
+        mock_tabix = MagicMock()
+        mock_tabix.fetch.return_value = iter(["22\t100\tA\tT\t3.14\t23.5"])
+        mock_tabix_cls.return_value = mock_tabix
+
+        engine = PrioritizationEngine(config=pri_config, remote_config=remote_config)
+
+        # remote_cadd should be instantiated
+        assert engine._remote_cadd is not None
+        assert engine._cadd_scores == {}
+
+        # Build a minimal annotated variant
+        variant = Variant(
+            chrom="chr22",
+            pos=100,
+            id=None,
+            ref="A",
+            alt="T",
+            qual=30.0,
+            filter_status="PASS",
+        )
+        annotated = AnnotatedVariant(
+            variant=variant,
+            consequence=FunctionalConsequence.MISSENSE,
+            allele_frequency=0.001,
+        )
+
+        # Run scoring — should use remote CADD
+        scored = list(engine.prioritize(iter([annotated])))
+        assert len(scored) == 1
+        # The variant should have a CADD score from remote
+        assert scored[0].cadd_phred == 23.5
+        engine._remote_cadd.close()
+
+    def test_falls_back_to_none_when_no_local_and_no_remote(self) -> None:
+        from vartriage.models.config import PrioritizationConfig
+        from vartriage.models.variant import (
+            AnnotatedVariant,
+            FunctionalConsequence,
+            Variant,
+        )
+        from vartriage.prioritization.engine import PrioritizationEngine
+
+        pri_config = PrioritizationConfig(cadd_scores_path=None)
+        engine = PrioritizationEngine(config=pri_config, remote_config=None)
+
+        assert engine._remote_cadd is None
+        assert engine._cadd_scores == {}
+
+        variant = Variant(
+            chrom="chr22",
+            pos=100,
+            id=None,
+            ref="A",
+            alt="T",
+            qual=30.0,
+            filter_status="PASS",
+        )
+        annotated = AnnotatedVariant(
+            variant=variant,
+            consequence=FunctionalConsequence.MISSENSE,
+            allele_frequency=0.001,
+        )
+
+        scored = list(engine.prioritize(iter([annotated])))
+        assert len(scored) == 1
+        # No CADD source available — score should be None
+        assert scored[0].cadd_phred is None
+
+
+# ============================================================
+# Integration: AnnotationEngine remote gnomAD injection
+# ============================================================
+
+
+class TestAnnotationEngineRemoteGnomAD:
+    """Verify that AnnotationEngine accepts an injected remote gnomAD
+    backend and uses it for frequency lookups."""
+
+    @patch("vartriage.remote.gnomad.pysam.TabixFile")
+    def test_remote_gnomad_injected_and_used(
+        self, mock_tabix_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        from vartriage.annotation.engine import AnnotationEngine
+        from vartriage.models.config import AnnotationConfig
+        from vartriage.models.variant import Variant
+        from vartriage.remote.config import RemoteTabixConfig
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        # Create a minimal gene annotation file for the engine
+        gtf_path = tmp_path / "genes.gtf"
+        gtf_path.write_text(
+            "chr22\tENSEMBL\tgene\t1\t1000000\t.\t+\t.\t"
+            'gene_id "GENE1"; gene_name "BRCA1";\n'
+        )
+
+        # Annotation config with no local gnomAD
+        ann_config = AnnotationConfig(
+            gene_annotation_path=gtf_path,
+            gnomad_path=None,
+        )
+
+        remote_config = RemoteTabixConfig(
+            gnomad_remote_url="https://example.com/{chrom}.vcf.bgz",
+            cache_path=tmp_path / "test_int_gnomad.db",
+            cache_ttl_days=30,
+        )
+
+        mock_tabix = MagicMock()
+        mock_tabix.fetch.return_value = iter(
+            ["chr22\t100\t.\tA\tT\t.\tPASS\tAF=0.005;AN=100000"]
+        )
+        mock_tabix_cls.return_value = mock_tabix
+
+        engine = AnnotationEngine(ann_config)
+        # No frequency DB initially
+        assert not engine.has_frequency_db
+
+        # Inject remote gnomAD
+        remote_gnomad = RemoteTabixGnomAD(remote_config)
+        engine.set_frequency_db(remote_gnomad)
+        assert engine.has_frequency_db
+
+        # Annotate a variant
+        variant = Variant(
+            chrom="chr22",
+            pos=100,
+            id=None,
+            ref="A",
+            alt="T",
+            qual=30.0,
+            filter_status="PASS",
+        )
+        annotated = list(engine.annotate(iter([variant])))
+        assert len(annotated) == 1
+        # Frequency should come from remote gnomAD
+        assert annotated[0].allele_frequency == 0.005
+        remote_gnomad.close()

@@ -76,30 +76,12 @@ class RemoteScoreCache:
 
         Expired entries are deleted on access (lazy eviction).
         """
+        now = int(time.time())
         with self._lock:
             conn = self._ensure_connection()
-            cursor = conn.execute(
-                "SELECT score, fetched_at FROM remote_scores "
-                "WHERE source = ? AND chrom = ? AND pos = ? AND ref = ? AND alt = ?",
-                (source, chrom, pos, ref, alt),
-            )
-            row = cursor.fetchone()
-
-            if row is None:
-                return None
-
-            score, fetched_at = row
-
-            if self._is_expired(fetched_at):
-                conn.execute(
-                    "DELETE FROM remote_scores "
-                    "WHERE source = ? AND chrom = ? AND pos = ? AND ref = ? AND alt = ?",
-                    (source, chrom, pos, ref, alt),
-                )
-                conn.commit()
-                return None
-
-            return float(score)
+            result = self._lookup_row(conn, source, chrom, pos, ref, alt, now)
+            conn.commit()
+            return result
 
     def get_batch(
         self,
@@ -107,6 +89,9 @@ class RemoteScoreCache:
         variants: list[tuple[str, int, str, str]],
     ) -> list[float | None]:
         """Batch lookup of cached scores.
+
+        Expired entries are deleted on access (lazy eviction),
+        consistent with single get() behavior.
 
         Parameters
         ----------
@@ -126,21 +111,8 @@ class RemoteScoreCache:
         with self._lock:
             conn = self._ensure_connection()
             for i, (chrom, pos, ref, alt) in enumerate(variants):
-                cursor = conn.execute(
-                    "SELECT score, fetched_at FROM remote_scores "
-                    "WHERE source = ? AND chrom = ? AND pos = ? "
-                    "AND ref = ? AND alt = ?",
-                    (source, chrom, pos, ref, alt),
-                )
-                row = cursor.fetchone()
-                if row is None:
-                    continue
-
-                score, fetched_at = row
-                if self._is_expired(fetched_at, now):
-                    continue
-
-                results[i] = float(score)
+                results[i] = self._lookup_row(conn, source, chrom, pos, ref, alt, now)
+            conn.commit()
 
         return results
 
@@ -268,6 +240,41 @@ class RemoteScoreCache:
         if now is None:
             now = int(time.time())
         return (now - fetched_at) > self._ttl_seconds
+
+    def _lookup_row(
+        self,
+        conn: sqlite3.Connection,
+        source: str,
+        chrom: str,
+        pos: int,
+        ref: str,
+        alt: str,
+        now: int,
+    ) -> float | None:
+        """Look up a single row and lazily evict if expired.
+
+        Caller must hold self._lock. A single commit() after all
+        lookups in a batch is sufficient.
+        """
+        cursor = conn.execute(
+            "SELECT score, fetched_at FROM remote_scores "
+            "WHERE source = ? AND chrom = ? AND pos = ? AND ref = ? AND alt = ?",
+            (source, chrom, pos, ref, alt),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+
+        score, fetched_at = row
+        if self._is_expired(fetched_at, now):
+            conn.execute(
+                "DELETE FROM remote_scores "
+                "WHERE source = ? AND chrom = ? AND pos = ? AND ref = ? AND alt = ?",
+                (source, chrom, pos, ref, alt),
+            )
+            return None
+
+        return float(score)
 
     def _ensure_connection(self) -> sqlite3.Connection:
         """Lazy-init the SQLite connection and schema. Caller holds lock."""

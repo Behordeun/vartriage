@@ -190,7 +190,7 @@ class RemoteTabixCADD:
         current_group: list[CoordinateKey] = [sorted_variants[0]]
 
         for variant in sorted_variants[1:]:
-            if variant[1] - current_group[0][1] <= window:
+            if variant[1] - current_group[-1][1] <= window:
                 current_group.append(variant)
             else:
                 groups.append(current_group)
@@ -206,7 +206,8 @@ class RemoteTabixCADD:
 
         CADD files use bare chromosome numbers (no "chr" prefix).
         We strip "chr" before querying and match results back using
-        the original key format.
+        the original key format. Uses exponential backoff on transient
+        failures.
         """
         results: dict[CoordinateKey, float] = {}
 
@@ -222,18 +223,8 @@ class RemoteTabixCADD:
         start_pos = min(k[1] for k in group)
         end_pos = max(k[1] for k in group)
 
-        try:
-            tabix = self._get_tabix()
-            records = tabix.fetch(query_chrom, start_pos - 1, end_pos)
-        except (OSError, ValueError) as exc:
-            self._breaker.record_failure()
-            logger.warning(
-                "Remote CADD query failed for %s:%d-%d: %s",
-                query_chrom,
-                start_pos,
-                end_pos,
-                exc,
-            )
+        records = self._retry_query(query_chrom, start_pos - 1, end_pos)
+        if records is None:
             return results
 
         self._breaker.record_success()

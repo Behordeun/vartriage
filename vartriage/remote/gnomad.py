@@ -186,7 +186,7 @@ class RemoteTabixGnomAD:
         current_group: list[tuple[str, int, str, str]] = [sorted_variants[0]]
 
         for variant in sorted_variants[1:]:
-            if variant[1] - current_group[0][1] <= window:
+            if variant[1] - current_group[-1][1] <= window:
                 current_group.append(variant)
             else:
                 groups.append(current_group)
