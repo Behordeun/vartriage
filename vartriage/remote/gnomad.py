@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import time
 from collections import defaultdict
+from collections.abc import Iterator
 from pathlib import Path
 
 import pysam
@@ -25,12 +27,16 @@ logger = logging.getLogger(__name__)
 
 _SOURCE_ID = "gnomad-remote"
 
+_VariantKey = tuple[str, int, str, str]
+
 
 class RemoteTabixGnomAD:
     """gnomAD frequency lookups via remote tabix-indexed VCF.
 
     Satisfies the FrequencyDatabase protocol. Handles per-chromosome
-    URL templates and multi-allelic VCF records.
+    URL templates and multi-allelic VCF records. Uses retry with
+    exponential backoff on transient network failures, consistent
+    with the CADD backend.
 
     Parameters
     ----------
@@ -67,9 +73,7 @@ class RemoteTabixGnomAD:
         configured via RemoteTabixConfig at construction time.
         """
 
-    def lookup_batch(
-        self, variants: list[tuple[str, int, str, str]]
-    ) -> list[float | None]:
+    def lookup_batch(self, variants: list[_VariantKey]) -> list[float | None]:
         """Query allele frequencies for a batch of variants.
 
         Checks the local cache first, then queries uncached variants
@@ -94,8 +98,7 @@ class RemoteTabixGnomAD:
         uncached_indices: list[int] = []
 
         # Phase 1: check cache
-        cache_keys = list(variants)
-        cached_scores = self._cache.get_batch(_SOURCE_ID, cache_keys)
+        cached_scores = self._cache.get_batch(_SOURCE_ID, list(variants))
 
         for i, score in enumerate(cached_scores):
             if score is not None:
@@ -151,39 +154,45 @@ class RemoteTabixGnomAD:
         """Count of cache hits."""
         return self._cache_hits
 
-    def _query_remote_batched(
-        self, variants: list[tuple[str, int, str, str]]
-    ) -> dict[tuple[str, int, str, str], float]:
-        """Group variants by chromosome, batch by window, query remote."""
-        results: dict[tuple[str, int, str, str], float] = {}
+    # ------------------------------------------------------------------
+    # Batching and grouping
+    # ------------------------------------------------------------------
 
-        by_chrom: dict[str, list[tuple[str, int, str, str]]] = defaultdict(list)
+    def _query_remote_batched(
+        self, variants: list[_VariantKey]
+    ) -> dict[_VariantKey, float]:
+        """Group variants by chromosome, batch by window, query remote."""
+        results: dict[_VariantKey, float] = {}
+        for chrom, group in self._iter_groups(variants):
+            group_results = self._query_range(chrom, group)
+            results.update(group_results)
+        return results
+
+    def _iter_groups(
+        self, variants: list[_VariantKey]
+    ) -> Iterator[tuple[str, list[_VariantKey]]]:
+        """Yield (chrom, group) for variants grouped by chromosome and window."""
+        by_chrom: dict[str, list[_VariantKey]] = defaultdict(list)
         for variant in variants:
             by_chrom[variant[0]].append(variant)
 
         window = self._config.batch_window_bp
-
         for chrom, chrom_variants in by_chrom.items():
             sorted_vars = sorted(chrom_variants, key=lambda v: v[1])
-            groups = self._group_by_window(sorted_vars, window)
+            for group in self._group_by_window(sorted_vars, window):
+                yield chrom, group
 
-            for group in groups:
-                group_results = self._query_range(chrom, group)
-                results.update(group_results)
-
-        return results
-
+    @staticmethod
     def _group_by_window(
-        self,
-        sorted_variants: list[tuple[str, int, str, str]],
+        sorted_variants: list[_VariantKey],
         window: int,
-    ) -> list[list[tuple[str, int, str, str]]]:
+    ) -> list[list[_VariantKey]]:
         """Split sorted variants into groups within `window` bp."""
         if not sorted_variants:
             return []
 
-        groups: list[list[tuple[str, int, str, str]]] = []
-        current_group: list[tuple[str, int, str, str]] = [sorted_variants[0]]
+        groups: list[list[_VariantKey]] = []
+        current_group: list[_VariantKey] = [sorted_variants[0]]
 
         for variant in sorted_variants[1:]:
             if variant[1] - current_group[-1][1] <= window:
@@ -195,14 +204,17 @@ class RemoteTabixGnomAD:
         groups.append(current_group)
         return groups
 
-    def _query_range(
-        self, chrom: str, group: list[tuple[str, int, str, str]]
-    ) -> dict[tuple[str, int, str, str], float]:
-        """Query a range from the remote gnomAD VCF."""
-        results: dict[tuple[str, int, str, str], float] = {}
+    # ------------------------------------------------------------------
+    # Range query with retry
+    # ------------------------------------------------------------------
 
-        # Build wanted set: (pos, ref, alt) -> original variant tuple
-        wanted: dict[tuple[int, str, str], tuple[str, int, str, str]] = {}
+    def _query_range(
+        self, chrom: str, group: list[_VariantKey]
+    ) -> dict[_VariantKey, float]:
+        """Query a range from the remote gnomAD VCF."""
+        results: dict[_VariantKey, float] = {}
+
+        wanted: dict[tuple[int, str, str], _VariantKey] = {}
         for variant in group:
             _, pos, ref, alt = variant
             wanted[(pos, ref, alt)] = variant
@@ -210,23 +222,12 @@ class RemoteTabixGnomAD:
         start_pos = min(v[1] for v in group)
         end_pos = max(v[1] for v in group)
 
-        try:
-            tabix = self._get_tabix_for_chrom(chrom)
-            # gnomAD VCFs use "chr" prefix for GRCh38
-            query_chrom = chrom if chrom.startswith("chr") else f"chr{chrom}"
-            records = tabix.fetch(query_chrom, start_pos - 1, end_pos)
-        except (OSError, ValueError) as exc:
-            self._breaker.record_failure()
-            logger.warning(
-                "Remote gnomAD query failed for %s:%d-%d: %s",
-                chrom,
-                start_pos,
-                end_pos,
-                exc,
-            )
-            return results
+        # gnomAD VCFs use "chr" prefix for GRCh38
+        query_chrom = chrom if chrom.startswith("chr") else f"chr{chrom}"
 
-        self._breaker.record_success()
+        records = self._fetch_records(chrom, query_chrom, start_pos - 1, end_pos)
+        if records is None:
+            return results
 
         for record_line in records:
             parsed = self._parse_gnomad_record(record_line)
@@ -242,8 +243,54 @@ class RemoteTabixGnomAD:
 
         return results
 
+    def _fetch_records(
+        self, chrom: str, query_chrom: str, start: int, end: int
+    ) -> list[str] | None:
+        """Fetch records with retries, exponential backoff, and circuit breaker.
+
+        Returns list of record lines on success, None on exhausted retries.
+        Records breaker success on first successful fetch.
+        """
+        max_retries = self._config.max_retries
+        backoff = 1.0
+
+        for attempt in range(max_retries + 1):
+            try:
+                tabix = self._get_tabix_for_chrom(chrom)
+                records = list(tabix.fetch(query_chrom, start, end))
+                self._breaker.record_success()
+                return records
+            except (OSError, ValueError) as exc:
+                if attempt == max_retries:
+                    self._breaker.record_failure()
+                    logger.warning(
+                        "Remote gnomAD query exhausted retries for %s:%d-%d: %s",
+                        chrom,
+                        start,
+                        end,
+                        exc,
+                    )
+                    return None
+
+                logger.debug(
+                    "Remote gnomAD query attempt %d failed, retrying in %.1fs: %s",
+                    attempt + 1,
+                    backoff,
+                    exc,
+                )
+                time.sleep(backoff)
+                backoff *= 2.0
+                self._reset_chrom_connection(chrom)
+
+        return None  # unreachable, satisfies type checker
+
+    # ------------------------------------------------------------------
+    # Parsing and connection management
+    # ------------------------------------------------------------------
+
+    @staticmethod
     def _parse_gnomad_record(
-        self, record_line: str
+        record_line: str,
     ) -> list[tuple[int, str, str, float]] | None:
         """Parse a gnomAD VCF record into list of (pos, ref, alt, af).
 
@@ -263,7 +310,7 @@ class RemoteTabixGnomAD:
         alts = fields[4].split(",")
         info_field = fields[7]
 
-        af_str = self._extract_info_field(info_field, "AF")
+        af_str = _extract_info_field(info_field, "AF")
         if af_str is None:
             return None
 
@@ -281,14 +328,6 @@ class RemoteTabixGnomAD:
 
         return entries or None
 
-    def _extract_info_field(self, info: str, key: str) -> str | None:
-        """Extract a key's value from the VCF INFO column."""
-        prefix = f"{key}="
-        return next(
-            (e[len(prefix) :] for e in info.split(";") if e.startswith(prefix)),
-            None,
-        )
-
     def _get_tabix_for_chrom(self, chrom: str) -> pysam.TabixFile:
         """Get or open the tabix handle for a chromosome.
 
@@ -298,10 +337,24 @@ class RemoteTabixGnomAD:
         if chrom in self._tabix_handles:
             return self._tabix_handles[chrom]
 
-        # Format URL — handle both "chr1" and bare "1" in template
         url = self._url_template.format(chrom=chrom)
-
         logger.info("Opening remote gnomAD tabix for %s: %s", chrom, url)
         handle = pysam.TabixFile(url)
         self._tabix_handles[chrom] = handle
         return handle
+
+    def _reset_chrom_connection(self, chrom: str) -> None:
+        """Close and discard the tabix handle for a chromosome."""
+        handle = self._tabix_handles.pop(chrom, None)
+        if handle is not None:
+            with contextlib.suppress(Exception):
+                handle.close()
+
+
+def _extract_info_field(info: str, key: str) -> str | None:
+    """Extract a key's value from the VCF INFO column."""
+    prefix = f"{key}="
+    return next(
+        (e[len(prefix) :] for e in info.split(";") if e.startswith(prefix)),
+        None,
+    )

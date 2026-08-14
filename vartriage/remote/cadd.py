@@ -22,6 +22,7 @@ import contextlib
 import logging
 import time
 from collections import defaultdict
+from collections.abc import Iterator
 
 import pysam
 
@@ -148,38 +149,37 @@ class RemoteTabixCADD:
         """Count of cache hits."""
         return self._cache_hits
 
+    # ------------------------------------------------------------------
+    # Batching and grouping
+    # ------------------------------------------------------------------
+
     def _query_remote_batched(
         self, variants: list[CoordinateKey]
     ) -> dict[CoordinateKey, float]:
-        """Group nearby variants and query remote tabix.
-
-        Variants within batch_window_bp on the same chromosome are
-        merged into a single range query to reduce HTTP round-trips.
-        """
+        """Group nearby variants and query remote tabix."""
         results: dict[CoordinateKey, float] = {}
+        for chrom, group in self._iter_groups(variants):
+            group_results = self._query_range(chrom, group)
+            results.update(group_results)
+        return results
 
-        # Group by chromosome
+    def _iter_groups(
+        self, variants: list[CoordinateKey]
+    ) -> Iterator[tuple[str, list[CoordinateKey]]]:
+        """Yield (chrom, group) for variants grouped by chromosome and window."""
         by_chrom: dict[str, list[CoordinateKey]] = defaultdict(list)
         for key in variants:
             by_chrom[key[0]].append(key)
 
         window = self._config.batch_window_bp
-
         for chrom, chrom_variants in by_chrom.items():
-            # Sort by position for range grouping
             sorted_vars = sorted(chrom_variants, key=lambda k: k[1])
+            for group in self._group_by_window(sorted_vars, window):
+                yield chrom, group
 
-            # Group into windows
-            groups = self._group_by_window(sorted_vars, window)
-
-            for group in groups:
-                group_results = self._query_range(chrom, group)
-                results.update(group_results)
-
-        return results
-
+    @staticmethod
     def _group_by_window(
-        self, sorted_variants: list[CoordinateKey], window: int
+        sorted_variants: list[CoordinateKey], window: int
     ) -> list[list[CoordinateKey]]:
         """Split sorted variants into groups where consecutive positions
         are within `window` bp of each other."""
@@ -199,6 +199,10 @@ class RemoteTabixCADD:
         groups.append(current_group)
         return groups
 
+    # ------------------------------------------------------------------
+    # Range query with retry
+    # ------------------------------------------------------------------
+
     def _query_range(
         self, chrom: str, group: list[CoordinateKey]
     ) -> dict[CoordinateKey, float]:
@@ -206,28 +210,22 @@ class RemoteTabixCADD:
 
         CADD files use bare chromosome numbers (no "chr" prefix).
         We strip "chr" before querying and match results back using
-        the original key format. Uses exponential backoff on transient
-        failures.
+        the original key format.
         """
         results: dict[CoordinateKey, float] = {}
 
-        # Build a lookup set for fast matching
         wanted: dict[tuple[int, str, str], CoordinateKey] = {}
         for key in group:
             _, pos, ref, alt = key
             wanted[(pos, ref, alt)] = key
 
-        # CADD uses bare chromosome numbers
         query_chrom = chrom.removeprefix("chr")
-
         start_pos = min(k[1] for k in group)
         end_pos = max(k[1] for k in group)
 
-        records = self._retry_query(query_chrom, start_pos - 1, end_pos)
+        records = self._fetch_records(query_chrom, start_pos - 1, end_pos)
         if records is None:
             return results
-
-        self._breaker.record_success()
 
         for record_line in records:
             parsed = self._parse_cadd_record(record_line)
@@ -244,8 +242,54 @@ class RemoteTabixCADD:
 
         return results
 
+    def _fetch_records(
+        self, query_chrom: str, start: int, end: int
+    ) -> list[str] | None:
+        """Fetch records with retries, exponential backoff, and circuit breaker.
+
+        Returns list of record lines on success, None on exhausted retries.
+        Records breaker success on first successful fetch.
+        """
+        max_retries = self._config.max_retries
+        backoff = 1.0
+
+        for attempt in range(max_retries + 1):
+            try:
+                tabix = self._get_tabix()
+                records = list(tabix.fetch(query_chrom, start, end))
+                self._breaker.record_success()
+                return records
+            except (OSError, ValueError) as exc:
+                if attempt == max_retries:
+                    self._breaker.record_failure()
+                    logger.warning(
+                        "Remote CADD query exhausted retries for %s:%d-%d: %s",
+                        query_chrom,
+                        start,
+                        end,
+                        exc,
+                    )
+                    return None
+
+                logger.debug(
+                    "Remote CADD query attempt %d failed, retrying in %.1fs: %s",
+                    attempt + 1,
+                    backoff,
+                    exc,
+                )
+                time.sleep(backoff)
+                backoff *= 2.0
+                self._reset_connection()
+
+        return None  # unreachable, but satisfies type checker
+
+    # ------------------------------------------------------------------
+    # Parsing and connection management
+    # ------------------------------------------------------------------
+
+    @staticmethod
     def _parse_cadd_record(
-        self, record_line: str
+        record_line: str,
     ) -> tuple[int, str, str, float] | None:
         """Parse a CADD TSV record into (pos, ref, alt, phred).
 
@@ -272,43 +316,9 @@ class RemoteTabixCADD:
             self._tabix = pysam.TabixFile(self._url)
         return self._tabix
 
-    def _retry_query(self, query_chrom: str, start: int, end: int) -> list[str] | None:
-        """Query with retries and exponential backoff.
-
-        Returns list of record lines on success, None on exhausted retries.
-        """
-        max_retries = self._config.max_retries
-        backoff = 1.0
-
-        for attempt in range(max_retries + 1):
-            try:
-                tabix = self._get_tabix()
-                return list(tabix.fetch(query_chrom, start, end))
-            except (OSError, ValueError) as exc:
-                if attempt == max_retries:
-                    self._breaker.record_failure()
-                    logger.warning(
-                        "Remote CADD query exhausted retries for %s:%d-%d: %s",
-                        query_chrom,
-                        start,
-                        end,
-                        exc,
-                    )
-                    return None
-
-                logger.debug(
-                    "Remote CADD query attempt %d failed, retrying in %.1fs: %s",
-                    attempt + 1,
-                    backoff,
-                    exc,
-                )
-                time.sleep(backoff)
-                backoff *= 2.0
-
-                # Reset connection on failure
-                if self._tabix is not None:
-                    with contextlib.suppress(Exception):
-                        self._tabix.close()
-                    self._tabix = None
-
-        return None
+    def _reset_connection(self) -> None:
+        """Close and discard the current tabix handle."""
+        if self._tabix is not None:
+            with contextlib.suppress(Exception):
+                self._tabix.close()
+            self._tabix = None

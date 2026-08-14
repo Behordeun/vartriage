@@ -37,7 +37,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Migration Notes
 
 - No existing CLI flags or config fields changed behavior. Users who don't specify `--cadd-remote` or `--gnomad-remote` see zero difference.
-- No new pip dependencies. `pysam` already supports remote tabix URLs via htslib's libcurl integration. Cache uses stdlib `sqlite3`.
+- No new pip dependencies. `pysam` already supports remote tabix URLs via HTSlib's libcurl integration. Cache uses stdlib `sqlite3`.
 
 ## [0.15.0] - 2026-08-07
 

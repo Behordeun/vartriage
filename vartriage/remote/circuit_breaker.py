@@ -57,21 +57,14 @@ class CircuitBreaker:
         self._recovery_seconds = recovery_seconds
 
         self._state = CircuitState.CLOSED
-        self._failure_timestamps: list[float] = []
+        self._failure_count: int = 0
+        self._first_failure_time: float | None = None
         self._opened_at: float = 0.0
 
     @property
     def state(self) -> CircuitState:
         """Current circuit state, accounting for recovery timeout."""
-        if self._state == CircuitState.OPEN:
-            elapsed = time.monotonic() - self._opened_at
-            if elapsed >= self._recovery_seconds:
-                self._state = CircuitState.HALF_OPEN
-                logger.info(
-                    "Circuit breaker transitioning to HALF_OPEN "
-                    "after %.1fs recovery period",
-                    elapsed,
-                )
+        self._check_recovery()
         return self._state
 
     @property
@@ -81,7 +74,8 @@ class CircuitBreaker:
         Returns False for both CLOSED and HALF_OPEN states, since
         half-open allows a probe request.
         """
-        return self.state == CircuitState.OPEN
+        self._check_recovery()
+        return self._state == CircuitState.OPEN
 
     def record_success(self) -> None:
         """Record a successful operation.
@@ -93,7 +87,8 @@ class CircuitBreaker:
             logger.info("Circuit breaker closing after successful probe")
             self._state = CircuitState.CLOSED
 
-        self._failure_timestamps.clear()
+        self._failure_count = 0
+        self._first_failure_time = None
 
     def record_failure(self) -> None:
         """Record a failed operation.
@@ -108,21 +103,37 @@ class CircuitBreaker:
             self._open_circuit(now)
             return
 
-        # Prune old failures outside the window
-        cutoff = now - self._failure_window
-        self._failure_timestamps = [
-            ts for ts in self._failure_timestamps if ts > cutoff
-        ]
-        self._failure_timestamps.append(now)
+        if self._first_failure_time is None:
+            self._first_failure_time = now
+            self._failure_count = 1
+        elif now - self._first_failure_time > self._failure_window:
+            # Window expired — start a new window
+            self._first_failure_time = now
+            self._failure_count = 1
+        else:
+            self._failure_count += 1
 
-        if len(self._failure_timestamps) >= self._failure_threshold:
+        if self._failure_count >= self._failure_threshold:
             self._open_circuit(now)
+
+    def _check_recovery(self) -> None:
+        """Transition from OPEN to HALF_OPEN if recovery period elapsed."""
+        if self._state == CircuitState.OPEN:
+            elapsed = time.monotonic() - self._opened_at
+            if elapsed >= self._recovery_seconds:
+                self._state = CircuitState.HALF_OPEN
+                logger.info(
+                    "Circuit breaker transitioning to HALF_OPEN "
+                    "after %.1fs recovery period",
+                    elapsed,
+                )
 
     def _open_circuit(self, now: float) -> None:
         """Transition to OPEN state."""
         self._state = CircuitState.OPEN
         self._opened_at = now
-        self._failure_timestamps.clear()
+        self._failure_count = 0
+        self._first_failure_time = None
         logger.warning(
             "Circuit breaker OPEN — remote queries disabled for %.0fs",
             self._recovery_seconds,
