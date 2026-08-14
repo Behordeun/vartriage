@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from vartriage.knowledge.config import KnowledgeBaseConfig
     from vartriage.mito.config import MitoConfig
     from vartriage.models.config import SampleConfig
+    from vartriage.remote.config import RemoteTabixConfig
 
 
 def _get_version() -> str:
@@ -335,6 +336,41 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # Remote tabix score backend
+    parser.add_argument(
+        "--cadd-remote",
+        type=str,
+        default=None,
+        help=(
+            "Remote CADD score source: a named preset (e.g., cadd-v1.7-grch38) "
+            "or a full URL to a bgzipped/tabix-indexed CADD TSV. Queries use "
+            "HTTP byte-range requests — no local download needed. "
+            "Ignored when --cadd-scores is provided (local file takes priority)."
+        ),
+    )
+    parser.add_argument(
+        "--gnomad-remote",
+        type=str,
+        default=None,
+        help=(
+            "Remote gnomAD frequency source: a named preset "
+            "(e.g., gnomad-exomes-v4-grch38) or a URL template with {chrom} "
+            "placeholder. Queries per-chromosome VCFs via HTTP byte-range. "
+            "Ignored when --gnomad is provided (local file takes priority)."
+        ),
+    )
+    parser.add_argument(
+        "--remote-cache-ttl",
+        type=int,
+        default=30,
+        help=(
+            "Remote score cache TTL in days. Scores fetched from remote "
+            "tabix are cached locally to avoid redundant network requests. "
+            "Use -1 for pinned mode (never expire, clinical reproducibility). "
+            "Default: 30"
+        ),
+    )
+
     return parser
 
 
@@ -356,6 +392,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if effective_argv and effective_argv[0] == "sv":
         _run_sv_cli(effective_argv[1:])
+        return
+    if effective_argv and effective_argv[0] == "remote":
+        _run_remote_cli(effective_argv[1:])
         return
 
     parser = _build_parser()
@@ -389,7 +428,7 @@ def main(argv: list[str] | None = None) -> None:
     except Exception as exc:
         _handle_unexpected_error(exc)
 
-    print(str(result_path))
+    print(result_path)
     sys.exit(0)
 
 
@@ -446,6 +485,19 @@ def _run_pipeline(
             clinvar_path=paths["clinvar"],
             reference_fasta_path=getattr(args, "reference_fasta", None),
         )
+    elif paths["gene_annotation"] is not None:
+        # gene annotation available but no local gnomAD — still allow
+        # annotation if remote gnomAD is configured (frequency comes
+        # from the remote backend injected by the pipeline)
+        annotation_config = AnnotationConfig(
+            gene_annotation_path=paths["gene_annotation"],
+            gnomad_path=None,
+            clinvar_path=paths["clinvar"],
+            reference_fasta_path=getattr(args, "reference_fasta", None),
+        )
+
+    # Build remote tabix config if any remote flags are set
+    remote_config = _build_remote_config(args)
 
     prioritization_config = PrioritizationConfig(
         cadd_scores_path=paths["cadd_scores"],
@@ -495,6 +547,7 @@ def _run_pipeline(
         knowledge=knowledge_config,
         sv_vcf_path=getattr(args, "sv_vcf", None),
         mito=_build_mito_config(args),
+        remote=remote_config,
     )
 
     pipeline = Pipeline(pipeline_config)
@@ -562,10 +615,10 @@ def _resolve_reference_paths(
     }
 
     for key, bundle_name in bundle_names.items():
-        if paths[key] is None:
-            resolved = storage.resolve_path(genome_build, bundle_name)
-            if resolved:
-                paths[key] = resolved
+        if paths[key] is None and (
+            resolved := storage.resolve_path(genome_build, bundle_name)
+        ):
+            paths[key] = resolved
 
     return paths
 
@@ -642,15 +695,12 @@ def _build_mito_config(
     """
     from vartriage.mito.config import MitoConfig
 
-    skip_mito: bool = getattr(args, "skip_mito", False)
-    min_heteroplasmy: float = getattr(args, "mt_min_heteroplasmy", 1.0)
-
-    if skip_mito:
+    if getattr(args, "skip_mito", False):
         return MitoConfig(enabled=False)
 
     # Only create explicit config if non-default threshold was set
-    if abs(min_heteroplasmy - 1.0) > 1e-9:
-        return MitoConfig(min_heteroplasmy=min_heteroplasmy)
+    if abs((threshold := getattr(args, "mt_min_heteroplasmy", 1.0)) - 1.0) > 1e-9:
+        return MitoConfig(min_heteroplasmy=threshold)
 
     return None
 
@@ -897,7 +947,7 @@ def _run_cohort_cli(argv: list[str]) -> None:
         sys.exit(1)
 
     for p in report_paths:
-        print(str(p))
+        print(p)
     sys.exit(0)
 
 
@@ -1063,5 +1113,99 @@ def _run_sv_cli(argv: list[str]) -> None:
         print(f"Error: SV triage failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    print(str(result_path))
+    print(result_path)
     sys.exit(0)
+
+
+def _build_remote_config(
+    args: argparse.Namespace,
+) -> RemoteTabixConfig | None:
+    """Build RemoteTabixConfig from CLI arguments.
+
+    Returns None when no remote flags are set, preserving existing
+    behavior for users who don't use remote tabix.
+    """
+    from vartriage.remote.config import RemoteTabixConfig
+
+    cadd_remote: str | None = getattr(args, "cadd_remote", None)
+    gnomad_remote: str | None = getattr(args, "gnomad_remote", None)
+    cache_ttl: int = getattr(args, "remote_cache_ttl", 30)
+
+    if cadd_remote is None and gnomad_remote is None:
+        return None
+
+    # Local file takes priority over remote — clear remote if local exists
+    if getattr(args, "cadd_scores", None) is not None and cadd_remote is not None:
+        _log_remote_override(
+            "--cadd-scores takes priority over --cadd-remote; remote CADD disabled"
+        )
+        cadd_remote = None
+
+    if getattr(args, "gnomad", None) is not None and gnomad_remote is not None:
+        _log_remote_override(
+            "--gnomad takes priority over --gnomad-remote; remote gnomAD disabled"
+        )
+        gnomad_remote = None
+
+    if cadd_remote is None and gnomad_remote is None:
+        return None
+
+    return RemoteTabixConfig(
+        cadd_remote_url=cadd_remote,
+        gnomad_remote_url=gnomad_remote,
+        cache_ttl_days=cache_ttl,
+    )
+
+
+def _log_remote_override(message: str) -> None:
+    import logging
+
+    logging.getLogger(__name__).info(message)
+
+
+def _print_presets(presets: list) -> None:
+    """Print remote tabix presets to stdout."""
+    if not presets:
+        print("No presets found.", file=sys.stderr)
+        return
+    print(f"{'Name':<30} {'Source':<8} {'Build':<8} Description")
+    print("-" * 80)
+    for p in presets:
+        print(f"{p.name:<30} {p.source:<8} {p.genome_build:<8} {p.description}")
+
+
+def _run_remote_cli(argv: list[str]) -> None:
+    """Handle the 'vartriage remote' subcommand.
+
+    Currently supports:
+        vartriage remote list-presets [--source cadd|gnomad]
+    """
+    from vartriage.remote.presets import list_presets
+
+    parser = argparse.ArgumentParser(
+        prog="vartriage remote",
+        description="Manage remote tabix score backends.",
+    )
+    subparsers = parser.add_subparsers(dest="remote_command")
+
+    list_parser = subparsers.add_parser(
+        "list-presets",
+        help="List available named presets for remote tabix databases",
+    )
+    list_parser.add_argument(
+        "--source",
+        type=str,
+        choices=["cadd", "gnomad"],
+        default=None,
+        help="Filter presets by source type",
+    )
+
+    args = parser.parse_args(argv)
+
+    if args.remote_command is None:
+        parser.print_help()
+        sys.exit(0)
+
+    if args.remote_command == "list-presets":
+        _print_presets(list_presets(source=args.source))
+        sys.exit(0)

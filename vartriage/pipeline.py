@@ -127,7 +127,12 @@ class Pipeline:
         if api_annotation_engine is None and self._config.annotation is not None:
             annotation_engine = AnnotationEngine(self._config.annotation)
 
-        prioritization_engine = PrioritizationEngine(self._config.prioritization)
+        # Inject remote gnomAD backend when no local gnomAD and remote is configured
+        self._inject_remote_gnomad(annotation_engine)
+
+        prioritization_engine = PrioritizationEngine(
+            self._config.prioritization, remote_config=self._config.remote
+        )
         acmg_classifier = ACMGClassifier()
         report_generator = ReportGenerator(
             self._config.report,
@@ -426,7 +431,12 @@ class Pipeline:
         if self._config.annotation is not None:
             annotation_engine = AnnotationEngine(self._config.annotation)
 
-        prioritization_engine = PrioritizationEngine(self._config.prioritization)
+        # Inject remote gnomAD for cohort mode
+        self._inject_remote_gnomad(annotation_engine)
+
+        prioritization_engine = PrioritizationEngine(
+            self._config.prioritization, remote_config=self._config.remote
+        )
         acmg_classifier = ACMGClassifier()
 
         with VCFParser(effective_vcf_path) as parser:
@@ -463,6 +473,22 @@ class Pipeline:
 
             yield from acmg_classifier.classify(scored)
 
+    def _inject_remote_gnomad(self, annotation_engine: AnnotationEngine | None) -> None:
+        """Inject remote gnomAD tabix backend if configured and needed."""
+        if (
+            annotation_engine is not None
+            and self._config.remote is not None
+            and self._config.remote.is_gnomad_active
+            and not annotation_engine.has_frequency_db
+        ):
+            from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+            annotation_engine.set_frequency_db(RemoteTabixGnomAD(self._config.remote))
+            logger.info(
+                "Remote gnomAD tabix backend active: %s",
+                self._config.remote.gnomad_remote_url,
+            )
+
     def run_with_sv(self) -> None:
         """Execute the main pipeline and SV triage when sv_vcf_path is set.
 
@@ -481,7 +507,7 @@ class Pipeline:
 
         # Derive SV output path from the main output
         main_output = self._config.output_path
-        sv_output = main_output.parent / (main_output.stem + "_sv" + main_output.suffix)
+        sv_output = main_output.parent / f"{main_output.stem}_sv{main_output.suffix}"
 
         sv_config = SVTriageConfig(
             vcf_path=sv_path,
@@ -542,8 +568,12 @@ class Pipeline:
         """
         ref_paths: list[Path] = []
         if self._config.annotation is not None:
-            ref_paths.append(self._config.annotation.gene_annotation_path)
-            ref_paths.append(self._config.annotation.gnomad_path)
+            ref_paths.extend(
+                [
+                    self._config.annotation.gene_annotation_path,
+                    self._config.annotation.gnomad_path,
+                ]
+            )
             if self._config.annotation.clinvar_path is not None:
                 ref_paths.append(self._config.annotation.clinvar_path)
         pri = self._config.prioritization

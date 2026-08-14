@@ -97,9 +97,9 @@ class AnnotationEngine:
             )
 
         # Initialize frequency database
-        self._frequency_db: FrequencyDatabase = self._build_frequency_db(
-            config.gnomad_path
-        )
+        self._frequency_db: FrequencyDatabase | None = None
+        if config.gnomad_path is not None:
+            self._frequency_db = self._build_frequency_db(config.gnomad_path)
 
         # Initialize ClinVar database (optional)
         self._clinvar_db: ClinVarDatabase | None = self._build_clinvar_db(
@@ -110,6 +110,24 @@ class AnnotationEngine:
     def warnings(self) -> list[MissingDataWarning]:
         """Warnings accumulated for variants missing from references."""
         return self._warnings
+
+    def set_frequency_db(self, db: FrequencyDatabase) -> None:
+        """Replace the frequency database with an external implementation.
+
+        Used by the pipeline to inject a remote tabix gnomAD backend
+        when no local gnomAD file is available.
+
+        Parameters
+        ----------
+        db : FrequencyDatabase
+            Replacement frequency database (must satisfy the protocol).
+        """
+        self._frequency_db = db
+
+    @property
+    def has_frequency_db(self) -> bool:
+        """Whether a frequency database is available."""
+        return self._frequency_db is not None
 
     def annotate(self, variants: Iterator[Variant]) -> Iterator[AnnotatedVariant]:
         """Annotate variants with consequence, frequency, and ClinVar data.
@@ -157,7 +175,10 @@ class AnnotationEngine:
                 for c, p, r, a in variant_keys
             ]
 
-        frequencies = self._frequency_db.lookup_batch(variant_keys)
+        if self._frequency_db is not None:
+            frequencies = self._frequency_db.lookup_batch(variant_keys)
+        else:
+            frequencies = [None] * len(batch)
 
         # ClinVar lookup
         clinvar_assertions: list[ClinVarAssertion | None] = []
@@ -293,7 +314,7 @@ class AnnotationEngine:
                 f"Gene annotation file not found: {config.gene_annotation_path}"
             )
 
-        if not config.gnomad_path.exists():
+        if config.gnomad_path is not None and not config.gnomad_path.exists():
             raise FileNotFoundError(
                 f"gnomAD reference file not found: {config.gnomad_path}"
             )

@@ -11,11 +11,16 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from itertools import islice
+from typing import TYPE_CHECKING
 
 from vartriage.models.config import PrioritizationConfig
 from vartriage.models.variant import AnnotatedVariant, ScoredVariant
 from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
 from vartriage.prioritization.scoring import score_variants
+
+if TYPE_CHECKING:
+    from vartriage.remote.cadd import RemoteTabixCADD
+    from vartriage.remote.config import RemoteTabixConfig
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +54,11 @@ class PrioritizationEngine:
         config construction time via ``PrioritizationConfig.__post_init__``.
     """
 
-    def __init__(self, config: PrioritizationConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: PrioritizationConfig | None = None,
+        remote_config: RemoteTabixConfig | None = None,
+    ) -> None:
         if config is None:
             config = PrioritizationConfig()
         self._config = config
@@ -58,9 +67,19 @@ class PrioritizationEngine:
         self._cadd_scores: dict[CoordinateKey, float] = {}
         self._revel_scores: dict[CoordinateKey, float] = {}
         self._spliceai_scores: dict[CoordinateKey, float] = {}
+        self._remote_cadd: RemoteTabixCADD | None = None
 
         if config.cadd_scores_path is not None:
             self._cadd_scores = self._score_loader.load_cadd(config.cadd_scores_path)
+        elif remote_config is not None and remote_config.is_cadd_active:
+            # Remote tabix CADD: no local file, use remote backend
+            from vartriage.remote.cadd import RemoteTabixCADD as _RemoteCADD
+
+            self._remote_cadd = _RemoteCADD(remote_config)
+            logger.info(
+                "Remote CADD tabix backend active: %s", remote_config.cadd_remote_url
+            )
+
         if config.revel_scores_path is not None:
             self._revel_scores = self._score_loader.load_revel(config.revel_scores_path)
         if config.spliceai_scores_path is not None:
@@ -129,8 +148,9 @@ class PrioritizationEngine:
         """Score a single batch of variants.
 
         Extracts coordinate keys from each variant and performs lookups
-        against pre-loaded CADD and REVEL score dictionaries. Falls back
-        to None for variants without a matching score entry.
+        against pre-loaded CADD and REVEL score dictionaries. When no local
+        CADD scores exist and a remote tabix backend is active, fetches
+        CADD scores via HTTP byte-range queries.
 
         Parameters
         ----------
@@ -146,7 +166,16 @@ class PrioritizationEngine:
             (v.variant.chrom, v.variant.pos, v.variant.ref, v.variant.alt)
             for v in batch
         ]
-        cadd_scores = self._score_loader.lookup_batch(keys, self._cadd_scores)
+
+        # CADD: prefer local dict, fall back to remote tabix
+        if self._cadd_scores:
+            cadd_scores = self._score_loader.lookup_batch(keys, self._cadd_scores)
+        elif self._remote_cadd is not None:
+            remote_dict = self._remote_cadd.lookup_batch(keys)
+            cadd_scores = [remote_dict.get(k) for k in keys]
+        else:
+            cadd_scores = [None] * len(keys)
+
         revel_scores = self._score_loader.lookup_batch(keys, self._revel_scores)
 
         spliceai_scores = None

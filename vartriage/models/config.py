@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from vartriage.knowledge.config import KnowledgeBaseConfig
     from vartriage.mito.config import MitoConfig
+    from vartriage.remote.config import RemoteTabixConfig
 
 
 @dataclass(frozen=True)
@@ -69,7 +70,7 @@ class AnnotationConfig:
     """
 
     gene_annotation_path: Path
-    gnomad_path: Path
+    gnomad_path: Path | None = None
     clinvar_path: Path | None = None
     reference_fasta_path: Path | None = None
     batch_size: int = 10_000
@@ -371,6 +372,7 @@ class PipelineConfig:
     knowledge: KnowledgeBaseConfig | None = field(default=None)
     sv_vcf_path: Path | None = None
     mito: MitoConfig | None = field(default=None)
+    remote: RemoteTabixConfig | None = field(default=None)
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format
