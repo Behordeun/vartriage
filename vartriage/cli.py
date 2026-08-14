@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from vartriage.mito.config import MitoConfig
     from vartriage.models.config import SampleConfig
     from vartriage.remote.config import RemoteTabixConfig
+    from vartriage.remote.presets import PresetEntry
 
 
 def _get_version() -> str:
@@ -1163,7 +1164,7 @@ def _log_remote_override(message: str) -> None:
     logging.getLogger(__name__).info(message)
 
 
-def _print_presets(presets: list) -> None:
+def _print_presets(presets: list[PresetEntry]) -> None:
     """Print remote tabix presets to stdout."""
     if not presets:
         print("No presets found.", file=sys.stderr)

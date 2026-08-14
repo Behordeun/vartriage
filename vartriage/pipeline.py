@@ -568,12 +568,9 @@ class Pipeline:
         """
         ref_paths: list[Path] = []
         if self._config.annotation is not None:
-            ref_paths.extend(
-                [
-                    self._config.annotation.gene_annotation_path,
-                    self._config.annotation.gnomad_path,
-                ]
-            )
+            ref_paths.append(self._config.annotation.gene_annotation_path)
+            if self._config.annotation.gnomad_path is not None:
+                ref_paths.append(self._config.annotation.gnomad_path)
             if self._config.annotation.clinvar_path is not None:
                 ref_paths.append(self._config.annotation.clinvar_path)
         pri = self._config.prioritization
@@ -785,7 +782,8 @@ class Pipeline:
     ) -> None:
         """Validate annotation reference file paths exist."""
         self._check_path(ann_config.gene_annotation_path, "Gene annotation file")
-        self._check_path(ann_config.gnomad_path, "gnomAD reference file")
+        if ann_config.gnomad_path is not None:
+            self._check_path(ann_config.gnomad_path, "gnomAD reference file")
         if ann_config.clinvar_path is not None:
             self._check_path(ann_config.clinvar_path, "ClinVar reference file")
 
