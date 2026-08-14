@@ -10,7 +10,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (10 criteria: PVS1, PS1, PM2, PM5, PP3, PP5, BA1, BS1, BP4, BP7 with strength modulation), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files, remote tabix, or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (10 criteria: PVS1, PS1, PM2, PM5, PP3, PP5, BA1, BS1, BP4, BP7 with strength modulation), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, **remote tabix scoring (CADD/gnomAD via HTTP byte-range, no 80 GB download)**, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
@@ -27,6 +27,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
 - Outputs: JSON, CSV, PDF, HTML clinical reports, IGV-loadable annotated VCF
 - Structural variant triage: ClinGen 2020 framework for DEL/DUP/INV/INS/BND/CNV
 - Mitochondrial variant analysis: automatic chrM detection, heteroplasmy quantification, MITOMAP/HelixMTdb annotation, mtDNA-specific classification
+- Remote tabix scoring: query CADD (80 GB) and gnomAD (15+ GB) via HTTP byte-range without local downloads (`--cadd-remote cadd-v1.7-grch38`)
 - Typed API with Protocol-based backends
 
 **Benchmarks:**

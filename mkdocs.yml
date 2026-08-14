@@ -65,6 +65,7 @@ nav:
   - User Guides:
       - ACMG Classification: acmg-criteria.md
       - API Mode: api-mode.md
+      - Remote Tabix Scoring: remote-tabix.md
       - Structural Variants: structural-variants.md
       - Mitochondrial Variants: mitochondrial.md
       - Gene-Disease Linkage: gene-disease-linkage.md
