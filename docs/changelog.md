@@ -4,6 +4,41 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-08-14
+
+### Added
+
+- **Remote tabix CADD backend**: query CADD Phred scores from the 80+ GB pre-scored file via HTTP byte-range requests using `pysam.TabixFile`. No local download required. Activate with `--cadd-remote cadd-v1.7-grch38` or pass a full URL.
+- **Remote tabix gnomAD backend**: query gnomAD allele frequencies from per-chromosome tabix-indexed VCFs hosted on public cloud storage. Activate with `--gnomad-remote gnomad-exomes-v4-grch38`.
+- **Named presets**: 4 bundled presets (`cadd-v1.7-grch38`, `cadd-v1.7-grch37`, `cadd-v1.7-indels-grch38`, `gnomad-exomes-v4-grch38`) so users don't need to memorize download URLs. List with `vartriage remote list-presets`.
+- **Score cache** (`~/.vartriage/remote_cache.db`): SQLite cache stores fetched scores locally with configurable TTL (default 30 days). Pinned mode (`--remote-cache-ttl -1`) for clinical reproducibility.
+- **Batch query optimization**: variants within 10 kb on the same chromosome are grouped into a single range query, reducing HTTP round-trips for gene panels and WGS.
+- **Circuit breaker**: after 5 consecutive network failures within 60 seconds, remote queries are disabled for the remainder of the run. The pipeline continues with scores marked as unavailable rather than crashing.
+- **CLI flags**: `--cadd-remote`, `--gnomad-remote`, `--remote-cache-ttl`.
+- **`vartriage remote list-presets`** subcommand: displays all named presets with source, genome build, and description.
+- **Priority rules**: local file (`--cadd-scores`) always takes precedence over remote tabix (`--cadd-remote`), which takes precedence over REST API (`--mode api`).
+- **`RemoteTabixConfig`** dataclass: configures URLs, cache path/TTL, connect/read timeouts, retry count, and batch window size.
+- **User guide**: `docs/remote-tabix.md` with CLI examples, Python API, caching details, and configuration reference.
+
+### Changed
+
+- `AnnotationConfig.gnomad_path` is now optional (`Path | None`). When `None` and remote gnomAD is configured, the pipeline injects the remote backend automatically.
+- `AnnotationEngine` gained `set_frequency_db()` and `has_frequency_db` for runtime backend injection.
+- `PrioritizationEngine` accepts an optional `remote_config` parameter. When no local CADD file is available, it uses `RemoteTabixCADD` for batch lookups.
+- `PipelineConfig` gained a `remote: RemoteTabixConfig | None` field.
+
+### Performance Targets
+
+| Workload            | Variants | Target (cold cache) | Target (warm cache) |
+| ------------------- | -------- | ------------------- | ------------------- |
+| Gene panel          | 500      | < 30 seconds        | < 5 seconds         |
+| chr22 WGS           | 42,000   | < 10 minutes        | < 10 seconds        |
+
+### Migration Notes
+
+- No existing CLI flags or config fields changed behavior. Users who don't specify `--cadd-remote` or `--gnomad-remote` see zero difference.
+- No new pip dependencies. `pysam` already supports remote tabix URLs via HTSlib's libcurl integration. Cache uses stdlib `sqlite3`.
+
 ## [0.15.0] - 2026-08-07
 
 ### Added
