@@ -47,6 +47,7 @@ class FunctionalConsequence(Enum):
     MISSENSE = "Missense"
     IN_FRAME_INSERTION = "In_Frame_Insertion"
     IN_FRAME_DELETION = "In_Frame_Deletion"
+    STOP_LOSS = "Stop_Loss"
     SYNONYMOUS = "Synonymous"
     INTERGENIC = "Intergenic"
 
@@ -59,6 +60,7 @@ CONSEQUENCE_SEVERITY_ORDER: list[FunctionalConsequence] = [
     FunctionalConsequence.MISSENSE,
     FunctionalConsequence.IN_FRAME_INSERTION,
     FunctionalConsequence.IN_FRAME_DELETION,
+    FunctionalConsequence.STOP_LOSS,
     FunctionalConsequence.SYNONYMOUS,
     FunctionalConsequence.INTERGENIC,
 ]
@@ -136,6 +138,7 @@ class EvidenceTag(Enum):
 
     # Pathogenic evidence
     PVS1 = "PVS1"
+    PVS1_STRONG = "PVS1_Strong"
     PS1 = "PS1"
     PM1 = "PM1"
     PM2 = "PM2"
@@ -179,6 +182,7 @@ class EvidenceStrength(Enum):
 EVIDENCE_STRENGTH_MAP: dict[EvidenceTag, EvidenceStrength] = {
     # Pathogenic evidence
     EvidenceTag.PVS1: EvidenceStrength.VERY_STRONG,
+    EvidenceTag.PVS1_STRONG: EvidenceStrength.STRONG,
     EvidenceTag.PS1: EvidenceStrength.STRONG,
     EvidenceTag.PM1: EvidenceStrength.MODERATE,
     EvidenceTag.PM2: EvidenceStrength.MODERATE,
@@ -440,3 +444,4 @@ class ClassifiedVariant:
     evidence_tags: frozenset[EvidenceTag] = field(default_factory=frozenset)
     classification: ACMGClassification = ACMGClassification.VUS
     missing_data_sources: frozenset[str] = field(default_factory=frozenset)
+    has_conflicting_evidence: bool = False

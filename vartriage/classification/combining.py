@@ -174,6 +174,8 @@ def _meets_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
     s = counts[EvidenceStrength.STRONG]
     sup = counts[EvidenceStrength.SUPPORTING]
 
+    if vs >= 2:
+        return True
     if vs >= 1 and s >= 1:
         return True
     if s >= 2 and sup >= 1:

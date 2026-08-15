@@ -11,7 +11,10 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from vartriage.classification.combining import combine_evidence
+from vartriage.classification.combining import (
+    combine_evidence,
+    has_conflicting_evidence,
+)
 from vartriage.models.variant import (
     ClassifiedVariant,
     ClinVarAssertion,
@@ -72,6 +75,14 @@ _PP5_CONFLICTING_ASSERTIONS: frozenset[ClinVarAssertion] = frozenset(
     }
 )
 
+_PM4_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset(
+    {
+        FunctionalConsequence.IN_FRAME_INSERTION,
+        FunctionalConsequence.IN_FRAME_DELETION,
+        FunctionalConsequence.STOP_LOSS,
+    }
+)
+
 
 class ACMGClassifier:
     """Assign ACMG/AMP evidence tags and final classification.
@@ -99,6 +110,7 @@ class ACMGClassifier:
     def __init__(
         self,
         protein_index: ClinVarProteinIndex | None = None,
+        lof_gene_list: frozenset[str] | None = None,
     ) -> None:
         """Initialize the classifier with optional protein-level ClinVar index.
 
@@ -108,8 +120,14 @@ class ACMGClassifier:
             Pre-loaded index of ClinVar pathogenic missense variants for
             PS1/PM5 evaluation. When None, PS1 and PM5 are omitted with
             the source recorded as missing.
+        lof_gene_list : Optional[frozenset[str]]
+            Explicit set of gene symbols where LoF is the established
+            disease mechanism. When provided, PVS1 fires at Very Strong
+            only for genes on this list. Genes not on the list get PVS1
+            at Strong (downgraded). When None, pLI-based gating is used.
         """
         self._protein_index = protein_index
+        self._lof_gene_list = lof_gene_list
 
     def classify(
         self, variants: Iterator[ScoredVariant]
@@ -141,6 +159,7 @@ class ACMGClassifier:
                 evidence_tags=evidence,
                 classification=classification,
                 missing_data_sources=frozenset(missing_sources),
+                has_conflicting_evidence=has_conflicting_evidence(evidence),
             )
 
     def _assign_tags(self, variant: ScoredVariant) -> tuple[set[EvidenceTag], set[str]]:
@@ -161,7 +180,9 @@ class ACMGClassifier:
 
         self._evaluate_pvs1(variant, tags, missing_sources)
         self._evaluate_ps1(variant, tags, missing_sources)
+        self._evaluate_pm1(variant, tags, missing_sources)
         self._evaluate_pm2(variant, tags, missing_sources)
+        self._evaluate_pm4(variant, tags, missing_sources)
         self._evaluate_pm5(variant, tags, missing_sources)
         self._evaluate_pp3(variant, tags, missing_sources)
         self._evaluate_pp5(variant, tags, missing_sources)
@@ -180,26 +201,20 @@ class ACMGClassifier:
         tags: set[EvidenceTag],
         missing_sources: set[str],
     ) -> None:
-        """Assign PVS1 for null variants or splice-site variants with high SpliceAI.
+        """Assign PVS1 for null variants with LoF constraint gating.
 
-        PVS1 is assigned unconditionally for NONSENSE or FRAMESHIFT variants.
-        For SPLICE_SITE variants, PVS1 is assigned only when SpliceAI > 0.8.
-        If SpliceAI data is unavailable for a SPLICE_SITE variant, it is
-        recorded as a missing source.
+        For NONSENSE or FRAMESHIFT: fires PVS1 at Very Strong when LoF
+        is the established mechanism (pLI > 0.9 or gene on lof_gene_list),
+        at Strong otherwise. Novel genes without constraint data get
+        benefit of the doubt (Very Strong).
 
-        Parameters
-        ----------
-        variant : ScoredVariant
-            The variant to evaluate.
-        tags : set[EvidenceTag]
-            Accumulator for assigned tags (mutated in place).
-        missing_sources : set[str]
-            Accumulator for missing data sources (mutated in place).
+        For SPLICE_SITE: fires PVS1 at Very Strong only when SpliceAI > 0.8.
         """
         consequence = variant.annotated.consequence
 
         if consequence in _PVS1_CONSEQUENCES:
-            tags.add(EvidenceTag.PVS1)
+            tag = self._resolve_pvs1_strength(variant)
+            tags.add(tag)
             return
 
         if consequence == FunctionalConsequence.SPLICE_SITE:
@@ -209,6 +224,32 @@ class ACMGClassifier:
                 return
             if spliceai > _PVS1_SPLICEAI_THRESHOLD:
                 tags.add(EvidenceTag.PVS1)
+
+    def _resolve_pvs1_strength(self, variant: ScoredVariant) -> EvidenceTag:
+        """Determine PVS1 strength based on gene LoF mechanism evidence.
+
+        Priority:
+        1. Explicit lof_gene_list (gene on list → VS, not on list → Strong)
+        2. gnomAD pLI constraint (pLI > 0.9 → VS, otherwise → Strong)
+        3. No data available → VS (benefit of doubt for novel genes)
+        """
+        gene_name = variant.annotated.gene_name
+
+        # Explicit gene list takes priority when provided
+        if self._lof_gene_list is not None and gene_name is not None:
+            if gene_name in self._lof_gene_list:
+                return EvidenceTag.PVS1
+            return EvidenceTag.PVS1_STRONG
+
+        # Fall back to gnomAD pLI constraint
+        gene_context = variant.annotated.gene_context
+        if gene_context is None or gene_context.constraint is None:
+            return EvidenceTag.PVS1
+
+        if gene_context.constraint.is_lof_intolerant:
+            return EvidenceTag.PVS1
+
+        return EvidenceTag.PVS1_STRONG
 
     def _evaluate_ps1(
         self,
@@ -540,3 +581,40 @@ class ACMGClassifier:
             # Without SpliceAI, we can't confirm no splice impact
             # BP7 requires negative splice evidence, so don't fire
             pass
+
+    def _evaluate_pm1(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
+    ) -> None:
+        """Assign PM1 for missense in a functionally constrained gene region.
+
+        Uses gnomAD missense constraint (mis_z > 3.09) as a proxy for
+        functional domain intolerance. Only fires for missense variants.
+        """
+        if variant.annotated.consequence != FunctionalConsequence.MISSENSE:
+            return
+
+        gene_context = variant.annotated.gene_context
+        if gene_context is None or gene_context.constraint is None:
+            missing_sources.add("functional_domain")
+            return
+
+        if gene_context.constraint.is_missense_constrained:
+            tags.add(EvidenceTag.PM1)
+
+    def _evaluate_pm4(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        _missing_sources: set[str],
+    ) -> None:
+        """Assign PM4 for protein-length-changing variants.
+
+        Fires for in-frame insertions, in-frame deletions, and
+        stop-loss variants. These alter the protein without truncating
+        the reading frame.
+        """
+        if variant.annotated.consequence in _PM4_CONSEQUENCES:
+            tags.add(EvidenceTag.PM4)
