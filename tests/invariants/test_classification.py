@@ -300,6 +300,14 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     ):
         expected_tags.add(EvidenceTag.PVS1)
 
+    # PM4: in-frame indel or stop-loss
+    if consequence in (
+        FunctionalConsequence.IN_FRAME_INSERTION,
+        FunctionalConsequence.IN_FRAME_DELETION,
+        FunctionalConsequence.STOP_LOSS,
+    ):
+        expected_tags.add(EvidenceTag.PM4)
+
     # PM2: AF < 0.0001 (skip if AF is None)
     # PM2: AF < 0.0001 in ALL populations (population-aware)
     af = variant.annotated.allele_frequency
@@ -374,10 +382,11 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     # BP4: computational benign (ClinGen-calibrated thresholds)
     # Missense: REVEL < 0.183 (moderate) or REVEL < 0.290 (supporting)
     # Non-missense: CADD < 10 (supporting)
-    # Does NOT fire for null variants (frameshift/nonsense)
+    # Does NOT fire for null variants (frameshift/nonsense/stop-loss)
     if consequence not in (
         FunctionalConsequence.FRAMESHIFT,
         FunctionalConsequence.NONSENSE,
+        FunctionalConsequence.STOP_LOSS,
     ):
         if consequence == FunctionalConsequence.MISSENSE:
             if revel is not None:
@@ -474,6 +483,12 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
         else:
             # protein_change present but no protein_index → index is missing
             expected_missing.add("ClinVar_protein_index")
+
+    # PM1 missing source tracking: missense without gene constraint data
+    if consequence == FunctionalConsequence.MISSENSE:
+        gene_context = variant.annotated.gene_context
+        if gene_context is None or gene_context.constraint is None:
+            expected_missing.add("gnomAD_constraint")
 
     assert classified.missing_data_sources == frozenset(expected_missing), (
         f"Expected missing sources {expected_missing}, "

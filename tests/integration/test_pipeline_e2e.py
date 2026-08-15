@@ -613,6 +613,8 @@ class TestJSONOutput:
             "clinvar_assertion",
             "acmg_classification",
             "evidence_tags",
+            "has_conflicting_evidence",
+            "missing_data_sources",
         }
 
         for record in data:
@@ -695,6 +697,8 @@ class TestCSVOutput:
             "clinvar_assertion",
             "acmg_classification",
             "evidence_tags",
+            "has_conflicting_evidence",
+            "missing_data_sources",
             "disease_associations",
             "clingen_validity",
             "gene_constraint_pli",

@@ -116,8 +116,19 @@ class TestLikelyPathogenicClassification:
     def test_reported_variant_in_trna_moderate_heteroplasmy(
         self, classifier: MitochondrialClassifier
     ):
-        # m.3291T>C: Reported MELAS, in MT-TL1 (tRNA), give moderate heteroplasmy
+        # m.3291T>C: Reported (unconfirmed) MELAS, in MT-TL1 (tRNA),
+        # moderate heteroplasmy. Rule 4b: unconfirmed → VUS.
         variant = _make_mito_variant(3291, "T", "C", ad=[600, 400])
+        result = classifier.classify(variant)
+        assert result.classification == MitoClassification.VUS
+        assert "unconfirmed" in result.classification_reason
+
+    def test_confirmed_variant_in_trna_moderate_heteroplasmy(
+        self, classifier: MitochondrialClassifier
+    ):
+        # m.3243A>G: Confirmed MELAS, in MT-TL1 (tRNA), moderate heteroplasmy.
+        # Rule 4: confirmed + coding/tRNA + moderate → Likely Pathogenic.
+        variant = _make_mito_variant(3243, "A", "G", ad=[600, 400])
         result = classifier.classify(variant)
         assert result.classification == MitoClassification.LIKELY_PATHOGENIC
 

@@ -451,7 +451,7 @@ def compute_prioritization_score(
     Score sources:
     - REVEL: 0.0-1.0 (literature-validated 0.7 threshold for PP3)
     - SpliceAI: 0.0-1.0 (literature-validated 0.5 threshold)
-    - CADD: Phred / 60, capped at 1.0 (normalized to same scale)
+    - CADD: Phred / 99, capped at 1.0 (consistent with composite rank normalization)
 
     The final score is for sorting and triage, not a clinical
     classification threshold.
@@ -479,6 +479,6 @@ def compute_prioritization_score(
     if spliceai_score is not None:
         scores.append(spliceai_score)
     if cadd_phred is not None:
-        scores.append(min(cadd_phred / 60.0, 1.0))
+        scores.append(min(cadd_phred / CADD_MAX_PHRED, 1.0))
 
     return max(scores) if scores else None

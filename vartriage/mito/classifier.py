@@ -199,18 +199,33 @@ class MitochondrialClassifier:
             )
 
         # Rule 4: Likely Pathogenic
-        # Reported in MITOMAP + functional region + moderate-high heteroplasmy
+        # Confirmed in MITOMAP + functional region + moderate-high heteroplasmy
         if (
             mitomap_entry is not None
+            and mitomap_entry.is_confirmed
             and gene_context.is_in_coding_or_trna
             and has_moderate_or_high
         ):
             return (
                 MitoClassification.LIKELY_PATHOGENIC,
-                f"Reported in MITOMAP ({mitomap_entry.disease}, "
+                f"Confirmed in MITOMAP ({mitomap_entry.disease}, "
                 f"status={mitomap_entry.status}), "
                 f"in {gene_context.gene_type} region ({gene_context.gene_name}), "
                 f"heteroplasmy {heteroplasmy.percentage:.1f}%",  # type: ignore[union-attr]
+            )
+
+        # Rule 4b: Unconfirmed MITOMAP report — insufficient for LP
+        if (
+            mitomap_entry is not None
+            and not mitomap_entry.is_confirmed
+            and gene_context.is_in_coding_or_trna
+            and has_moderate_or_high
+        ):
+            return (
+                MitoClassification.VUS,
+                f"Reported in MITOMAP (unconfirmed, status={mitomap_entry.status}), "
+                f"in {gene_context.gene_type} region ({gene_context.gene_name}), "
+                f"requires validation",
             )
 
         # Rule 5: Likely Pathogenic without heteroplasmy data

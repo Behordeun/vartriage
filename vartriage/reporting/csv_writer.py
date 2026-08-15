@@ -31,6 +31,8 @@ CSV_FIELDS: list[str] = [
     "clinvar_assertion",
     "acmg_classification",
     "evidence_tags",
+    "has_conflicting_evidence",
+    "missing_data_sources",
     "disease_associations",
     "clingen_validity",
     "gene_constraint_pli",
@@ -145,6 +147,12 @@ def _variant_to_row(variant: ClassifiedVariant) -> list[str]:
         _format_field(clinvar_value),
         _format_field(classification_value),
         _format_field(evidence_tags_value),
+        _format_field(variant.has_conflicting_evidence),
+        _format_field(
+            ";".join(sorted(variant.missing_data_sources))
+            if variant.missing_data_sources
+            else None
+        ),
         _format_field(_format_disease_associations(annotated)),
         _format_field(_get_gene_context_field(annotated, "clingen_validity")),
         _format_field(_get_constraint_field(annotated, "pli")),

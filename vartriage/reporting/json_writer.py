@@ -70,6 +70,8 @@ def _variant_to_dict(variant: ClassifiedVariant) -> dict[str, Any]:
     record["clinvar_assertion"] = clinvar
     record["acmg_classification"] = classification
     record["evidence_tags"] = evidence
+    record["has_conflicting_evidence"] = variant.has_conflicting_evidence
+    record["missing_data_sources"] = sorted(variant.missing_data_sources)
 
     # Gene-disease linkage context (when knowledge base is active)
     if annotated.gene_context is not None:

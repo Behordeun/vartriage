@@ -4,6 +4,32 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-08-15
+
+### Added
+
+- **PVS1 LoF constraint gating**: PVS1 strength now depends on whether loss-of-function is the established disease mechanism. Genes with pLI > 0.9 get PVS1 at Very Strong; genes with pLI < 0.9 get PVS1_Strong (Strong). An optional `lof_gene_list` parameter allows labs to curate an explicit gene list.
+- **PM1 evaluator**: fires for missense variants in genes with gnomAD missense constraint (mis_z > 3.09), indicating functional domain intolerance.
+- **PM4 evaluator**: fires for in-frame insertions, in-frame deletions, and stop-loss variants.
+- **`STOP_LOSS`** consequence type added to `FunctionalConsequence` enum.
+- **`PVS1_STRONG`** evidence tag with Strong strength for downgraded PVS1 in LoF-tolerant genes.
+- **`has_conflicting_evidence`** field on `ClassifiedVariant`: True when both pathogenic and benign tags are present. Distinguishes "VUS due to insufficient evidence" from "VUS due to conflicting evidence."
+- **`2 VS = Pathogenic`** combining rule per ACMG 2015 Table 5.
+- **Limitations documentation**: `docs/acmg-criteria.md` now includes an explicit table of evaluated vs. placeholder criteria, documented limitations (PVS1 scope, multiallelic handling, genome build, haplogroup context, PP5 model).
+
+### Changed
+
+- **CADD normalization unified**: `compute_prioritization_score` now divides by 99.0 (matching `normalize_cadd_scores`) instead of the previous inconsistent 60.0. Variants with CADD Phred 35 now get a prioritization score of 0.354 (was 0.583). This may change relative rankings for variants where CADD is the only available score.
+- **Mitochondrial Rule 4**: now requires MITOMAP `confirmed` status for Likely Pathogenic classification. Previously, any MITOMAP entry (including unconfirmed reports) triggered LP. Unconfirmed entries now classify as VUS with a reason noting "requires validation."
+- `ACMGClassifier` constructor accepts optional `lof_gene_list: frozenset[str]` parameter.
+- `_assign_tags` now evaluates PM1 and PM4 in addition to existing criteria.
+
+### Migration Notes
+
+- **Breaking for CADD-dependent rankings**: variants scored primarily by CADD will shift in prioritization order. Re-run existing analyses to see the impact. Classification (ACMG tiers) is not affected since CADD drives PP3/BP4 via REVEL thresholds, not directly.
+- **PVS1 strength change**: variants in genes with pLI < 0.9 that previously received PVS1 (Very Strong) now receive PVS1_Strong (Strong). This may downgrade some variants from Pathogenic to Likely Pathogenic when PVS1 was the only very-strong evidence. Users who don't provide gene-disease linkage data (no `--knowledge-dir` or bundles) see no change (benefit of the doubt applies).
+- **Mito LP reclassification**: variants previously classified LP based on unconfirmed MITOMAP entries are now VUS.
+
 ## [0.16.0] - 2026-08-14
 
 ### Added

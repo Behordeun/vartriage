@@ -221,7 +221,7 @@ class TestVariantToRow:
             evidence_tags=frozenset(),
         )
         row = _variant_to_row(cv)
-        assert len(row) == 19
+        assert len(row) == 21
         # AF, revel, composite, clinvar, evidence_tags all empty
         assert row[6] == ""
         assert row[7] == ""
