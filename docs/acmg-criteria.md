@@ -10,18 +10,24 @@ When a required data source is unavailable for a criterion, that criterion is sk
 
 ## Pathogenic criteria
 
-### PVS1 (Very Strong)
+### PVS1 (Very Strong / Strong)
 
 Null variant in a gene where loss-of-function is a known mechanism of disease.
 
-| Condition | Fires when |
-| --------- | ---------- |
-| Nonsense or Frameshift | Always (consequence alone is sufficient) |
-| Splice site | SpliceAI max delta > 0.8 |
+| Condition | Fires when | Strength |
+| --------- | ---------- | -------- |
+| Nonsense or Frameshift in LoF-intolerant gene (pLI > 0.9) | Always | Very Strong |
+| Nonsense or Frameshift in LoF-tolerant gene (pLI < 0.9) | Always | Strong (PVS1_Strong) |
+| Nonsense or Frameshift without constraint data | Always | Very Strong (benefit of doubt) |
+| Splice site | SpliceAI max delta > 0.8 | Very Strong |
+
+When an explicit `lof_gene_list` is provided to the classifier, genes on the list always receive Very Strong PVS1. Genes not on the list receive Strong (downgraded), regardless of pLI. This allows labs to curate a trusted list of LoF-mechanism genes.
 
 If a splice-site variant lacks SpliceAI data, PVS1 is not assigned and "SpliceAI" is recorded as a missing source.
 
-**Required data:** Functional consequence (from GTF annotation). SpliceAI scores for splice-site variants.
+**Required data:** Functional consequence (from GTF annotation). SpliceAI scores for splice-site variants. gnomAD constraint data (pLI) for strength determination.
+
+**Limitation:** PVS1 does not check the following per the 2018 ClinGen PVS1 specification (Tayoun et al. 2018): variants near the 3' end of the transcript, alternatively spliced exons, or single-exon genes. These refinements are planned for a future release.
 
 ### PS1 (Strong)
 
@@ -319,20 +325,36 @@ PS1 and PM5 only fire when a protein index is provided. Without it, classificati
 
 Complete mapping of tags to strength tiers in vartriage:
 
-| Tag | Strength | Direction |
-| --- | -------- | --------- |
-| PVS1 | Very Strong | Pathogenic |
-| PS1 | Strong | Pathogenic |
-| PM2 | Moderate | Pathogenic |
-| PM5 | Moderate | Pathogenic |
-| PP3 | Supporting | Pathogenic |
-| PP3_MODERATE | Moderate | Pathogenic |
-| PP5 | Supporting | Pathogenic |
-| BA1 | Standalone | Benign |
-| BS1 | Strong | Benign |
-| BP4 | Supporting | Benign |
-| BP4_MODERATE | Moderate | Benign |
-| BP7 | Supporting | Benign |
+| Tag | Strength | Direction | Status |
+| --- | -------- | --------- | ------ |
+| PVS1 | Very Strong | Pathogenic | Evaluated |
+| PVS1_Strong | Strong | Pathogenic | Evaluated (v0.17.0) |
+| PS1 | Strong | Pathogenic | Evaluated |
+| PM1 | Moderate | Pathogenic | Evaluated (v0.17.0) |
+| PM2 | Moderate | Pathogenic | Evaluated |
+| PM4 | Moderate | Pathogenic | Evaluated (v0.17.0) |
+| PM5 | Moderate | Pathogenic | Evaluated |
+| PP3 | Supporting | Pathogenic | Evaluated |
+| PP3_MODERATE | Moderate | Pathogenic | Evaluated |
+| PP5 | Supporting | Pathogenic | Evaluated |
+| BA1 | Standalone | Benign | Evaluated |
+| BS1 | Strong | Benign | Evaluated |
+| BS2 | Strong | Benign | Placeholder (not evaluated) |
+| BP4 | Supporting | Benign | Evaluated |
+| BP4_MODERATE | Moderate | Benign | Evaluated |
+| BP7 | Supporting | Benign | Evaluated |
+
+### Criteria not implemented
+
+The following ACMG/AMP 2015 criteria are not currently evaluated:
+
+| Criterion | Reason |
+| --------- | ------ |
+| PM3 | Requires phase data (detected in trans with pathogenic variant) |
+| PP1 | Requires pedigree cosegregation data |
+| PP2 | Requires per-gene benign missense rate data |
+| BS2 | Requires gnomAD homozygote count data |
+| BS3 | Requires functional assay data |
 
 ## Missing data handling
 
@@ -343,14 +365,33 @@ Common missing data patterns:
 | Missing source | Criteria affected | How to resolve |
 | -------------- | ----------------- | -------------- |
 | gnomAD | PM2, BA1, BS1 | Provide gnomAD frequencies (local or API) |
+| gnomAD_constraint | PVS1 strength | Provide gene knowledge data (--knowledge-dir or bundled) |
+| functional_domain | PM1 | Provide gene knowledge data with constraint metrics |
 | REVEL | PP3, BP4 | Provide REVEL scores TSV |
 | SpliceAI | PVS1 (splice), PP3 (splice), BP7 | Provide SpliceAI scores TSV |
 | ClinVar | PP5 | Provide ClinVar annotation file |
 | ClinVar_protein_index | PS1, PM5 | Generate and provide the protein index |
 | codon_resolution | PS1, PM5 | Provide reference FASTA |
 
+## Conflicting evidence
+
+When both pathogenic and benign evidence tags are present for the same variant, the classifier returns VUS and sets `has_conflicting_evidence = True` on the output. This distinguishes "VUS because insufficient evidence" from "VUS because contradictory evidence." Clinical reports display a note when this flag is set.
+
+## Limitations and assumptions
+
+**Multiallelic input:** vartriage expects biallelic VCF input. Multiallelic sites must be decomposed upstream (e.g., via `bcftools norm -m-`). Passing multiallelic records may produce incorrect annotation lookups.
+
+**Genome build:** Coordinates are build-agnostic internally. Reference files (GTF, gnomAD, ClinVar, CADD, SpliceAI) must match the VCF's genome build. The library ships GRCh38 presets and bundles; GRCh37 is supported with user-supplied references.
+
+**Mitochondrial haplogroup context:** Haplogroup assignment is not performed. Variants defining rare haplogroups may appear rare in HelixMTdb and receive false-positive pathogenicity scores. Manual haplogroup confirmation is recommended for ambiguous mtDNA results.
+
+**PP5 single-assertion model:** ClinVar entries frequently have multiple submissions with conflicting interpretations. The library stores a single assertion per variant. A multi-submitter ClinVar entry classified as "Pathogenic" by one lab and "Likely Benign" by another will show whichever assertion the reference file provides. Future releases may incorporate review_status filtering.
+
+**Disease-specific thresholds:** PM2, BA1, and BS1 use fixed population frequency thresholds regardless of disease inheritance mode. Disease-specific carrier frequency calibration is not implemented.
+
 ## References
 
 - Richards S, et al. Standards and guidelines for the interpretation of sequence variants. Genet Med. 2015;17(5):405-424.
 - Pejaver V, et al. Calibration of computational tools for missense variant pathogenicity classification and ClinGen recommendations for PP3/BP4 criteria. Am J Hum Genet. 2022;109(12):2163-2177.
 - Riggs ER, et al. Technical standards for the interpretation and reporting of constitutional copy-number variants. Genet Med. 2020;22(2):245-257.
+- Tayoun AN, et al. Recommendations for interpreting the loss of function PVS1 ACMG/AMP variant criterion. Hum Mutat. 2018;39(11):1517-1524.
