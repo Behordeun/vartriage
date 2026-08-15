@@ -382,11 +382,13 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     # BP4: computational benign (ClinGen-calibrated thresholds)
     # Missense: REVEL < 0.183 (moderate) or REVEL < 0.290 (supporting)
     # Non-missense: CADD < 10 (supporting)
-    # Does NOT fire for null variants (frameshift/nonsense/stop-loss)
+    # Does NOT fire for null/protein-altering variants
     if consequence not in (
         FunctionalConsequence.FRAMESHIFT,
         FunctionalConsequence.NONSENSE,
         FunctionalConsequence.STOP_LOSS,
+        FunctionalConsequence.IN_FRAME_INSERTION,
+        FunctionalConsequence.IN_FRAME_DELETION,
     ):
         if consequence == FunctionalConsequence.MISSENSE:
             if revel is not None:
