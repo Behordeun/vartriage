@@ -539,16 +539,22 @@ class ACMGClassifier:
         - BP4 (supporting): REVEL < 0.290
 
         For non-missense variants, CADD Phred < 10 triggers supporting BP4.
-        Does NOT fire for null variants (frameshift/nonsense) where
-        computational predictors are not appropriate for benign evidence.
+        Does NOT fire for protein-altering variants (null variants or in-frame
+        indels) where low computational scores are not appropriate evidence of
+        benign impact. In-frame indels already fire PM4; awarding BP4
+        simultaneously would create contradictory evidence for the same variant.
         """
         consequence = variant.annotated.consequence
 
-        # Null/protein-altering variants should not receive computational benign evidence
+        # Null and protein-length-altering variants should not receive
+        # computational benign evidence. In-frame indels get PM4 (moderate
+        # pathogenic); BP4 on the same variant is logically contradictory.
         if consequence in (
             FunctionalConsequence.FRAMESHIFT,
             FunctionalConsequence.NONSENSE,
             FunctionalConsequence.STOP_LOSS,
+            FunctionalConsequence.IN_FRAME_INSERTION,
+            FunctionalConsequence.IN_FRAME_DELETION,
         ):
             return
 
