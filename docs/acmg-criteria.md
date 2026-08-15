@@ -365,8 +365,7 @@ Common missing data patterns:
 | Missing source | Criteria affected | How to resolve |
 | -------------- | ----------------- | -------------- |
 | gnomAD | PM2, BA1, BS1 | Provide gnomAD frequencies (local or API) |
-| gnomAD_constraint | PVS1 strength | Provide gene knowledge data (--knowledge-dir or bundled) |
-| functional_domain | PM1 | Provide gene knowledge data with constraint metrics |
+| gnomAD_constraint | PVS1 strength, PM1 | Provide gene knowledge data (--knowledge-dir or bundled) |
 | REVEL | PP3, BP4 | Provide REVEL scores TSV |
 | SpliceAI | PVS1 (splice), PP3 (splice), BP7 | Provide SpliceAI scores TSV |
 | ClinVar | PP5 | Provide ClinVar annotation file |

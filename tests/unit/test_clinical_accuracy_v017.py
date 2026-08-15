@@ -285,7 +285,7 @@ class TestPM1:
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert EvidenceTag.PM1 not in results[0].evidence_tags
-        assert "functional_domain" in results[0].missing_data_sources
+        assert "gnomAD_constraint" in results[0].missing_data_sources
 
     def test_pm1_does_not_fire_for_low_mis_z(self) -> None:
         sv = _make_scored(

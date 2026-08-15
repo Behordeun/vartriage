@@ -256,7 +256,7 @@ class TestMissingDataSources:
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert results[0].missing_data_sources == frozenset(
-            {"ClinVar_protein_index", "functional_domain"}
+            {"ClinVar_protein_index", "gnomAD_constraint"}
         )
 
 

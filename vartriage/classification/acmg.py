@@ -540,10 +540,11 @@ class ACMGClassifier:
         """
         consequence = variant.annotated.consequence
 
-        # Null variants should not receive computational benign evidence
+        # Null/protein-altering variants should not receive computational benign evidence
         if consequence in (
             FunctionalConsequence.FRAMESHIFT,
             FunctionalConsequence.NONSENSE,
+            FunctionalConsequence.STOP_LOSS,
         ):
             return
 
@@ -598,7 +599,7 @@ class ACMGClassifier:
 
         gene_context = variant.annotated.gene_context
         if gene_context is None or gene_context.constraint is None:
-            missing_sources.add("functional_domain")
+            missing_sources.add("gnomAD_constraint")
             return
 
         if gene_context.constraint.is_missense_constrained:
