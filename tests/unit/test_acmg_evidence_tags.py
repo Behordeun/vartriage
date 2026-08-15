@@ -255,7 +255,9 @@ class TestMissingDataSources:
         # but codon_resolution is satisfied since protein_change is populated.
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
-        assert results[0].missing_data_sources == frozenset({"ClinVar_protein_index"})
+        assert results[0].missing_data_sources == frozenset(
+            {"ClinVar_protein_index", "functional_domain"}
+        )
 
 
 class TestClassifyOutput:

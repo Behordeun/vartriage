@@ -272,7 +272,7 @@ class TestPrioritizationScore:
             spliceai_score=None,
             cadd_phred=35.0,
         )
-        assert score == pytest.approx(35.0 / 60.0)
+        assert score == pytest.approx(35.0 / 99.0)
 
     def test_cadd_capped_at_one(self) -> None:
         score = compute_prioritization_score(
@@ -299,9 +299,8 @@ class TestPrioritizationScore:
             spliceai_score=0.7,
             cadd_phred=50.0,
         )
-        # REVEL=0.3 (primary for missense), SpliceAI=0.7 (supplementary),
-        # CADD=50/60=0.833. Max = 0.833
-        assert score == pytest.approx(50.0 / 60.0)
+        # REVEL=0.3, SpliceAI=0.7, CADD=50/99=0.505. Max = 0.7 (SpliceAI)
+        assert score == pytest.approx(0.7)
 
     def test_revel_only_for_missense(self) -> None:
         score = compute_prioritization_score(
