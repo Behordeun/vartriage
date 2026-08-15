@@ -27,7 +27,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Migration Notes
 
 - **Breaking for CADD-dependent rankings**: variants scored primarily by CADD will shift in prioritization order. Re-run existing analyses to see the impact. Classification (ACMG tiers) is not affected since CADD drives PP3/BP4 via REVEL thresholds, not directly.
-- **PVS1 strength change**: variants in genes with pLI < 0.9 that previously received PVS1 (Very Strong) now receive PVS1_Strong (Strong). This may downgrade some variants from Pathogenic to Likely Pathogenic when PVS1 was the only very-strong evidence. Users who don't provide gene-disease linkage data (no `--knowledge-dir` or bundles) see no change (benefit-of-doubt applies).
+- **PVS1 strength change**: variants in genes with pLI < 0.9 that previously received PVS1 (Very Strong) now receive PVS1_Strong (Strong). This may downgrade some variants from Pathogenic to Likely Pathogenic when PVS1 was the only very-strong evidence. Users who don't provide gene-disease linkage data (no `--knowledge-dir` or bundles) see no change (benefit of the doubt applies).
 - **Mito LP reclassification**: variants previously classified LP based on unconfirmed MITOMAP entries are now VUS.
 
 ## [0.16.0] - 2026-08-14

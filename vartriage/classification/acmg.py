@@ -83,6 +83,8 @@ _PM4_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset(
     }
 )
 
+_MISSING_SOURCE_GNOMAD_CONSTRAINT = "gnomAD_constraint"
+
 
 class ACMGClassifier:
     """Assign ACMG/AMP evidence tags and final classification.
@@ -125,6 +127,8 @@ class ACMGClassifier:
             disease mechanism. When provided, PVS1 fires at Very Strong
             only for genes on this list. Genes not on the list get PVS1
             at Strong (downgraded). When None, pLI-based gating is used.
+            Gene names are matched case-sensitively against
+            ``variant.annotated.gene_name`` (HGNC symbols, e.g., "BRCA1").
         """
         self._protein_index = protein_index
         self._lof_gene_list = lof_gene_list
@@ -599,7 +603,7 @@ class ACMGClassifier:
 
         gene_context = variant.annotated.gene_context
         if gene_context is None or gene_context.constraint is None:
-            missing_sources.add("gnomAD_constraint")
+            missing_sources.add(_MISSING_SOURCE_GNOMAD_CONSTRAINT)
             return
 
         if gene_context.constraint.is_missense_constrained:

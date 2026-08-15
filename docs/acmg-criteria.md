@@ -18,7 +18,7 @@ Null variant in a gene where loss-of-function is a known mechanism of disease.
 | --------- | ---------- | -------- |
 | Nonsense or Frameshift in LoF-intolerant gene (pLI > 0.9) | Always | Very Strong |
 | Nonsense or Frameshift in LoF-tolerant gene (pLI < 0.9) | Always | Strong (PVS1_Strong) |
-| Nonsense or Frameshift without constraint data | Always | Very Strong (benefit of doubt) |
+| Nonsense or Frameshift without constraint data | Always | Very Strong (benefit of the doubt) |
 | Splice site | SpliceAI max delta > 0.8 | Very Strong |
 
 When an explicit `lof_gene_list` is provided to the classifier, genes on the list always receive Very Strong PVS1. Genes not on the list receive Strong (downgraded), regardless of pLI. This allows labs to curate a trusted list of LoF-mechanism genes.

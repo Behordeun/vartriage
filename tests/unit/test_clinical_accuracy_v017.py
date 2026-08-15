@@ -342,14 +342,11 @@ class TestPM4:
 
 
 class TestTwoVSPathogenic:
-    """Two Very Strong tags should produce Pathogenic classification."""
+    """Combining rules for Very Strong + Strong and 2x Very Strong."""
 
-    def test_two_vs_tags_produce_pathogenic(self) -> None:
-        # PVS1 is VERY_STRONG. We need a second VS tag — currently
-        # only PVS1 is VS in the enum. Test the combining function directly.
+    def test_one_vs_one_strong_produces_pathogenic(self) -> None:
+        # PVS1 (Very Strong) + PVS1_STRONG (Strong) = 1 VS + 1 S = Pathogenic
         tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PVS1_STRONG})
-        # PVS1 is VS, PVS1_STRONG is Strong → should be Likely Pathogenic
-        # (1 VS + 1 S = Pathogenic actually)
         result = combine_evidence(tags)
         assert result == ACMGClassification.PATHOGENIC
 
