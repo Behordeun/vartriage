@@ -188,6 +188,8 @@ def test_json_output_field_order(
         "clinvar_assertion",
         "acmg_classification",
         "evidence_tags",
+        "has_conflicting_evidence",
+        "missing_data_sources",
     ]
 
     for i, record_pairs in enumerate(deserialized):
