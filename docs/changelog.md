@@ -4,6 +4,12 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.1] - 2026-08-15
+
+### Fixed
+
+- **BP4 no longer fires for in-frame indels**: IN_FRAME_INSERTION and IN_FRAME_DELETION are now excluded from BP4 computational benign evidence. These variants fire PM4 (moderate pathogenic); awarding BP4 simultaneously created logically contradictory evidence and an incorrect conflicting-evidence VUS.
+
 ## [0.17.0] - 2026-08-15
 
 ### Added
