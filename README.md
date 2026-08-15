@@ -218,6 +218,36 @@ The mitochondrial pipeline uses the vertebrate mitochondrial genetic code for am
 
 See [Mitochondrial Variants Guide](https://github.com/Behordeun/vartriage/blob/main/docs/mitochondrial.md) for heteroplasmy thresholds, classification rules, and data update instructions.
 
+### Remote tabix scoring
+
+Query CADD and gnomAD scores from public servers via HTTP byte-range requests. No local download of the 80+ GB CADD file or 15+ GB gnomAD required:
+
+```bash
+# CADD scores via remote tabix (named preset)
+vartriage --vcf panel.vcf --output results.json \
+  --gene-annotation gencode.gtf --cadd-remote cadd-v1.7-grch38
+
+# gnomAD frequencies via remote tabix
+vartriage --vcf panel.vcf --output results.json \
+  --gene-annotation gencode.gtf --gnomad-remote gnomad-exomes-v4-grch38
+
+# Both together with local ClinVar
+vartriage --vcf patient.vcf.gz --output report.json \
+  --gene-annotation gencode.gtf --clinvar clinvar.tsv \
+  --cadd-remote cadd-v1.7-grch38 --gnomad-remote gnomad-exomes-v4-grch38
+
+# Pinned cache for clinical reproducibility (scores never expire)
+vartriage --vcf panel.vcf --output results.json \
+  --cadd-remote cadd-v1.7-grch38 --remote-cache-ttl -1
+
+# List available presets
+vartriage remote list-presets
+```
+
+Scores are cached locally in SQLite (`~/.vartriage/remote_cache.db`) with a 30-day TTL by default. Local files always take priority over remote. A circuit breaker prevents the pipeline from stalling on network failures.
+
+See [Remote Tabix Guide](https://github.com/Behordeun/vartriage/blob/main/docs/remote-tabix.md) for presets, caching, Python API, and configuration details.
+
 ### Full options
 
 ```bash
