@@ -468,6 +468,66 @@ class PyRangesConsequenceAnnotator:
 
         return splice_positions
 
+    def cds_overlaps_batch(self, variants: list[Variant]) -> list[list[str]]:
+        """Find CDS-overlapping transcript IDs for a batch of variants.
+
+        Does ONE vectorized join against the gene model, filters to CDS
+        features, and returns the transcript IDs per variant. Used by the
+        engine to drive codon resolution only on CDS-overlapping variants.
+
+        Parameters
+        ----------
+        variants : list[Variant]
+            Variants to check.
+
+        Returns
+        -------
+        list[list[str]]
+            Per-variant list of transcript IDs that overlap CDS regions.
+            Empty list for variants not in any CDS.
+        """
+        if not variants:
+            return []
+
+        if not self._index._loaded or self._index._gr is None:
+            return [[] for _ in variants]
+
+        records = []
+        for i, v in enumerate(variants):
+            var_start = v.pos - 1
+            var_end = var_start + max(len(v.ref), len(v.alt))
+            records.append(
+                {
+                    "Chromosome": v.chrom,
+                    "Start": var_start,
+                    "End": var_end,
+                    "_idx": i,
+                }
+            )
+
+        query_df = pd.DataFrame(records)
+        query_gr = pr.PyRanges(query_df)
+
+        hits = self._index._gr.join(query_gr)
+        hits_df = hits.df
+
+        result: list[list[str]] = [[] for _ in variants]
+        if hits_df.empty:
+            return result
+
+        # Only CDS hits matter for codon resolution
+        cds_hits = hits_df[hits_df["Feature"] == "CDS"]
+        if cds_hits.empty:
+            return result
+
+        for _, row in cds_hits.iterrows():
+            var_idx = int(row["_idx"])
+            transcript_id = row.get("transcript_id", "")
+            if transcript_id and transcript_id not in result[var_idx]:
+                result[var_idx].append(transcript_id)
+
+        return result
+
 
 def _determine_consequence_pyranges(
     ref: str,
