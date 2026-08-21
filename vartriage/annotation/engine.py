@@ -9,6 +9,7 @@ when the optional deps aren't installed.
 from __future__ import annotations
 
 import logging
+import re as _re
 from collections.abc import Iterator
 from itertools import islice
 from pathlib import Path
@@ -46,6 +47,19 @@ def _polars_available() -> bool:
         return True
     except ImportError:
         return False
+
+
+_GTF_ATTR_CACHE: dict[str, _re.Pattern[str]] = {}
+
+
+def _extract_gtf_attr(attrs: str, key: str) -> str | None:
+    """Extract a single attribute value from a GTF attributes string."""
+    pattern = _GTF_ATTR_CACHE.get(key)
+    if pattern is None:
+        pattern = _re.compile(rf'{key}\s+"([^"]+)"')
+        _GTF_ATTR_CACHE[key] = pattern
+    match = pattern.search(attrs)
+    return match.group(1) if match else None
 
 
 class AnnotationEngine:
@@ -105,6 +119,21 @@ class AnnotationEngine:
         self._clinvar_db: ClinVarDatabase | None = self._build_clinvar_db(
             config.clinvar_path
         )
+
+        # Capability flags (determined once at init, not per-call hasattr)
+        self._supports_batch_gene_names: bool = hasattr(
+            self._consequence_annotator, "gene_names_batch"
+        )
+        self._supports_batch_cds: bool = hasattr(
+            self._consequence_annotator, "cds_overlaps_batch"
+        )
+
+        # Build CodonResolver for pyranges backend protein change resolution.
+        # For the pure-Python backend, the resolver is attached via
+        # _attach_codon_resolver above; for pyranges, we build it here.
+        self._pyranges_codon_resolver: Any = None
+        if self._supports_batch_cds and config.reference_fasta_path is not None:
+            self._pyranges_codon_resolver = self._build_pyranges_codon_resolver()
 
     @property
     def warnings(self) -> list[MissingDataWarning]:
@@ -241,9 +270,13 @@ class AnnotationEngine:
     ) -> tuple[list[str | None], list[ProteinChange | None]]:
         """Extract gene names and protein changes for a batch of variants.
 
-        Uses the consequence annotator's overlap() method per variant to find
-        the gene symbol and codon context from overlapping regions. Builds
-        ProteinChange from CodonContext when codon resolution succeeded.
+        Uses the vectorized gene_names_batch() when available (pyranges
+        backend) for O(1) bulk join instead of per-variant overlap queries.
+        For protein changes, uses batched CDS overlap detection + CodonResolver
+        on just the CDS-overlapping variants.
+
+        Falls back to per-variant overlap() only for backends without
+        vectorized methods (pure-Python SortedArrayIntervalIndex).
 
         Parameters
         ----------
@@ -255,6 +288,24 @@ class AnnotationEngine:
         tuple[list[Optional[str]], list[Optional[ProteinChange]]]
             Gene names and protein changes positionally matched to the batch.
         """
+        # Fast path: use vectorized gene_names_batch when available
+        # (pyranges backend). This does ONE interval join for the whole
+        # batch instead of N individual joins.
+        if self._supports_batch_gene_names:
+            fast_gene_names = self._consequence_annotator.gene_names_batch(batch)  # type: ignore[attr-defined]
+
+            # Protein changes: use batched CDS overlap + CodonResolver
+            fast_protein_changes = self._resolve_protein_changes_batched(batch)
+
+            # If a protein change was found, override gene_name with the
+            # gene from the transcript that produced it (consistency rule)
+            for i, pc in enumerate(fast_protein_changes):
+                if pc is not None:
+                    fast_gene_names[i] = pc.gene_name
+
+            return fast_gene_names, fast_protein_changes
+
+        # Slow path: per-variant overlap (pure-Python backend with codon resolver)
         gene_names: list[str | None] = []
         protein_changes: list[ProteinChange | None] = []
 
@@ -272,15 +323,133 @@ class AnnotationEngine:
 
             protein_change = self._first_nonsynonymous_protein_change(overlaps)
             if protein_change is not None:
-                # Use the gene from the same transcript that produced the
-                # protein change so gene_name and protein_change.gene_name
-                # are always consistent
                 gene_names.append(protein_change.gene_name)
             else:
                 gene_names.append(overlaps[0].get("gene_name"))
             protein_changes.append(protein_change)
 
         return gene_names, protein_changes
+
+    def _resolve_protein_changes_batched(
+        self, batch: list[Variant]
+    ) -> list[ProteinChange | None]:
+        """Resolve protein changes using batched CDS detection + CodonResolver.
+
+        Steps:
+        1. Use cds_overlaps_batch() for ONE bulk interval join to find
+           which variants overlap CDS regions and their transcript IDs.
+        2. For only those variants (typically <5% of a chr22 VCF), call
+           CodonResolver.resolve() to get the amino acid change.
+
+        If no reference FASTA is configured (no CodonResolver available),
+        returns all None (protein changes cannot be determined without
+        a reference genome).
+        """
+        protein_changes: list[ProteinChange | None] = [None] * len(batch)
+
+        if not self._supports_batch_cds or self._pyranges_codon_resolver is None:
+            return protein_changes
+
+        # Step 1: batched CDS overlap detection (one bulk join)
+        cds_overlaps = self._consequence_annotator.cds_overlaps_batch(batch)  # type: ignore[attr-defined]
+
+        # Step 2: resolve protein changes only for CDS-overlapping variants
+        for i, transcript_ids in enumerate(cds_overlaps):
+            if not transcript_ids:
+                continue
+
+            variant = batch[i]
+            # Only resolve SNVs (CodonResolver handles single-base substitutions)
+            if len(variant.ref) != 1 or len(variant.alt) != 1:
+                continue
+
+            # Try each overlapping transcript until we get a non-synonymous change
+            for tid in transcript_ids:
+                ctx = self._pyranges_codon_resolver.resolve(
+                    chrom=variant.chrom,
+                    pos=variant.pos,
+                    ref=variant.ref,
+                    alt=variant.alt,
+                    transcript_id=tid,
+                )
+                if ctx is not None and not ctx.is_synonymous:
+                    protein_changes[i] = ProteinChange(
+                        gene_name=ctx.gene_name,
+                        position=ctx.codon_index + 1,
+                        reference_aa=ctx.reference_aa,
+                        altered_aa=ctx.altered_aa,
+                    )
+                    break
+
+        return protein_changes
+
+    def _build_pyranges_codon_resolver(self) -> Any:
+        """Build a CodonResolver for the pyranges backend path.
+
+        Called once at init time. Returns None if construction fails.
+        """
+        try:
+            if self._config.gene_annotation_path is None:
+                logger.info("No gene annotation path, skipping CodonResolver")
+                return None
+
+            from vartriage.annotation.codon_resolver import CodonResolver
+            from vartriage.annotation.transcript_index import TranscriptCDSIndex
+
+            # Build transcript index by parsing CDS features from GTF
+            transcript_index = TranscriptCDSIndex()
+            gtf_path = self._config.gene_annotation_path
+
+            with open(gtf_path, encoding="utf-8") as fh:
+                for line in fh:
+                    if line.startswith("#"):
+                        continue
+                    parts = line.rstrip("\n").split("\t")
+                    if len(parts) < 9 or parts[2] != "CDS":
+                        continue
+
+                    chrom = parts[0]
+                    start = int(parts[3]) - 1  # GTF is 1-based
+                    end = int(parts[4])  # GTF end is inclusive, convert to exclusive
+                    strand = parts[6]
+                    try:
+                        frame = int(parts[7]) if parts[7] != "." else 0
+                    except ValueError:
+                        frame = 0
+
+                    # Parse attributes for gene_name and transcript_id
+                    attrs = parts[8]
+                    gene_name = _extract_gtf_attr(attrs, "gene_name")
+                    transcript_id = _extract_gtf_attr(attrs, "transcript_id")
+                    if not transcript_id:
+                        continue
+
+                    transcript_index.add_cds_exon(
+                        transcript_id=transcript_id,
+                        gene_name=gene_name or "unknown",
+                        chrom=chrom,
+                        start=start,
+                        end=end,
+                        strand=strand,
+                        frame=frame,
+                    )
+
+            transcript_index.finalize()
+
+            resolver = CodonResolver(
+                self._config.reference_fasta_path,  # type: ignore[arg-type]
+                transcript_index,
+            )
+            logger.info(
+                "CodonResolver created for pyranges backend (FASTA: %s)",
+                self._config.reference_fasta_path,
+            )
+            return resolver
+        except Exception as exc:
+            logger.warning(
+                "Could not create CodonResolver for pyranges backend: %s", exc
+            )
+            return None
 
     @staticmethod
     def _first_nonsynonymous_protein_change(
