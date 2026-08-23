@@ -162,7 +162,7 @@ def test_pvs1_assigned_iff_nonsense_or_frameshift(variant: ScoredVariant) -> Non
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
 def test_pm2_assigned_iff_af_below_threshold(variant: ScoredVariant) -> None:
-    """PM2 is assigned when AF < 0.0001; omitted when AF is None (missing)."""
+    """PM2 is assigned when AF < 0.0001 or when AF is None (absent from controls)."""
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
@@ -170,12 +170,9 @@ def test_pm2_assigned_iff_af_below_threshold(variant: ScoredVariant) -> None:
     af = variant.annotated.allele_frequency
 
     if af is None:
-        # Data unavailable, PM2 should be omitted
-        assert EvidenceTag.PM2 not in classified.evidence_tags, (
-            "PM2 should be omitted when allele frequency is unavailable"
-        )
-        assert "gnomAD" in classified.missing_data_sources, (
-            "gnomAD should be listed as missing when AF is None"
+        # Absent from gnomAD = not observed in controls. PM2 fires.
+        assert EvidenceTag.PM2 in classified.evidence_tags, (
+            "PM2 should fire when allele frequency is None (absent from controls)"
         )
     elif af < 0.0001:
         assert EvidenceTag.PM2 in classified.evidence_tags, (
@@ -308,8 +305,7 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     ):
         expected_tags.add(EvidenceTag.PM4)
 
-    # PM2: AF < 0.0001 (skip if AF is None)
-    # PM2: AF < 0.0001 in ALL populations (population-aware)
+    # PM2: AF < 0.0001 or absent from gnomAD (AF=None)
     af = variant.annotated.allele_frequency
     pop_freq = variant.annotated.population_frequencies
 
@@ -327,9 +323,15 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
                 pop_freq.global_af,
             )
         )
-        if has_any_data and pop_freq.all_below(0.0001):
+        if not has_any_data:
+            # All population fields None = absent from gnomAD → PM2
+            expected_tags.add(EvidenceTag.PM2)
+        elif pop_freq.all_below(0.0001):
             expected_tags.add(EvidenceTag.PM2)
     elif af is not None and af < 0.0001:
+        expected_tags.add(EvidenceTag.PM2)
+    elif af is None:
+        # Absent from gnomAD = not observed in controls → PM2
         expected_tags.add(EvidenceTag.PM2)
 
     # PP3: ClinGen-calibrated REVEL thresholds (Pejaver et al. 2022)
@@ -424,9 +426,8 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
 
     expected_missing: set[str] = set()
 
-    # gnomAD missing when AF is None
-    if variant.annotated.allele_frequency is None:
-        expected_missing.add("gnomAD")
+    # gnomAD: AF=None now fires PM2 (absent = rare), so it's no longer "missing"
+    # gnomAD is only missing when pop_freq has partial data issues (not testable here)
 
     # ClinVar missing when assertion is None
     if variant.annotated.clinvar_assertion is None:
@@ -532,6 +533,11 @@ def test_combining_rules_match_specification(
     has_pathogenic = len(pathogenic_tags) > 0
     has_benign = len(benign_tags) > 0
 
+    # BA1 standalone override — fires before conflict detection
+    if EvidenceTag.BA1 in tags:
+        assert result == ACMGClassification.BENIGN
+        return
+
     # Conflicting evidence
     if has_pathogenic and has_benign:
         assert result == ACMGClassification.VUS
@@ -594,7 +600,11 @@ def test_combining_rules_match_specification(
         (vs >= 1 and s >= 1) or (s >= 2 and sup >= 1) or (vs >= 1 and sup >= 2)
     )
     is_likely_pathogenic = (
-        (vs >= 1 and m >= 1) or (s >= 1 and m >= 1) or (s >= 1 and sup >= 2)
+        (vs >= 1 and m >= 1)
+        or (s >= 1 and m >= 1)
+        or (s >= 1 and sup >= 2)
+        or (m >= 2)
+        or (m >= 1 and sup >= 4)
     )
 
     if not tags:

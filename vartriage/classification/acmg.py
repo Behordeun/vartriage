@@ -365,7 +365,9 @@ class ACMGClassifier:
                 )
             )
             if not has_any_data:
-                missing_sources.add("gnomAD")
+                # All population fields are None = variant absent from gnomAD.
+                # Absent from controls satisfies PM2 per ACMG/AMP 2015.
+                tags.add(EvidenceTag.PM2)
                 return
             if pop_freq.all_below(_PM2_AF_THRESHOLD):
                 tags.add(EvidenceTag.PM2)
@@ -374,7 +376,9 @@ class ACMGClassifier:
         # Fallback: global AF
         af = annotated.allele_frequency
         if af is None:
-            missing_sources.add("gnomAD")
+            # Absent from gnomAD = not observed in 730K+ exomes.
+            # Per ACMG/AMP 2015: "Absent from controls" satisfies PM2.
+            tags.add(EvidenceTag.PM2)
             return
 
         if af < _PM2_AF_THRESHOLD:

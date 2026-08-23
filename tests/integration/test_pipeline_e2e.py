@@ -536,10 +536,10 @@ class TestPipelineE2E:
         # Verify at least one has the expected evidence tags
         from vartriage.models.variant import EvidenceTag
 
-        for v in pathogenic_or_likely:
-            tags = v.evidence_tags
-            # Should have PVS1 at minimum (frameshift)
-            assert EvidenceTag.PVS1 in tags
+        pvs1_found = any(
+            EvidenceTag.PVS1 in v.evidence_tags for v in pathogenic_or_likely
+        )
+        assert pvs1_found, "At least one LP/P variant should have PVS1 (frameshift)"
 
     def test_composite_rank_ordering(self, pipeline_data: dict[str, Path]) -> None:
         """Output is sorted descending by composite_rank, nulls last."""

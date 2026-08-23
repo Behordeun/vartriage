@@ -64,6 +64,11 @@ def combine_evidence(
     if not tags:
         return ACMGClassification.VUS
 
+    # BA1 is a standalone override per ACMG 2015 Table 5.
+    # AF > 5% = Benign regardless of any co-occurring pathogenic evidence.
+    if EvidenceTag.BA1 in tags:
+        return ACMGClassification.BENIGN
+
     pathogenic_tags = tags - _BENIGN_TAGS
     benign_tags = tags & _BENIGN_TAGS
 

@@ -229,8 +229,8 @@ class TestConflictingEvidence:
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
-        # PVS1 (pathogenic) + BA1 (benign) → VUS with conflict
-        assert results[0].classification == ACMGClassification.VUS
+        # PVS1 (pathogenic) + BA1 (benign) → BA1 standalone override = Benign
+        assert results[0].classification == ACMGClassification.BENIGN
         assert results[0].has_conflicting_evidence is True
 
     def test_vus_without_conflict_has_flag_false(self) -> None:
