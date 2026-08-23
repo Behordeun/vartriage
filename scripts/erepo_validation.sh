@@ -6,6 +6,8 @@ set -euo pipefail
 VARTRIAGE_DIR="$HOME/Documents/DevProjects/personal_projects/Bioinformatics_Libraries/vartriage"
 cd "$VARTRIAGE_DIR"
 
+VARTRIAGE_VERSION=$(.venv/bin/python3 -c "import vartriage; print(vartriage.__version__)")
+
 REFS="data/references"
 OUTPUT="validation_results/erepo"
 mkdir -p "$OUTPUT"
@@ -103,7 +105,7 @@ time .venv/bin/vartriage \
 
 echo "=== Step 5: Compute metrics ==="
 .venv/bin/python3 << 'PYEOF'
-import json, pysam
+import json, pysam, vartriage
 from collections import Counter
 from pathlib import Path
 
@@ -171,7 +173,7 @@ for cons in set(m["cons"] for m in exp_path):
     cons_stats[cons] = {"total":len(cv), "tp":len(ct), "sens":len(ct)/len(cv) if cv else 0}
 
 metrics = {
-    "vartriage_version":"0.17.2", "total_classified":len(data), "matched":len(matched),
+    "vartriage_version": vartriage.__version__, "total_classified":len(data), "matched":len(matched),
     "expert_plp":len(exp_path), "expert_blb":len(exp_benign),
     "pathogenic_sensitivity":round(sens,4), "pathogenic_ppv":round(ppv,4),
     "pathogenic_tp":len(tp), "pathogenic_fp":len(fp_path),
@@ -182,7 +184,7 @@ metrics = {
 Path("validation_results/erepo/erepo_validation_metrics.json").write_text(json.dumps(metrics, indent=2))
 
 print(f"\n{'='*50}")
-print(f"eRepo VALIDATION (v0.17.2)")
+print(f"eRepo VALIDATION (v{vartriage.__version__})")
 print(f"{'='*50}")
 print(f"Expert P/LP: {len(exp_path)}")
 print(f"Expert B/LB: {len(exp_benign)}")

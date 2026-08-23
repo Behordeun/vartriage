@@ -30,6 +30,8 @@ from pathlib import Path
 
 import pysam
 
+import vartriage
+
 # --- Configuration -----------------------------------------------------------
 
 VARTRIAGE_DIR = Path(__file__).resolve().parent.parent
@@ -393,7 +395,7 @@ def compute_metrics(
     ]
 
     metrics = {
-        "vartriage_version": "0.17.2",
+        "vartriage_version": vartriage.__version__,
         "dataset": "ClinGen Expert Panel (ClinVar CLNREVSTAT)",
         "total_erepo_variants": len(variants),
         "total_classified": len(data),
@@ -425,7 +427,7 @@ def compute_metrics(
 
     # Print summary
     print(f"\n{'=' * 60}")
-    print("  eRepo VALIDATION RESULTS (VarTriage v0.17.2)")
+    print(f"  eRepo VALIDATION RESULTS (VarTriage v{vartriage.__version__})")
     print(f"{'=' * 60}")
     print(f"  Dataset: {len(variants)} expert-panel variants from ClinVar")
     print(f"  Classified: {len(data)} | Matched: {len(matched)}")
