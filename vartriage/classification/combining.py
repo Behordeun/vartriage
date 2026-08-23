@@ -184,7 +184,16 @@ def _meets_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
 
 
 def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
-    """True if counts satisfy any Likely Pathogenic rule."""
+    """True if counts satisfy any Likely Pathogenic rule.
+
+    Standard ACMG 2015 rules plus Bayesian-adapted extensions
+    (Tavtigian et al. 2018):
+    - 1 VS + 1 M
+    - 1 S + >= 1 M
+    - 1 S + 2 Sup
+    - 2 M (Bayesian-adapted)
+    - 1 M + >= 4 Sup (Bayesian-adapted)
+    """
     vs = counts[EvidenceStrength.VERY_STRONG]
     s = counts[EvidenceStrength.STRONG]
     m = counts[EvidenceStrength.MODERATE]
@@ -194,4 +203,8 @@ def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
         return True
     if s >= 1 and m >= 1:
         return True
-    return bool(s >= 1 and sup >= 2)
+    if s >= 1 and sup >= 2:
+        return True
+    if m >= 2:
+        return True
+    return bool(m >= 1 and sup >= 4)

@@ -62,6 +62,10 @@ class PyRangesIntervalIndex:
     def load(self, annotation_path: Path) -> None:
         """Load gene annotation from a GTF/GFF file into pyranges.
 
+        Uses pickle-based caching: first load parses the GTF and saves
+        a cache file adjacent to the source. Subsequent loads deserialize
+        the cache in seconds instead of re-parsing the full GTF.
+
         Parameters
         ----------
         annotation_path : Path
@@ -79,6 +83,15 @@ class PyRangesIntervalIndex:
                 f"Gene annotation file not found: {annotation_path}"
             )
 
+        from vartriage._internal.cache import try_load_cache, try_write_cache
+
+        # Try loading from cache first
+        cached = try_load_cache(annotation_path)
+        if cached is not None:
+            self._gr, self._exon_gr = cached
+            self._loaded = True
+            return
+
         try:
             gr = pr.read_gtf(str(annotation_path))
         except Exception as exc:
@@ -95,6 +108,9 @@ class PyRangesIntervalIndex:
         exon_mask = gr.df["Feature"] == "exon"
         self._exon_gr = gr[exon_mask]
         self._loaded = True
+
+        # Save cache for next run
+        try_write_cache(annotation_path, (self._gr, self._exon_gr))
 
     def overlap(self, chrom: str, pos: int, ref: str, alt: str) -> list[dict[str, Any]]:
         """Return overlapping gene regions for a variant coordinate.
@@ -309,21 +325,7 @@ class PyRangesConsequenceAnnotator:
         if not self._index._loaded or self._index._gr is None:
             return [None] * len(variants)
 
-        records = []
-        for i, v in enumerate(variants):
-            var_start = v.pos - 1
-            var_end = var_start + max(len(v.ref), len(v.alt))
-            records.append(
-                {
-                    "Chromosome": v.chrom,
-                    "Start": var_start,
-                    "End": var_end,
-                    "_idx": i,
-                }
-            )
-
-        query_df = pd.DataFrame(records)
-        query_gr = pr.PyRanges(query_df)
+        query_df, query_gr = self._build_query(variants)
 
         hits = self._index._gr.join(query_gr)
         hits_df = hits.df
@@ -334,11 +336,10 @@ class PyRangesConsequenceAnnotator:
             return gene_names
 
         # Pick the first hit per variant index
-        gene_col = None
-        for col in ("gene_name", "Gene", "gene_id"):
-            if col in hits_df.columns:
-                gene_col = col
-                break
+        gene_col = next(
+            (col for col in ("gene_name", "Gene", "gene_id") if col in hits_df.columns),
+            None,
+        )
 
         if gene_col is None:
             return gene_names
@@ -377,23 +378,7 @@ class PyRangesConsequenceAnnotator:
             return [FunctionalConsequence.INTERGENIC] * len(variants)
 
         # Build a DataFrame of all variant positions at once
-        records = []
-        for i, v in enumerate(variants):
-            var_start = v.pos - 1
-            var_end = var_start + max(len(v.ref), len(v.alt))
-            records.append(
-                {
-                    "Chromosome": v.chrom,
-                    "Start": var_start,
-                    "End": var_end,
-                    "_idx": i,
-                    "_ref": v.ref,
-                    "_alt": v.alt,
-                }
-            )
-
-        query_df = pd.DataFrame(records)
-        query_gr = pr.PyRanges(query_df)
+        query_df, query_gr = self._build_query(variants, include_alleles=True)
 
         # Single vectorized join against gene model
         hits = self._index._gr.join(query_gr)
@@ -440,6 +425,43 @@ class PyRangesConsequenceAnnotator:
                 results[var_idx] = FunctionalConsequence(consequence_str)
 
         return results
+
+    def _build_query(
+        self,
+        variants: list[Variant],
+        include_alleles: bool = False,
+    ) -> tuple[pd.DataFrame, pr.PyRanges]:
+        """Build a PyRanges query from a list of variants.
+
+        Parameters
+        ----------
+        variants : list[Variant]
+            Variants to convert into genomic intervals.
+        include_alleles : bool
+            Whether to include _ref and _alt columns in the DataFrame.
+
+        Returns
+        -------
+        tuple[pd.DataFrame, pr.PyRanges]
+            The query DataFrame and corresponding PyRanges object.
+        """
+        records = []
+        for i, v in enumerate(variants):
+            var_start = v.pos - 1
+            var_end = var_start + max(len(v.ref), len(v.alt))
+            rec: dict[str, Any] = {
+                "Chromosome": v.chrom,
+                "Start": var_start,
+                "End": var_end,
+                "_idx": i,
+            }
+            if include_alleles:
+                rec["_ref"] = v.ref
+                rec["_alt"] = v.alt
+            records.append(rec)
+
+        query_df = pd.DataFrame(records)
+        return query_df, pr.PyRanges(query_df)
 
     def _find_splice_positions(
         self,
@@ -492,21 +514,7 @@ class PyRangesConsequenceAnnotator:
         if not self._index._loaded or self._index._gr is None:
             return [[] for _ in variants]
 
-        records = []
-        for i, v in enumerate(variants):
-            var_start = v.pos - 1
-            var_end = var_start + max(len(v.ref), len(v.alt))
-            records.append(
-                {
-                    "Chromosome": v.chrom,
-                    "Start": var_start,
-                    "End": var_end,
-                    "_idx": i,
-                }
-            )
-
-        query_df = pd.DataFrame(records)
-        query_gr = pr.PyRanges(query_df)
+        query_df, query_gr = self._build_query(variants)
 
         hits = self._index._gr.join(query_gr)
         hits_df = hits.df
@@ -559,7 +567,7 @@ def _determine_consequence_pyranges(
     is_coding = feature_type == "CDS"
 
     if not is_coding:
-        if feature_type in ("exon", "transcript", "gene"):
+        if feature_type in {"exon", "transcript", "gene"}:
             return FunctionalConsequence.SYNONYMOUS.value
         return FunctionalConsequence.INTERGENIC.value
 
