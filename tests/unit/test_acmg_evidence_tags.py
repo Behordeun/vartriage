@@ -126,8 +126,8 @@ class TestPM2Assignment:
         sv = _make_scored_variant(allele_frequency=None, frequency_unknown=True)
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
-        assert EvidenceTag.PM2 not in results[0].evidence_tags
-        assert "gnomAD" in results[0].missing_data_sources
+        # Absent from gnomAD = not observed in controls → PM2 fires
+        assert EvidenceTag.PM2 in results[0].evidence_tags
 
 
 class TestPP3Assignment:
@@ -224,7 +224,8 @@ class TestMissingDataSources:
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         missing = results[0].missing_data_sources
-        assert "gnomAD" in missing
+        # gnomAD AF=None now fires PM2 (absent from controls) rather than
+        # reporting as missing data
         assert "ClinVar" in missing
         assert "REVEL" in missing
 

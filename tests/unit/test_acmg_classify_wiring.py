@@ -152,10 +152,12 @@ class TestClassifyCombiningWiring:
 
         result = results[0]
         assert EvidenceTag.PVS1 in result.evidence_tags
-        assert "gnomAD" in result.missing_data_sources
+        # AF=None fires PM2 (absent from controls), so gnomAD is not "missing"
+        assert EvidenceTag.PM2 in result.evidence_tags
         assert "REVEL" in result.missing_data_sources
         assert "ClinVar" in result.missing_data_sources
-        assert result.classification == ACMGClassification.VUS
+        # PVS1 (VS) + PM2 (M) = Likely Pathogenic
+        assert result.classification == ACMGClassification.LIKELY_PATHOGENIC
 
     def test_all_tags_assigned_yields_pathogenic(self) -> None:
         """All four tags: PVS1+PM2+PP3+PP5 -> Pathogenic."""

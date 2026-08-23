@@ -237,14 +237,14 @@ class TestCombiningWithBenign:
         assert results[0].classification == ACMGClassification.LIKELY_BENIGN
 
     def test_conflicting_pathogenic_and_benign_yields_vus(self) -> None:
-        # Frameshift (PVS1) + high AF (BA1) = conflicting = VUS
+        # Frameshift (PVS1) + high AF (BA1) = BA1 standalone override = Benign
         sv = _make_variant(
             consequence=FunctionalConsequence.FRAMESHIFT,
             allele_frequency=0.10,
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
-        assert results[0].classification == ACMGClassification.VUS
+        assert results[0].classification == ACMGClassification.BENIGN
         assert EvidenceTag.PVS1 in results[0].evidence_tags
         assert EvidenceTag.BA1 in results[0].evidence_tags
 
