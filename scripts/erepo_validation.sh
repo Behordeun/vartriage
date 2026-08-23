@@ -83,6 +83,7 @@ with pysam.VariantFile(str(output_path), "wz", header=header) as out:
         rec.pos = pos
         rec.alleles = (ref, alt)
         rec.samples["EREPO"]["GT"] = (0, 1)
+        rec.qual = 99
         out.write(rec)
 
 pysam.tabix_index(str(output_path), preset="vcf", force=True)

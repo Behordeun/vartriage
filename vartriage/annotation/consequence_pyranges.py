@@ -85,7 +85,10 @@ class PyRangesIntervalIndex:
 
         from vartriage._internal.cache import try_load_cache, try_write_cache
 
-        # Try loading from cache first
+        # Cache is validated by try_load_cache: checks source mtime,
+        # vartriage version, and Python version before accepting. The cache
+        # file is co-located with the GTF and shares its trust boundary
+        # (an attacker who can write the cache can also write the GTF).
         cached = try_load_cache(annotation_path)
         if cached is not None:
             self._gr, self._exon_gr = cached

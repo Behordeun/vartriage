@@ -99,6 +99,27 @@ def extract_erepo_variants() -> list[tuple[str, int, str, str, str]]:
 # --- Step 2: Filter REVEL scores (THE FIX) ----------------------------------
 
 
+def _compute_revel_fingerprint(
+    variants: list[tuple[str, int, str, str, str]],
+) -> str:
+    """Hash variant keys + REVEL source mtime for cache invalidation."""
+    import hashlib
+
+    h = hashlib.sha256()
+    # Hash the SNV key set (sorted for determinism)
+    snv_keys = sorted(
+        f"{c}:{p}:{r}:{a}" for c, p, r, a, _ in variants if len(r) == 1 and len(a) == 1
+    )
+    h.update(str(len(snv_keys)).encode())
+    for k in snv_keys[:100]:  # sample first 100 for speed
+        h.update(k.encode())
+    h.update(snv_keys[-1].encode() if snv_keys else b"")
+    # Include REVEL source file mtime
+    if REVEL_TSV.exists():
+        h.update(str(int(REVEL_TSV.stat().st_mtime)).encode())
+    return h.hexdigest()[:16]
+
+
 def filter_revel(
     variants: list[tuple[str, int, str, str, str]], force: bool = False
 ) -> int:
@@ -116,8 +137,18 @@ def filter_revel(
     """
     step("Step 2: Filtering REVEL scores for eRepo positions")
 
-    # Reuse existing filtered file if valid
-    if not force and REVEL_FILTERED.exists() and REVEL_FILTERED.stat().st_size > 100:
+    # Compute fingerprint early so it's available for both reuse check and write
+    fingerprint_file = REVEL_FILTERED.with_suffix(".fingerprint")
+    current_fingerprint = _compute_revel_fingerprint(variants)
+
+    # Reuse existing filtered file only if inputs haven't changed
+    if (
+        not force
+        and REVEL_FILTERED.exists()
+        and REVEL_FILTERED.stat().st_size > 100
+        and fingerprint_file.exists()
+        and fingerprint_file.read_text().strip() == current_fingerprint
+    ):
         with open(REVEL_FILTERED) as f:
             line_count = sum(1 for _ in f) - 1  # minus header
         print(f"  Reusing existing {REVEL_FILTERED.name} ({line_count} scores)")
@@ -157,6 +188,7 @@ def filter_revel(
     print(f"  REVEL matches: {matched} / {len(snv_keys)} SNVs ({coverage_pct:.1f}%)")
     print("  (REVEL only scores missense variants -- remaining are")
     print("   synonymous, nonsense, splice-site, or non-coding)")
+    fingerprint_file.write_text(current_fingerprint + "\n")
     return matched
 
 
