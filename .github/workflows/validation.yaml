@@ -16,6 +16,14 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install -y bcftools tabix
 
+      - name: Cache GIAB reference data
+        uses: actions/cache@v4
+        with:
+          path: |
+            validation_results/data
+            validation_results/refs
+          key: giab-refs-chr22-v4.2.1-gnomad4.1.1
+
       - name: Verify bcftools version
         run: |
           REQUIRED_VERSION="1.17"
