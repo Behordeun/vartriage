@@ -13,6 +13,7 @@
     "cadd_normalized": 0.3838,
     "revel_score": 0.94,
     "spliceai_score": 0.12,
+    "prioritization_score": 0.94,
     "composite_rank": 0.9704,
     "evidence_tags": ["PVS1", "PM2", "PP3", "PP5"],
     "acmg_classification": "Pathogenic",
@@ -32,8 +33,9 @@
     "cadd_normalized": 0.3232,
     "revel_score": 0.89,
     "spliceai_score": 0.03,
+    "prioritization_score": 0.89,
     "composite_rank": 0.9112,
-    "evidence_tags": ["PM2", "PP3", "PP5"],
+    "evidence_tags": ["PM1", "PM2", "PP3", "PP5"],
     "acmg_classification": "Likely_Pathogenic",
     "missing_data_sources": []
   },
@@ -51,6 +53,7 @@
     "cadd_normalized": 0.2879,
     "revel_score": null,
     "spliceai_score": 0.92,
+    "prioritization_score": 0.92,
     "composite_rank": 0.8814,
     "evidence_tags": ["PVS1", "PM2", "PP3", "PP5"],
     "acmg_classification": "Likely_Pathogenic",
@@ -70,8 +73,9 @@
     "cadd_normalized": 0.2434,
     "revel_score": 0.58,
     "spliceai_score": 0.01,
+    "prioritization_score": 0.58,
     "composite_rank": 0.6198,
-    "evidence_tags": ["PP3"],
+    "evidence_tags": [],
     "acmg_classification": "VUS",
     "missing_data_sources": []
   },
@@ -89,8 +93,9 @@
     "cadd_normalized": 0.2253,
     "revel_score": 0.44,
     "spliceai_score": 0.0,
+    "prioritization_score": 0.44,
     "composite_rank": 0.5521,
-    "evidence_tags": ["PP3"],
+    "evidence_tags": [],
     "acmg_classification": "VUS",
     "missing_data_sources": []
   },
@@ -108,9 +113,10 @@
     "cadd_normalized": 0.1434,
     "revel_score": 0.18,
     "spliceai_score": 0.01,
+    "prioritization_score": 0.18,
     "composite_rank": 0.2105,
-    "evidence_tags": [],
-    "acmg_classification": "VUS",
+    "evidence_tags": ["BS1", "BP4"],
+    "acmg_classification": "Likely_Benign",
     "missing_data_sources": []
   },
   {
@@ -127,9 +133,10 @@
     "cadd_normalized": 0.0818,
     "revel_score": null,
     "spliceai_score": 0.0,
+    "prioritization_score": 0.135,
     "composite_rank": 0.0818,
-    "evidence_tags": [],
-    "acmg_classification": "VUS",
+    "evidence_tags": ["BA1", "BP7"],
+    "acmg_classification": "Benign",
     "missing_data_sources": ["ClinVar"]
   }
 ]

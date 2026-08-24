@@ -5,13 +5,20 @@ Usage examples covering every vartriage capability, organized by version.
 ## Sample output files
 
 | File | Description |
-|------|-------------|
-| `sample_pipeline_output.json` | Standard JSON output with ACMG classification and evidence tags |
-| `sample_pipeline_output.csv` | CSV equivalent (19 columns) |
+| ------ | ------------- |
+| `sample_pipeline_output.json` | Standard JSON output with ACMG classification, evidence tags, and `prioritization_score` |
+| `sample_pipeline_output.csv` | CSV equivalent (20 columns including `prioritization_score`) |
 | `sample_clinical_report.html` | Self-contained clinical HTML report for a hereditary cancer panel |
 | `sample_clinical_report.html.audit.json` | Audit trail sidecar for the clinical report |
 
 All samples use synthetic variant data. Patient identifiers are fictional.
+
+**Output fields (v0.17.3):**
+
+- `prioritization_score`: literature-validated ranking (REVEL for missense, SpliceAI for splice, CADD/60 for others). Recommended for triage.
+- `composite_rank`: legacy weighted average. Deprecated, will be removed in v1.0.0.
+- `evidence_tags`: ACMG criteria satisfied (PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BS2, BP4, BP7)
+- `acmg_classification`: final 5-tier call (Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, Benign)
 
 ---
 
@@ -360,6 +367,55 @@ output = pipeline.run()
 Supports Manta, DELLY, GATK-SV, GRIDSS, and LUMPY. See
 [Structural Variants Guide](../structural-variants.md) for full
 CLI reference and output format details.
+
+---
+
+## 13. Mitochondrial variant analysis (v0.15.0)
+
+```bash
+# Automatic: chrM/MT variants detected and classified separately
+vartriage --vcf wgs.vcf.gz --output results.json --use-bundles
+
+# Custom heteroplasmy threshold
+vartriage --vcf wgs.vcf.gz --output results.json --mt-min-heteroplasmy 5.0
+
+# Skip mitochondrial analysis (targeted panels without mtDNA capture)
+vartriage --vcf panel.vcf.gz --output results.json --skip-mito
+```
+
+The mitochondrial pipeline uses the vertebrate mitochondrial genetic code,
+extracts heteroplasmy from AD/AF fields, queries MITOMAP for disease
+associations, checks HelixMTdb for population frequency, and classifies
+independently of nuclear ACMG criteria. Results appear in a dedicated
+"Mitochondrial Findings" section.
+
+---
+
+## 14. Remote tabix scoring (v0.16.0)
+
+```bash
+# CADD scores via HTTP byte-range (no 80 GB download)
+vartriage --vcf panel.vcf --output results.json \
+  --gene-annotation gencode.gtf --cadd-remote cadd-v1.7-grch38
+
+# gnomAD frequencies via remote tabix
+vartriage --vcf panel.vcf --output results.json \
+  --gene-annotation gencode.gtf --gnomad-remote gnomad-exomes-v4-grch38
+
+# Both remote, with pinned cache for clinical reproducibility
+vartriage --vcf panel.vcf --output results.json \
+  --gene-annotation gencode.gtf \
+  --cadd-remote cadd-v1.7-grch38 \
+  --gnomad-remote gnomad-exomes-v4-grch38 \
+  --remote-cache-ttl -1
+
+# List available presets
+vartriage remote list-presets
+```
+
+Scores are cached in SQLite (`~/.vartriage/remote_cache.db`, 30-day TTL).
+Local files always take priority. A circuit breaker prevents stalling on
+network failures.
 
 ---
 

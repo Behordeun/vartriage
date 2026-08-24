@@ -3,7 +3,7 @@
 ## Data flow
 
 ```text
-VCFParser → [SampleExtractor|InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → PrioritizationEngine → ACMGClassifier → ReportGenerator
+VCFParser → [SampleExtractor|InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
 ```
 
 Stages in brackets are optional. They activate based on configuration:
@@ -13,6 +13,8 @@ Stages in brackets are optional. They activate based on configuration:
 - `RegionFilter` activates with `--regions`
 - `GeneFilter` activates with `--gene-list`
 - `SecondaryFindingsFilter` activates with `--secondary-findings`
+- `GeneKnowledgeAnnotator` activates with `--knowledge-dir` or when bundled knowledge data is present
+- `PhenotypeBoost` activates with `--hpo-terms`
 
 Each stage consumes an iterator and yields an iterator. Only one batch lives in memory at a time.
 
@@ -263,6 +265,7 @@ Filters by allele frequency and computes composite pathogenicity scores.
 **Prioritization score (v0.8.0+):**
 
 A separate `prioritization_score` field uses literature-validated scoring:
+
 - Missense variants: REVEL score directly (threshold 0.7 validated against ClinGen)
 - Splice-adjacent variants: SpliceAI delta score
 - Non-missense: CADD Phred / 60
@@ -287,9 +290,12 @@ Pathogenic criteria:
 
 | Tag | Strength | Condition |
 | ----- | ---------- | ----------- |
-| PVS1 | Very Strong | Consequence is Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 |
+| PVS1 | Very Strong | Consequence is Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 (strength modulated by pLI/LOEUF) |
+| PVS1_Strong | Strong | PVS1 downgraded when gene constraint is moderate (0.5 < pLI < 0.9) |
 | PS1 | Strong | Same amino acid change as established ClinVar Pathogenic, via different nucleotide (requires protein index + codon resolution) |
-| PM2 | Moderate | All population AFs < 0.0001 (population-specific when available) |
+| PM1 | Moderate | Missense in a critical functional domain (missense constraint region, gnomAD mis_z > 3.09) |
+| PM2 | Moderate | All population AFs < 0.0001, or absent from gnomAD (population-specific when available) |
+| PM4 | Moderate | In-frame insertion/deletion or stop-loss variant in a non-repetitive region |
 | PM5 | Moderate | Novel missense at an amino acid position with known pathogenic missense in ClinVar (requires protein index) |
 | PP3 | Supporting | REVEL > 0.644, or SpliceAI > 0.5 on a splice-adjacent variant |
 | PP3 | Moderate | REVEL > 0.773 (ClinGen-calibrated, Pejaver et al. 2022) |
@@ -299,21 +305,24 @@ Benign criteria:
 
 | Tag | Strength | Condition |
 | ----- | ---------- | ----------- |
-| BA1 | Standalone | Any population AF > 5% |
+| BA1 | Standalone | Any population AF > 5% (overrides all pathogenic evidence) |
 | BS1 | Strong | Any population AF > 1% (only when BA1 not already assigned) |
+| BS2 | Strong | Observed in healthy adults at frequency inconsistent with disease penetrance |
 | BP4 | Supporting | Missense with REVEL < 0.290, or non-missense with CADD Phred < 10 |
 | BP4 | Moderate | Missense with REVEL < 0.183 (ClinGen-calibrated, Pejaver et al. 2022) |
 | BP7 | Supporting | Synonymous with SpliceAI < 0.1 |
 
-**Combining rules:**
+**Combining rules (Bayesian-adapted, Tavtigian et al. 2018):**
 
 Tags combine into a final classification across all five ACMG tiers:
 
 - **Pathogenic:** 1 Very Strong + 1 Strong, or 2 Strong + 1 Supporting, or 1 Very Strong + 2 Supporting
-- **Likely_Pathogenic:** 1 Very Strong + 1 Moderate, or 1 Strong + 1-2 Moderate, or 1 Strong + 2 Supporting
+- **Likely_Pathogenic:** 1 Very Strong + 1 Moderate, or 1 Strong + 1-2 Moderate, or 1 Strong + 2 Supporting, or 2 Moderate, or 1 Moderate + 4 Supporting
 - **VUS:** Insufficient evidence for either direction, or conflicting pathogenic + benign evidence
 - **Likely_Benign:** 1 Strong benign + 1 Supporting benign, or 1 Strong benign + 1 Moderate benign, or 2 Moderate benign, or 1 Moderate benign + 2 Supporting benign
 - **Benign:** BA1 alone (standalone), or 2 Strong benign
+
+BA1 is standalone: when assigned, it overrides all pathogenic evidence and forces a Benign classification.
 
 When a required data source is unavailable for a criterion, that tag is omitted and the source name is recorded in `missing_data_sources`.
 

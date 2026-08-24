@@ -41,7 +41,7 @@ vartriage/
 │   └── scoring.py           # Score normalization + composite + prioritization_score
 ├── classification/
 │   ├── acmg.py              # Evidence tag assignment (pathogenic + benign criteria)
-│   └── combining.py         # ACMG combining rules (all 5 tiers)
+│   └── combining.py         # ACMG combining rules (all 5 tiers, Bayesian-adapted Tavtigian 2018)
 ├── cohort/                  # Multi-sample cohort analysis (v0.11.0)
 │   ├── __init__.py          # Public exports
 │   ├── aggregator.py        # Cross-sample variant merging by coordinate
@@ -112,13 +112,39 @@ vartriage/
 │   ├── combiner.py          # merge_findings(): unified SNV + SV ranked output
 │   ├── config.py            # SVTriageConfig frozen dataclass
 │   └── models.py            # StructuralVariant, AnnotatedSV, ScoredSV, ClassifiedSV, enums
+├── mito/                    # Mitochondrial variant analysis (v0.15.0)
+│   ├── __init__.py          # Public exports
+│   ├── detector.py          # chrM/MT auto-detection from VCF contigs
+│   ├── genetic_code.py      # Vertebrate mitochondrial genetic code
+│   ├── heteroplasmy.py      # Heteroplasmy quantification from AD/AF fields
+│   ├── annotator.py         # MITOMAP + HelixMTdb annotation
+│   ├── classifier.py        # mtDNA-specific classification (not nuclear ACMG)
+│   ├── config.py            # MitoConfig frozen dataclass
+│   └── models.py            # MitoVariant, MitoAnnotatedVariant dataclasses
+├── remote/                  # Remote tabix scoring (v0.16.0)
+│   ├── __init__.py          # Public exports
+│   ├── client.py            # HTTP byte-range tabix client
+│   ├── presets.py           # Named presets (cadd-v1.7-grch38, gnomad-exomes-v4-grch38)
+│   ├── cache.py             # SQLite score cache with TTL
+│   ├── circuit_breaker.py   # Network failure protection
+│   └── config.py            # RemoteTabixConfig frozen dataclass
 ├── models/
 │   ├── config.py            # All config dataclasses
 │   ├── variant.py           # Variant, AnnotatedVariant, ScoredVariant, ClassifiedVariant, enums
 │   ├── cohort.py            # CohortConfig, CohortVariant, GeneBurden, CohortSummary
 │   └── warnings.py          # MissingDataWarning
 ├── data/
-│   └── acmg_sf_v3.2.txt    # 71-gene ACMG Secondary Findings list (v0.10.0)
+│   ├── acmg_sf_v3.2.txt    # 71-gene ACMG Secondary Findings list (v0.10.0)
+│   ├── knowledge/           # Bundled gene-disease linkage TSV files (v0.12.0)
+│   │   ├── omim_gene_disease.tsv
+│   │   ├── clingen_validity.tsv
+│   │   ├── hpo_gene_phenotype.tsv
+│   │   ├── gnomad_constraint.tsv
+│   │   └── clingen_actionability.tsv
+│   └── mito/                # Bundled mtDNA reference data (v0.15.0)
+│       ├── mt_gene_map.tsv
+│       ├── mitomap_pathogenic.tsv
+│       └── helixmtdb_frequency.tsv
 └── _internal/
     ├── batch.py             # Batch iteration utilities
     ├── cache.py             # Pickle caching with mtime invalidation

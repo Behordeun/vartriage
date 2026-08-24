@@ -210,6 +210,8 @@ Top-level configuration aggregating all sub-configs.
 | `genome_build` | `str` | `"grch38"` | Build for bundle resolution |
 | `api` | `Optional[object]` | `None` | APIConfig for API/hybrid mode |
 | `knowledge` | `Optional[KnowledgeBaseConfig]` | `None` | Gene-disease linkage knowledge base config |
+| `mito` | `Optional[MitoConfig]` | `None` | Mitochondrial analysis config (auto-enabled when chrM detected) |
+| `remote` | `Optional[RemoteTabixConfig]` | `None` | Remote tabix scoring config (CADD/gnomAD via HTTP) |
 | `sv_vcf_path` | `Optional[Path]` | `None` | Structural variant VCF for integrated SV triage |
 
 ## RegionFilterConfig
@@ -306,6 +308,64 @@ config = KnowledgeBaseConfig(
 ```
 
 Raises `ValueError` if HPO terms don't match `HP:NNNNNNN` format or inheritance_mode is unrecognized.
+
+## MitoConfig
+
+Mitochondrial variant analysis configuration. Controls detection and classification of chrM/MT variants using mtDNA-specific criteria.
+
+| Field | Type | Default | Notes |
+| ------- | ------ | --------- | ------- |
+| `enabled` | `bool` | `True` | Enable/disable mitochondrial analysis |
+| `min_heteroplasmy` | `float` | `1.0` | Minimum heteroplasmy % for reporting (0.0-100.0) |
+| `gene_map_path` | `Path \| None` | `None` | Custom mt_gene_map.tsv (defaults to bundled) |
+| `mitomap_path` | `Path \| None` | `None` | Custom mitomap_pathogenic.tsv (defaults to bundled) |
+| `helixmtdb_path` | `Path \| None` | `None` | Custom helixmtdb_frequency.tsv (defaults to bundled) |
+
+```python
+from vartriage.mito.config import MitoConfig
+
+# Default: auto-detect chrM, report heteroplasmy >= 1%
+config = MitoConfig()
+
+# Custom threshold for high-confidence calls
+config = MitoConfig(min_heteroplasmy=5.0)
+
+# Disable mitochondrial analysis (targeted panels without mtDNA capture)
+config = MitoConfig(enabled=False)
+```
+
+Mitochondrial analysis is auto-enabled when chrM/MT variants are present in the VCF. Use `--skip-mito` (CLI) or `MitoConfig(enabled=False)` to disable. Raises `ValueError` if `min_heteroplasmy` is outside [0.0, 100.0].
+
+## RemoteTabixConfig
+
+Remote tabix scoring configuration. Queries CADD and gnomAD scores from public HTTP servers via byte-range requests without downloading multi-GB reference files locally.
+
+| Field | Type | Default | Notes |
+| ------- | ------ | --------- | ------- |
+| `cadd_remote_url` | `str \| None` | `None` | URL or named preset (e.g., `cadd-v1.7-grch38`) |
+| `gnomad_remote_url` | `str \| None` | `None` | URL or named preset. Supports `{chrom}` placeholder. |
+| `cache_ttl_days` | `int` | `30` | Days until cache expiry. -1 = pinned |
+| `cache_path` | `Path` | `~/.vartriage/remote_cache.db` | SQLite score cache location |
+| `connect_timeout` | `float` | `10.0` | TCP connect timeout (seconds) |
+| `read_timeout` | `float` | `30.0` | Per-query read timeout (seconds) |
+| `max_retries` | `int` | `3` | Retry attempts for transient failures (5xx, timeout) |
+| `batch_window_bp` | `int` | `10_000` | Variants within this window (bp) are grouped into one range query |
+
+```python
+from vartriage.remote.config import RemoteTabixConfig
+
+# CADD scores via remote tabix (using named preset)
+config = RemoteTabixConfig(cadd_remote_url="cadd-v1.7-grch38")
+
+# Both CADD and gnomAD remote, pinned cache for reproducibility
+config = RemoteTabixConfig(
+    cadd_remote_url="cadd-v1.7-grch38",
+    gnomad_remote_url="gnomad-exomes-v4-grch38",
+    cache_ttl_days=-1,
+)
+```
+
+Local files always take priority over remote. The pipeline falls back gracefully on network failures (retries with backoff, then omits the score). See [Remote Tabix Guide](remote-tabix.md) for presets, caching, and Python API details.
 
 ## ClinVarProteinIndex (PS1/PM5)
 

@@ -54,6 +54,8 @@ Absent from controls (or at extremely low frequency if recessive).
 
 Fires when all population-specific allele frequencies are below 0.0001. Uses gnomAD per-population data when available (AFR, AMR, ASJ, EAS, FIN, NFE, SAS). If any single population exceeds the threshold, PM2 does not fire.
 
+When a variant is entirely absent from gnomAD (no frequency data available), PM2 fires. Per ACMG/AMP 2015, "absent from controls" satisfies PM2. With gnomAD v4.1.1 covering 730K+ exomes, absence from the database is strong evidence that the variant is rare in the general population.
+
 Falls back to global allele frequency when per-population data is absent. When all frequency fields are None, "gnomAD" is recorded as missing.
 
 **Required data:** gnomAD allele frequencies (local TSV/tabix or API).
@@ -108,7 +110,7 @@ Fires when the variant has a ClinVar Pathogenic assertion and no conflicting Ben
 
 Allele frequency is above 5% in any gnomAD population.
 
-This is standalone evidence: BA1 alone classifies a variant as Benign without needing any other criteria. It represents a hard frequency ceiling above which pathogenicity is implausible for Mendelian disease.
+This is standalone evidence: BA1 alone classifies a variant as Benign without needing any other criteria. It represents a hard frequency ceiling above which pathogenicity is implausible for Mendelian disease. BA1 overrides unconditionally: when BA1 fires, the classification is Benign regardless of any co-occurring pathogenic evidence (PVS1, PM2, etc.). This override is applied before conflict detection in the combining rules.
 
 Uses population-specific frequencies. If any single population (AFR, AMR, ASJ, EAS, FIN, NFE, SAS) or global AF exceeds 5%, BA1 fires.
 
@@ -172,6 +174,10 @@ Evidence tags combine into a final classification following ACMG/AMP 2015 Table 
 | 1 Very Strong + 1 Moderate | PVS1 + PM2 |
 | 1 Strong + 1 or more Moderate | PS1 + PM2, or PS1 + PM2 + PM5 |
 | 1 Strong + 2 Supporting | PS1 + PP3 + PP5 |
+| 2 Moderate (Bayesian-adapted) | PP3_Moderate + PM2 |
+| 1 Moderate + 4 Supporting (Bayesian-adapted) | PM2 + PP3 + PP5 + ... |
+
+The 2M and 1M+4Sup rules are Bayesian-adapted extensions from Tavtigian et al. (2018), accepted by ClinGen. The 1M+4Sup rule is currently unreachable in practice (only 2 pathogenic supporting tags exist: PP3 and PP5).
 
 Note: having more moderate evidence than the minimum (e.g., 1S + 3M) still qualifies. The threshold is a floor, not a bounded range.
 

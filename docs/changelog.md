@@ -4,6 +4,59 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.4] - 2026-08-24
+
+### Changed
+
+- **README**: updated criteria count from 10 to 13+ (PM1, PM4, BS2, PVS1_Strong added). Updated benchmark table to v0.17.2 GIAB numbers (50,284 variants, 26s, 670 MB). Added validation summary table with eRepo results. Added known limitations section documenting splice sensitivity gap and missing benign criteria.
+- **docs/pipeline-stages.md**: pipeline flow diagram now includes GeneKnowledgeAnnotator and PhenotypeBoost stages. ACMG section updated with PM1, PM4, BS2, PVS1_Strong criteria. Combining rules updated to reflect Bayesian-adapted LP rules (2M=LP, 1M+4Sup=LP). BA1 standalone override documented.
+- **docs/architecture.md**: package tree updated with mito/ (v0.15.0), remote/ (v0.16.0), data/knowledge/, and data/mito/ directories.
+- **docs/tutorial.md**: pipeline flow shows optional GeneKnowledgeAnnotator and PhenotypeBoost stages. Example JSON output uses `prioritization_score` as primary ranking field; `composite_rank` marked deprecated.
+- **docs/configuration.md**: PipelineConfig table includes `mito` and `remote` fields. Added full MitoConfig and RemoteTabixConfig documentation sections.- **docs/validation.md**: renamed from "GIAB Validation" to "Validation". Added summary table. Added complete ClinVar eRepo validation section with stratified metrics, interpretation, tool comparison, and provenance.
+- **docs/examples/README.md**: added sections 13 (mitochondrial, v0.15.0) and 14 (remote tabix, v0.16.0). Updated sample output file descriptions to document `prioritization_score`.
+- **docs/examples/sample_pipeline_output.json**: added `prioritization_score` field. Updated evidence tags (PM1, BS1, BP4, BA1, BP7) and classifications (Likely_Benign, Benign) to reflect current criteria.
+- **docs/examples/sample_pipeline_output.csv**: added `prioritization_score` column. Same tag and classification updates.
+
+## [0.17.3] - 2026-08-23
+
+### Fixed
+
+- **PM2 fires on absent-from-gnomAD variants**: previously, variants absent from gnomAD (AF=None) were treated as "data unavailable" and PM2 was withheld. Per ACMG/AMP 2015, "absent from controls" satisfies PM2. With gnomAD v4.1.1 covering 730K+ exomes, absence is strong evidence of rarity. This fix improved eRepo pathogenic sensitivity from 17.6% to 65.6%.
+- **BA1 standalone override**: BA1 (AF > 5%) now returns Benign unconditionally before conflict detection, per ACMG Table 5. Previously, BA1 + any pathogenic tag produced VUS (conflicting evidence).
+
+### Added
+
+- **Bayesian-adapted LP rules** (Tavtigian et al. 2018): 2 Moderate = Likely Pathogenic, 1 Moderate + 4 Supporting = Likely Pathogenic. These are standard ClinGen-accepted extensions.
+- **eRepo validation script** (`scripts/validate_erepo.py`): end-to-end ClinGen Expert Panel concordance validation. Extracts expert-panel variants from ClinVar, filters REVEL, runs the pipeline, reports sensitivity/PPV/per-consequence metrics.
+- **GTF annotation pickle caching**: first GTF load parses the file (~70s); subsequent loads deserialize the cache (~2s). Cache validated by source file mtime and size.
+- **REVEL cache fingerprint validation**: filtered REVEL file is only reused when a SHA-256 sidecar matches the current variant set and REVEL source mtime.
+
+### Validation Results
+
+eRepo (21,928 input variants, 21,614 classified after filtering, gnomAD v4.1.1 remote):
+
+| Metric | Value |
+|--------|-------|
+| Pathogenic sensitivity | 65.6% |
+| Pathogenic PPV | 99.2% |
+| Frameshift sensitivity | 99.7% |
+| In-frame deletion | 99.1% |
+| In-frame insertion | 100% |
+| Missense sensitivity | 46.9% |
+| Splice-site sensitivity | 9.8% |
+| Benign sensitivity | 6.0% |
+
+## [0.17.2] - 2026-08-21
+
+### Changed
+
+- **70x performance improvement**: replaced polars per-batch DataFrame joins (O(n*m) per batch) with pre-materialized Python dict lookups (O(1) per variant) for gnomAD and ClinVar annotation backends. chr22 (50,284 variants) now completes in ~26s, down from 30+ minutes.
+- **Pickle caching for reference data**: gnomAD and ClinVar DataFrames are serialized to disk on first load; subsequent runs skip TSV parsing entirely (~0.3s load from cache vs ~30s parse).
+
+### Fixed
+
+- **PyPI publishing**: versions 0.10.0-0.17.1 were never published to PyPI due to version mismatch between pyproject.toml and git tags. Fixed version management and added CI gate (tests must pass before publish).
+
 ## [0.17.1] - 2026-08-15
 
 ### Fixed
