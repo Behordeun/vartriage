@@ -63,9 +63,15 @@ The pipeline wires stages sequentially:
 VCFParser → QualityFilter → AnnotationEngine → PrioritizationEngine → ACMGClassifier → ReportGenerator
 ```
 
+With gene-disease linkage and phenotype matching configured, the full flow becomes:
+
+```text
+VCFParser → QualityFilter → AnnotationEngine → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
+```
+
 ## 4. Interpret the output
 
-The JSON output is an array of classified variants, sorted by composite pathogenicity rank (highest first):
+The JSON output is an array of classified variants, sorted by `prioritization_score` (highest first):
 
 ```json
 [
@@ -76,6 +82,7 @@ The JSON output is an array of classified variants, sorted by composite pathogen
     "alt_allele": "A",
     "functional_consequence": "Nonsense",
     "allele_frequency": 0.000012,
+    "prioritization_score": 0.92,
     "composite_rank": 0.92,
     "clinvar_assertion": "Pathogenic",
     "acmg_classification": "Pathogenic",
@@ -88,19 +95,21 @@ The JSON output is an array of classified variants, sorted by composite pathogen
     "alt_allele": "T",
     "functional_consequence": "Missense",
     "allele_frequency": null,
+    "prioritization_score": 0.78,
     "composite_rank": 0.78,
     "clinvar_assertion": null,
     "acmg_classification": "VUS",
-    "evidence_tags": ["PP3"]
+    "evidence_tags": ["PP3", "PM2"]
   }
 ]
 ```
 
 Key fields:
 
-- `composite_rank`: 0 to 1, higher means more likely pathogenic
+- `prioritization_score`: 0 to 1, higher means more likely pathogenic. Uses literature-validated scoring (REVEL for missense, SpliceAI for splice-adjacent, CADD Phred/60 for non-missense). This is the recommended ranking method.
+- `composite_rank`: legacy weighted average (deprecated, will be removed in v1.0.0). Kept for backward compatibility.
 - `evidence_tags`: which ACMG criteria were satisfied
-- `acmg_classification`: final call (Pathogenic, Likely_Pathogenic, or VUS)
+- `acmg_classification`: final call (Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign)
 - `allele_frequency`: null means the variant wasn't found in gnomAD
 
 ## 5. Check the warning accumulator
