@@ -305,29 +305,24 @@ REVEL_LOCAL="data/references/revel_${REGION}_clean.tsv"
 REVEL_DOWNLOADED="${OUTPUT_DIR}/refs/revel_${REGION}.tsv"
 
 SCORE_OPTS=()
-PIPELINE_MODE="local"
 
 if [ -f "$CADD_LOCAL" ]; then
     SCORE_OPTS+=(--cadd-scores "$CADD_LOCAL")
 elif [ -f "$CADD_DOWNLOADED" ]; then
     SCORE_OPTS+=(--cadd-scores "$CADD_DOWNLOADED")
-else
-    PIPELINE_MODE="hybrid"
 fi
 
 if [ -f "$REVEL_LOCAL" ]; then
     SCORE_OPTS+=(--revel-scores "$REVEL_LOCAL")
 elif [ -f "$REVEL_DOWNLOADED" ]; then
     SCORE_OPTS+=(--revel-scores "$REVEL_DOWNLOADED")
-else
-    PIPELINE_MODE="hybrid"
 fi
 
-if [ "$PIPELINE_MODE" = "hybrid" ]; then
-    echo "  CADD/REVEL score files not found locally."
-    echo "  Using hybrid mode: VEP API will provide CADD scores for scoring."
-    SCORE_OPTS+=(--mode hybrid)
-fi
+# No hybrid/API fallback: GIAB validation measures classification
+# accuracy using gnomAD + ClinVar + GTF. CADD/REVEL are optional
+# score enrichment — their absence does not affect the core metrics
+# (BA1, BS1, PM2, PVS1). Hitting the VEP API for 50K variants takes
+# 15+ minutes and is not worth the marginal improvement in PP3 coverage.
 
 # Download GENCODE if neither local nor previously downloaded
 if [ ! -f "$GENCODE_REF" ]; then
