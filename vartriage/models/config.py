@@ -104,7 +104,12 @@ class PrioritizationConfig:
         incorporated into composite ranking.
     spliceai_scores_path : Optional[Path]
         Path to a SpliceAI score TSV reference file. When None, SpliceAI
-        scores are not incorporated into composite ranking.
+        scores are not incorporated into composite ranking. Mutually
+        exclusive with ``spliceai_db_path``.
+    spliceai_db_path : Optional[Path]
+        Path to a SpliceAI SQLite database (OpenCRAVAT format). When set,
+        the pipeline queries precomputed delta scores directly from the
+        database. Mutually exclusive with ``spliceai_scores_path``.
     batch_size : int
         Number of variants processed per batch during vectorized score
         normalization. Must be in the range [1_000, 100_000]. Default is
@@ -122,6 +127,7 @@ class PrioritizationConfig:
     cadd_scores_path: Path | None = None
     revel_scores_path: Path | None = None
     spliceai_scores_path: Path | None = None
+    spliceai_db_path: Path | None = None
     batch_size: int = 10_000
 
     def __post_init__(self) -> None:
@@ -133,6 +139,11 @@ class PrioritizationConfig:
         if not (1_000 <= self.batch_size <= 100_000):
             raise ValueError(
                 f"batch_size must be between 1000 and 100000, got {self.batch_size}"
+            )
+        if self.spliceai_scores_path and self.spliceai_db_path:
+            raise ValueError(
+                "Cannot configure both spliceai_scores_path (TSV) and "
+                "spliceai_db_path (SQLite). Choose one SpliceAI backend."
             )
 
 
