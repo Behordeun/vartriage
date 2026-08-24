@@ -12,8 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - **docs/pipeline-stages.md**: pipeline flow diagram now includes GeneKnowledgeAnnotator and PhenotypeBoost stages. ACMG section updated with PM1, PM4, BS2, PVS1_Strong criteria. Combining rules updated to reflect Bayesian-adapted LP rules (2M=LP, 1M+4Sup=LP). BA1 standalone override documented.
 - **docs/architecture.md**: package tree updated with mito/ (v0.15.0), remote/ (v0.16.0), data/knowledge/, and data/mito/ directories.
 - **docs/tutorial.md**: pipeline flow shows optional GeneKnowledgeAnnotator and PhenotypeBoost stages. Example JSON output uses `prioritization_score` as primary ranking field; `composite_rank` marked deprecated.
-- **docs/configuration.md**: PipelineConfig table includes `mito` and `remote` fields. Added full MitoConfig and RemoteTabixConfig documentation sections.
-- **docs/validation.md**: renamed from "GIAB Validation" to "Validation". Added summary table. Added complete ClinVar eRepo validation section with stratified metrics, interpretation, tool comparison, and provenance.
+- **docs/configuration.md**: PipelineConfig table includes `mito` and `remote` fields. Added full MitoConfig and RemoteTabixConfig documentation sections.- **docs/validation.md**: renamed from "GIAB Validation" to "Validation". Added summary table. Added complete ClinVar eRepo validation section with stratified metrics, interpretation, tool comparison, and provenance.
 - **docs/examples/README.md**: added sections 13 (mitochondrial, v0.15.0) and 14 (remote tabix, v0.16.0). Updated sample output file descriptions to document `prioritization_score`.
 - **docs/examples/sample_pipeline_output.json**: added `prioritization_score` field. Updated evidence tags (PM1, BS1, BP4, BA1, BP7) and classifications (Likely_Benign, Benign) to reflect current criteria.
 - **docs/examples/sample_pipeline_output.csv**: added `prioritization_score` column. Same tag and classification updates.
@@ -34,7 +33,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Validation Results
 
-eRepo (21,614 nuclear expert-panel variants, gnomAD v4.1.1 remote):
+eRepo (21,928 input variants, 21,614 classified after filtering, gnomAD v4.1.1 remote):
 
 | Metric | Value |
 |--------|-------|

@@ -342,31 +342,30 @@ Remote tabix scoring configuration. Queries CADD and gnomAD scores from public H
 
 | Field | Type | Default | Notes |
 | ------- | ------ | --------- | ------- |
-| `cadd_preset` | `str \| None` | `None` | Named preset: `cadd-v1.7-grch38` |
-| `gnomad_preset` | `str \| None` | `None` | Named preset: `gnomad-exomes-v4-grch38` |
-| `cache_path` | `Path` | `~/.vartriage/remote_cache.db` | SQLite score cache location |
+| `cadd_remote_url` | `str \| None` | `None` | URL or named preset (e.g., `cadd-v1.7-grch38`) |
+| `gnomad_remote_url` | `str \| None` | `None` | URL or named preset. Supports `{chrom}` placeholder. |
 | `cache_ttl_days` | `int` | `30` | Days until cache expiry. -1 = pinned |
-| `connect_timeout` | `float` | `5.0` | Connection timeout (seconds) |
-| `read_timeout` | `float` | `10.0` | Read timeout (seconds) |
-| `max_retries` | `int` | `3` | Retry attempts for transient failures |
-| `circuit_breaker_threshold` | `int` | `5` | Failures before circuit opens |
-| `circuit_breaker_recovery` | `float` | `30.0` | Seconds before half-open recovery |
+| `cache_path` | `Path` | `~/.vartriage/remote_cache.db` | SQLite score cache location |
+| `connect_timeout` | `float` | `10.0` | TCP connect timeout (seconds) |
+| `read_timeout` | `float` | `30.0` | Per-query read timeout (seconds) |
+| `max_retries` | `int` | `3` | Retry attempts for transient failures (5xx, timeout) |
+| `batch_window_bp` | `int` | `10_000` | Variants within this window (bp) are grouped into one range query |
 
 ```python
 from vartriage.remote.config import RemoteTabixConfig
 
-# CADD scores via remote tabix
-config = RemoteTabixConfig(cadd_preset="cadd-v1.7-grch38")
+# CADD scores via remote tabix (using named preset)
+config = RemoteTabixConfig(cadd_remote_url="cadd-v1.7-grch38")
 
 # Both CADD and gnomAD remote, pinned cache for reproducibility
 config = RemoteTabixConfig(
-    cadd_preset="cadd-v1.7-grch38",
-    gnomad_preset="gnomad-exomes-v4-grch38",
+    cadd_remote_url="cadd-v1.7-grch38",
+    gnomad_remote_url="gnomad-exomes-v4-grch38",
     cache_ttl_days=-1,
 )
 ```
 
-Local files always take priority over remote. A circuit breaker prevents the pipeline from stalling on network failures. See [Remote Tabix Guide](remote-tabix.md) for presets, caching, and Python API details.
+Local files always take priority over remote. The pipeline falls back gracefully on network failures (retries with backoff, then omits the score). See [Remote Tabix Guide](remote-tabix.md) for presets, caching, and Python API details.
 
 ## ClinVarProteinIndex (PS1/PM5)
 

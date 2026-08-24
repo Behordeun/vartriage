@@ -1,6 +1,6 @@
 # vartriage
 
-[![CI](https://github.com/Behordeun/vartriage/actions/workflows/ci.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/ci.yml) [![Publish to PyPI](https://github.com/Behordeun/vartriage/actions/workflows/publish.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/publish.yml) [![CodeQL](https://github.com/Behordeun/vartriage/actions/workflows/codeql.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/codeql.yml)
+[![CI](https://github.com/Behordeun/vartriage/actions/workflows/ci.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/ci.yml) [![Publish to PyPI](https://github.com/Behordeun/vartriage/actions/workflows/publish.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/publish.yml) [![CodeQL](https://github.com/Behordeun/vartriage/actions/workflows/codeql.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/codeql.yml) [![Deploy Docs](https://github.com/Behordeun/vartriage/actions/workflows/docs.yml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/docs.yml) [![GIAB Validation](https://github.com/Behordeun/vartriage/actions/workflows/validation.yaml/badge.svg)](https://github.com/Behordeun/vartriage/actions/workflows/validation.yaml)
 
 Clinical variant interpretation library for gene panels and whole genomes. VCF in, ACMG-classified report out.
 
@@ -36,12 +36,12 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
 | Workload                       | Variants | Wall time | Peak RSS |
 | ------------------------------ | -------- | --------- | -------- |
 | WGS QC only                    | 4M       | 156 s     | 122 MB   |
-| chr22 full annotation (GIAB)   | 50K      | 26 s      | ~670 MB  |
+| chr22 full annotation (GIAB)   | 50K      | 30 s      | ~670 MB  |
 | chr22 annotation (100K gnomAD) | 130K     | 19.5 s    | 453 MB   |
 
 Reference files are cached after first parse. Subsequent runs load from cache in seconds.
 
-**Validation (v0.17.3):**
+**Validation (v0.17.4, unchanged from v0.17.2 validation run):**
 
 | Benchmark     | Variants | Pathogenic Sensitivity | Specificity | PPV   |
 | ------------- | -------- | ---------------------- | ----------- | ----- |

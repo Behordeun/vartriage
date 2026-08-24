@@ -5,18 +5,20 @@ This document describes how to validate vartriage against benchmark datasets. Tw
 1. **GIAB chr22** — genomic-scale validation measuring specificity and runtime characteristics
 2. **ClinVar eRepo** — expert-panel curated variants measuring pathogenic sensitivity and PPV
 
-## Summary (v0.17.3)
+## Summary (v0.17.4, unchanged from v0.17.2 validation run)
 
 | Benchmark     | Variants | Pathogenic Sensitivity | Specificity | PPV   | Runtime |
 | ------------- | -------- | ---------------------- | ----------- | ----- | ------- |
 | GIAB chr22    | 50,284   | —                      | 71.8%       | —     | 30 s    |
 | ClinVar eRepo | 21,928   | 65.6%                  | —           | 99.2% | —       |
 
+The eRepo dataset contains 21,928 total input variants; 21,614 pass filtering and receive classifications. Metrics are computed on the 21,614 classified variants.
+
 **Known limitations:**
 
 - Splice-site sensitivity: 9.8% (splice detection disabled in v0.17.x; SpliceAI SQLite integration planned for v0.18.0)
 - Benign sensitivity: 6.0% (BP1, BP3, BP6 not yet implemented; VUS is the default when evidence is absent)
-- Missense sensitivity: 75.4% (primary contributor to overall pathogenic sensitivity)
+- Missense sensitivity: 46.9% (limited by PP3/REVEL threshold; improvements expected with PM1 constraint gating)
 
 ---
 
@@ -193,25 +195,25 @@ Unlike GIAB (which tests runtime and specificity on a healthy genome), the eRepo
 - 21,928 variants across all chromosomes
 - Split: 4,116 Pathogenic/Likely Pathogenic + 17,812 Benign/Likely Benign
 
-### Metrics (v0.17.3)
+### Metrics (v0.17.4)
 
 | Metric | Value |
 | ------ | ----- |
-| Total variants | 21,928 |
+| Total input variants | 21,928 |
+| Classified variants | 21,614 |
 | Pathogenic sensitivity | 65.6% |
 | Benign sensitivity | 6.0% |
 | Positive predictive value (PPV) | 99.2% |
-| Negative predictive value (NPV) | 22.8% |
 
 ### Stratified by consequence type
 
 | Consequence | Count | Sensitivity |
 | ----------- | ----- | ----------- |
-| Missense | 2,847 | 75.4% |
-| Nonsense | 312 | 88.1% |
-| Frameshift | 289 | 85.5% |
-| Splice_Site | 184 | 9.8% |
-| Synonymous | 483 | 2.1% |
+| Missense | 5,190 | 46.9% |
+| Nonsense | — | — |
+| Frameshift | 5,371 | 99.7% |
+| Splice_Site | 1,313 | 9.8% |
+| Synonymous | 258 | 0.0% |
 
 ### Interpretation
 
@@ -219,9 +221,9 @@ Unlike GIAB (which tests runtime and specificity on a healthy genome), the eRepo
 
 **Moderate sensitivity (65.6%)** means vartriage misses about 1/3 of known pathogenic variants. This is expected given:
 
+- Missense sensitivity is 46.9% — many pathogenic missense variants don't exceed the ClinGen-calibrated REVEL threshold (0.644)
 - Splice-site detection is disabled in v0.17.x (9.8% splice sensitivity)
 - Some pathogenic variants require functional evidence the tool cannot assess computationally
-- ClinGen-calibrated thresholds prioritize precision over recall
 
 **Low benign sensitivity (6.0%)** means most benign variants are classified as VUS rather than Benign/Likely Benign. This is because:
 
