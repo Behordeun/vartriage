@@ -84,20 +84,18 @@ def _add_reference_arguments(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Path to REVEL score TSV reference file",
     )
-    parser.add_argument(
+    spliceai_group = parser.add_mutually_exclusive_group()
+    spliceai_group.add_argument(
         "--spliceai-scores",
         type=Path,
         default=None,
         help="Path to SpliceAI score TSV reference file",
     )
-    parser.add_argument(
+    spliceai_group.add_argument(
         "--spliceai-db",
         type=Path,
         default=None,
-        help=(
-            "Path to SpliceAI SQLite database (OpenCRAVAT format). "
-            "Mutually exclusive with --spliceai-scores."
-        ),
+        help="Path to SpliceAI SQLite database (OpenCRAVAT format)",
     )
     parser.add_argument(
         "--gene-list",
