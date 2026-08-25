@@ -265,11 +265,16 @@ class RemoteTabixGnomAD:
 
                 pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                 try:
-                    future = pool.submit(
-                        lambda t=tabix, c=query_chrom, s=start, e=end: list(
-                            t.fetch(c, s, e)
-                        )
-                    )
+
+                    def _do_fetch(
+                        _t: pysam.TabixFile = tabix,
+                        _c: str = query_chrom,
+                        _s: int = start,
+                        _e: int = end,
+                    ) -> list[str]:
+                        return list(_t.fetch(_c, _s, _e))
+
+                    future = pool.submit(_do_fetch)
                     records = future.result(timeout=timeout)
                 finally:
                     pool.shutdown(wait=False, cancel_futures=True)
