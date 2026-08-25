@@ -98,6 +98,12 @@ class PrioritizationEngine:
                 config.spliceai_scores_path
             )
 
+    def close(self) -> None:
+        """Release resources held by the engine."""
+        if self._spliceai_db is not None:
+            self._spliceai_db.close()
+            self._spliceai_db = None
+
     def prioritize(
         self, variants: Iterator[AnnotatedVariant]
     ) -> Iterator[ScoredVariant]:

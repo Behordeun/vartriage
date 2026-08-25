@@ -60,7 +60,7 @@ eRepo (21,506 classified variants, SpliceAI SQLite + remote gnomAD):
 eRepo (21,928 input variants, 21,614 classified after filtering, gnomAD v4.1.1 remote):
 
 | Metric | Value |
-|--------|-------|
+| -------- | ------- |
 | Pathogenic sensitivity | 65.6% |
 | Pathogenic PPV | 99.2% |
 | Frameshift sensitivity | 99.7% |

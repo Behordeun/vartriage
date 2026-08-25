@@ -263,9 +263,16 @@ class RemoteTabixGnomAD:
             try:
                 tabix = self._get_tabix_for_chrom(chrom)
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(list, tabix.fetch(query_chrom, start, end))
+                pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                try:
+                    future = pool.submit(
+                        lambda t=tabix, c=query_chrom, s=start, e=end: list(
+                            t.fetch(c, s, e)
+                        )
+                    )
                     records = future.result(timeout=timeout)
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
 
                 self._breaker.record_success()
                 return records

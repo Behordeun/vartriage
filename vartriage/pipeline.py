@@ -339,6 +339,8 @@ class Pipeline:
             if annotation_engine is not None:
                 self._warning_accumulator.add_batch(annotation_engine.warnings)
 
+        prioritization_engine.close()
+
         logger.info(
             "Pipeline completed. Missing data warnings: %d",
             self._warning_accumulator.total_count,
@@ -580,6 +582,8 @@ class Pipeline:
             ref_paths.append(pri.revel_scores_path)
         if pri.spliceai_scores_path is not None:
             ref_paths.append(pri.spliceai_scores_path)
+        if pri.spliceai_db_path is not None:
+            ref_paths.append(pri.spliceai_db_path)
         return ref_paths
 
     def _compute_reference_checksums(self) -> dict[str, str]:
@@ -798,6 +802,8 @@ class Pipeline:
             self._check_path(pri_config.revel_scores_path, "REVEL scores file")
         if pri_config.spliceai_scores_path is not None:
             self._check_path(pri_config.spliceai_scores_path, "SpliceAI scores file")
+        if pri_config.spliceai_db_path is not None:
+            self._check_path(pri_config.spliceai_db_path, "SpliceAI SQLite database")
 
     def _reattach_annotations(
         self,
