@@ -4,6 +4,30 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.5] - 2026-08-25
+
+### Added
+
+- **SpliceAI SQLite backend** (`--spliceai-db`): query precomputed delta scores directly from the OpenCRAVAT SQLite database (1.7 GB, all chromosomes). Eliminates the need to pre-filter scores into per-analysis TSV files. Returns max(ds_ag, ds_al, ds_dg, ds_dl) per variant. Mutually exclusive with `--spliceai-scores` (TSV).
+- **PrioritizationConfig.spliceai_db_path**: new field with mutual exclusion validation against `spliceai_scores_path`.
+- **SpliceAISQLiteLoader** class (`vartriage/prioritization/spliceai_db.py`): read-only connection, chromosome normalization, batch lookups grouped by chromosome, context manager protocol.
+
+### Fixed
+
+- **Remote tabix timeout enforcement**: `pysam.TabixFile.fetch()` previously blocked indefinitely on stalled S3 connections (gnomAD). Now wrapped in a `ThreadPoolExecutor` with `future.result(timeout=read_timeout)`. TimeoutError triggers retry with backoff and records circuit breaker failures. Prevents the 6+ hour hang observed during eRepo validation.
+
+### Validation Results
+
+eRepo (21,506 classified variants, SpliceAI SQLite + remote gnomAD):
+
+| Metric | v0.17.3 (no SpliceAI) | v0.17.5 (SpliceAI SQLite) |
+| -------- | ------------------------ | --------------------------- |
+| Pathogenic sensitivity | 65.6% | 70.5% |
+| Splice-site sensitivity | 9.8% | 55.9% |
+| Pathogenic PPV | 99.2% | 99.2% |
+| Missense sensitivity | 46.9% | 46.9% |
+| Frameshift sensitivity | 99.7% | 99.7% |
+
 ## [0.17.4] - 2026-08-24
 
 ### Changed

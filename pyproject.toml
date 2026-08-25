@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vartriage"
-version = "0.17.4"
+version = "0.17.5"
 description = "A clinical-grade variant interpretation library: ACMG classification, annotation, structural and mitochondrial analysis, cohort statistics, prioritization, and multi-format reporting from VCF data"
 license = "MIT"
 requires-python = ">=3.10"
