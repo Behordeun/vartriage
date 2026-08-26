@@ -19,6 +19,7 @@ from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
 from vartriage.prioritization.scoring import score_variants
 
 if TYPE_CHECKING:
+    from vartriage.prioritization.spliceai_db import SpliceAISQLiteLoader
     from vartriage.remote.cadd import RemoteTabixCADD
     from vartriage.remote.config import RemoteTabixConfig
 
@@ -67,6 +68,7 @@ class PrioritizationEngine:
         self._cadd_scores: dict[CoordinateKey, float] = {}
         self._revel_scores: dict[CoordinateKey, float] = {}
         self._spliceai_scores: dict[CoordinateKey, float] = {}
+        self._spliceai_db: SpliceAISQLiteLoader | None = None
         self._remote_cadd: RemoteTabixCADD | None = None
 
         if config.cadd_scores_path is not None:
@@ -82,10 +84,25 @@ class PrioritizationEngine:
 
         if config.revel_scores_path is not None:
             self._revel_scores = self._score_loader.load_revel(config.revel_scores_path)
-        if config.spliceai_scores_path is not None:
+
+        # SpliceAI: SQLite backend takes precedence over TSV
+        if config.spliceai_db_path is not None:
+            from vartriage.prioritization.spliceai_db import (  # noqa: TC004
+                SpliceAISQLiteLoader as _SpliceAILoader,
+            )
+
+            self._spliceai_db = _SpliceAILoader(config.spliceai_db_path)
+            logger.info("SpliceAI SQLite backend active: %s", config.spliceai_db_path)
+        elif config.spliceai_scores_path is not None:
             self._spliceai_scores = self._score_loader.load_spliceai(
                 config.spliceai_scores_path
             )
+
+    def close(self) -> None:
+        """Release resources held by the engine."""
+        if self._spliceai_db is not None:
+            self._spliceai_db.close()
+            self._spliceai_db = None
 
     def prioritize(
         self, variants: Iterator[AnnotatedVariant]
@@ -178,8 +195,10 @@ class PrioritizationEngine:
 
         revel_scores = self._score_loader.lookup_batch(keys, self._revel_scores)
 
-        spliceai_scores = None
-        if self._spliceai_scores:
+        spliceai_scores: list[float | None] | None = None
+        if self._spliceai_db is not None:
+            spliceai_scores = self._spliceai_db.lookup_batch(keys)
+        elif self._spliceai_scores:
             spliceai_scores = self._score_loader.lookup_batch(
                 keys, self._spliceai_scores
             )

@@ -84,11 +84,18 @@ def _add_reference_arguments(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Path to REVEL score TSV reference file",
     )
-    parser.add_argument(
+    spliceai_group = parser.add_mutually_exclusive_group()
+    spliceai_group.add_argument(
         "--spliceai-scores",
         type=Path,
         default=None,
         help="Path to SpliceAI score TSV reference file",
+    )
+    spliceai_group.add_argument(
+        "--spliceai-db",
+        type=Path,
+        default=None,
+        help="Path to SpliceAI SQLite database (OpenCRAVAT format)",
     )
     parser.add_argument(
         "--gene-list",
@@ -504,6 +511,7 @@ def _run_pipeline(
         cadd_scores_path=paths["cadd_scores"],
         revel_scores_path=paths["revel_scores"],
         spliceai_scores_path=paths["spliceai_scores"],
+        spliceai_db_path=getattr(args, "spliceai_db", None),
     )
 
     report_config = ReportConfig(

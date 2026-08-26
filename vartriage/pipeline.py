@@ -313,31 +313,30 @@ class Pipeline:
 
             classified = acmg_classifier.classify(scored)
 
-            if self._mito_enabled:
-                # Materialization needed: the lazy generator populates
-                # mito_variants as nuclear variants flow through. We need
-                # all mito variants collected before running the mito pipeline.
-                classified_list = list(classified)
-                mito_results = self._run_mito_pipeline(mito_variants)
-                result_path = self._generate_report(
-                    report_generator,
-                    iter(classified_list),
-                    effective_output_path,
-                    effective_vcf_path,
-                    mito_results=mito_results,
-                )
-            else:
-                # No mito: stream directly without materializing
-                result_path = self._generate_report(
-                    report_generator,
-                    classified,
-                    effective_output_path,
-                    effective_vcf_path,
-                    mito_results=None,
-                )
+            try:
+                if self._mito_enabled:
+                    classified_list = list(classified)
+                    mito_results = self._run_mito_pipeline(mito_variants)
+                    result_path = self._generate_report(
+                        report_generator,
+                        iter(classified_list),
+                        effective_output_path,
+                        effective_vcf_path,
+                        mito_results=mito_results,
+                    )
+                else:
+                    result_path = self._generate_report(
+                        report_generator,
+                        classified,
+                        effective_output_path,
+                        effective_vcf_path,
+                        mito_results=None,
+                    )
 
-            if annotation_engine is not None:
-                self._warning_accumulator.add_batch(annotation_engine.warnings)
+                if annotation_engine is not None:
+                    self._warning_accumulator.add_batch(annotation_engine.warnings)
+            finally:
+                prioritization_engine.close()
 
         logger.info(
             "Pipeline completed. Missing data warnings: %d",
@@ -439,39 +438,42 @@ class Pipeline:
         )
         acmg_classifier = ACMGClassifier()
 
-        with VCFParser(effective_vcf_path) as parser:
-            stream: Iterator[Variant] = iter(parser)
+        try:
+            with VCFParser(effective_vcf_path) as parser:
+                stream: Iterator[Variant] = iter(parser)
 
-            if self._config.region_filter is not None:
-                from vartriage.filter.region_filter import RegionFilter
+                if self._config.region_filter is not None:
+                    from vartriage.filter.region_filter import RegionFilter
 
-                region_filter = RegionFilter(self._config.region_filter)
-                stream = region_filter.apply(stream)
+                    region_filter = RegionFilter(self._config.region_filter)
+                    stream = region_filter.apply(stream)
 
-            filtered = quality_filter.apply(stream)
+                filtered = quality_filter.apply(stream)
 
-            if annotation_engine is not None:
-                annotated = annotation_engine.annotate(filtered)
-            else:
-                annotated = self._passthrough_annotation(filtered)
+                if annotation_engine is not None:
+                    annotated = annotation_engine.annotate(filtered)
+                else:
+                    annotated = self._passthrough_annotation(filtered)
 
-            if self._config.gene_filter is not None:
-                from vartriage.filter.gene_filter import GeneFilter
+                if self._config.gene_filter is not None:
+                    from vartriage.filter.gene_filter import GeneFilter
 
-                gene_filter = GeneFilter(self._config.gene_filter)
-                annotated = gene_filter.apply(annotated)
+                    gene_filter = GeneFilter(self._config.gene_filter)
+                    annotated = gene_filter.apply(annotated)
 
-            # Gene-disease linkage in run_to_classification path
-            if self._gene_knowledge_annotator is not None:
-                annotated = self._gene_knowledge_annotator.annotate(annotated)
+                # Gene-disease linkage in run_to_classification path
+                if self._gene_knowledge_annotator is not None:
+                    annotated = self._gene_knowledge_annotator.annotate(annotated)
 
-            scored = prioritization_engine.prioritize(annotated)
+                scored = prioritization_engine.prioritize(annotated)
 
-            # Apply phenotype boost in classification path too
-            if self._gene_knowledge_annotator is not None:
-                scored = self._gene_knowledge_annotator.boost_scores(scored)
+                # Apply phenotype boost in classification path too
+                if self._gene_knowledge_annotator is not None:
+                    scored = self._gene_knowledge_annotator.boost_scores(scored)
 
-            yield from acmg_classifier.classify(scored)
+                yield from acmg_classifier.classify(scored)
+        finally:
+            prioritization_engine.close()
 
     def _inject_remote_gnomad(self, annotation_engine: AnnotationEngine | None) -> None:
         """Inject remote gnomAD tabix backend if configured and needed."""
@@ -580,6 +582,8 @@ class Pipeline:
             ref_paths.append(pri.revel_scores_path)
         if pri.spliceai_scores_path is not None:
             ref_paths.append(pri.spliceai_scores_path)
+        if pri.spliceai_db_path is not None:
+            ref_paths.append(pri.spliceai_db_path)
         return ref_paths
 
     def _compute_reference_checksums(self) -> dict[str, str]:
@@ -798,6 +802,8 @@ class Pipeline:
             self._check_path(pri_config.revel_scores_path, "REVEL scores file")
         if pri_config.spliceai_scores_path is not None:
             self._check_path(pri_config.spliceai_scores_path, "SpliceAI scores file")
+        if pri_config.spliceai_db_path is not None:
+            self._check_path(pri_config.spliceai_db_path, "SpliceAI SQLite database")
 
     def _reattach_annotations(
         self,

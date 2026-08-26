@@ -250,16 +250,54 @@ class RemoteTabixGnomAD:
 
         Returns list of record lines on success, None on exhausted retries.
         Records breaker success on first successful fetch.
+        Uses a thread-based timeout to prevent indefinite hangs on stalled
+        S3 connections (pysam/htslib has no built-in timeout).
         """
+        import concurrent.futures
+
         max_retries = self._config.max_retries
+        timeout = self._config.read_timeout
         backoff = 1.0
 
         for attempt in range(max_retries + 1):
             try:
                 tabix = self._get_tabix_for_chrom(chrom)
-                records = list(tabix.fetch(query_chrom, start, end))
+
+                pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                try:
+
+                    def _do_fetch(
+                        _t: pysam.TabixFile = tabix,
+                        _c: str = query_chrom,
+                        _s: int = start,
+                        _e: int = end,
+                    ) -> list[str]:
+                        return list(_t.fetch(_c, _s, _e))
+
+                    future = pool.submit(_do_fetch)
+                    records = future.result(timeout=timeout)
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
+
                 self._breaker.record_success()
                 return records
+            except concurrent.futures.TimeoutError:
+                logger.warning(
+                    "Remote gnomAD query timed out after %.0fs for %s:%d-%d "
+                    "(attempt %d/%d)",
+                    timeout,
+                    chrom,
+                    start,
+                    end,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                self._reset_chrom_connection(chrom)
+                if attempt == max_retries:
+                    self._breaker.record_failure()
+                    return None
+                time.sleep(backoff)
+                backoff *= 2.0
             except (OSError, ValueError) as exc:
                 if attempt == max_retries:
                     self._breaker.record_failure()
