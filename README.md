@@ -516,7 +516,7 @@ Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign u
 
 BS2 (strong benign, observed in healthy adults) exists in the evidence-tag enum and the combining rules but has no evaluator; it is never emitted until gnomAD homozygote-count parsing is added.
 
-**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with a computational-only disclaimer (citing ACMG/AMP 2015), per-variant evidence narratives, an executive summary, findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, gene_name, functional consequence, allele frequency, revel_score, composite rank, prioritization_score, ClinVar assertion, ACMG classification, evidence tags, disease_associations, clingen_validity, gene_constraint, is_actionable, phenotype_match_score.
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with a computational-only disclaimer (citing ACMG/AMP 2015), per-variant evidence narratives, an executive summary, a Sample Quality Control section (when QC runs), findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, gene_name, functional consequence, allele frequency, revel_score, composite rank, prioritization_score, ClinVar assertion, ACMG classification, evidence tags, disease_associations, clingen_validity, gene_constraint, is_actionable, phenotype_match_score.
 
 ## Configuration
 
@@ -622,11 +622,11 @@ Mitochondrial analysis is auto-enabled when chrM/MT variants are present in the 
 
 ### QCConfig
 
-| Field              | Type         | Default | Notes                                                   |
-| ------------------ | ------------ | ------- | ------------------------------------------------------- |
-| assay_type         | str          | "wes"   | `wgs`, `wes`, or `panel` (selects threshold preset)     |
-| strict             | bool         | False   | FAIL halts the pipeline with exit code 3                |
-| skip               | bool         | False   | Bypass QC entirely                                      |
+| Field              | Type          | Default | Notes                                                   |
+| ------------------ | ------------- | ------- | ------------------------------------------------------- |
+| assay_type         | str           | "wes"   | `wgs`, `wes`, or `panel` (selects threshold preset)     |
+| strict             | bool          | False   | FAIL halts the pipeline with exit code 3                |
+| skip               | bool          | False   | Bypass QC entirely                                      |
 | expected_ti_tv     | tuple \| None | None    | Override Ti/Tv warn range `(min, max)`                  |
 | expected_het_hom   | tuple \| None | None    | Override het/hom warn range `(min, max)`                |
 | sample_id          | str \| None   | None    | Sample for het/hom (single-sample VCFs auto-detect)     |
@@ -685,7 +685,8 @@ warnings.filterwarnings("ignore", category=VarTriageWarning)
 | polars >=0.20,<2.0      | no       | [accelerated] | Batch frequency/ClinVar joins      |
 | pyranges >=0.1,<1.0     | no       | [accelerated] | Interval overlap queries           |
 | reportlab >=4.0,<5.0    | no       | [pdf]         | PDF report rendering               |
-| weasyprint >=60.0,<63.0 | no       | [clinical]    | Clinical PDF rendering             |
+| weasyprint >=60.0,<70.0 | no       | [clinical]    | Clinical HTML/PDF rendering        |
+| pydyf >=0.8,<0.11       | no       | [clinical]    | PDF writer (pinned for weasyprint) |
 | python-docx >=1.0,<2.0  | no       | [clinical]    | Clinical DOCX rendering            |
 | httpx >=0.27,<1.0       | no       | [api]         | Remote API annotation              |
 
