@@ -69,37 +69,46 @@ class QCComputer:
         self._has_sample = sample_id is not None
 
     def process_record(self, record: pysam.VariantRecord) -> None:
-        """Process a single VCF record, updating internal counters."""
-        chrom = record.contig
-        self._chrom_counts[chrom] = self._chrom_counts.get(chrom, 0) + 1
-        self._total += 1
+        """Process a single VCF record, updating internal counters.
 
+        Multi-allelic sites are decomposed: each valid ALT allele
+        contributes its own count to variant totals, Ti/Tv, and
+        indel metrics. Genotype het/hom counting stays per-record,
+        since a sample has one genotype call regardless of ALT count.
+        """
+        chrom = record.contig
         ref = record.ref
         alts = record.alts
         if not alts:
+            self._chrom_counts[chrom] = self._chrom_counts.get(chrom, 0) + 1
+            self._total += 1
             return
 
-        alt = alts[0]
-        if alt is None or alt == "." or ref is None:
-            return
+        for alt in alts:
+            if alt is None or alt == "." or ref is None:
+                continue
+            self._chrom_counts[chrom] = self._chrom_counts.get(chrom, 0) + 1
+            self._total += 1
+            self._classify_allele(ref, alt)
 
+        if self._has_sample:
+            self._extract_genotype(record)
+
+    def _classify_allele(self, ref: str, alt: str) -> None:
+        """Update SNV/indel counters for one decomposed ALT allele."""
         if _is_snv(ref, alt):
             self._snv_count += 1
             if _is_transition(ref, alt):
                 self._transition_count += 1
             else:
                 self._transversion_count += 1
-        else:
-            # Indel classification by length comparison
-            ref_len = len(ref)
-            alt_len = len(alt)
-            if alt_len > ref_len:
-                self._insertion_count += 1
-            elif ref_len > alt_len:
-                self._deletion_count += 1
+            return
 
-        if self._has_sample:
-            self._extract_genotype(record)
+        # Indel classification by length comparison
+        if len(alt) > len(ref):
+            self._insertion_count += 1
+        elif len(ref) > len(alt):
+            self._deletion_count += 1
 
     def _extract_genotype(self, record: pysam.VariantRecord) -> None:
         """Count het and hom-alt genotypes for the target sample."""
@@ -191,12 +200,15 @@ def compute_qc_metrics(
         Frozen dataclass with all computed metrics.
     """
     vcf = pysam.VariantFile(str(vcf_path), "r")
-    computer = QCComputer(sample_id=sample_id)
 
-    # Auto-detect sample when not specified and VCF has exactly one
-    if sample_id is None and len(list(vcf.header.samples)) == 1:
-        detected = list(vcf.header.samples)[0]
-        computer = QCComputer(sample_id=detected)
+    # Auto-detect the sample when none is given and the VCF has exactly one.
+    effective_sample = sample_id
+    if effective_sample is None:
+        samples = list(vcf.header.samples)
+        if len(samples) == 1:
+            effective_sample = samples[0]
+
+    computer = QCComputer(sample_id=effective_sample)
 
     try:
         for record in vcf:
