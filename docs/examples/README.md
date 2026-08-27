@@ -7,17 +7,17 @@ Usage examples covering every vartriage capability, organized by version.
 | File | Description |
 | ------ | ------------- |
 | `sample_pipeline_output.json` | Standard JSON output with ACMG classification, evidence tags, and `prioritization_score` |
-| `sample_pipeline_output.csv` | CSV equivalent (20 columns including `prioritization_score`) |
+| `sample_pipeline_output.csv` | CSV equivalent (15 columns including `prioritization_score`) |
 | `sample_clinical_report.html` | Self-contained clinical HTML report for a hereditary cancer panel |
 | `sample_clinical_report.html.audit.json` | Audit trail sidecar for the clinical report |
 
 All samples use synthetic variant data. Patient identifiers are fictional.
 
-**Output fields (v0.17.3):**
+**Output fields:**
 
-- `prioritization_score`: literature-validated ranking (REVEL for missense, SpliceAI for splice, CADD/60 for others). Recommended for triage.
+- `prioritization_score`: literature-validated ranking (REVEL for missense, SpliceAI for splice-adjacent, CADD Phred/99 capped at 1.0 for others). Recommended for triage.
 - `composite_rank`: legacy weighted average. Deprecated, will be removed in v1.0.0.
-- `evidence_tags`: ACMG criteria satisfied (PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BS2, BP4, BP7)
+- `evidence_tags`: ACMG criteria the classifier emits (PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BP4, BP7, plus the strength-modulated PVS1_Strong, PP3_Moderate, BP4_Moderate). BS2 is defined but not emitted.
 - `acmg_classification`: final 5-tier call (Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, Benign)
 
 ---
@@ -419,6 +419,69 @@ network failures.
 
 ---
 
+## 15. SpliceAI SQLite backend (v0.17.5)
+
+Query precomputed SpliceAI delta scores directly from the OpenCRAVAT SQLite
+database instead of pre-filtering scores into a per-analysis TSV:
+
+```bash
+vartriage \
+  --vcf exome.vcf.gz \
+  --output results.json \
+  --gene-annotation gencode.v46.gtf \
+  --gnomad gnomad.v4.sites.tsv \
+  --spliceai-db spliceai_scores.db
+```
+
+`--spliceai-db` (SQLite) and `--spliceai-scores` (TSV) are mutually
+exclusive. The database backend returns the max of the four delta scores
+(ds_ag, ds_al, ds_dg, ds_dl) per variant and covers all chromosomes without
+a pre-filtering step.
+
+---
+
+## 16. VCF quality control (v0.18.0)
+
+```bash
+# Standalone QC check, no annotation
+vartriage qc --vcf sample.vcf.gz --sample SAMPLE1 --assay-type wes
+
+# Write a machine-readable QC report
+vartriage qc --vcf sample.vcf.gz --sample SAMPLE1 --assay-type wgs \
+  --output-json qc_report.json
+
+# Gate the full pipeline: halt before annotation on any FAIL
+vartriage --vcf sample.vcf.gz --output results.json \
+  --gene-annotation gencode.v46.gtf --gnomad gnomad.v4.sites.tsv \
+  --assay-type wgs --strict-qc
+
+# Skip QC for a pre-validated file
+vartriage --vcf sample.vcf.gz --output results.json \
+  --gene-annotation gencode.v46.gtf --gnomad gnomad.v4.sites.tsv --skip-qc
+```
+
+QC computes Ti/Tv, het/hom, variant count, and ins/del ratios in a single
+streaming pass, validates them against the assay-specific ranges (`wgs`,
+`wes`, `panel`), and prints a PASS/WARN/FAIL table to stderr. With
+`--strict-qc`, a FAIL halts the pipeline before annotation and exits with
+code 3. See [Quality Control Guide](../quality-control.md) for metric
+definitions and thresholds.
+
+Python API:
+
+```python
+from pathlib import Path
+from vartriage.qc.config import QCConfig
+from vartriage.qc.metrics import compute_qc_metrics
+from vartriage.qc.validator import QCValidator
+
+metrics = compute_qc_metrics(Path("sample.vcf.gz"), sample_id="SAMPLE1")
+report = QCValidator(QCConfig(assay_type="wes")).validate(metrics)
+print(report.overall_status)
+```
+
+---
+
 ## Complete pipeline example
 
 ```bash
@@ -439,5 +502,7 @@ vartriage \
   --gene-list panel_genes.txt \
   --hpo-terms HP:0001250,HP:0001249 \
   --secondary-findings \
+  --assay-type wes \
+  --strict-qc \
   --use-bundles
 ```

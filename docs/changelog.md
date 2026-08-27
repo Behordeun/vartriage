@@ -4,6 +4,21 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-08-27
+
+### Added
+
+- **VCF quality control** (`vartriage/qc/`): pre-flight sample QC computed in a single streaming pass before annotation. Metrics: Ti/Tv ratio, het/hom ratio, total variant count, ins/del ratio, and per-chromosome counts. Each metric is validated against assay-specific ranges (`wgs`, `wes`, `panel`) and reported as PASS, WARN, or FAIL with an overall verdict.
+- **`vartriage qc` subcommand**: standalone QC-only mode with no annotation. Supports `--sample`, `--assay-type`, `--output-json`, `--strict`, `--expected-titv`, and `--expected-het-hom`.
+- **QC pipeline gate**: `--strict-qc` halts the pipeline with exit code 3 when any metric reaches FAIL, before annotation runs. `--skip-qc` bypasses QC. `--assay-type` selects the threshold preset. `--expected-titv` and `--expected-het-hom` override warn-level ranges.
+- **QCConfig**: new config dataclass with startup validation and a `[qc]` TOML section (`~/.vartriage/config.toml`) for threshold overrides. CLI values take precedence over TOML.
+- **PipelineConfig.qc**: new field wiring QC into `Pipeline.run()`. The QC report is exposed via the `Pipeline.qc_report` property.
+- **QC computation uses no additional dependencies**: counts are basic arithmetic over variant records; no scipy or numpy required for the QC pass.
+
+### Notes
+
+- QC edge cases are handled without false failures: a VCF with no indels or no genotype calls reports the affected ratio but does not count it against the verdict. Single-sample VCFs auto-detect the sample for het/hom.
+
 ## [0.17.5] - 2026-08-25
 
 ### Added
