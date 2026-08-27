@@ -174,6 +174,10 @@ pipeline.run()
 report = pipeline.qc_report  # QCReport from the pre-flight pass
 ```
 
+## Clinical report
+
+When QC runs and a clinical format is requested (`clinical-html`, `clinical-pdf`, `clinical-docx`), the report includes a "Sample Quality Control" section with the per-metric table (metric, value, expected range, status) directly under the executive summary. If the overall verdict is WARN or FAIL, a matching note is added to the limitations section so borderline or failing quality is called out alongside the findings. A PASS verdict adds no limitation note.
+
 ## Performance
 
 QC runs as a single streaming pass over the VCF with no annotation lookups and no random access. Memory use is bounded by the number of contigs. The pass is independent of the annotation pass, so a QC-gated run reads the file twice.

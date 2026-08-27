@@ -63,6 +63,7 @@ class ReportGenerator:
         output_path: Path,
         source_vcf_path: Path | None = None,
         mito_results: list[Any] | None = None,
+        qc_report: Any = None,
     ) -> Path:
         """Write classified variants to the configured format.
 
@@ -101,7 +102,10 @@ class ReportGenerator:
 
         if fmt.startswith("clinical-"):
             return self._generate_clinical(
-                variants, output_path, mito_results=mito_results
+                variants,
+                output_path,
+                mito_results=mito_results,
+                qc_report=qc_report,
             )
 
         if fmt == "vcf":
@@ -198,6 +202,7 @@ class ReportGenerator:
         variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
         output_path: Path,
         mito_results: list[Any] | None = None,
+        qc_report: Any = None,
     ) -> Path:
         """Delegate to ClinicalReportGenerator for clinical formats.
 
@@ -231,4 +236,9 @@ class ReportGenerator:
             pipeline_version=__version__,
             reference_checksums=self._reference_checksums,
         )
-        return clinical_gen.generate(variants, output_path, mito_results=mito_results)
+        return clinical_gen.generate(
+            variants,
+            output_path,
+            mito_results=mito_results,
+            qc_report=qc_report,
+        )

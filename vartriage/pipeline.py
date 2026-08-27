@@ -228,10 +228,14 @@ class Pipeline:
                 classified, output_path, fmt, mito_results
             )
 
-        # Clinical formats with mito results
-        if mito_results and fmt.startswith("clinical-"):
+        # Clinical formats always carry the QC report (when QC ran) so the
+        # Sample Quality Control section renders regardless of mito presence.
+        if fmt.startswith("clinical-"):
             return report_generator.generate(
-                classified, output_path, mito_results=mito_results
+                classified,
+                output_path,
+                mito_results=mito_results,
+                qc_report=self.qc_report,
             )
 
         return report_generator.generate(classified, output_path)

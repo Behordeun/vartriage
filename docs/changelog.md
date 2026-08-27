@@ -14,6 +14,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - **QCConfig**: new config dataclass with startup validation and a `[qc]` TOML section (`~/.vartriage/config.toml`) for threshold overrides. CLI values take precedence over TOML.
 - **PipelineConfig.qc**: new field wiring QC into `Pipeline.run()`. The QC report is exposed via the `Pipeline.qc_report` property.
 - **QC computation uses no additional dependencies**: counts are basic arithmetic over variant records; no scipy or numpy required for the QC pass.
+- **Sample Quality Control section in clinical reports**: `clinical-html`, `clinical-pdf`, and `clinical-docx` now render the QC metric table under the executive summary. A WARN or FAIL verdict also adds a note to the limitations section.
+
+### Fixed
+
+- **Clinical PDF dependency pin**: the `clinical` and `all` extras now pin `pydyf<0.11`. WeasyPrint 62.x is incompatible with pydyf 0.11+ (raises `'super' object has no attribute 'transform'` during `write_pdf`); the pin keeps PDF generation working.
 
 ### Notes
 

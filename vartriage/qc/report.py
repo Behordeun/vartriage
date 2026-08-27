@@ -13,6 +13,7 @@ _STATUS_SYMBOLS = {
     QCStatus.WARN: "\u26a0 WARN",
     QCStatus.FAIL: "\u2717 FAIL",
 }
+_TOTAL_VARIANT = "Total Variants"
 
 
 def format_qc_stderr(report: QCReport) -> str:
@@ -40,7 +41,7 @@ def format_qc_stderr(report: QCReport) -> str:
         value_str = _format_value(check)
         expected_str = f"{check.expected_min:.1f}-{check.expected_max:.1f}"
         # Special formatting for variant count
-        if check.metric_name == "Total Variants":
+        if check.metric_name == _TOTAL_VARIANT:
             value_str = f"{int(check.value):,}"
             if check.expected_max >= 999_999_999:
                 expected_str = "no constraint"
@@ -126,6 +127,31 @@ def write_qc_json(report: QCReport, path: Any) -> None:
         json.dump(serialize_qc_json(report), f, indent=2)
 
 
+def qc_check_rows(report: QCReport) -> list[tuple[str, str, str, str]]:
+    """Format QC checks into display rows shared across report renderers.
+
+    Returns one tuple per check: (metric name, value, expected range,
+    status label with symbol). Used by both the clinical HTML section
+    and the DOCX table so their formatting stays identical.
+    """
+    rows: list[tuple[str, str, str, str]] = []
+    for check in report.checks:
+        value_str = _format_value(check)
+        if check.metric_name == _TOTAL_VARIANT:
+            value_str = f"{int(check.value):,}"
+            expected = (
+                "no constraint"
+                if check.expected_max >= 999_999_999
+                else f"{int(check.expected_min):,}-{int(check.expected_max):,}"
+            )
+        else:
+            expected = f"{check.expected_min:.1f}-{check.expected_max:.1f}"
+        rows.append(
+            (check.metric_name, value_str, expected, _STATUS_SYMBOLS[check.status])
+        )
+    return rows
+
+
 def format_clinical_qc_section(report: QCReport) -> str:
     """Generate HTML for the Sample Quality Control section of clinical reports.
 
@@ -139,24 +165,15 @@ def format_clinical_qc_section(report: QCReport) -> str:
     str
         HTML fragment for the clinical report.
     """
+    import html as _html
+
     rows: list[str] = []
-    for check in report.checks:
-        value_str = _format_value(check)
-        if check.metric_name == "Total Variants":
-            value_str = f"{int(check.value):,}"
-            expected = (
-                "no constraint"
-                if check.expected_max >= 999_999_999
-                else f"{int(check.expected_min):,}-{int(check.expected_max):,}"
-            )
-        else:
-            expected = f"{check.expected_min:.1f}-{check.expected_max:.1f}"
-        status_sym = _STATUS_SYMBOLS[check.status]
+    for metric, value_str, expected, status_sym in qc_check_rows(report):
         rows.append(
-            f"    <tr><td>{check.metric_name}</td>"
-            f"<td>{value_str}</td>"
-            f"<td>{expected}</td>"
-            f"<td>{status_sym}</td></tr>"
+            f"    <tr><td>{_html.escape(metric)}</td>"
+            f"<td>{_html.escape(value_str)}</td>"
+            f"<td>{_html.escape(expected)}</td>"
+            f"<td>{_html.escape(status_sym)}</td></tr>"
         )
 
     return (
@@ -172,7 +189,7 @@ def format_clinical_qc_section(report: QCReport) -> str:
 
 def _format_value(check: QCCheckResult) -> str:
     """Format a check value for display."""
-    if check.metric_name == "Total Variants":
+    if check.metric_name == _TOTAL_VARIANT:
         return f"{int(check.value):,}"
     return f"{check.value:.2f}"
 
