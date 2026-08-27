@@ -7,7 +7,7 @@ Usage examples covering every vartriage capability, organized by version.
 | File | Description |
 | ------ | ------------- |
 | `sample_pipeline_output.json` | Standard JSON output with ACMG classification, evidence tags, and `prioritization_score` |
-| `sample_pipeline_output.csv` | CSV equivalent (15 columns including `prioritization_score`) |
+| `sample_pipeline_output.csv` | CSV equivalent (the live pipeline writes 21 columns; this trimmed sample shows the core 15) |
 | `sample_clinical_report.html` | Self-contained clinical HTML report for a hereditary cancer panel |
 | `sample_clinical_report.html.audit.json` | Audit trail sidecar for the clinical report |
 
