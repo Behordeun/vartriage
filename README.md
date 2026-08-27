@@ -10,14 +10,14 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files, remote tabix, or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (13 criteria with strength modulation: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BS2, BP4, BP7), Bayesian-adapted combining rules (Tavtigian et al. 2018), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, **remote tabix scoring (CADD/gnomAD via HTTP byte-range, no 80 GB download)**, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files, remote tabix, or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (12 criteria with strength modulation: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BP4, BP7), Bayesian-adapted combining rules (Tavtigian et al. 2018), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, **remote tabix scoring (CADD/gnomAD via HTTP byte-range, no 80 GB download)**, **VCF quality control (Ti/Tv, het/hom, variant count sanity checks with strict-gate support)**, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
 - Single Python package, no Java/Perl/Spark dependencies
 - Streams 4M+ variant WGS files under 2 GB RAM
 - Codon-level consequence calling with reference FASTA (correct missense vs synonymous)
-- Benign + pathogenic ACMG criteria (13 criteria, ClinGen-calibrated): classifies variants across all 5 tiers
+- Benign + pathogenic ACMG criteria (12 criteria, ClinGen-calibrated): classifies variants across all 5 tiers
 - Bayesian-adapted combining rules (Tavtigian et al. 2018): 2 Moderate = LP, 1 Moderate + 4 Supporting = LP
 - Gene-disease linkage: OMIM, ClinGen validity, HPO phenotype matching, gnomAD constraint, actionability
 - Phenotype-driven: `--hpo-terms` boosts variants in genes matching patient symptoms
@@ -41,18 +41,20 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
 
 Reference files are cached after first parse. Subsequent runs load from cache in seconds.
 
-**Validation (v0.17.4, unchanged from v0.17.2 validation run):**
+**Validation (eRepo run with SpliceAI SQLite + remote gnomAD, v0.17.5):**
 
 | Benchmark     | Variants | Pathogenic Sensitivity | Specificity | PPV   |
 | ------------- | -------- | ---------------------- | ----------- | ----- |
-| GIAB chr22    | 50,284   | —                      | 71.8%       | —     |
-| ClinVar eRepo | 21,928   | 65.6%                  | —           | 99.2% |
+| GIAB chr22    | 50,284   | n/a                    | 71.8%       | n/a   |
+| ClinVar eRepo | 21,506   | 70.5%                  | n/a         | 99.2% |
+
+Splice-site sensitivity improved from 9.8% to 55.9% once the SpliceAI SQLite backend (`--spliceai-db`) landed in v0.17.5.
 
 **Known limitations:**
 
-- Splice-site detection disabled in v0.17.x (splice sensitivity 9.8%). SpliceAI SQLite integration planned for v0.18.0.
-- BP1, BP3, BP6 benign criteria not yet implemented.
-- Benign sensitivity is low (6.0%) due to missing benign criteria — VUS is the default when evidence is absent.
+- BS2 is defined as an evidence tag but is not emitted by the classifier (it needs gnomAD homozygote-count data that is not parsed yet).
+- BP1, BP3, BP6 benign criteria are not implemented.
+- Benign sensitivity is low (6.0%) because of the missing benign criteria; VUS is the default when evidence is absent.
 
 ## Install
 
@@ -231,6 +233,32 @@ vartriage --vcf panel.vcf.gz --output results.json --skip-mito
 The mitochondrial pipeline uses the vertebrate mitochondrial genetic code for amino acid prediction, extracts heteroplasmy levels from AD/AF fields, queries MITOMAP for disease associations, checks HelixMTdb for population frequency, and classifies variants independently of the nuclear ACMG criteria. Results appear in a dedicated "Mitochondrial Findings" section in output reports.
 
 See [Mitochondrial Variants Guide](https://github.com/Behordeun/vartriage/blob/main/docs/mitochondrial.md) for heteroplasmy thresholds, classification rules, and data update instructions.
+
+### Quality control
+
+Compute sample-level QC metrics (Ti/Tv, het/hom, variant count, ins/del) and validate them against expected ranges before annotation runs. Catches contamination, sample swaps, and caller artifacts early:
+
+```bash
+# Standalone QC check, no annotation
+vartriage qc --vcf sample.vcf.gz --sample SAMPLE1 --assay-type wes
+
+# Write a machine-readable QC report
+vartriage qc --vcf sample.vcf.gz --sample SAMPLE1 --assay-type wgs \
+  --output-json qc_report.json
+
+# Gate the full pipeline: halt before annotation on any FAIL
+vartriage --vcf sample.vcf.gz --output results.json \
+  --gene-annotation gencode.gtf --gnomad gnomad.tsv \
+  --assay-type wgs --strict-qc
+
+# Skip QC for a pre-validated file
+vartriage --vcf sample.vcf.gz --output results.json \
+  --gene-annotation gencode.gtf --gnomad gnomad.tsv --skip-qc
+```
+
+Each metric is validated against assay-specific ranges (`wgs`, `wes`, `panel`) and reported as PASS, WARN, or FAIL with an overall verdict printed to stderr. Without `--strict-qc`, WARN and FAIL are logged and the pipeline proceeds; with `--strict-qc`, a FAIL halts before annotation and exits with code 3. Warn ranges are overridable via `--expected-titv`, `--expected-het-hom`, or a `[qc]` section in `~/.vartriage/config.toml`.
+
+See [Quality Control Guide](https://github.com/Behordeun/vartriage/blob/main/docs/quality-control.md) for the metric definitions, thresholds, and Python API.
 
 ### Remote tabix scoring
 
@@ -437,10 +465,12 @@ output = pipeline.run()
 ## Pipeline stages
 
 ```text
-VCFParser → [SampleExtractor] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
+[QCPreflight] → VCFParser → [SampleExtractor] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
 ```
 
 Stages in brackets are optional and activate based on config.
+
+**QC pre-flight** (`--assay-type`, `--strict-qc`, `--skip-qc`) - Streams the VCF once before annotation to compute Ti/Tv, het/hom, variant count, and ins/del ratios, then validates them against assay-specific ranges. Prints a PASS/WARN/FAIL table to stderr. With `--strict-qc`, a FAIL halts the pipeline (exit code 3) before annotation runs. Disabled with `--skip-qc`.
 
 **Sample extraction** (`--sample`) - Pulls a single sample from multi-sample VCFs. Only variants where the named sample carries an alternate allele are kept. Optional `--min-gq` threshold drops low-confidence genotype calls.
 
@@ -458,7 +488,7 @@ Stages in brackets are optional and activate based on config.
 composite = (REVEL × 0.5) + (CADD_normalized × 0.3) + (SpliceAI × 0.2)
 ```
 
-CADD normalization: Phred score divided by 99.0, capped at 1.0. The separate `prioritization_score` field uses Phred / 60.0 (capped at 1.0) for triage ranking. REVEL and SpliceAI are already bounded 0.0–1.0 and used directly without rescaling.
+CADD normalization: Phred score divided by 99.0 (`CADD_MAX_PHRED`), capped at 1.0. The separate `prioritization_score` field uses the same Phred / 99.0 normalization for non-missense variants. REVEL and SpliceAI are already bounded 0.0–1.0 and used directly without rescaling.
 
 When only two scores are available, weights redistribute proportionally. Single available score is used directly. Falls back to the legacy two-score formula (0.6/0.4) when SpliceAI is not configured.
 
@@ -478,14 +508,15 @@ When only two scores are available, weights redistribute proportionally. Single 
 | PP5           | Supporting  | ClinVar Pathogenic without conflicting Benign                                                                    |
 | BA1           | Standalone  | Any population AF > 5% (standalone Benign, overrides all pathogenic evidence)                                    |
 | BS1           | Strong      | Any population AF > 1% (strong benign)                                                                           |
-| BS2           | Strong      | Observed in healthy adults at frequency inconsistent with disease penetrance                                     |
 | BP4           | Supporting  | REVEL < 0.290 (missense) or CADD < 10 (non-missense)                                                             |
 | BP4_MODERATE  | Moderate    | REVEL < 0.183 (ClinGen-calibrated)                                                                               |
 | BP7           | Supporting  | Synonymous + SpliceAI < 0.1                                                                                      |
 
 Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign using Bayesian-adapted combining rules (Tavtigian et al. 2018). Relaxed LP rules: 2 Moderate = LP, 1 Moderate + 4 Supporting = LP. BA1 is standalone and overrides all conflicting pathogenic evidence. Missing data sources mean the tag is simply omitted.
 
-**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with a computational-only disclaimer (citing ACMG/AMP 2015), per-variant evidence narratives, an executive summary, findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, gene_name, functional consequence, allele frequency, revel_score, composite rank, prioritization_score, ClinVar assertion, ACMG classification, evidence tags, disease_associations, clingen_validity, gene_constraint, is_actionable, phenotype_match_score.
+BS2 (strong benign, observed in healthy adults) exists in the evidence-tag enum and the combining rules but has no evaluator; it is never emitted until gnomAD homozygote-count parsing is added.
+
+**Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with a computational-only disclaimer (citing ACMG/AMP 2015), per-variant evidence narratives, an executive summary, a Sample Quality Control section (when QC runs), findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, gene_name, functional consequence, allele frequency, revel_score, composite rank, prioritization_score, ClinVar assertion, ACMG classification, evidence tags, disease_associations, clingen_validity, gene_constraint, is_actionable, phenotype_match_score.
 
 ## Configuration
 
@@ -589,6 +620,19 @@ Any non-default field activates the gene-disease linkage pipeline stage.
 
 Mitochondrial analysis is auto-enabled when chrM/MT variants are present in the VCF. Use `--skip-mito` (CLI) or `MitoConfig(enabled=False)` to disable.
 
+### QCConfig
+
+| Field              | Type          | Default | Notes                                                   |
+| ------------------ | ------------- | ------- | ------------------------------------------------------- |
+| assay_type         | str           | "wes"   | `wgs`, `wes`, or `panel` (selects threshold preset)     |
+| strict             | bool          | False   | FAIL halts the pipeline with exit code 3                |
+| skip               | bool          | False   | Bypass QC entirely                                      |
+| expected_ti_tv     | tuple \| None | None    | Override Ti/Tv warn range `(min, max)`                  |
+| expected_het_hom   | tuple \| None | None    | Override het/hom warn range `(min, max)`                |
+| sample_id          | str \| None   | None    | Sample for het/hom (single-sample VCFs auto-detect)     |
+
+QC runs before annotation. Use `--assay-type`, `--strict-qc`, and `--skip-qc` (CLI) or set `PipelineConfig(qc=QCConfig(...))`. Warn ranges are also overridable via a `[qc]` section in `~/.vartriage/config.toml`.
+
 ## Reference file formats
 
 All TSV with a header row. Tab-separated.
@@ -641,7 +685,8 @@ warnings.filterwarnings("ignore", category=VarTriageWarning)
 | polars >=0.20,<2.0      | no       | [accelerated] | Batch frequency/ClinVar joins      |
 | pyranges >=0.1,<1.0     | no       | [accelerated] | Interval overlap queries           |
 | reportlab >=4.0,<5.0    | no       | [pdf]         | PDF report rendering               |
-| weasyprint >=60.0,<63.0 | no       | [clinical]    | Clinical PDF rendering             |
+| weasyprint >=60.0,<70.0 | no       | [clinical]    | Clinical HTML/PDF rendering        |
+| pydyf >=0.8,<0.11       | no       | [clinical]    | PDF writer (pinned for weasyprint) |
 | python-docx >=1.0,<2.0  | no       | [clinical]    | Clinical DOCX rendering            |
 | httpx >=0.27,<1.0       | no       | [api]         | Remote API annotation              |
 

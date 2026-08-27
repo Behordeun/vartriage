@@ -57,3 +57,6 @@ vt_cohort_test/
 .github/instructions/codacy.instructions.md
 
 *.tbi
+
+# e2e Results
+e2e_results

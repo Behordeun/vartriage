@@ -79,6 +79,7 @@ class ClinicalReportGenerator:
         variants: Iterator[ClassifiedVariant] | Sequence[ClassifiedVariant],
         output_path: Path,
         mito_results: list[Any] | None = None,
+        qc_report: Any = None,
     ) -> Path:
         """Generate a clinical report with audit trail.
 
@@ -121,7 +122,10 @@ class ClinicalReportGenerator:
 
         # Assemble all report sections.
         sections = self._assemble_sections(
-            sorted_variants, timestamp, mito_results=mito_results
+            sorted_variants,
+            timestamp,
+            mito_results=mito_results,
+            qc_report=qc_report,
         )
 
         # Render and write atomically.
@@ -173,13 +177,14 @@ class ClinicalReportGenerator:
         variants: list[ClassifiedVariant],
         timestamp: str,
         mito_results: list[Any] | None = None,
+        qc_report: Any = None,
     ) -> ReportSections:
         """Build all report section data from sorted variants."""
         header = self._build_header(timestamp)
         executive_summary = self._build_executive_summary(variants)
         findings_table = self._build_findings_table(variants)
         evidence_cards = self._build_evidence_cards(variants)
-        limitations = self._collect_limitations(variants)
+        limitations = self._collect_limitations(variants, qc_report=qc_report)
         methodology = self._build_methodology(timestamp)
         sign_off = SignOffData()
 
@@ -192,6 +197,7 @@ class ClinicalReportGenerator:
             methodology=methodology,
             sign_off=sign_off,
             mito_findings=mito_results or [],
+            qc_report=qc_report,
         )
 
     def _build_header(self, timestamp: str) -> HeaderData:
@@ -310,14 +316,29 @@ class ClinicalReportGenerator:
 
         return cards
 
-    def _collect_limitations(self, variants: list[ClassifiedVariant]) -> list[str]:
+    def _collect_limitations(
+        self,
+        variants: list[ClassifiedVariant],
+        qc_report: Any = None,
+    ) -> list[str]:
         """Collect limitations from per-variant missing data lookups.
 
         Distinguishes between data sources that were configured but had
         no match for specific variants (common for large call sets) vs.
         sources that were never provided. Uses reference_checksums to
         determine which sources were actually loaded.
+
+        A sample-level QC verdict of WARN or FAIL is surfaced here so
+        that borderline or failing quality metrics are called out
+        alongside the data-coverage limitations.
         """
+        limitations: list[str] = []
+
+        # Surface a non-passing QC verdict before data-coverage notes.
+        qc_note = self._qc_limitation(qc_report)
+        if qc_note is not None:
+            limitations.append(qc_note)
+
         # Count per-source how many variants had no lookup match
         source_counts: dict[str, int] = {}
         for v in variants:
@@ -325,7 +346,7 @@ class ClinicalReportGenerator:
                 source_counts[src] = source_counts.get(src, 0) + 1
 
         if not source_counts:
-            return []
+            return limitations
 
         # Determine which sources were configured by checking reference checksums
         configured_sources: set[str] = set()
@@ -342,7 +363,6 @@ class ClinicalReportGenerator:
             configured_sources.add("CADD")
 
         total = len(variants)
-        limitations: list[str] = []
         for source in sorted(source_counts):
             count = source_counts[source]
             if source in configured_sources:
@@ -360,6 +380,33 @@ class ClinicalReportGenerator:
                     f"corresponding evidence criteria."
                 )
         return limitations
+
+    def _qc_limitation(self, qc_report: Any) -> str | None:
+        """Return a limitation note when the QC verdict is WARN or FAIL.
+
+        Returns None when QC was skipped or the overall verdict is PASS,
+        so a clean sample adds no noise to the limitations section.
+        """
+        if qc_report is None:
+            return None
+
+        overall = getattr(qc_report, "overall_status", None)
+        status_value = getattr(overall, "value", overall)
+        if status_value not in ("WARN", "FAIL"):
+            return None
+
+        flagged = [
+            check.message
+            for check in getattr(qc_report, "checks", [])
+            if getattr(check.status, "value", check.status) in ("WARN", "FAIL")
+        ]
+        detail = (
+            "; ".join(flagged) if flagged else "see the Sample Quality Control section"
+        )
+        return (
+            f"Sample quality control returned an overall verdict of "
+            f"{status_value}. Interpret findings with caution: {detail}."
+        )
 
     def _build_methodology(self, timestamp: str) -> MethodologyData:
         """Build the methodology section from config metadata."""

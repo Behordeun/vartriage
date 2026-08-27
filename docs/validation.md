@@ -5,20 +5,21 @@ This document describes how to validate vartriage against benchmark datasets. Tw
 1. **GIAB chr22** — genomic-scale validation measuring specificity and runtime characteristics
 2. **ClinVar eRepo** — expert-panel curated variants measuring pathogenic sensitivity and PPV
 
-## Summary (v0.17.4, unchanged from v0.17.2 validation run)
+## Summary (v0.17.5 eRepo run: SpliceAI SQLite + remote gnomAD)
 
 | Benchmark     | Variants | Pathogenic Sensitivity | Specificity | PPV   | Runtime |
 | ------------- | -------- | ---------------------- | ----------- | ----- | ------- |
-| GIAB chr22    | 50,284   | —                      | 71.8%       | —     | 30 s    |
-| ClinVar eRepo | 21,928   | 65.6%                  | —           | 99.2% | —       |
+| GIAB chr22    | 50,284   | n/a                    | 71.8%       | n/a   | 30 s    |
+| ClinVar eRepo | 21,506   | 70.5%                  | n/a          | 99.2% | n/a     |
 
-The eRepo dataset contains 21,928 total input variants; 21,614 pass filtering and receive classifications. Metrics are computed on the 21,614 classified variants.
+The eRepo run classifies 21,506 variants. Pathogenic sensitivity rose from 65.6% (v0.17.3, no SpliceAI) to 70.5% once the SpliceAI SQLite backend landed in v0.17.5.
 
 **Known limitations:**
 
-- Splice-site sensitivity: 9.8% (splice detection disabled in v0.17.x; SpliceAI SQLite integration planned for v0.18.0)
-- Benign sensitivity: 6.0% (BP1, BP3, BP6 not yet implemented; VUS is the default when evidence is absent)
-- Missense sensitivity: 46.9% (limited by PP3/REVEL threshold; improvements expected with PM1 constraint gating)
+- Splice-site sensitivity: 55.9% (up from 9.8% before the SpliceAI SQLite backend). Splice calls still depend on precomputed SpliceAI delta scores being available for the variant.
+- Benign sensitivity: 6.0% (BP1, BP3, BP6 not implemented; VUS is the default when evidence is absent).
+- Missense sensitivity: 46.9% (limited by the ClinGen-calibrated PP3/REVEL threshold).
+- BS2 is defined as an evidence tag but is not emitted by the classifier (needs gnomAD homozygote-count data that is not parsed yet).
 
 ---
 
@@ -195,34 +196,33 @@ Unlike GIAB (which tests runtime and specificity on a healthy genome), the eRepo
 - 21,928 variants across all chromosomes
 - Split: 4,116 Pathogenic/Likely Pathogenic + 17,812 Benign/Likely Benign
 
-### Metrics (v0.17.4)
+### Metrics (v0.17.5, SpliceAI SQLite + remote gnomAD)
 
-| Metric | Value |
-| ------ | ----- |
-| Total input variants | 21,928 |
-| Classified variants | 21,614 |
-| Pathogenic sensitivity | 65.6% |
-| Benign sensitivity | 6.0% |
-| Positive predictive value (PPV) | 99.2% |
+| Metric | v0.17.3 (no SpliceAI) | v0.17.5 (SpliceAI SQLite) |
+| ------ | --------------------- | ------------------------- |
+| Classified variants | 21,614 | 21,506 |
+| Pathogenic sensitivity | 65.6% | 70.5% |
+| Splice-site sensitivity | 9.8% | 55.9% |
+| Benign sensitivity | 6.0% | 6.0% |
+| Positive predictive value (PPV) | 99.2% | 99.2% |
 
-### Stratified by consequence type
+### Stratified by consequence type (v0.17.5)
 
-| Consequence | Count | Sensitivity |
-| ----------- | ----- | ----------- |
-| Missense | 5,190 | 46.9% |
-| Nonsense | — | — |
-| Frameshift | 5,371 | 99.7% |
-| Splice_Site | 1,313 | 9.8% |
-| Synonymous | 258 | 0.0% |
+| Consequence | Sensitivity |
+| ----------- | ----------- |
+| Missense | 46.9% |
+| Frameshift | 99.7% |
+| Splice_Site | 55.9% |
+| Synonymous | 0.0% |
 
 ### Interpretation
 
 **High PPV (99.2%)** means when vartriage calls something Pathogenic or Likely Pathogenic, it is almost always correct. The tool is conservative and precise — it does not over-call.
 
-**Moderate sensitivity (65.6%)** means vartriage misses about 1/3 of known pathogenic variants. This is expected given:
+**Moderate sensitivity (70.5%)** means vartriage misses about 30% of known pathogenic variants. This is expected given:
 
-- Missense sensitivity is 46.9% — many pathogenic missense variants don't exceed the ClinGen-calibrated REVEL threshold (0.644)
-- Splice-site detection is disabled in v0.17.x (9.8% splice sensitivity)
+- Missense sensitivity is 46.9%: many pathogenic missense variants don't exceed the ClinGen-calibrated REVEL threshold (0.644)
+- Splice-site sensitivity is 55.9%: splice calls depend on precomputed SpliceAI delta scores being available for the variant
 - Some pathogenic variants require functional evidence the tool cannot assess computationally
 
 **Low benign sensitivity (6.0%)** means most benign variants are classified as VUS rather than Benign/Likely Benign. This is because:
@@ -248,11 +248,11 @@ This produces stratified results in `results/erepo_stratified.json` and summary 
 
 | Tool | Pathogenic Sensitivity | PPV | Architecture |
 | ---- | ---------------------- | --- | ------------ |
-| VarTriage v0.17.3 | 65.6% | 99.2% | Streaming, zero-dependency |
+| VarTriage v0.17.5 | 70.5% | 99.2% | Streaming, zero-dependency |
 | BIAS-2015 (reference) | ~85% | ~75% | Batch, requires InterVar |
 | AutoACMG | ~78% | ~82% | Web service |
 
-VarTriage is positioned on high precision (PPV) and operational simplicity (single pip install, streaming architecture, no Java/Perl), not on raw sensitivity. Sensitivity improvements are planned for v0.18.0+ via SpliceAI integration and additional benign criteria.
+VarTriage is positioned on high precision (PPV) and operational simplicity (single pip install, streaming architecture, no Java/Perl), not on raw sensitivity. Further sensitivity gains depend on additional benign criteria (BP1/BP3/BP6) and functional evidence the tool cannot assess computationally.
 
 ### Provenance
 
@@ -260,13 +260,14 @@ Validation results are tracked with full provenance:
 
 ```json
 {
-  "vartriage_version": "0.17.3",
+  "vartriage_version": "0.17.5",
   "clinvar_date": "2025-01-13",
   "genome_build": "GRCh38",
   "gencode_version": "v46",
   "gnomad_version": "v4.1.1",
   "revel_version": "v1.3",
+  "spliceai_source": "OpenCRAVAT SQLite",
   "execution_timestamp": "2026-08-17T...",
-  "total_variants": 21928
+  "total_variants": 21506
 }
 ```
