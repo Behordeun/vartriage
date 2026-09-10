@@ -180,6 +180,10 @@ class ReportSections:
         Analysis methodology details.
     sign_off : SignOffData
         Sign-off placeholder section.
+    qc_report : Any
+        Sample quality control report from the QC pre-flight pass, or
+        None when QC was skipped. Rendered as the "Sample Quality
+        Control" section.
     """
 
     header: HeaderData
@@ -190,3 +194,4 @@ class ReportSections:
     methodology: MethodologyData
     sign_off: SignOffData = field(default_factory=SignOffData)
     mito_findings: list[Any] = field(default_factory=list)
+    qc_report: Any = None

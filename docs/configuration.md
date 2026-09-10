@@ -213,6 +213,7 @@ Top-level configuration aggregating all sub-configs.
 | `mito` | `Optional[MitoConfig]` | `None` | Mitochondrial analysis config (auto-enabled when chrM detected) |
 | `remote` | `Optional[RemoteTabixConfig]` | `None` | Remote tabix scoring config (CADD/gnomAD via HTTP) |
 | `sv_vcf_path` | `Optional[Path]` | `None` | Structural variant VCF for integrated SV triage |
+| `qc` | `Optional[QCConfig]` | `None` | Pre-flight quality control config (None skips QC) |
 
 ## RegionFilterConfig
 
@@ -366,6 +367,34 @@ config = RemoteTabixConfig(
 ```
 
 Local files always take priority over remote. The pipeline falls back gracefully on network failures (retries with backoff, then omits the score). See [Remote Tabix Guide](remote-tabix.md) for presets, caching, and Python API details.
+
+## QCConfig
+
+Pre-flight quality control configuration. QC runs a single streaming pass over the VCF before annotation, computing Ti/Tv, het/hom, variant count, and ins/del ratios, then validating them against assay-specific ranges.
+
+| Field | Type | Default | Notes |
+| ------- | ------ | --------- | ------- |
+| `assay_type` | `str` | `"wes"` | `wgs`, `wes`, or `panel` (selects the threshold preset) |
+| `strict` | `bool` | `False` | FAIL halts the pipeline with exit code 3 before annotation |
+| `skip` | `bool` | `False` | Bypass QC entirely |
+| `expected_ti_tv` | `tuple \| None` | `None` | Override Ti/Tv warn range `(min, max)` |
+| `expected_het_hom` | `tuple \| None` | `None` | Override het/hom warn range `(min, max)` |
+| `sample_id` | `str \| None` | `None` | Sample for het/hom; single-sample VCFs auto-detect |
+
+```python
+from vartriage.qc.config import QCConfig
+
+# Default WES thresholds, warn-only
+config = QCConfig(assay_type="wes")
+
+# WGS with a strict gate: FAIL halts the pipeline
+config = QCConfig(assay_type="wgs", strict=True)
+
+# Override the Ti/Tv warn range
+config = QCConfig(assay_type="wes", expected_ti_tv=(1.9, 2.3))
+```
+
+Set `PipelineConfig(qc=QCConfig(...))` to run QC as part of the pipeline, or use `--assay-type`, `--strict-qc`, and `--skip-qc` on the CLI. Warn ranges also read from a `[qc]` section in `~/.vartriage/config.toml`, with CLI values taking precedence. Raises `ValueError` when `assay_type` is unrecognized or an override range has `min >= max`. See [Quality Control Guide](quality-control.md) for metric definitions and thresholds.
 
 ## ClinVarProteinIndex (PS1/PM5)
 

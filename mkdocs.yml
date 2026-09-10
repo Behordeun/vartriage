@@ -68,6 +68,7 @@ nav:
       - Remote Tabix Scoring: remote-tabix.md
       - Structural Variants: structural-variants.md
       - Mitochondrial Variants: mitochondrial.md
+      - Quality Control: quality-control.md
       - Gene-Disease Linkage: gene-disease-linkage.md
       - Cohort Analysis: cohort-analysis.md
       - Score Bundles: bundles.md

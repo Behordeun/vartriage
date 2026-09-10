@@ -152,6 +152,56 @@ class Pipeline:
             report_generator,
         )
 
+    def _run_qc_pass(self, vcf_path: Path) -> Any:
+        """Run the QC pre-flight pass if configured.
+
+        Reads the VCF independently (separate file handle) to compute
+        population-level summary statistics. When --strict-qc is active,
+        raises SystemExit(3) on any FAIL-level metric.
+
+        Returns the QCReport or None if QC is skipped.
+        """
+        qc_config = self._config.qc
+        if qc_config is None or qc_config.skip:
+            self._qc_report = None
+            return None
+
+        from vartriage.qc.metrics import compute_qc_metrics
+        from vartriage.qc.report import print_qc_stderr
+        from vartriage.qc.validator import QCStatus, QCValidator
+
+        sample_id = qc_config.sample_id
+        if sample_id is None and self._config.sample is not None:
+            sample_id = self._config.sample.sample_name
+
+        logger.info("Running QC pre-flight pass (assay: %s)", qc_config.assay_type)
+        metrics = compute_qc_metrics(vcf_path, sample_id=sample_id)
+
+        validator = QCValidator(qc_config)
+        report = validator.validate(metrics)
+
+        print_qc_stderr(report)
+        self._qc_report = report
+
+        if qc_config.strict and report.overall_status == QCStatus.FAIL:
+            failed_checks = [c for c in report.checks if c.status == QCStatus.FAIL]
+            fail_msg = "; ".join(c.message for c in failed_checks)
+            logger.error("QC FAIL (strict mode): %s", fail_msg)
+            import sys
+
+            print(
+                f"Error: QC pre-flight FAILED (strict mode): {fail_msg}",
+                file=sys.stderr,
+            )
+            sys.exit(3)
+
+        return report
+
+    @property
+    def qc_report(self) -> Any:
+        """Access the QC report from the last run. None if QC was skipped."""
+        return getattr(self, "_qc_report", None)
+
     def _generate_report(
         self,
         report_generator: ReportGenerator,
@@ -178,10 +228,14 @@ class Pipeline:
                 classified, output_path, fmt, mito_results
             )
 
-        # Clinical formats with mito results
-        if mito_results and fmt.startswith("clinical-"):
+        # Clinical formats always carry the QC report (when QC ran) so the
+        # Sample Quality Control section renders regardless of mito presence.
+        if fmt.startswith("clinical-"):
             return report_generator.generate(
-                classified, output_path, mito_results=mito_results
+                classified,
+                output_path,
+                mito_results=mito_results,
+                qc_report=self.qc_report,
             )
 
         return report_generator.generate(classified, output_path)
@@ -267,6 +321,11 @@ class Pipeline:
         logger.info(
             "Starting pipeline run: %s → %s", effective_vcf_path, effective_output_path
         )
+
+        # QC pre-flight pass (reads VCF independently before annotation).
+        # Result is stored on self._qc_report for report generation and
+        # programmatic access via the qc_report property.
+        self._run_qc_pass(effective_vcf_path)
 
         if self._config.clinical_report is not None:
             self._check_reference_checksums()

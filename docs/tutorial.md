@@ -106,7 +106,7 @@ The JSON output is an array of classified variants, sorted by `prioritization_sc
 
 Key fields:
 
-- `prioritization_score`: 0 to 1, higher means more likely pathogenic. Uses literature-validated scoring (REVEL for missense, SpliceAI for splice-adjacent, CADD Phred/60 for non-missense). This is the recommended ranking method.
+- `prioritization_score`: 0 to 1, higher means more likely pathogenic. Uses literature-validated scoring (REVEL for missense, SpliceAI for splice-adjacent, CADD Phred/99 capped at 1.0 for non-missense). This is the recommended ranking method.
 - `composite_rank`: legacy weighted average (deprecated, will be removed in v1.0.0). Kept for backward compatibility.
 - `evidence_tags`: which ACMG criteria were satisfied
 - `acmg_classification`: final call (Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign)

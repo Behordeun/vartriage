@@ -37,4 +37,6 @@ For multi-sample cohort analysis (shared variants, gene burden), see [Cohort Ana
 
 For mitochondrial DNA variant analysis (heteroplasmy, MITOMAP, mtDNA-specific classification), see [Mitochondrial Variants](mitochondrial.md).
 
+For pre-flight sample quality control (Ti/Tv, het/hom, variant count sanity checks with a strict gate), see [Quality Control](quality-control.md).
+
 For the full ACMG/AMP classification reference (criteria, thresholds, PS1/PM5 setup, combining rules), see [ACMG Criteria](acmg-criteria.md).

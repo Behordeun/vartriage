@@ -95,6 +95,8 @@ class ReportTemplateEngine:
         body_parts.append(self._render_header(sections))
         body_parts.append(self._render_disclaimer())
         body_parts.append(self._render_executive_summary(sections))
+        if sections.qc_report is not None:
+            body_parts.append(self._render_qc_section(sections))
         body_parts.append(self._render_findings_table(sections))
         body_parts.append(self._render_evidence_cards(sections))
         if sections.mito_findings:
@@ -193,6 +195,8 @@ class ReportTemplateEngine:
 
         self._docx_add_header(doc, sections.header)
         self._docx_add_executive_summary(doc, sections.executive_summary)
+        if sections.qc_report is not None:
+            self._docx_add_qc_section(doc, sections.qc_report, WD_TABLE_ALIGNMENT)
         self._docx_add_findings_table(doc, sections.findings_table, WD_TABLE_ALIGNMENT)
         self._docx_add_evidence_cards(doc, sections.evidence_cards)
         self._docx_add_limitations(doc, sections.limitations)
@@ -228,6 +232,40 @@ class ReportTemplateEngine:
         doc.add_paragraph(f"Pathogenic: {summary.pathogenic_count}")
         doc.add_paragraph(f"Likely Pathogenic: {summary.likely_pathogenic_count}")
         doc.add_paragraph(f"Variants of Uncertain Significance: {summary.vus_count}")
+
+    def _docx_add_qc_section(
+        self,
+        doc: Any,
+        qc_report: Any,
+        wd_table_alignment: Any,
+    ) -> None:
+        """Add the Sample Quality Control section to a DOCX document."""
+        from vartriage.qc.report import qc_check_rows
+
+        doc.add_heading("Sample Quality Control", level=1)
+
+        rows = qc_check_rows(qc_report)
+        if not rows:
+            doc.add_paragraph("No quality control metrics were computed.")
+            return
+
+        table = doc.add_table(rows=1, cols=4)
+        table.style = _TABLE_GRID
+        table.alignment = wd_table_alignment.CENTER
+        self._set_repeat_header_row(table)
+
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = "Metric"
+        hdr_cells[1].text = "Value"
+        hdr_cells[2].text = "Expected"
+        hdr_cells[3].text = "Status"
+
+        for metric, value_str, expected, status_label in rows:
+            row_cells = table.add_row().cells
+            row_cells[0].text = metric
+            row_cells[1].text = value_str
+            row_cells[2].text = expected
+            row_cells[3].text = status_label
 
     def _docx_add_findings_table(
         self,
@@ -527,6 +565,16 @@ class ReportTemplateEngine:
             review_date=sign_off.review_date_placeholder,
             digital_signature=(sign_off.digital_signature_placeholder),
         )
+
+    def _render_qc_section(self, sections: ReportSections) -> str:
+        """Render the Sample Quality Control section HTML.
+
+        Reuses the QC package's clinical section formatter so the
+        stderr, JSON, and clinical-report views stay in sync.
+        """
+        from vartriage.qc.report import format_clinical_qc_section
+
+        return format_clinical_qc_section(sections.qc_report)
 
     def _render_mito_findings(self, sections: ReportSections) -> str:
         """Render the Mitochondrial Findings section HTML."""

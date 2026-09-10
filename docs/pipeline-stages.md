@@ -3,11 +3,12 @@
 ## Data flow
 
 ```text
-VCFParser → [SampleExtractor|InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
+[QCPreflight] → VCFParser → [SampleExtractor|InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
 ```
 
 Stages in brackets are optional. They activate based on configuration:
 
+- `QCPreflight` activates when `PipelineConfig.qc` is set (via `--assay-type`); skipped with `--skip-qc`
 - `SampleExtractor` activates with `--sample` (mutually exclusive with InheritanceFilter)
 - `InheritanceFilter` activates with `--proband/--mother/--father`
 - `RegionFilter` activates with `--regions`
@@ -17,6 +18,27 @@ Stages in brackets are optional. They activate based on configuration:
 - `PhenotypeBoost` activates with `--hpo-terms`
 
 Each stage consumes an iterator and yields an iterator. Only one batch lives in memory at a time.
+
+## QC Pre-flight (optional)
+
+**Classes:** `QCComputer`, `QCValidator`
+
+Runs before annotation to assess whether the input sample is biologically plausible. Streams the VCF once (independent of the annotation pass), counting transitions/transversions, het/hom genotypes, insertions/deletions, and per-chromosome variants.
+
+**Input:** File path to a VCF file.
+
+**Output:** A `QCReport` with per-metric checks and an overall PASS/WARN/FAIL verdict. Printed to stderr and exposed via `Pipeline.qc_report`.
+
+**Behavior:**
+
+- Single streaming pass, no annotation lookups, no random access (O(N) time, O(contigs) memory)
+- Validates Ti/Tv, het/hom, variant count, and ins/del against the assay-specific preset (`wgs`, `wes`, `panel`)
+- Het/hom requires a sample; single-sample VCFs auto-detect it
+- Metrics with no data (no indels, no genotype calls) are reported but excluded from the verdict
+- With `--strict-qc`, a FAIL verdict halts the pipeline with exit code 3 before annotation
+- Without `--strict-qc`, WARN and FAIL are logged and the pipeline proceeds
+
+See the [Quality Control Guide](quality-control.md) for metric definitions, thresholds, and CLI reference.
 
 ## VCF Parsing
 
@@ -268,7 +290,7 @@ A separate `prioritization_score` field uses literature-validated scoring:
 
 - Missense variants: REVEL score directly (threshold 0.7 validated against ClinGen)
 - Splice-adjacent variants: SpliceAI delta score
-- Non-missense: CADD Phred / 60
+- Non-missense: CADD Phred / 99 (capped at 1.0), matching the composite-rank normalization
 
 This is the recommended ranking method. `composite_rank` (legacy weighted average) is kept for backward compatibility but deprecated. Both are present in output; `composite_rank` will be removed in v1.0.0.
 
@@ -307,10 +329,11 @@ Benign criteria:
 | ----- | ---------- | ----------- |
 | BA1 | Standalone | Any population AF > 5% (overrides all pathogenic evidence) |
 | BS1 | Strong | Any population AF > 1% (only when BA1 not already assigned) |
-| BS2 | Strong | Observed in healthy adults at frequency inconsistent with disease penetrance |
 | BP4 | Supporting | Missense with REVEL < 0.290, or non-missense with CADD Phred < 10 |
 | BP4 | Moderate | Missense with REVEL < 0.183 (ClinGen-calibrated, Pejaver et al. 2022) |
 | BP7 | Supporting | Synonymous with SpliceAI < 0.1 |
+
+BS2 (strong benign) is defined in the evidence-tag enum and combining rules but has no evaluator; the classifier never emits it. Emitting it needs gnomAD homozygote-count data that is not parsed yet. The "2 Strong benign" combining rule therefore activates only through BS1 plus a future BS2.
 
 **Combining rules (Bayesian-adapted, Tavtigian et al. 2018):**
 

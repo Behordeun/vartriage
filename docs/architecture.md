@@ -8,7 +8,7 @@ Package structure, the Protocol-based backend system, and extension points.
 vartriage/
 ├── __init__.py              # Public API exports
 ├── pipeline.py              # Top-level orchestrator
-├── cli.py                   # Command-line interface (single-sample + cohort subcommand)
+├── cli.py                   # Command-line interface (main run + bundle/cohort/sv/remote/qc subcommands)
 ├── protocols.py             # Protocol interfaces for swappable backends
 ├── exceptions.py            # VarTriageWarning base class
 ├── py.typed                 # PEP 561 marker
@@ -128,6 +128,13 @@ vartriage/
 │   ├── cache.py             # SQLite score cache with TTL
 │   ├── circuit_breaker.py   # Network failure protection
 │   └── config.py            # RemoteTabixConfig frozen dataclass
+├── qc/                      # VCF quality control pre-flight (v0.18.0)
+│   ├── __init__.py          # Public exports
+│   ├── metrics.py           # QCComputer streaming engine + QCMetrics
+│   ├── thresholds.py        # AssayThresholds (wgs/wes/panel presets)
+│   ├── validator.py         # QCValidator, QCReport, QCStatus
+│   ├── report.py            # stderr table, JSON, clinical section
+│   └── config.py            # QCConfig frozen dataclass
 ├── models/
 │   ├── config.py            # All config dataclasses
 │   ├── variant.py           # Variant, AnnotatedVariant, ScoredVariant, ClassifiedVariant, enums
@@ -161,7 +168,7 @@ vartriage/
 The pipeline supports several optional filtering stages activated by configuration:
 
 ```text
-VCFParser → [SampleExtractor] → [InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
+[QCPreflight] → VCFParser → [SampleExtractor] → [InheritanceFilter] → [RegionFilter] → QualityFilter → AnnotationEngine → [GeneFilter] → [SecondaryFindingsFilter] → [GeneKnowledgeAnnotator] → PrioritizationEngine → [PhenotypeBoost] → ACMGClassifier → ReportGenerator
 ```
 
 Stages in brackets activate conditionally:
@@ -343,7 +350,7 @@ The dict/polars backends remain the better choice when the file fits in RAM and 
 Two scoring paths coexist:
 
 - **Composite rank** (legacy, v0.1.0): weighted average of normalized CADD and REVEL. When SpliceAI is available (v0.4.0+), weights are 0.5/0.3/0.2 (REVEL/CADD/SpliceAI). Falls back to proportional redistribution when scores are missing.
-- **Prioritization score** (v0.8.0+): literature-validated scoring. Uses REVEL directly for missense (0.7 threshold validated against ClinGen data), SpliceAI for splice-adjacent variants, CADD Phred/60 for non-missense. The recommended ranking method.
+- **Prioritization score** (v0.8.0+): literature-validated scoring. Uses REVEL directly for missense (0.7 threshold validated against ClinGen data), SpliceAI for splice-adjacent variants, CADD Phred/99 (capped at 1.0) for non-missense. The recommended ranking method.
 
 Both are present in output for backward compatibility. `composite_rank` will be removed in v1.0.0.
 

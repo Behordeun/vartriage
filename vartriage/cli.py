@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from vartriage.knowledge.config import KnowledgeBaseConfig
     from vartriage.mito.config import MitoConfig
     from vartriage.models.config import SampleConfig
+    from vartriage.qc.config import QCConfig
     from vartriage.remote.config import RemoteTabixConfig
     from vartriage.remote.presets import PresetEntry
 
@@ -356,6 +357,53 @@ def _build_parser() -> argparse.ArgumentParser:
             "Ignored when --cadd-scores is provided (local file takes priority)."
         ),
     )
+
+    # QC options
+    parser.add_argument(
+        "--assay-type",
+        type=str,
+        choices=["wgs", "wes", "panel"],
+        default="wes",
+        help=(
+            "Sequencing assay type for QC threshold selection "
+            "(default: wes). Controls expected Ti/Tv, het/hom, "
+            "and variant count ranges."
+        ),
+    )
+    parser.add_argument(
+        "--strict-qc",
+        action="store_true",
+        default=False,
+        help=(
+            "Halt pipeline with exit code 3 if any QC metric "
+            "reaches FAIL level. Without this flag, FAIL metrics "
+            "are logged as warnings and the pipeline proceeds."
+        ),
+    )
+    parser.add_argument(
+        "--skip-qc",
+        action="store_true",
+        default=False,
+        help="Skip QC pre-flight checks entirely (for pre-validated files)",
+    )
+    parser.add_argument(
+        "--expected-titv",
+        type=str,
+        default=None,
+        help=(
+            "Override Ti/Tv warn-level expected range as 'MIN,MAX' "
+            "(e.g., '1.9,2.3'). Overrides the assay-type default."
+        ),
+    )
+    parser.add_argument(
+        "--expected-het-hom",
+        type=str,
+        default=None,
+        help=(
+            "Override het/hom warn-level expected range as 'MIN,MAX' "
+            "(e.g., '1.2,2.5'). Overrides the assay-type default."
+        ),
+    )
     parser.add_argument(
         "--gnomad-remote",
         type=str,
@@ -403,6 +451,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if effective_argv and effective_argv[0] == "remote":
         _run_remote_cli(effective_argv[1:])
+        return
+    if effective_argv and effective_argv[0] == "qc":
+        _run_qc_cli(effective_argv[1:])
         return
 
     parser = _build_parser()
@@ -557,6 +608,7 @@ def _run_pipeline(
         sv_vcf_path=getattr(args, "sv_vcf", None),
         mito=_build_mito_config(args),
         remote=remote_config,
+        qc=_build_qc_config(args),
     )
 
     pipeline = Pipeline(pipeline_config)
@@ -1218,3 +1270,184 @@ def _run_remote_cli(argv: list[str]) -> None:
     if args.remote_command == "list-presets":
         _print_presets(list_presets(source=args.source))
         sys.exit(0)
+
+
+def _parse_range_pair(value: str, name: str) -> tuple[float, float]:
+    """Parse a 'MIN,MAX' string into a validated float tuple."""
+    parts = value.split(",")
+    if len(parts) != 2:
+        print(
+            f"Error: {name} must be 'MIN,MAX' (e.g., '1.8,2.5'), got '{value}'",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    try:
+        lo, hi = float(parts[0].strip()), float(parts[1].strip())
+    except ValueError:
+        print(
+            f"Error: {name} values must be numeric, got '{value}'",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if lo >= hi:
+        print(
+            f"Error: {name} min must be less than max, got ({lo}, {hi})",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return (lo, hi)
+
+
+def _build_qc_config(args: argparse.Namespace) -> QCConfig | None:
+    """Build QCConfig from CLI arguments.
+
+    Returns None when --skip-qc is not set and no QC flags are provided,
+    which still enables QC with defaults. Returns a configured QCConfig
+    when any QC-related flag is set.
+    """
+    from vartriage.qc.config import QCConfig
+
+    assay_type = cast(
+        Literal["wgs", "wes", "panel"], getattr(args, "assay_type", "wes")
+    )
+    strict: bool = getattr(args, "strict_qc", False)
+    skip: bool = getattr(args, "skip_qc", False)
+    expected_titv_raw: str | None = getattr(args, "expected_titv", None)
+    expected_het_hom_raw: str | None = getattr(args, "expected_het_hom", None)
+    sample_id: str | None = getattr(args, "sample", None)
+
+    expected_ti_tv: tuple[float, float] | None = None
+    expected_het_hom: tuple[float, float] | None = None
+
+    if expected_titv_raw is not None:
+        expected_ti_tv = _parse_range_pair(expected_titv_raw, "--expected-titv")
+
+    if expected_het_hom_raw is not None:
+        expected_het_hom = _parse_range_pair(expected_het_hom_raw, "--expected-het-hom")
+
+    config = QCConfig(
+        assay_type=assay_type,
+        strict=strict,
+        skip=skip,
+        expected_ti_tv=expected_ti_tv,
+        expected_het_hom=expected_het_hom,
+        sample_id=sample_id,
+    )
+    return config.merged_with_toml()
+
+
+def _run_qc_cli(argv: list[str]) -> None:
+    """Handle the 'vartriage qc' subcommand for standalone QC-only mode.
+
+    Runs QC metrics and validation without annotation or classification.
+    Useful for batch pre-screening of VCF files before committing to
+    the full pipeline.
+    """
+    parser = argparse.ArgumentParser(
+        prog="vartriage qc",
+        description=(
+            "VCF quality control pre-flight check. Computes sample-level "
+            "summary statistics (Ti/Tv, het/hom, variant counts) and "
+            "validates against expected ranges for the assay type. "
+            "No annotation or classification is performed."
+        ),
+    )
+
+    parser.add_argument(
+        "--vcf",
+        type=Path,
+        required=True,
+        help="Path to the input VCF file (.vcf or .vcf.gz)",
+    )
+    parser.add_argument(
+        "--sample",
+        type=str,
+        default=None,
+        help="Sample name for het/hom extraction from multi-sample VCFs",
+    )
+    parser.add_argument(
+        "--assay-type",
+        type=str,
+        choices=["wgs", "wes", "panel"],
+        default="wes",
+        help="Sequencing assay type (default: wes)",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=Path,
+        default=None,
+        help="Write QC report as JSON to this path (in addition to stderr)",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        default=False,
+        help="Exit with code 3 if any metric reaches FAIL level",
+    )
+    parser.add_argument(
+        "--expected-titv",
+        type=str,
+        default=None,
+        help="Override Ti/Tv warn-level range as 'MIN,MAX'",
+    )
+    parser.add_argument(
+        "--expected-het-hom",
+        type=str,
+        default=None,
+        help="Override het/hom warn-level range as 'MIN,MAX'",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_get_version()}",
+    )
+
+    args = parser.parse_args(argv)
+
+    from vartriage._internal.path_safety import resolve_path
+
+    vcf_path = resolve_path(args.vcf)
+    if not vcf_path.exists():
+        print(f"Error: VCF file not found: {vcf_path}", file=sys.stderr)
+        sys.exit(1)
+
+    from vartriage.qc.config import QCConfig
+    from vartriage.qc.metrics import compute_qc_metrics
+    from vartriage.qc.report import print_qc_stderr, write_qc_json
+    from vartriage.qc.validator import QCStatus, QCValidator
+
+    expected_ti_tv: tuple[float, float] | None = None
+    expected_het_hom: tuple[float, float] | None = None
+
+    if args.expected_titv is not None:
+        expected_ti_tv = _parse_range_pair(args.expected_titv, "--expected-titv")
+    if args.expected_het_hom is not None:
+        expected_het_hom = _parse_range_pair(
+            args.expected_het_hom, "--expected-het-hom"
+        )
+
+    qc_config = QCConfig(
+        assay_type=cast(Literal["wgs", "wes", "panel"], args.assay_type),
+        strict=args.strict,
+        expected_ti_tv=expected_ti_tv,
+        expected_het_hom=expected_het_hom,
+        sample_id=args.sample,
+    )
+
+    metrics = compute_qc_metrics(vcf_path, sample_id=args.sample)
+    validator = QCValidator(qc_config)
+    report = validator.validate(metrics)
+
+    print_qc_stderr(report)
+
+    if args.output_json is not None:
+        write_qc_json(report, args.output_json)
+        print(f"QC report written to: {args.output_json}")
+
+    if args.strict and report.overall_status == QCStatus.FAIL:
+        failed = [c for c in report.checks if c.status == QCStatus.FAIL]
+        fail_msg = "; ".join(c.message for c in failed)
+        print(f"Error: QC FAILED: {fail_msg}", file=sys.stderr)
+        sys.exit(3)
+
+    sys.exit(0)

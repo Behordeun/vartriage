@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from vartriage.knowledge.config import KnowledgeBaseConfig
     from vartriage.mito.config import MitoConfig
+    from vartriage.qc.config import QCConfig
     from vartriage.remote.config import RemoteTabixConfig
 
 
@@ -384,6 +385,7 @@ class PipelineConfig:
     sv_vcf_path: Path | None = None
     mito: MitoConfig | None = field(default=None)
     remote: RemoteTabixConfig | None = field(default=None)
+    qc: QCConfig | None = field(default=None)
 
     def __post_init__(self) -> None:
         fmt = self.report.output_format
