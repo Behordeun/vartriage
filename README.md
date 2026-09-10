@@ -685,8 +685,8 @@ warnings.filterwarnings("ignore", category=VarTriageWarning)
 | polars >=0.20,<2.0      | no       | [accelerated] | Batch frequency/ClinVar joins      |
 | pyranges >=0.1,<1.0     | no       | [accelerated] | Interval overlap queries           |
 | reportlab >=4.0,<5.0    | no       | [pdf]         | PDF report rendering               |
-| weasyprint >=60.0,<70.0 | no       | [clinical]    | Clinical HTML/PDF rendering        |
-| pydyf >=0.8,<0.11       | no       | [clinical]    | PDF writer (pinned for weasyprint) |
+| weasyprint >=69.0,<71.0 | no       | [clinical]    | Clinical HTML/PDF rendering        |
+| pydyf >=0.11,<0.13      | no       | [clinical]    | PDF writer (matches weasyprint)    |
 | python-docx >=1.0,<2.0  | no       | [clinical]    | Clinical DOCX rendering            |
 | httpx >=0.27,<1.0       | no       | [api]         | Remote API annotation              |
 

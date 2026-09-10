@@ -18,7 +18,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Fixed
 
-- **Clinical PDF dependency pin**: the `clinical` and `all` extras now pin `pydyf<0.11`. WeasyPrint 62.x is incompatible with pydyf 0.11+ (raises `'super' object has no attribute 'transform'` during `write_pdf`); the pin keeps PDF generation working.
+- **Clinical PDF dependencies**: the `clinical` and `all` extras require `weasyprint>=69.0,<71.0` with `pydyf>=0.11,<0.13`. This pairing carries the WeasyPrint SSRF hardening for the URL fetcher (CVE-2025-68616, addressed in 69.0) and keeps `write_pdf` compatible with the matching pydyf API. The lockfile resolves WeasyPrint to 70.0.
 
 ### Notes
 
