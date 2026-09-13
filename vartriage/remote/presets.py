@@ -66,6 +66,13 @@ _PRESET_REGISTRY: tuple[PresetEntry, ...] = (
         genome_build="grch38",
         description="gnomAD exomes v4.1.1 per-chromosome VCF, GRCh38",
     ),
+    PresetEntry(
+        name="gnomad-genomes-v4-grch38",
+        url="https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1.1/vcf/genomes/gnomad.genomes.v4.1.1.sites.{chrom}.vcf.bgz",
+        source="gnomad",
+        genome_build="grch38",
+        description="gnomAD genomes v4.1.1 per-chromosome VCF, GRCh38",
+    ),
 )
 
 _PRESET_BY_NAME: dict[str, PresetEntry] = {p.name: p for p in _PRESET_REGISTRY}

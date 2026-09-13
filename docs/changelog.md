@@ -4,6 +4,12 @@ All notable changes to vartriage are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **gnomAD genomes remote preset** (`gnomad-genomes-v4-grch38`): named remote-tabix preset for the public gnomAD genomes v4.1.1 per-chromosome VCFs, alongside the existing exomes preset. Query the genomes release by name via `--gnomad-remote gnomad-genomes-v4-grch38` or `RemoteTabixConfig(gnomad_remote_url=...)` over HTTP byte-range. Returns the global allele frequency; per-population subfields are not yet parsed by the remote backend.
+
 ## [0.18.0] - 2026-08-27
 
 ### Added
