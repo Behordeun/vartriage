@@ -100,6 +100,18 @@ class TestPresets:
         assert "{chrom}" in url
         assert "gnomad" in url
 
+    def test_resolve_gnomad_genomes_preset(self) -> None:
+        url = resolve_preset("gnomad-genomes-v4-grch38")
+        assert "{chrom}" in url
+        assert "genomes" in url
+        assert "gnomad.genomes.v4.1.1" in url
+
+    def test_gnomad_genomes_preset_metadata(self) -> None:
+        entry = get_preset("gnomad-genomes-v4-grch38")
+        assert entry is not None
+        assert entry.source == "gnomad"
+        assert entry.genome_build == "grch38"
+
     def test_resolve_raw_url_passes_through(self) -> None:
         raw = "https://example.com/scores.tsv.gz"
         assert resolve_preset(raw) == raw
@@ -127,7 +139,7 @@ class TestPresets:
 
     def test_list_presets_returns_all(self) -> None:
         presets = list_presets()
-        assert len(presets) == 4
+        assert len(presets) == 5
 
     def test_list_presets_filtered_by_source(self) -> None:
         cadd_presets = list_presets(source="cadd")
@@ -135,7 +147,7 @@ class TestPresets:
         assert all(p.source == "cadd" for p in cadd_presets)
         assert all(p.source == "gnomad" for p in gnomad_presets)
         assert len(cadd_presets) == 3
-        assert len(gnomad_presets) == 1
+        assert len(gnomad_presets) == 2
 
     def test_list_presets_sorted_by_name(self) -> None:
         presets = list_presets()
