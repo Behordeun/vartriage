@@ -45,13 +45,14 @@ List available presets:
 vartriage remote list-presets
 ```
 
-```
+```text
 Name                           Source   Build    Description
 --------------------------------------------------------------------------------
 cadd-v1.7-grch37               cadd     grch37   CADD v1.7 all possible SNVs, GRCh37
 cadd-v1.7-grch38               cadd     grch38   CADD v1.7 all possible SNVs, GRCh38
 cadd-v1.7-indels-grch38        cadd     grch38   CADD v1.7 pre-scored gnomAD indels, GRCh38
 gnomad-exomes-v4-grch38        gnomad   grch38   gnomAD exomes v4.1.1 per-chromosome VCF, GRCh38
+gnomad-genomes-v4-grch38       gnomad   grch38   gnomAD genomes v4.1.1 per-chromosome VCF, GRCh38
 ```
 
 Filter by source:
@@ -70,7 +71,7 @@ You can also pass a full URL directly:
 ## CLI Reference
 
 | Flag | Description |
-|------|-------------|
+| ------ | ------------- |
 | `--cadd-remote <preset-or-url>` | Remote CADD score source. Ignored when `--cadd-scores` is set (local takes priority). |
 | `--gnomad-remote <preset-or-url>` | Remote gnomAD frequency source. Ignored when `--gnomad` is set. |
 | `--remote-cache-ttl <days>` | Cache TTL in days (default: 30). Use `-1` for pinned mode (never expire). |
@@ -176,7 +177,7 @@ CLI flags override config file values.
 ## Performance
 
 | Workload | Variants | Cold Cache | Warm Cache |
-|----------|----------|------------|------------|
+| ---------- | ---------- | ------------ | ------------ |
 | Gene panel | 500 | < 30 seconds | < 5 seconds |
 | chr22 WGS | 42,000 | < 10 minutes | < 10 seconds |
 

@@ -124,7 +124,7 @@ vartriage/
 ├── remote/                  # Remote tabix scoring (v0.16.0)
 │   ├── __init__.py          # Public exports
 │   ├── client.py            # HTTP byte-range tabix client
-│   ├── presets.py           # Named presets (cadd-v1.7-grch38, gnomad-exomes-v4-grch38)
+│   ├── presets.py           # Named presets (cadd, gnomAD exomes + genomes v4.1.1)
 │   ├── cache.py             # SQLite score cache with TTL
 │   ├── circuit_breaker.py   # Network failure protection
 │   └── config.py            # RemoteTabixConfig frozen dataclass
