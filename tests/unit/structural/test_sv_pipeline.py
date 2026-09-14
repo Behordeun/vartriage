@@ -189,6 +189,27 @@ class TestWriteCSV:
         assert rows[0]["classification"] == "Likely_Pathogenic"
         assert "TBX1" in rows[0]["gene_symbols"]
 
+    def test_json_output_stamps_installed_version(self, tmp_path: Path) -> None:
+        import json
+
+        from vartriage import __version__
+
+        vcf = tmp_path / "input.vcf"
+        vcf.touch()
+        config = SVTriageConfig(
+            vcf_path=vcf,
+            output_path=tmp_path / "out.json",
+            output_format="json",
+        )
+        pipeline = object.__new__(SVTriagePipeline)
+        pipeline._config = config
+
+        pipeline._write_report([_make_classified()])
+
+        payload = json.loads((tmp_path / "out.json").read_text())
+        assert payload["version"] == __version__
+        assert payload["pipeline"] == "structural_variant_triage"
+
 
 class TestLoadRegions:
     def _make_pipeline(self, tmp_path: Path) -> SVTriagePipeline:
