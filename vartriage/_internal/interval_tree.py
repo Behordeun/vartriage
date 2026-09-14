@@ -23,6 +23,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Splice windows span 2 bp on each side of an exon boundary, so every window is
+# exactly 4 bp wide. Used to bound the binary-search band in _is_splice_site.
+_SPLICE_WINDOW_WIDTH = 4
+
 
 @dataclass(slots=True)
 class GenomicInterval:
@@ -66,6 +70,8 @@ class _ChromIndex:
     ends: list[int] = field(default_factory=list)
     intervals: list[GenomicInterval] = field(default_factory=list)
     _sorted: bool = False
+    _max_end_tree: list[int] = field(default_factory=list)
+    _tree_size: int = 0
 
     def add(self, interval: GenomicInterval) -> None:
         """Add an interval to this chromosome index."""
@@ -75,7 +81,7 @@ class _ChromIndex:
         self._sorted = False
 
     def finalize(self) -> None:
-        """Sort intervals by start position for binary search."""
+        """Sort intervals by start position and build the max-end segment tree."""
         if self._sorted:
             return
         indices = sorted(
@@ -84,13 +90,37 @@ class _ChromIndex:
         self.starts = [self.starts[i] for i in indices]
         self.ends = [self.ends[i] for i in indices]
         self.intervals = [self.intervals[i] for i in indices]
+        self._build_max_end_tree()
         self._sorted = True
+
+    def _build_max_end_tree(self) -> None:
+        """Build an iterative segment tree over ends holding subtree maxima.
+
+        Leaves live at [size, size+n); internal node i holds max(2i, 2i+1).
+        Enables pruning the overlap scan to intervals whose end exceeds the
+        query start, so query() is O(log n + k) instead of O(n).
+        """
+        n = len(self.ends)
+        if n == 0:
+            self._max_end_tree = []
+            return
+        size = 1
+        while size < n:
+            size *= 2
+        tree = [0] * (2 * size)
+        for i, e in enumerate(self.ends):
+            tree[size + i] = e
+        for i in range(size - 1, 0, -1):
+            tree[i] = max(tree[2 * i], tree[2 * i + 1])
+        self._max_end_tree = tree
+        self._tree_size = size
 
     def query(self, pos_start: int, pos_end: int) -> list[GenomicInterval]:
         """Find all intervals overlapping the given range [pos_start, pos_end).
 
-        Uses binary search on sorted start positions to find candidate
-        intervals, then filters by end position.
+        Binary-searches the sorted starts for the candidate prefix (start <
+        pos_end), then walks that prefix guided by a max-end segment tree so
+        only intervals whose end exceeds pos_start are visited. O(log n + k).
 
         Parameters
         ----------
@@ -110,15 +140,47 @@ class _ChromIndex:
         if not self.starts:
             return []
 
-        # Find the rightmost interval whose start < pos_end
+        # Self-heal a cache pickled before the max-end tree existed: such an
+        # object is _sorted=True but has no tree attribute at all, so a plain
+        # read would raise AttributeError. getattr tolerates the missing field
+        # and _build_max_end_tree() (re)initialises both tree attributes.
+        if not getattr(self, "_max_end_tree", None):
+            self._build_max_end_tree()
+
+        # Candidate prefix: intervals whose start < pos_end.
         right_idx = bisect.bisect_left(self.starts, pos_end)
+        if right_idx <= 0:
+            return []
 
         results: list[GenomicInterval] = []
-        for i in range(right_idx):
-            if self.ends[i] > pos_start:
-                results.append(self.intervals[i])
-
+        self._collect_overlaps(1, 0, self._tree_size, 0, right_idx, pos_start, results)
         return results
+
+    def _collect_overlaps(
+        self,
+        node: int,
+        node_lo: int,
+        node_hi: int,
+        q_lo: int,
+        q_hi: int,
+        pos_start: int,
+        out: list[GenomicInterval],
+    ) -> None:
+        """Descend the segment tree over indices [q_lo, q_hi), collecting leaves
+        whose interval end > pos_start. Subtrees whose max end <= pos_start are
+        pruned."""
+        if node_hi <= q_lo or q_hi <= node_lo:
+            return
+        if self._max_end_tree[node] <= pos_start:
+            return
+        if node_hi - node_lo == 1:
+            # Leaf: node_lo is the interval index (may be padding beyond n).
+            if node_lo < len(self.ends) and self.ends[node_lo] > pos_start:
+                out.append(self.intervals[node_lo])
+            return
+        mid = (node_lo + node_hi) // 2
+        self._collect_overlaps(2 * node, node_lo, mid, q_lo, q_hi, pos_start, out)
+        self._collect_overlaps(2 * node + 1, mid, node_hi, q_lo, q_hi, pos_start, out)
 
 
 class SortedArrayIntervalIndex:
@@ -145,6 +207,7 @@ class SortedArrayIntervalIndex:
         self._chromosomes: dict[str, _ChromIndex] = {}
         self._loaded: bool = False
         self._exon_boundaries: dict[str, list[tuple[int, int, str]]] = {}
+        self._splice_windows_cache: dict[str, tuple[list[int], list[int]]] | None = None
         self._codon_resolver: CodonResolver | None = None
         self._transcript_index: TranscriptCDSIndex | None = None
 
@@ -170,6 +233,16 @@ class SortedArrayIntervalIndex:
         ReferenceFileError
             If the file cannot be parsed as valid GTF/GFF.
         """
+        # Reset all source and derived state so a reused index reflects only the
+        # annotation being loaded now. The parse path appends into these maps,
+        # so without this a second load() would accumulate the prior file's
+        # intervals, boundaries, and (stale) splice windows.
+        self._chromosomes = {}
+        self._exon_boundaries = {}
+        self._splice_windows_cache = None
+        self._transcript_index = None
+        self._loaded = False
+
         cached = try_load_cache(annotation_path)
         if cached is not None:
             self._chromosomes = cached["chromosomes"]
@@ -383,6 +456,13 @@ class SortedArrayIntervalIndex:
     def _is_splice_site(self, chrom: str, var_start: int, var_end: int) -> bool:
         """Check if variant falls within 2 bases of an exon-intron junction.
 
+        Splice windows (donor: exon_end +/- 2; acceptor: exon_start +/- 2) are
+        precomputed once per chromosome into a start-sorted array and queried by
+        binary search. Every window is exactly 4 bp wide, so a match can only
+        involve windows whose start lies in [var_start - 4, var_end); bisecting
+        to that band makes the check O(log n + k) with a tiny constant k instead
+        of scanning every exon on the chromosome.
+
         Parameters
         ----------
         chrom : str
@@ -397,25 +477,50 @@ class SortedArrayIntervalIndex:
         bool
             True if the variant overlaps a splice site region.
         """
-        exon_bounds = self._exon_boundaries.get(chrom)
-        if not exon_bounds:
+        windows = self._splice_window_starts.get(chrom)
+        if not windows:
             return False
+        starts, ends = windows
 
-        for exon_start, exon_end, _ in exon_bounds:
-            # Splice site: within 2 bases of exon-intron junction
-            # Donor site: last 2 bases of exon + first 2 bases of intron
-            # Acceptor site: last 2 bases of intron + first 2 bases of exon
-            donor_start = exon_end - 2
-            donor_end = exon_end + 2
-            acceptor_start = exon_start - 2
-            acceptor_end = exon_start + 2
-
-            if (var_start < donor_end and var_end > donor_start) or (
-                var_start < acceptor_end and var_end > acceptor_start
-            ):
+        # Windows are 4 bp wide, so any overlapping window has its start in
+        # [var_start - 4, var_end). Bisect the upper bound, then walk back over
+        # the bounded band checking the end condition.
+        hi = bisect.bisect_left(starts, var_end)
+        lo_bound = var_start - _SPLICE_WINDOW_WIDTH
+        for i in range(hi - 1, -1, -1):
+            w_start = starts[i]
+            if w_start < lo_bound:
+                break
+            if ends[i] > var_start:
                 return True
-
         return False
+
+    @property
+    def _splice_window_starts(
+        self,
+    ) -> dict[str, tuple[list[int], list[int]]]:
+        """Per-chromosome start-sorted splice windows, built once on first use.
+
+        Derived from ``_exon_boundaries``: each exon contributes an acceptor
+        window (exon_start +/- 2) and a donor window (exon_end +/- 2).
+        """
+        cached = self._splice_windows_cache
+        if cached is not None:
+            return cached
+
+        built: dict[str, tuple[list[int], list[int]]] = {}
+        for chrom, bounds in self._exon_boundaries.items():
+            windows: list[tuple[int, int]] = []
+            for exon_start, exon_end, _ in bounds:
+                windows.append((exon_start - 2, exon_start + 2))
+                windows.append((exon_end - 2, exon_end + 2))
+            windows.sort()
+            starts = [w[0] for w in windows]
+            ends = [w[1] for w in windows]
+            built[chrom] = (starts, ends)
+
+        self._splice_windows_cache = built
+        return built
 
 
 def _snv_consequence(

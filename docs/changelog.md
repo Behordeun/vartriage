@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Performance
+
+- **Logarithmic gene-model overlap and splice-site checks**: the pure-Python interval index answers each overlap query through a max-end segment tree over the start-sorted intervals, visiting only the candidate prefix and pruning subtrees whose maximum end falls at or below the query start (O(log n + k) per query). Splice-site membership is resolved by binary search over precomputed 4 bp donor/acceptor windows rather than a per-call scan of every exon boundary. Annotation now scales with the variant count instead of variants times features; GIAB HG002 chr22 (50,284 variants) drops from tens of minutes to ~20-27 s on the in-memory backend with byte-identical classification output. The segment tree is rebuilt transparently when a chromosome index is restored from an older on-disk cache.
+
 ### Added
 
 - **gnomAD genomes remote preset** (`gnomad-genomes-v4-grch38`): named remote-tabix preset for the public gnomAD genomes v4.1.1 per-chromosome VCFs, alongside the existing exomes preset. Query the genomes release by name via `--gnomad-remote gnomad-genomes-v4-grch38` or `RemoteTabixConfig(gnomad_remote_url=...)` over HTTP byte-range. Returns the global allele frequency; per-population subfields are not yet parsed by the remote backend.
