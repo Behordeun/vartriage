@@ -181,15 +181,14 @@ class RemoteTabixGnomAD:
             )
             return results
 
-        index_by_variant: dict[_VariantKey, int] = {}
+        indices_by_variant: dict[_VariantKey, list[int]] = defaultdict(list)
         for i, variant in enumerate(variants):
-            index_by_variant[variant] = i
+            indices_by_variant[variant].append(i)
 
         for chrom, group in self._iter_groups(variants):
             group_maps = self._query_range_populations(chrom, group)
             for variant, af_map in group_maps.items():
-                idx = index_by_variant.get(variant)
-                if idx is not None:
+                for idx in indices_by_variant.get(variant, ()):
                     results[idx] = af_map
 
         return results

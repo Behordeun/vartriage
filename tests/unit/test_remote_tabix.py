@@ -1043,3 +1043,48 @@ class TestPerPopulationParsing:
             ]
         )
         assert RemoteTabixGnomAD._parse_gnomad_record_populations(line) is None
+
+
+class TestPopulationLookupBatch:
+    """lookup_batch_populations positional-result behavior."""
+
+    def _make_backend(self) -> object:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        config = RemoteTabixConfig(gnomad_remote_url="gnomad-genomes-v4-grch38")
+        backend = object.__new__(RemoteTabixGnomAD)
+        backend._config = config
+        backend._breaker = CircuitBreaker()
+        backend._network_fetches = 0
+        return backend
+
+    def test_duplicate_variant_gets_result_at_every_index(self) -> None:
+        backend = self._make_backend()
+        variant = ("chr1", 100, "A", "G")
+        af_map = {"AF": 0.01, "AF_afr": 0.08}
+
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value={variant: af_map},
+        ):
+            results = backend.lookup_batch_populations([variant, variant])
+
+        assert results == [af_map, af_map]
+
+    def test_empty_batch_returns_empty(self) -> None:
+        backend = self._make_backend()
+        assert backend.lookup_batch_populations([]) == []
+
+    def test_missing_variant_stays_none(self) -> None:
+        backend = self._make_backend()
+        found = ("chr1", 100, "A", "G")
+        missing = ("chr1", 200, "C", "T")
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value={found: {"AF": 0.02}},
+        ):
+            results = backend.lookup_batch_populations([found, missing])
+        assert results[0] == {"AF": 0.02}
+        assert results[1] is None
