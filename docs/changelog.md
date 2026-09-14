@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Added
+
+- **Per-population gnomAD allele frequencies (remote backend)**: `RemoteTabixGnomAD.lookup_batch_populations` returns the global `AF` plus each ancestry-group subfield (`AF_afr`, `AF_amr`, `AF_asj`, `AF_eas`, `AF_fin`, `AF_nfe`, `AF_sas`) for a batch of variants, indexed per alternate allele on multi-allelic records. Missing or `.`-valued subfields are omitted from the returned map rather than read as zero. The existing global-only `lookup_batch` and its `FrequencyDatabase` contract are unchanged.
+
 ### Fixed
 
 - **SV report version field**: the structural variant JSON report stamps the installed package version, read from `vartriage.__version__` at write time, so the recorded version tracks the release that produced the report.

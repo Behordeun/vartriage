@@ -935,3 +935,111 @@ class TestAnnotationEngineRemoteGnomAD:
         # Frequency should come from remote gnomAD
         assert annotated[0].allele_frequency == 0.005
         remote_gnomad.close()
+
+
+# ============================================================
+# Per-population AF parsing
+# ============================================================
+
+
+class TestPerPopulationParsing:
+    """Parse AF plus AF_<pop> subfields from gnomAD VCF records."""
+
+    def test_population_constant_has_seven_groups(self) -> None:
+        from vartriage.remote.gnomad import GNOMAD_POPULATIONS
+
+        assert GNOMAD_POPULATIONS == (
+            "afr",
+            "amr",
+            "asj",
+            "eas",
+            "fin",
+            "nfe",
+            "sas",
+        )
+
+    def test_single_allele_returns_global_and_population_af(self) -> None:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        line = "\t".join(
+            [
+                "chr1",
+                "100",
+                ".",
+                "A",
+                "G",
+                ".",
+                "PASS",
+                "AF=0.01;AF_afr=0.08;AF_nfe=0.001;AF_eas=0.0",
+            ]
+        )
+        parsed = RemoteTabixGnomAD._parse_gnomad_record_populations(line)
+        assert parsed is not None
+        assert len(parsed) == 1
+        pos, ref, alt, af_map = parsed[0]
+        assert (pos, ref, alt) == (100, "A", "G")
+        assert af_map["AF"] == 0.01
+        assert af_map["AF_afr"] == 0.08
+        assert af_map["AF_nfe"] == 0.001
+        assert af_map["AF_eas"] == 0.0
+
+    def test_multiallelic_indexes_population_af_by_alt(self) -> None:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        line = "\t".join(
+            [
+                "chr1",
+                "200",
+                ".",
+                "A",
+                "G,T",
+                ".",
+                "PASS",
+                "AF=0.01,0.02;AF_afr=0.08,0.16;AF_nfe=0.001,0.002",
+            ]
+        )
+        parsed = RemoteTabixGnomAD._parse_gnomad_record_populations(line)
+        assert parsed is not None
+        assert len(parsed) == 2
+        assert parsed[0][3]["AF"] == 0.01 and parsed[0][3]["AF_afr"] == 0.08
+        assert parsed[1][3]["AF"] == 0.02 and parsed[1][3]["AF_afr"] == 0.16
+        assert parsed[1][2] == "T"
+
+    def test_missing_population_subfield_is_omitted_not_zeroed(self) -> None:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        line = "\t".join(
+            [
+                "chr1",
+                "300",
+                ".",
+                "C",
+                "T",
+                ".",
+                "PASS",
+                "AF=0.05;AF_afr=.",
+            ]
+        )
+        parsed = RemoteTabixGnomAD._parse_gnomad_record_populations(line)
+        assert parsed is not None
+        af_map = parsed[0][3]
+        assert af_map["AF"] == 0.05
+        assert "AF_afr" not in af_map  # "." omitted, not read as 0.0
+        assert "AF_sas" not in af_map  # absent subfield omitted
+
+    def test_record_without_global_af_returns_none(self) -> None:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        line = "\t".join(
+            [
+                "chr1",
+                "400",
+                ".",
+                "C",
+                "T",
+                ".",
+                "PASS",
+                "AC=3;AF_afr=0.02",
+            ]
+        )
+        assert RemoteTabixGnomAD._parse_gnomad_record_populations(line) is None
