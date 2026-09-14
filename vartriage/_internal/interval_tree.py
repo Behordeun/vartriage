@@ -141,8 +141,10 @@ class _ChromIndex:
             return []
 
         # Self-heal a cache pickled before the max-end tree existed: such an
-        # object is _sorted=True but has no tree, so finalize() would be skipped.
-        if not self._max_end_tree:
+        # object is _sorted=True but has no tree attribute at all, so a plain
+        # read would raise AttributeError. getattr tolerates the missing field
+        # and _build_max_end_tree() (re)initialises both tree attributes.
+        if not getattr(self, "_max_end_tree", None):
             self._build_max_end_tree()
 
         # Candidate prefix: intervals whose start < pos_end.
@@ -231,6 +233,16 @@ class SortedArrayIntervalIndex:
         ReferenceFileError
             If the file cannot be parsed as valid GTF/GFF.
         """
+        # Reset all source and derived state so a reused index reflects only the
+        # annotation being loaded now. The parse path appends into these maps,
+        # so without this a second load() would accumulate the prior file's
+        # intervals, boundaries, and (stale) splice windows.
+        self._chromosomes = {}
+        self._exon_boundaries = {}
+        self._splice_windows_cache = None
+        self._transcript_index = None
+        self._loaded = False
+
         cached = try_load_cache(annotation_path)
         if cached is not None:
             self._chromosomes = cached["chromosomes"]
