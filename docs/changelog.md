@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Fixed
+
+- **SV report version field**: the structural variant JSON report stamps the installed package version, read from `vartriage.__version__` at write time, so the recorded version tracks the release that produced the report.
+
 ## [0.18.1] - 2026-09-14
 
 ### Performance

@@ -180,13 +180,15 @@ class SVTriagePipeline:
 
     def _write_json(self, results: list[ClassifiedSV], path: Path) -> None:
         """Serialize results as JSON."""
+        from vartriage import __version__
+
         records = [self._sv_to_dict(sv) for sv in results]
 
         with open(path, "w") as fh:
             json.dump(
                 {
                     "pipeline": "structural_variant_triage",
-                    "version": "0.13.0",
+                    "version": __version__,
                     "total_variants": len(records),
                     "variants": records,
                 },
