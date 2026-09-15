@@ -27,6 +27,24 @@ logger = logging.getLogger(__name__)
 
 _SOURCE_ID = "gnomad-remote"
 
+# gnomAD v4 ancestry groups carried as AF_<pop> subfields in the VCF INFO column,
+# alongside the global "AF". These are the seven continental groups gnomAD reports
+# per-ancestry allele frequencies for.
+GNOMAD_POPULATIONS: tuple[str, ...] = (
+    "afr",
+    "amr",
+    "asj",
+    "eas",
+    "fin",
+    "nfe",
+    "sas",
+)
+
+# INFO keys parsed for per-population lookups: global AF plus AF_<pop> for each group.
+_POP_AF_KEYS: tuple[str, ...] = ("AF",) + tuple(
+    f"AF_{pop}" for pop in GNOMAD_POPULATIONS
+)
+
 _VariantKey = tuple[str, int, str, str]
 
 
@@ -133,6 +151,76 @@ class RemoteTabixGnomAD:
 
         if cache_entries:
             self._cache.put_batch(_SOURCE_ID, cache_entries)
+
+        return results
+
+    def lookup_batch_populations(
+        self, variants: list[_VariantKey]
+    ) -> list[dict[str, float] | None]:
+        """Query per-population allele frequencies for a batch of variants.
+
+        Returns, positionally matched to the input, a map per variant holding the
+        global "AF" plus each "AF_<pop>" subfield present (keys: "AF" and
+        "AF_afr".."AF_sas"). None marks a variant not found or a query skipped
+        because the circuit breaker is open.
+
+        This is the ancestry-aware companion to lookup_batch. It does not use the
+        single-float score cache (which cannot hold a population map); it queries
+        remote directly through the same batched, retrying range fetch. The global
+        FrequencyDatabase protocol path (lookup_batch) is unchanged.
+        """
+        if not variants:
+            return []
+
+        results: list[dict[str, float] | None] = [None] * len(variants)
+
+        if self._breaker.is_open:
+            logger.debug(
+                "Circuit breaker open — skipping %d remote gnomAD population queries",
+                len(variants),
+            )
+            return results
+
+        indices_by_variant: dict[_VariantKey, list[int]] = defaultdict(list)
+        for i, variant in enumerate(variants):
+            indices_by_variant[variant].append(i)
+
+        for chrom, group in self._iter_groups(variants):
+            group_maps = self._query_range_populations(chrom, group)
+            for variant, af_map in group_maps.items():
+                for idx in indices_by_variant.get(variant, ()):
+                    results[idx] = af_map
+
+        return results
+
+    def _query_range_populations(
+        self, chrom: str, group: list[_VariantKey]
+    ) -> dict[_VariantKey, dict[str, float]]:
+        """Range-query the remote gnomAD VCF, returning per-population AF maps."""
+        results: dict[_VariantKey, dict[str, float]] = {}
+
+        wanted: dict[tuple[int, str, str], _VariantKey] = {}
+        for variant in group:
+            _, pos, ref, alt = variant
+            wanted[(pos, ref, alt)] = variant
+
+        start_pos = min(v[1] for v in group)
+        end_pos = max(v[1] for v in group)
+        query_chrom = chrom if chrom.startswith("chr") else f"chr{chrom}"
+
+        records = self._fetch_records(chrom, query_chrom, start_pos - 1, end_pos)
+        if records is None:
+            return results
+
+        for record_line in records:
+            parsed = self._parse_gnomad_record_populations(record_line)
+            if parsed is None:
+                continue
+            for pos, ref, alt, af_map in parsed:
+                lookup_key = (pos, ref, alt)
+                if lookup_key in wanted:
+                    results[wanted[lookup_key]] = af_map
+                    self._network_fetches += 1
 
         return results
 
@@ -363,6 +451,58 @@ class RemoteTabixGnomAD:
                 entries.append((pos, ref, alt, af))
             except ValueError:
                 continue
+
+        return entries or None
+
+    @staticmethod
+    def _parse_gnomad_record_populations(
+        record_line: str,
+    ) -> list[tuple[int, str, str, dict[str, float]]] | None:
+        """Parse a gnomAD VCF record into (pos, ref, alt, per-population AF map).
+
+        Returns one entry per alternate allele. The AF map holds the global "AF"
+        plus each "AF_<pop>" subfield present for that allele; missing or malformed
+        subfields are omitted rather than defaulted, so a caller can tell absent
+        from zero. Multi-allelic records split every AF_* field on comma and index
+        by ALT position, matching the global-AF parser.
+        """
+        fields = record_line.split("\t")
+        if len(fields) < 8:
+            return None
+
+        try:
+            pos = int(fields[1])
+        except ValueError:
+            return None
+
+        ref = fields[3]
+        alts = fields[4].split(",")
+        info_field = fields[7]
+
+        per_key_values: dict[str, list[str]] = {}
+        for key in _POP_AF_KEYS:
+            raw = _extract_info_field(info_field, key)
+            if raw is not None:
+                per_key_values[key] = raw.split(",")
+
+        if "AF" not in per_key_values:
+            return None
+
+        entries: list[tuple[int, str, str, dict[str, float]]] = []
+        for i, alt in enumerate(alts):
+            af_map: dict[str, float] = {}
+            for key, values in per_key_values.items():
+                if i >= len(values):
+                    continue
+                token = values[i]
+                if token in (".", ""):
+                    continue
+                try:
+                    af_map[key] = float(token)
+                except ValueError:
+                    continue
+            if "AF" in af_map:
+                entries.append((pos, ref, alt, af_map))
 
         return entries or None
 
