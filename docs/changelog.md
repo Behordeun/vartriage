@@ -55,6 +55,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 - **Multi-allelic records are split into one variant per ALT**: a VCF line carrying several comma-separated ALT alleles now yields one variant per allele, each sharing the record's CHROM, POS, REF, QUAL, FILTER, and INFO, so every alternate allele is triaged instead of only the first.
 - **ClinVar significance parsing handles compound and qualified terms**: significance strings are normalized (whitespace, case) and parsed for compound assertions joined by "/" or "|" (the more clinically significant component wins), a trailing qualifier after a comma, and the "Conflicting interpretations of pathogenicity" category (treated as uncertain). A recognized assertion such as "Pathogenic/Likely pathogenic" is no longer discarded as unknown. Both the pure-Python and polars ClinVar loaders share one parser.
+### Changed
+
+- **Coding single-base variants are classified from their resolved codon**: a substitution inside a coding region is refined to NONSENSE (stop gained), STOP_LOSS (stop removed), or SYNONYMOUS (same amino acid) using the codon the annotation engine resolves, instead of the interval backend's base "coding SNV maps to missense" call. The refinement runs at the engine level, so the pyranges and pure-Python backends now return the same amino-acid-level consequence for the same variant. Variants whose codon cannot be resolved keep their base call.
 
 ### Fixed
 
