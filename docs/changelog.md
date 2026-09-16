@@ -33,6 +33,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 - **BP4 has a CADD fallback for missense variants**: when a missense variant carries no REVEL score, a low CADD Phred (below 10) now supports BP4, mirroring the CADD path already used for other consequence classes and the SpliceAI fallback the pathogenic PP3 criterion uses. A missense variant with neither REVEL nor CADD records REVEL as a missing source. The REVEL-driven BP4 and BP4_Moderate calls are unchanged and still take precedence when REVEL is present.
 
+### Added
+
+- **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. The engine ships alongside the existing combining rules; the classifier is not yet wired onto it.
+
 ### Fixed
 
 - **SV parser tolerates VCFs that declare only the INFO fields they use**: the structural variant parser probes caller-specific END/SVLEN/copy-number/mate fields (END2, CHR2_POS, INSLEN, HOMLEN, CN, ...) to support multiple SV callers. It now checks the VCF header before reading each field, so a file that declares only standard fields parses cleanly instead of aborting. This matches pysam 0.24's behaviour of raising on access to an undeclared INFO key.
