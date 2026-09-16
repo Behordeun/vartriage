@@ -31,6 +31,55 @@ _SIGNIFICANCE_MAP: dict[str, ClinVarAssertion] = {
     "Benign": ClinVarAssertion.BENIGN,
 }
 
+# Severity order used to pick the winner from a compound assertion such as
+# "Pathogenic/Likely pathogenic": the more clinically significant side wins.
+_SEVERITY_RANK: dict[ClinVarAssertion, int] = {
+    ClinVarAssertion.PATHOGENIC: 4,
+    ClinVarAssertion.LIKELY_PATHOGENIC: 3,
+    ClinVarAssertion.BENIGN: 2,
+    ClinVarAssertion.LIKELY_BENIGN: 1,
+    ClinVarAssertion.VUS: 0,
+}
+
+
+def _map_significance(raw: str) -> ClinVarAssertion | None:
+    """Map a ClinVar significance string to an assertion.
+
+    Handles the exact terms plus the common real-world variations: leading
+    or trailing whitespace, case, a trailing qualifier after a comma (for
+    example "Likely pathogenic, low penetrance"), the "Conflicting
+    interpretations of pathogenicity" category (treated as uncertain), and
+    compound assertions joined by "/" or "|" (the most severe component
+    wins). Returns None for a string with no recognizable component.
+    """
+    if raw is None:
+        return None
+
+    text = raw.strip()
+    if not text:
+        return None
+
+    lowered = text.lower()
+    if lowered.startswith("conflicting"):
+        return ClinVarAssertion.VUS
+
+    # Drop a trailing qualifier after a comma, then split any compound joined
+    # by "/" or "|" into its parts.
+    primary = text.split(",")[0]
+    parts = primary.replace("|", "/").split("/")
+
+    matched: list[ClinVarAssertion] = []
+    lookup = {k.lower(): v for k, v in _SIGNIFICANCE_MAP.items()}
+    for part in parts:
+        assertion = lookup.get(part.strip().lower())
+        if assertion is not None:
+            matched.append(assertion)
+
+    if not matched:
+        return None
+
+    return max(matched, key=lambda a: _SEVERITY_RANK[a])
+
 
 class DictClinVarDatabase:
     """Pure-Python dict-based ClinVar lookup implementing ClinVarDatabase.
@@ -159,11 +208,11 @@ class DictClinVarDatabase:
                 alt = parts[3]
                 significance_str = parts[4]
 
-                assertion = _SIGNIFICANCE_MAP.get(significance_str)
+                assertion = _map_significance(significance_str)
                 if assertion is None:
-                    # Skip unrecognized significance values rather than
-                    # failing the entire load. ClinVar has many non-
-                    # standard categories we don't map.
+                    # Skip strings with no recognizable component rather than
+                    # failing the entire load. Compound and qualified terms
+                    # are handled by _map_significance.
                     continue
 
                 data[(chrom, pos, ref, alt)] = assertion

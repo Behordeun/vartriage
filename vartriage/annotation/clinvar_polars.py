@@ -32,6 +32,7 @@ except ImportError:
     _POLARS_AVAILABLE = False
 
 from vartriage._internal.cache import try_load_cache, try_write_cache
+from vartriage.annotation.clinvar import _map_significance
 from vartriage.io.exceptions import ReferenceFileError
 from vartriage.models.variant import ClinVarAssertion
 
@@ -135,21 +136,21 @@ class PolarsClinVarDatabase:
                 f"with polars: {exc}"
             ) from exc
 
-        # Filter to only rows with recognized significance values
-        valid_significances = list(_SIGNIFICANCE_MAP.keys())
-        df = df.filter(pl.col("clinical_significance").is_in(valid_significances))
-
-        # Convert to dict for O(1) lookups
+        # Map every significance string through the shared parser (handles
+        # compound and qualified terms), keeping only rows that resolve to a
+        # recognized assertion.
         chroms = df["chrom"].to_list()
         positions = df["pos"].to_list()
         refs = df["ref"].to_list()
         alts = df["alt"].to_list()
         sigs = df["clinical_significance"].to_list()
 
-        self._data = {
-            (chroms[i], positions[i], refs[i], alts[i]): _SIGNIFICANCE_MAP[sigs[i]]
-            for i in range(len(chroms))
-        }
+        self._data = {}
+        for i in range(len(chroms)):
+            assertion = _map_significance(sigs[i])
+            if assertion is None:
+                continue
+            self._data[(chroms[i], positions[i], refs[i], alts[i])] = assertion
 
         self._loaded = True
         logger.info("ClinVar dict built: %d entries", len(self._data))

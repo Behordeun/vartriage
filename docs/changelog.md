@@ -48,8 +48,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Changed
 
 - **Coding single-base variants are classified from their resolved codon**: a substitution inside a coding region is refined to NONSENSE (stop gained), STOP_LOSS (stop removed), or SYNONYMOUS (same amino acid) using the codon the annotation engine resolves, instead of the interval backend's base "coding SNV maps to missense" call. The refinement runs at the engine level, so the pyranges and pure-Python backends now return the same amino-acid-level consequence for the same variant. Variants whose codon cannot be resolved keep their base call.
+### Changed
+
+- **Coding single-base variants are classified from their resolved codon**: a substitution inside a coding region is refined to NONSENSE (stop gained), STOP_LOSS (stop removed), or SYNONYMOUS (same amino acid) using the codon the annotation engine resolves, instead of the interval backend's base "coding SNV maps to missense" call. The refinement runs at the engine level, so the pyranges and pure-Python backends now return the same amino-acid-level consequence for the same variant. Variants whose codon cannot be resolved keep their base call.
+### Changed
+
+- **Multi-allelic records are split into one variant per ALT**: a VCF line carrying several comma-separated ALT alleles now yields one variant per allele, each sharing the record's CHROM, POS, REF, QUAL, FILTER, and INFO, so every alternate allele is triaged instead of only the first.
+- **ClinVar significance parsing handles compound and qualified terms**: significance strings are normalized (whitespace, case) and parsed for compound assertions joined by "/" or "|" (the more clinically significant component wins), a trailing qualifier after a comma, and the "Conflicting interpretations of pathogenicity" category (treated as uncertain). A recognized assertion such as "Pathogenic/Likely pathogenic" is no longer discarded as unknown. Both the pure-Python and polars ClinVar loaders share one parser.
 
 ### Fixed
+
+- **INFO extraction tolerates a single malformed field**: reading a per-record INFO field whose stored value is inconsistent with the VCF header (which pysam signals by raising) now skips that one field instead of dropping the record's entire INFO dictionary, so the remaining INFO fields are preserved.
 
 - **SV parser tolerates VCFs that declare only the INFO fields they use**: the structural variant parser probes caller-specific END/SVLEN/copy-number/mate fields (END2, CHR2_POS, INSLEN, HOMLEN, CN, ...) to support multiple SV callers. It now checks the VCF header before reading each field, so a file that declares only standard fields parses cleanly instead of aborting. This matches pysam 0.24's behaviour of raising on access to an undeclared INFO key.
 
