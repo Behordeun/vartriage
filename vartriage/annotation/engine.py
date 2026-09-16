@@ -22,6 +22,7 @@ from vartriage.models.variant import (
     AnnotatedVariant,
     ClinVarAssertion,
     FunctionalConsequence,
+    PopulationFrequencies,
     ProteinChange,
     Variant,
 )
@@ -216,6 +217,11 @@ class AnnotationEngine:
         else:
             frequencies = [None] * len(batch)
 
+        # Per-population frequencies, when the backend can provide them. This
+        # lets BA1/BS1/PM2 reason about a variant common in one ancestry but
+        # globally rare, instead of only the single global number.
+        population_frequencies = self._lookup_population_frequencies(variant_keys)
+
         # ClinVar lookup
         clinvar_assertions: list[ClinVarAssertion | None] = []
         if self._clinvar_db is not None:
@@ -267,10 +273,47 @@ class AnnotationEngine:
                     clinvar_unknown=clinvar_unknown,
                     gene_name=gene_names[i],
                     protein_change=protein_changes[i],
+                    population_frequencies=population_frequencies[i],
                 )
             )
 
         return results
+
+    def _lookup_population_frequencies(
+        self, variant_keys: list[tuple[str, int, str, str]]
+    ) -> list[PopulationFrequencies | None]:
+        """Fetch per-population frequencies when the backend supports them.
+
+        Backends that only expose the global lookup (polars, dict) leave
+        every entry None, so the classifier falls back to the global AF as
+        before. A backend exposing lookup_batch_populations returns a map
+        per variant of the global AF plus each ancestry-group AF, mapped
+        here onto PopulationFrequencies.
+        """
+        empty: list[PopulationFrequencies | None] = [None] * len(variant_keys)
+        db = self._frequency_db
+        if db is None or not hasattr(db, "lookup_batch_populations"):
+            return empty
+
+        maps = db.lookup_batch_populations(variant_keys)  # type: ignore[attr-defined]
+        result: list[PopulationFrequencies | None] = []
+        for af_map in maps:
+            if not af_map:
+                result.append(None)
+                continue
+            result.append(
+                PopulationFrequencies(
+                    global_af=af_map.get("AF"),
+                    afr=af_map.get("AF_afr"),
+                    amr=af_map.get("AF_amr"),
+                    asj=af_map.get("AF_asj"),
+                    eas=af_map.get("AF_eas"),
+                    fin=af_map.get("AF_fin"),
+                    nfe=af_map.get("AF_nfe"),
+                    sas=af_map.get("AF_sas"),
+                )
+            )
+        return result
 
     def _extract_gene_and_protein(
         self, batch: list[Variant]
