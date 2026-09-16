@@ -96,17 +96,15 @@ def check_maternal_inheritance(
     if in_mother_result is None and in_father_result is None:
         return None
 
-    # Normalize None -> False for classification logic
-    in_mother = bool(in_mother_result)
-    in_father = bool(in_father_result)
-
-    status = _classify_status(in_mother, in_father)
+    # Preserve the three-state parental genotypes: a no-call must not be
+    # read as "absent", which would manufacture a de novo call.
+    status = _classify_status(in_mother_result, in_father_result)
     note = _build_note(status)
 
     return MaternalInheritanceResult(
         status=status,
-        in_mother=in_mother,
-        in_father=in_father,
+        in_mother=bool(in_mother_result),
+        in_father=bool(in_father_result),
         note=note,
     )
 
@@ -178,24 +176,37 @@ def _sample_has_alt(sample_data: dict[str, Any], sample_name: str) -> bool | Non
     gt = entry.get("GT")
     if gt is None:
         return None
+    saw_called_allele = False
     for allele in gt:
         if allele is None:
             continue
+        saw_called_allele = True
         if str(allele) not in ("0", "."):
             return True
+    # An all-missing genotype (e.g. ./.) is a no-call, not a ref call.
+    if not saw_called_allele:
+        return None
     return False
 
 
-def _classify_status(in_mother: bool, in_father: bool) -> MaternalStatus:
-    """Determine maternal inheritance status from parental genotypes."""
-    if in_mother and not in_father:
-        return "maternal"
-    if not in_mother and not in_father:
-        return "de_novo"
+def _classify_status(in_mother: bool | None, in_father: bool | None) -> MaternalStatus:
+    """Determine maternal inheritance status from parental genotypes.
+
+    ``None`` marks a parental no-call. A de novo call requires confirmed
+    absence in the mother, so a maternal no-call resolves to ``unknown``
+    rather than being read as absence.
+    """
     if in_father:
         # mtDNA in father is unexpected (contamination, NUMTs, or error)
         return "paternal_unexpected"
-    return "unknown"
+    if in_mother:
+        return "maternal"
+    if in_mother is None:
+        # Cannot confirm absence in the mother, so de novo is not assertable.
+        return "unknown"
+    if in_father is None:
+        return "unknown"
+    return "de_novo"
 
 
 def _build_note(status: MaternalStatus) -> str:

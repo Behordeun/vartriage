@@ -339,8 +339,13 @@ class Pipeline:
             report_generator,
         ) = self._build_stages()
 
+        # Per-sample AD/AF are needed for heteroplasmy and maternal
+        # inheritance, so extract them whenever mito analysis is active, not
+        # only when an inheritance or single-sample selection is configured.
         extract_samples = (
-            self._config.inheritance is not None or self._config.sample is not None
+            self._config.inheritance is not None
+            or self._config.sample is not None
+            or self._mito_enabled
         )
 
         with VCFParser(

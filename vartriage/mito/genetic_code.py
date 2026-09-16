@@ -24,12 +24,17 @@ MT_CODON_OVERRIDES: dict[str, str] = {
 
 # Chromosome names recognized as mitochondrial
 _MT_CHROM_NAMES: frozenset[str] = frozenset({"CHRM", "MT", "M"})
+# RefSeq accession for the revised Cambridge Reference Sequence (rCRS) mtDNA.
+_MT_ACCESSIONS: frozenset[str] = frozenset({"NC_012920"})
 
 
 def is_mitochondrial(chrom: str) -> bool:
     """Check whether a chromosome name refers to mitochondrial DNA.
 
-    Handles common naming conventions: chrM, MT, M (case-insensitive).
+    Recognizes the common naming conventions (chrM, chrMT, MT, M,
+    case-insensitive) and the RefSeq mtDNA accession NC_012920. The prefix
+    is matched as a literal "chr", not a character set, so an unrelated
+    contig is never misrouted.
 
     Parameters
     ----------
@@ -41,10 +46,11 @@ def is_mitochondrial(chrom: str) -> bool:
     bool
         True if the chromosome is mitochondrial.
     """
-    normalized = chrom.upper().lstrip("CHR")
-    # After stripping "CHR" prefix, we expect "M" or "MT"
-    # But "CHRM" stripped becomes "M", and "MT" stays as "MT"
-    return chrom.upper() in _MT_CHROM_NAMES or normalized in ("M", "MT")
+    upper = chrom.upper()
+    if upper in _MT_ACCESSIONS or upper.split(".")[0] in _MT_ACCESSIONS:
+        return True
+    name = upper[3:] if upper.startswith("CHR") else upper
+    return name in ("M", "MT")
 
 
 def translate_codon_mt(codon: str) -> str:
