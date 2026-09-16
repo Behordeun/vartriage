@@ -29,6 +29,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Changed
 
 - **PVS1 strength reflects the loss-of-function mechanism evidence**: a null variant (nonsense or frameshift) reaches Very Strong only when loss of function is an established mechanism for the gene, shown by membership of a supplied LoF gene list or by gnomAD constraint (pLI greater than 0.9). When no such evidence is available the mechanism is unknown, and the criterion fires at Strong rather than Very Strong. The gene-list and constraint routes to Very Strong are unchanged.
+### Changed
+
+- **BP4 has a CADD fallback for missense variants**: when a missense variant carries no REVEL score, a low CADD Phred (below 10) now supports BP4, mirroring the CADD path already used for other consequence classes and the SpliceAI fallback the pathogenic PP3 criterion uses. A missense variant with neither REVEL nor CADD records REVEL as a missing source. The REVEL-driven BP4 and BP4_Moderate calls are unchanged and still take precedence when REVEL is present.
 
 ### Fixed
 

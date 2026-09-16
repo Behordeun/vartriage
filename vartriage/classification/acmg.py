@@ -549,7 +549,7 @@ class ACMGClassifier:
         self,
         variant: ScoredVariant,
         tags: set[EvidenceTag],
-        _missing_sources: set[str],
+        missing_sources: set[str],
     ) -> None:
         """Assign BP4 for computational benign evidence.
 
@@ -557,11 +557,17 @@ class ACMGClassifier:
         - BP4_Moderate: REVEL < 0.183 (stronger benign evidence)
         - BP4 (supporting): REVEL < 0.290
 
-        For non-missense variants, CADD Phred < 10 triggers supporting BP4.
-        Does NOT fire for protein-altering variants (null variants or in-frame
-        indels) where low computational scores are not appropriate evidence of
-        benign impact. In-frame indels already fire PM4; awarding BP4
-        simultaneously would create contradictory evidence for the same variant.
+        For missense variants without a REVEL score, a low CADD Phred
+        (< 10) supports BP4, mirroring the CADD path used for other
+        consequence classes and the fallback PP3 uses on the pathogenic
+        side. When neither REVEL nor CADD is available for a missense
+        variant, REVEL is recorded as a missing source.
+
+        Does NOT fire for protein-altering variants (null variants or
+        in-frame indels) where low computational scores are not
+        appropriate evidence of benign impact. In-frame indels already
+        fire PM4; awarding BP4 simultaneously would create contradictory
+        evidence for the same variant.
         """
         consequence = variant.annotated.consequence
 
@@ -585,6 +591,15 @@ class ACMGClassifier:
                     tags.add(EvidenceTag.BP4_MODERATE)
                 elif revel < _BP4_REVEL_THRESHOLD:
                     tags.add(EvidenceTag.BP4)
+                return
+
+            # No REVEL: fall back to CADD for supporting benign evidence.
+            cadd = variant.cadd_phred
+            if cadd is not None:
+                if cadd < _BP4_CADD_THRESHOLD:
+                    tags.add(EvidenceTag.BP4)
+                return
+            missing_sources.add("REVEL")
         else:
             cadd = variant.cadd_phred
             if cadd is not None and cadd < _BP4_CADD_THRESHOLD:
