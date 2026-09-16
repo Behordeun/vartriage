@@ -72,6 +72,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Changed
 
 - **Per-population gnomAD frequencies are threaded through annotation**: when the frequency backend can return ancestry-group frequencies, the annotation engine now populates the variant's per-population frequencies (the global AF plus each `AF_<pop>`) rather than only the single global number. BA1, BS1, and PM2 can then reason about a variant that is common in one ancestry but globally rare. Backends that expose only the global lookup are unchanged and leave the per-population frequencies unset.
+### Changed
+
+- **QC warns instead of passing when a metric cannot be evaluated**: a sample with no genotype calls (the het/hom ratio) or no indels (the ins/del ratio) is now reported as a warning rather than a pass, so an empty or sites-only input no longer clears strict QC on those axes silently.
+- **Cohort config rejects the singleton recurrence inversion**: `include_singletons=True` with `min_recurrence` greater than 2 is refused, because it would keep variants seen in one sample while dropping variants seen in two. Use `include_singletons=False`, or a `min_recurrence` of 1 or 2.
 
 ### Fixed
 

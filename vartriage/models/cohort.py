@@ -93,6 +93,17 @@ class CohortConfig:
             )
         if self.max_workers < 1:
             raise ValueError(f"max_workers must be >= 1, got {self.max_workers}")
+        # Keeping singletons while excluding doubletons is an inversion:
+        # a variant seen in two samples would be dropped while a variant seen
+        # in one is kept. That silently discards real recurrence, so it is
+        # rejected. include_singletons is only meaningful at min_recurrence 2.
+        if self.include_singletons and self.min_recurrence > 2:
+            raise ValueError(
+                "include_singletons=True with min_recurrence > 2 keeps "
+                "singletons while excluding doubletons, which drops real "
+                f"recurrence; got min_recurrence={self.min_recurrence}. Set "
+                "include_singletons=False, or min_recurrence to 1 or 2."
+            )
 
     @property
     def sample_count(self) -> int:
