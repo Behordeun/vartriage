@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Fixed
+
+- **SV parser tolerates VCFs that declare only the INFO fields they use**: the structural variant parser probes caller-specific END/SVLEN/copy-number/mate fields (END2, CHR2_POS, INSLEN, HOMLEN, CN, ...) to support multiple SV callers. It now checks the VCF header before reading each field, so a file that declares only standard fields parses cleanly instead of aborting. This matches pysam 0.24's behaviour of raising on access to an undeclared INFO key.
+
 ## [0.18.2] - 2026-09-15
 
 ### Added

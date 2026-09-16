@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from vartriage.structural.models import StructuralVariant, SVType
@@ -259,3 +261,26 @@ class TestSVParserFileValidation:
     def test_missing_file_raises(self, tmp_path: pytest.TempPathFactory) -> None:
         with pytest.raises(FileNotFoundError, match="VCF file not found"):
             SVParser(tmp_path / "nonexistent.vcf")  # type: ignore[arg-type]
+
+
+class TestSVParserUndeclaredInfoFields:
+    """The parser tolerates VCFs that declare only the INFO fields they use."""
+
+    def test_parses_vcf_declaring_only_standard_info(self, tmp_path: Path) -> None:
+        # Declares SVTYPE + SVLEN only; omits the caller-specific fields the parser
+        # probes (END2, CHR2_POS, INSLEN, HOMLEN, CN, ...). Without a header guard,
+        # pysam raises ValueError("Invalid header") when those are queried.
+        vcf = tmp_path / "minimal_sv.vcf"
+        vcf.write_text(
+            "##fileformat=VCFv4.2\n"
+            "##contig=<ID=1>\n"
+            '##ALT=<ID=DEL,Description="Deletion">\n'
+            '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="">\n'
+            '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="">\n'
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "1\t1000\tsv1\tN\t<DEL>\t.\tPASS\tSVTYPE=DEL;SVLEN=-5000\n"
+        )
+        parser = SVParser(vcf)
+        variants = list(parser)
+        assert len(variants) == 1
+        assert variants[0].sv_type is SVType.DEL

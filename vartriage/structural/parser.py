@@ -15,6 +15,7 @@ import logging
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pysam
 
@@ -243,7 +244,7 @@ class SVParser:
         """Resolve end position from caller-specific or standard fields."""
         # Try each known END field across callers
         for field_name in _CALLER_END_FIELDS:
-            end_val = record.info.get(field_name)
+            end_val = self._info_get(record, field_name)
             if end_val is not None:
                 return int(end_val)
 
@@ -253,7 +254,7 @@ class SVParser:
 
         # Fall back to SVLEN variants
         for field_name in _CALLER_SVLEN_FIELDS:
-            svlen_val = record.info.get(field_name)
+            svlen_val = self._info_get(record, field_name)
             if svlen_val is not None:
                 length = abs(int(svlen_val))
                 if length > 0:
@@ -263,6 +264,19 @@ class SVParser:
         ref_len = len(record.ref) if record.ref else 1
         return start + ref_len - 1
 
+    @staticmethod
+    def _info_get(record: pysam.VariantRecord, field_name: str) -> Any:
+        """Read an INFO field, returning None when it is absent from the header.
+
+        pysam raises ValueError ("Invalid header") when a record's INFO is queried for
+        a key that the VCF header does not declare, so probing caller-specific fields
+        that a given file omits would abort parsing. Guarding on the header keeps the
+        parser tolerant of any real-world SV VCF that declares only the fields it uses.
+        """
+        if field_name not in record.header.info:
+            return None
+        return record.info.get(field_name)
+
     def _resolve_svlen(
         self,
         record: pysam.VariantRecord,
@@ -271,7 +285,7 @@ class SVParser:
     ) -> int | None:
         """Extract SV length from caller-specific or standard fields."""
         for field_name in _CALLER_SVLEN_FIELDS:
-            svlen_val = record.info.get(field_name)
+            svlen_val = self._info_get(record, field_name)
             if svlen_val is not None:
                 return int(svlen_val)
         # Compute from coordinates
@@ -282,7 +296,7 @@ class SVParser:
     def _resolve_copy_number(self, record: pysam.VariantRecord) -> int | None:
         """Extract copy number from caller-specific fields."""
         for field_name in _CALLER_COPY_NUMBER_FIELDS:
-            cn = record.info.get(field_name)
+            cn = self._info_get(record, field_name)
             if cn is not None:
                 return int(cn)
         return None
@@ -295,7 +309,7 @@ class SVParser:
         These are stored as two integers: (lower, upper) offset
         from the position.
         """
-        ci_val = record.info.get(field_name)
+        ci_val = self._info_get(record, field_name)
         if ci_val is not None:
             try:
                 vals = list(ci_val)
@@ -308,7 +322,7 @@ class SVParser:
     def _resolve_mate_id(self, record: pysam.VariantRecord) -> str | None:
         """Extract mate/partner ID for BND records from caller-specific fields."""
         for field_name in _CALLER_MATE_FIELDS:
-            mate = record.info.get(field_name)
+            mate = self._info_get(record, field_name)
             if mate is not None:
                 if isinstance(mate, (list, tuple)):
                     return str(mate[0]) if mate else None
