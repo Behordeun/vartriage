@@ -33,9 +33,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 - **BP4 has a CADD fallback for missense variants**: when a missense variant carries no REVEL score, a low CADD Phred (below 10) now supports BP4, mirroring the CADD path already used for other consequence classes and the SpliceAI fallback the pathogenic PP3 criterion uses. A missense variant with neither REVEL nor CADD records REVEL as a missing source. The REVEL-driven BP4 and BP4_Moderate calls are unchanged and still take precedence when REVEL is present.
 
+- **Tri-state lookup resolution type** (`vartriage.models.Resolution`): a value resolved from an external source (allele frequency, CADD score, gene constraint) now carries one of three states, `FOUND`, `CONFIRMED_ABSENT`, or `LOOKUP_FAILED`, so a source that was consulted and returned nothing is distinguishable from a source that could not be consulted. The type is additive; existing lookups are unchanged until later work routes them through it.
+### Changed
+
+- **Evidence combining uses the ClinGen SVI point system**: `combine_evidence` now sums the signed points for a variant's evidence tags and maps the total through the Tavtigian threshold ladder, replacing the combinatorial rule table. Opposing evidence resolves by arithmetic (a pathogenic and a benign criterion net to their difference) rather than by forcing VUS whenever both signs are present; `has_conflicting_evidence` remains as a reporting-only annotation. This corrects tier assignments the rule table produced, most notably that two Moderate criteria sum to 4 points and classify as VUS rather than Likely Pathogenic, and that a single Very Strong criterion (8 points) reaches Likely Pathogenic. Across the 1,023 pathogenic-side tag combinations, 31 percent change tier under the point system.
+
 ### Added
 
-- **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. The engine ships alongside the existing combining rules; the classifier is not yet wired onto it.
+- **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. `combine_evidence` delegates to this engine.
 
 ### Fixed
 
