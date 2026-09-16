@@ -30,7 +30,7 @@ from vartriage.prioritization.score_loader import CoordinateKey
 from vartriage.remote.cache import RemoteScoreCache
 from vartriage.remote.circuit_breaker import CircuitBreaker
 from vartriage.remote.config import RemoteTabixConfig
-from vartriage.remote.presets import resolve_preset
+from vartriage.remote.presets import resolve_cache_source_id, resolve_preset
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,7 @@ class RemoteTabixCADD:
 
         self._config = config
         self._url = resolve_preset(config.cadd_remote_url)
+        self._source_id = resolve_cache_source_id(_SOURCE_ID, config.cadd_remote_url)
         self._cache = RemoteScoreCache(
             db_path=config.cache_path,
             ttl_days=config.cache_ttl_days,
@@ -100,7 +101,7 @@ class RemoteTabixCADD:
 
         # Phase 1: check cache
         cache_keys = list(variants)
-        cached_scores = self._cache.get_batch(_SOURCE_ID, cache_keys)
+        cached_scores = self._cache.get_batch(self._source_id, cache_keys)
 
         for i, score in enumerate(cached_scores):
             if score is not None:
@@ -128,7 +129,7 @@ class RemoteTabixCADD:
             (chrom, pos, ref, alt, score)
             for (chrom, pos, ref, alt), score in remote_scores.items()
         ]:
-            self._cache.put_batch(_SOURCE_ID, cache_entries)
+            self._cache.put_batch(self._source_id, cache_entries)
 
         return results
 

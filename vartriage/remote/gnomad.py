@@ -21,7 +21,7 @@ import pysam
 from vartriage.remote.cache import RemoteScoreCache
 from vartriage.remote.circuit_breaker import CircuitBreaker
 from vartriage.remote.config import RemoteTabixConfig
-from vartriage.remote.presets import resolve_preset
+from vartriage.remote.presets import resolve_cache_source_id, resolve_preset
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ class RemoteTabixGnomAD:
 
         self._config = config
         self._url_template = resolve_preset(config.gnomad_remote_url)
+        self._source_id = resolve_cache_source_id(_SOURCE_ID, config.gnomad_remote_url)
         self._cache = RemoteScoreCache(
             db_path=config.cache_path,
             ttl_days=config.cache_ttl_days,
@@ -116,7 +117,7 @@ class RemoteTabixGnomAD:
         uncached_indices: list[int] = []
 
         # Phase 1: check cache
-        cached_scores = self._cache.get_batch(_SOURCE_ID, list(variants))
+        cached_scores = self._cache.get_batch(self._source_id, list(variants))
 
         for i, score in enumerate(cached_scores):
             if score is not None:
@@ -150,7 +151,7 @@ class RemoteTabixGnomAD:
                 cache_entries.append((chrom, pos, ref, alt, af))
 
         if cache_entries:
-            self._cache.put_batch(_SOURCE_ID, cache_entries)
+            self._cache.put_batch(self._source_id, cache_entries)
 
         return results
 

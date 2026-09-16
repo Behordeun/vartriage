@@ -7,6 +7,7 @@ canonical URL, or passes through a raw URL unchanged.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Literal
 
@@ -136,3 +137,22 @@ def list_presets(source: str | None = None) -> list[PresetEntry]:
 def is_preset_name(value: str) -> bool:
     """Check whether a string is a registered preset name."""
     return value in _PRESET_BY_NAME
+
+
+def resolve_cache_source_id(base: str, name_or_url: str) -> str:
+    """Derive a cache source id that isolates build, version, and dataset.
+
+    Cached remote scores are keyed on this id plus coordinates, so it must
+    differ whenever the underlying reference differs. A registered preset
+    contributes its name, which already encodes build, version, and dataset
+    kind (for example ``gnomad-genomes-v4-grch38``). A raw URL contributes a
+    short stable hash of the URL, so two different URLs never collide. The
+    ``base`` scoring system (``cadd`` or ``gnomad``) is prefixed so the id
+    stays attributable in cache statistics.
+    """
+    preset = _PRESET_BY_NAME.get(name_or_url)
+    if preset is not None:
+        return f"{base}:{preset.name}"
+
+    digest = hashlib.sha256(name_or_url.encode("utf-8")).hexdigest()[:16]
+    return f"{base}:url:{digest}"
