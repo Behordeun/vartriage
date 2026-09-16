@@ -1,34 +1,31 @@
-"""ACMG/AMP 2015 evidence combining rules.
+"""ACMG/AMP evidence combining via the ClinGen SVI point system.
 
-Maps a set of evidence tags (with strength tiers) to a final classification.
-Separates pathogenic and benign evidence, checks for conflicts, then
-applies threshold patterns from ACMG Table 5.
+A set of evidence tags is mapped to a final classification by the
+point-based framework of Tavtigian et al. (2018, 2020): each criterion
+contributes a signed point value by strength, the points are summed, and
+one threshold ladder decides the tier. This weighs opposing evidence by
+arithmetic rather than resolving it on the bare co-occurrence of a
+pathogenic and a benign criterion.
 
-Pathogenic Combining Rules:
-- PATHOGENIC: 1 VS + 1 S, or 2 S + 1 Sup, or 1 VS + 2 Sup
-- LIKELY_PATHOGENIC: 1 VS + 1 M, or 1 S + >= 1 M, or 1 S + 2 Sup
+The point assignment and thresholds live in
+``vartriage.classification.points``. BA1 remains a stand-alone Benign
+override per ACMG 2015 Table 5.
 
-Benign Combining Rules:
-- BENIGN: 1 BA (standalone), or 2 BS
-- LIKELY_BENIGN: 1 BS + 1 BP
-
-Note: 2 BP alone is insufficient for classification change per ACMG
-Table 5 (returns VUS). This is intentional.
-
-Conflicting Evidence:
-- Pathogenic + Benign evidence present = VUS with conflict flag
+``has_conflicting_evidence`` reports whether both a pathogenic and a benign
+criterion are present. It is a derived annotation for reporting; it does
+not by itself force a classification, because the point sum already
+accounts for evidence on both sides.
 """
 
 from __future__ import annotations
 
+from vartriage.classification.points import classify_by_points
 from vartriage.models.variant import (
-    EVIDENCE_STRENGTH_MAP,
     ACMGClassification,
-    EvidenceStrength,
     EvidenceTag,
 )
 
-# Benign tags are those with STANDALONE, STRONG (benign), or SUPPORTING (benign) strength
+# Tags carrying benign-direction evidence, used only by the reporting flag.
 _BENIGN_TAGS: frozenset[EvidenceTag] = frozenset(
     {
         EvidenceTag.BA1,
@@ -46,9 +43,9 @@ def combine_evidence(
 ) -> ACMGClassification:
     """Combine evidence tags into a final ACMG classification.
 
-    Separates pathogenic and benign evidence. When both are present,
-    the result is VUS (conflicting evidence). Otherwise applies the
-    appropriate combining rules.
+    Delegates to the SVI point engine: the signed points for the tag set
+    are summed and mapped through the threshold ladder, with BA1 as a
+    stand-alone Benign override.
 
     Parameters
     ----------
@@ -61,155 +58,16 @@ def combine_evidence(
         Final classification: PATHOGENIC, LIKELY_PATHOGENIC, VUS,
         LIKELY_BENIGN, or BENIGN.
     """
-    if not tags:
-        return ACMGClassification.VUS
-
-    # BA1 is a standalone override per ACMG 2015 Table 5.
-    # AF > 5% = Benign regardless of any co-occurring pathogenic evidence.
-    if EvidenceTag.BA1 in tags:
-        return ACMGClassification.BENIGN
-
-    pathogenic_tags = tags - _BENIGN_TAGS
-    benign_tags = tags & _BENIGN_TAGS
-
-    has_pathogenic = len(pathogenic_tags) > 0
-    has_benign = len(benign_tags) > 0
-
-    # Conflicting evidence: both pathogenic and benign present
-    if has_pathogenic and has_benign:
-        return ACMGClassification.VUS
-
-    # Pure benign evidence
-    if has_benign and not has_pathogenic:
-        return _classify_benign(benign_tags)
-
-    # Pure pathogenic evidence
-    counts = _count_pathogenic_strengths(pathogenic_tags)
-
-    if _meets_pathogenic(counts):
-        return ACMGClassification.PATHOGENIC
-
-    if _meets_likely_pathogenic(counts):
-        return ACMGClassification.LIKELY_PATHOGENIC
-
-    return ACMGClassification.VUS
+    return classify_by_points(tags)
 
 
 def has_conflicting_evidence(tags: frozenset[EvidenceTag]) -> bool:
-    """Check if both pathogenic and benign tags are present."""
+    """Report whether both pathogenic and benign tags are present.
+
+    A derived flag for reporting. The point sum, not this flag, decides
+    the classification, so conflicting evidence resolves to the net tier
+    rather than being forced to VUS.
+    """
     pathogenic_tags = tags - _BENIGN_TAGS
     benign_tags = tags & _BENIGN_TAGS
     return len(pathogenic_tags) > 0 and len(benign_tags) > 0
-
-
-def _classify_benign(benign_tags: frozenset[EvidenceTag]) -> ACMGClassification:
-    """Apply benign combining rules.
-
-    Strength tiers for benign combining:
-    - BA1: standalone (Benign by itself)
-    - BS1, BS2: strong benign
-    - BP4_MODERATE: moderate benign
-    - BP4, BP7: supporting benign
-    """
-    # BA1 standalone = Benign
-    if EvidenceTag.BA1 in benign_tags:
-        return ACMGClassification.BENIGN
-
-    # Count by benign strength tier
-    bs_count = sum(
-        1 for t in benign_tags if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
-    )
-    bm_count = sum(
-        1 for t in benign_tags if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.MODERATE
-    )
-    bp_count = sum(
-        1
-        for t in benign_tags
-        if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.SUPPORTING
-    )
-
-    # 2 BS = Benign
-    if bs_count >= 2:
-        return ACMGClassification.BENIGN
-
-    # 1 BS + 1 BP = Likely Benign
-    if bs_count >= 1 and bp_count >= 1:
-        return ACMGClassification.LIKELY_BENIGN
-
-    # 1 BS + 1 BM (moderate benign) = Likely Benign
-    if bs_count >= 1 and bm_count >= 1:
-        return ACMGClassification.LIKELY_BENIGN
-
-    # 1 BM + 2 BP = Likely Benign (moderate + two supporting)
-    if bm_count >= 1 and bp_count >= 2:
-        return ACMGClassification.LIKELY_BENIGN
-
-    # 2 BM = Likely Benign (two moderate benign pieces)
-    if bm_count >= 2:
-        return ACMGClassification.LIKELY_BENIGN
-
-    # 2 BP alone = not sufficient for classification change
-    return ACMGClassification.VUS
-
-
-def _count_pathogenic_strengths(
-    tags: frozenset[EvidenceTag],
-) -> dict[EvidenceStrength, int]:
-    """Tally pathogenic tags by strength tier.
-
-    Only accepts pathogenic tags. Benign tags (STANDALONE strength)
-    should be filtered out before calling this function.
-    """
-    counts: dict[EvidenceStrength, int] = {
-        EvidenceStrength.VERY_STRONG: 0,
-        EvidenceStrength.STRONG: 0,
-        EvidenceStrength.MODERATE: 0,
-        EvidenceStrength.SUPPORTING: 0,
-    }
-    for tag in tags:
-        strength = EVIDENCE_STRENGTH_MAP[tag]
-        if strength in counts:
-            counts[strength] += 1
-    return counts
-
-
-def _meets_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
-    """True if counts satisfy any Pathogenic rule."""
-    vs = counts[EvidenceStrength.VERY_STRONG]
-    s = counts[EvidenceStrength.STRONG]
-    sup = counts[EvidenceStrength.SUPPORTING]
-
-    if vs >= 2:
-        return True
-    if vs >= 1 and s >= 1:
-        return True
-    if s >= 2 and sup >= 1:
-        return True
-    return bool(vs >= 1 and sup >= 2)
-
-
-def _meets_likely_pathogenic(counts: dict[EvidenceStrength, int]) -> bool:
-    """True if counts satisfy any Likely Pathogenic rule.
-
-    Standard ACMG 2015 rules plus Bayesian-adapted extensions
-    (Tavtigian et al. 2018):
-    - 1 VS + 1 M
-    - 1 S + >= 1 M
-    - 1 S + 2 Sup
-    - 2 M (Bayesian-adapted)
-    - 1 M + >= 4 Sup (Bayesian-adapted)
-    """
-    vs = counts[EvidenceStrength.VERY_STRONG]
-    s = counts[EvidenceStrength.STRONG]
-    m = counts[EvidenceStrength.MODERATE]
-    sup = counts[EvidenceStrength.SUPPORTING]
-
-    if vs >= 1 and m >= 1:
-        return True
-    if s >= 1 and m >= 1:
-        return True
-    if s >= 1 and sup >= 2:
-        return True
-    if m >= 2:
-        return True
-    return bool(m >= 1 and sup >= 4)

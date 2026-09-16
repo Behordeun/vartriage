@@ -82,11 +82,8 @@ class TestClassifyCombiningWiring:
         assert EvidenceTag.PP5 in result.evidence_tags
         assert result.classification == ACMGClassification.PATHOGENIC
 
-    def test_pvs1_pm2_yields_likely_pathogenic(self) -> None:
-        """PVS1 (Very Strong) + PM2 (Moderate) -> Likely_Pathogenic.
-
-        Combining rule: 1 Very Strong AND 1 Moderate.
-        """
+    def test_pvs1_pm2_yields_pathogenic(self) -> None:
+        """PVS1 (8) + PM2 (2) sums to 10 points -> Pathogenic."""
         sv = _make_scored_variant(
             consequence=FunctionalConsequence.FRAMESHIFT,
             allele_frequency=0.00005,
@@ -102,7 +99,7 @@ class TestClassifyCombiningWiring:
         assert EvidenceTag.PVS1 in result.evidence_tags
         assert EvidenceTag.PM2 in result.evidence_tags
         assert EvidenceTag.PP3 not in result.evidence_tags
-        assert result.classification == ACMGClassification.LIKELY_PATHOGENIC
+        assert result.classification == ACMGClassification.PATHOGENIC
 
     def test_no_tags_yields_vus(self) -> None:
         """A variant with no evidence tags gets classified as VUS."""
@@ -121,8 +118,8 @@ class TestClassifyCombiningWiring:
         assert len(result.evidence_tags) == 0
         assert result.classification == ACMGClassification.VUS
 
-    def test_single_pvs1_yields_vus(self) -> None:
-        """PVS1 alone does not meet any combining rule threshold."""
+    def test_single_pvs1_yields_likely_pathogenic(self) -> None:
+        """PVS1 alone is 8 points, which falls in the Likely Pathogenic band."""
         sv = _make_scored_variant(
             consequence=FunctionalConsequence.NONSENSE,
             allele_frequency=0.01,
@@ -135,7 +132,7 @@ class TestClassifyCombiningWiring:
         assert len(results) == 1
         result = results[0]
         assert EvidenceTag.PVS1 in result.evidence_tags
-        assert result.classification == ACMGClassification.VUS
+        assert result.classification == ACMGClassification.LIKELY_PATHOGENIC
 
     def test_missing_data_sources_populated(self) -> None:
         """Missing data sources are correctly tracked alongside classification."""
@@ -152,12 +149,12 @@ class TestClassifyCombiningWiring:
 
         result = results[0]
         assert EvidenceTag.PVS1 in result.evidence_tags
-        # AF=None fires PM2 (absent from controls), so gnomAD is not "missing"
+        # frequency_unknown records a confirmed gnomAD miss, which fires PM2
         assert EvidenceTag.PM2 in result.evidence_tags
         assert "REVEL" in result.missing_data_sources
         assert "ClinVar" in result.missing_data_sources
-        # PVS1 (VS) + PM2 (M) = Likely Pathogenic
-        assert result.classification == ACMGClassification.LIKELY_PATHOGENIC
+        # PVS1 (8) + PM2 (2) = 10 points = Pathogenic
+        assert result.classification == ACMGClassification.PATHOGENIC
 
     def test_all_tags_assigned_yields_pathogenic(self) -> None:
         """All four tags: PVS1+PM2+PP3+PP5 -> Pathogenic."""

@@ -350,21 +350,11 @@ class TestTwoVSPathogenic:
         result = combine_evidence(tags)
         assert result == ACMGClassification.PATHOGENIC
 
-    def test_two_vs_combining_rule_directly(self) -> None:
-        # Directly test with two VS-strength tags by using PVS1 twice
-        # via the combining logic's count mechanism.
-        # Since we can't have two PVS1 in a frozenset, simulate by
-        # checking the combining function handles the count properly.
-        from vartriage.classification.combining import _meets_pathogenic
-        from vartriage.models.variant import EvidenceStrength
-
-        counts = {
-            EvidenceStrength.VERY_STRONG: 2,
-            EvidenceStrength.STRONG: 0,
-            EvidenceStrength.MODERATE: 0,
-            EvidenceStrength.SUPPORTING: 0,
-        }
-        assert _meets_pathogenic(counts) is True
+    def test_two_very_strong_magnitude_is_pathogenic(self) -> None:
+        # A tag set summing to two Very Strong worth of points (16) is well
+        # above the Pathogenic threshold. PVS1 + PVS1_STRONG + PS1 = 8+4+4.
+        tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PVS1_STRONG, EvidenceTag.PS1})
+        assert combine_evidence(tags) == ACMGClassification.PATHOGENIC
 
     def test_one_vs_one_strong_also_pathogenic(self) -> None:
         # PVS1 (VS) + PS1 (Strong) → Pathogenic (existing rule, still works)

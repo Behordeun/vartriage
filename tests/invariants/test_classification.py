@@ -13,11 +13,9 @@ from tests.generators.variants import evidence_tag_set
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.classification.combining import combine_evidence
 from vartriage.models.variant import (
-    EVIDENCE_STRENGTH_MAP,
     ACMGClassification,
     AnnotatedVariant,
     ClinVarAssertion,
-    EvidenceStrength,
     EvidenceTag,
     FunctionalConsequence,
     ScoredVariant,
@@ -515,112 +513,51 @@ def test_empty_tags_produce_vus(data: st.DataObject) -> None:
 
 @given(tags=evidence_tag_set())
 @settings(max_examples=200)
-def test_combining_rules_match_specification(
+def test_combining_matches_point_engine(
     tags: frozenset[EvidenceTag],
 ) -> None:
-    """Combining rules produce the correct classification per ACMG/AMP 2015.
+    """combine_evidence agrees with the SVI point engine on every tag set.
 
-    Verifies pathogenic, likely pathogenic, benign, likely benign, and
-    conflicting evidence handling.
+    combine_evidence is a thin delegation to classify_by_points, so the
+    two must never disagree. This pins the delegation and guards against a
+    future divergence.
     """
-    from vartriage.classification.combining import _BENIGN_TAGS
+    from vartriage.classification.points import classify_by_points
 
-    result = combine_evidence(tags)
+    assert combine_evidence(tags) == classify_by_points(tags)
 
-    pathogenic_tags = tags - _BENIGN_TAGS
-    benign_tags = tags & _BENIGN_TAGS
 
-    has_pathogenic = len(pathogenic_tags) > 0
-    has_benign = len(benign_tags) > 0
+@given(tags=evidence_tag_set())
+@settings(max_examples=200)
+def test_ba1_forces_benign(tags: frozenset[EvidenceTag]) -> None:
+    """BA1 is a stand-alone Benign override regardless of other evidence."""
+    with_ba1 = tags | {EvidenceTag.BA1}
+    assert combine_evidence(with_ba1) == ACMGClassification.BENIGN
 
-    # BA1 standalone override — fires before conflict detection
+
+@given(tags=evidence_tag_set())
+@settings(max_examples=200)
+def test_adding_pathogenic_support_never_lowers_the_tier(
+    tags: frozenset[EvidenceTag],
+) -> None:
+    """Adding a supporting pathogenic criterion cannot move the tier down.
+
+    Monotonicity of the point sum: PP3 adds a positive point, so the
+    resulting classification is at least as pathogenic as before (unless a
+    BA1 override is present, which pins Benign either way).
+    """
+    order = [
+        ACMGClassification.BENIGN,
+        ACMGClassification.LIKELY_BENIGN,
+        ACMGClassification.VUS,
+        ACMGClassification.LIKELY_PATHOGENIC,
+        ACMGClassification.PATHOGENIC,
+    ]
     if EvidenceTag.BA1 in tags:
-        assert result == ACMGClassification.BENIGN
         return
-
-    # Conflicting evidence
-    if has_pathogenic and has_benign:
-        assert result == ACMGClassification.VUS
-        return
-
-    # Pure benign evidence
-    if has_benign and not has_pathogenic:
-        if EvidenceTag.BA1 in benign_tags:
-            assert result == ACMGClassification.BENIGN
-            return
-
-        bs_count = sum(
-            1
-            for t in benign_tags
-            if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.STRONG
-        )
-        bm_count = sum(
-            1
-            for t in benign_tags
-            if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.MODERATE
-        )
-        bp_count = sum(
-            1
-            for t in benign_tags
-            if EVIDENCE_STRENGTH_MAP[t] == EvidenceStrength.SUPPORTING
-        )
-
-        if bs_count >= 2:
-            assert result == ACMGClassification.BENIGN
-        elif (
-            bs_count >= 1
-            and bp_count >= 1
-            or bs_count >= 1
-            and bm_count >= 1
-            or (bm_count >= 1 and bp_count >= 2 or bm_count >= 2)
-        ):
-            assert result == ACMGClassification.LIKELY_BENIGN
-        else:
-            assert result == ACMGClassification.VUS
-        return
-
-    # Pure pathogenic evidence (or empty)
-    counts: dict[EvidenceStrength, int] = {
-        EvidenceStrength.VERY_STRONG: 0,
-        EvidenceStrength.STRONG: 0,
-        EvidenceStrength.MODERATE: 0,
-        EvidenceStrength.SUPPORTING: 0,
-    }
-    for tag in pathogenic_tags:
-        strength = EVIDENCE_STRENGTH_MAP[tag]
-        if strength in counts:
-            counts[strength] += 1
-
-    vs = counts[EvidenceStrength.VERY_STRONG]
-    s = counts[EvidenceStrength.STRONG]
-    m = counts[EvidenceStrength.MODERATE]
-    sup = counts[EvidenceStrength.SUPPORTING]
-
-    is_pathogenic = (
-        (vs >= 1 and s >= 1) or (s >= 2 and sup >= 1) or (vs >= 1 and sup >= 2)
-    )
-    is_likely_pathogenic = (
-        (vs >= 1 and m >= 1)
-        or (s >= 1 and m >= 1)
-        or (s >= 1 and sup >= 2)
-        or (m >= 2)
-        or (m >= 1 and sup >= 4)
-    )
-
-    if not tags:
-        expected = ACMGClassification.VUS
-    elif is_pathogenic:
-        expected = ACMGClassification.PATHOGENIC
-    elif is_likely_pathogenic:
-        expected = ACMGClassification.LIKELY_PATHOGENIC
-    else:
-        expected = ACMGClassification.VUS
-
-    assert result == expected, (
-        f"For tags {[t.value for t in tags]} "
-        f"(VS={vs}, S={s}, M={m}, Sup={sup}): "
-        f"expected {expected.value}, got {result.value}"
-    )
+    before = combine_evidence(tags)
+    after = combine_evidence(tags | {EvidenceTag.PP3})
+    assert order.index(after) >= order.index(before)
 
 
 @given(variant=scored_variant_for_classification())
@@ -664,15 +601,12 @@ def test_pvs1_plus_pp3_pp5_yields_pathogenic(data: st.DataObject) -> None:
 
 @given(data=st.data())
 @settings(max_examples=100)
-def test_pvs1_plus_pm2_yields_likely_pathogenic(data: st.DataObject) -> None:
-    """PVS1 (Very Strong) + PM2 (Moderate) yields Likely Pathogenic.
-
-    Tests the combining path: 1 VS + 1 Moderate.
-    """
+def test_pvs1_plus_pm2_yields_pathogenic(data: st.DataObject) -> None:
+    """PVS1 (8) + PM2 (2) sums to 10 points, which is Pathogenic."""
     tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PM2})
     result = combine_evidence(tags)
-    assert result == ACMGClassification.LIKELY_PATHOGENIC, (
-        f"PVS1+PM2 should be Likely_Pathogenic, got {result.value}"
+    assert result == ACMGClassification.PATHOGENIC, (
+        f"PVS1+PM2 should be Pathogenic, got {result.value}"
     )
 
 
