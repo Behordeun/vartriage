@@ -210,8 +210,8 @@ class ACMGClassifier:
 
         For NONSENSE or FRAMESHIFT: fires PVS1 at Very Strong when LoF
         is the established mechanism (pLI > 0.9 or gene on lof_gene_list),
-        at Strong otherwise. Novel genes without constraint data get
-        benefit of the doubt (Very Strong).
+        at Strong otherwise, including when the mechanism is unknown for
+        want of constraint data.
 
         For SPLICE_SITE: fires PVS1 at Very Strong only when SpliceAI > 0.8.
         """
@@ -233,10 +233,12 @@ class ACMGClassifier:
     def _resolve_pvs1_strength(self, variant: ScoredVariant) -> EvidenceTag:
         """Determine PVS1 strength based on gene LoF mechanism evidence.
 
-        Priority:
-        1. Explicit lof_gene_list (gene on list → VS, not on list → Strong)
-        2. gnomAD pLI constraint (pLI > 0.9 → VS, otherwise → Strong)
-        3. No data available → VS (benefit of doubt for novel genes)
+        PVS1 at Very Strong is warranted only when loss of function is an
+        established disease mechanism for the gene. Priority:
+        1. Explicit lof_gene_list (gene on list -> Very Strong, off -> Strong)
+        2. gnomAD pLI constraint (pLI > 0.9 -> Very Strong, otherwise Strong)
+        3. No mechanism evidence -> Strong (the mechanism is unknown, so the
+           criterion does not reach Very Strong on absence of data).
         """
         gene_name = variant.annotated.gene_name
 
@@ -249,7 +251,7 @@ class ACMGClassifier:
         # Fall back to gnomAD pLI constraint
         gene_context = variant.annotated.gene_context
         if gene_context is None or gene_context.constraint is None:
-            return EvidenceTag.PVS1
+            return EvidenceTag.PVS1_STRONG
 
         if gene_context.constraint.is_lof_intolerant:
             return EvidenceTag.PVS1

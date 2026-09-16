@@ -132,7 +132,12 @@ def scored_variant_for_classification(draw: st.DrawFn) -> ScoredVariant:
 @given(variant=scored_variant_for_classification())
 @settings(max_examples=200)
 def test_pvs1_assigned_iff_nonsense_or_frameshift(variant: ScoredVariant) -> None:
-    """PVS1 is assigned for Nonsense/Frameshift or SPLICE_SITE with SpliceAI > 0.8."""
+    """PVS1 fires for Nonsense/Frameshift or SPLICE_SITE with SpliceAI > 0.8.
+
+    The generated variants carry no gene context, so a null-variant PVS1
+    fires at Strong (LoF mechanism unknown); the splice path fires at Very
+    Strong on the SpliceAI signal.
+    """
     classifier = ACMGClassifier()
     results = list(classifier.classify(iter([variant])))
     classified = results[0]
@@ -140,21 +145,32 @@ def test_pvs1_assigned_iff_nonsense_or_frameshift(variant: ScoredVariant) -> Non
     consequence = variant.annotated.consequence
     spliceai = variant.spliceai_score
 
-    pvs1_expected = consequence in (
+    null_variant = consequence in (
         FunctionalConsequence.NONSENSE,
         FunctionalConsequence.FRAMESHIFT,
-    ) or (
+    )
+    splice_pvs1 = (
         consequence == FunctionalConsequence.SPLICE_SITE
         and spliceai is not None
         and spliceai > 0.8
     )
 
-    if pvs1_expected:
+    pvs1_family = classified.evidence_tags & {
+        EvidenceTag.PVS1,
+        EvidenceTag.PVS1_STRONG,
+    }
+
+    if null_variant:
+        assert EvidenceTag.PVS1_STRONG in classified.evidence_tags, (
+            f"PVS1 (Strong) should be assigned for {consequence.value} "
+            "with no gene mechanism evidence"
+        )
+    elif splice_pvs1:
         assert EvidenceTag.PVS1 in classified.evidence_tags, (
             f"PVS1 should be assigned for {consequence.value} (spliceai={spliceai})"
         )
     else:
-        assert EvidenceTag.PVS1 not in classified.evidence_tags, (
+        assert not pvs1_family, (
             f"PVS1 should NOT be assigned for {consequence.value} (spliceai={spliceai})"
         )
 
@@ -286,11 +302,14 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     consequence = variant.annotated.consequence
     spliceai = variant.spliceai_score
 
-    # PVS1: consequence in {Nonsense, Frameshift} OR SPLICE_SITE + SpliceAI > 0.8
+    # PVS1: null variant with no gene context fires at Strong; SPLICE_SITE
+    # with SpliceAI > 0.8 fires at Very Strong.
     if consequence in (
         FunctionalConsequence.NONSENSE,
         FunctionalConsequence.FRAMESHIFT,
-    ) or (
+    ):
+        expected_tags.add(EvidenceTag.PVS1_STRONG)
+    elif (
         consequence == FunctionalConsequence.SPLICE_SITE
         and spliceai is not None
         and spliceai > 0.8

@@ -7,6 +7,7 @@ with ACMG/AMP 2015 combining rules to produce the correct final classification.
 from __future__ import annotations
 
 from vartriage.classification.acmg import ACMGClassifier
+from vartriage.knowledge.models import GeneConstraint, GeneContext
 from vartriage.models.variant import (
     ACMGClassification,
     AnnotatedVariant,
@@ -15,6 +16,11 @@ from vartriage.models.variant import (
     FunctionalConsequence,
     ScoredVariant,
     Variant,
+)
+
+_LOF_INTOLERANT = GeneContext(
+    disease_associations=(),
+    constraint=GeneConstraint(pli=0.99, loeuf=0.1, mis_z=1.0),
 )
 
 
@@ -27,6 +33,7 @@ def _make_scored_variant(
     revel_score: float | None = 0.5,
     spliceai_score: float | None = None,
     cadd_phred: float | None = 25.0,
+    gene_context: GeneContext | None = None,
 ) -> ScoredVariant:
     """Create a ScoredVariant with configurable fields for testing."""
     v = Variant(
@@ -45,6 +52,7 @@ def _make_scored_variant(
         clinvar_assertion=clinvar_assertion,
         frequency_unknown=frequency_unknown,
         clinvar_unknown=clinvar_unknown,
+        gene_context=gene_context,
     )
     cadd_normalized = None
     if cadd_phred is not None:
@@ -71,6 +79,7 @@ class TestClassifyCombiningWiring:
             consequence=FunctionalConsequence.NONSENSE,
             revel_score=0.70,  # Above 0.644 (supporting PP3) but below 0.773 (moderate)
             clinvar_assertion=ClinVarAssertion.PATHOGENIC,
+            gene_context=_LOF_INTOLERANT,
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
@@ -93,6 +102,7 @@ class TestClassifyCombiningWiring:
             revel_score=0.3,
             clinvar_assertion=None,
             clinvar_unknown=True,
+            gene_context=_LOF_INTOLERANT,
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
@@ -128,6 +138,7 @@ class TestClassifyCombiningWiring:
             allele_frequency=0.01,
             revel_score=0.5,
             clinvar_assertion=ClinVarAssertion.VUS,
+            gene_context=_LOF_INTOLERANT,
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
@@ -146,6 +157,7 @@ class TestClassifyCombiningWiring:
             revel_score=None,
             clinvar_assertion=None,
             clinvar_unknown=True,
+            gene_context=_LOF_INTOLERANT,
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
@@ -166,6 +178,7 @@ class TestClassifyCombiningWiring:
             allele_frequency=0.00001,
             revel_score=0.70,  # Above 0.644 (supporting PP3) but below 0.773 (moderate)
             clinvar_assertion=ClinVarAssertion.PATHOGENIC,
+            gene_context=_LOF_INTOLERANT,
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))

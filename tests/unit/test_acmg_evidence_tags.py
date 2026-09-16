@@ -68,13 +68,20 @@ class TestPVS1Assignment:
         sv = _make_scored_variant(consequence=FunctionalConsequence.NONSENSE)
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
-        assert EvidenceTag.PVS1 in results[0].evidence_tags
+        # No gene mechanism evidence: the PVS1 criterion fires at Strong.
+        assert results[0].evidence_tags & {
+            EvidenceTag.PVS1,
+            EvidenceTag.PVS1_STRONG,
+        }
 
     def test_assigns_pvs1_for_frameshift(self) -> None:
         sv = _make_scored_variant(consequence=FunctionalConsequence.FRAMESHIFT)
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
-        assert EvidenceTag.PVS1 in results[0].evidence_tags
+        assert results[0].evidence_tags & {
+            EvidenceTag.PVS1,
+            EvidenceTag.PVS1_STRONG,
+        }
 
     def test_does_not_assign_pvs1_for_missense(self) -> None:
         sv = _make_scored_variant(consequence=FunctionalConsequence.MISSENSE)
@@ -290,15 +297,19 @@ class TestClassifyOutput:
         results = list(classifier.classify(iter(variants)))
         assert len(results) == 3
 
-        # First variant: nonsense → PVS1
-        assert EvidenceTag.PVS1 in results[0].evidence_tags
+        # First variant: nonsense fires the PVS1 criterion (Strong, no context)
+        assert results[0].evidence_tags & {
+            EvidenceTag.PVS1,
+            EvidenceTag.PVS1_STRONG,
+        }
 
         # Second variant: missense, no special tags except based on AF/scores
         assert EvidenceTag.PVS1 not in results[1].evidence_tags
+        assert EvidenceTag.PVS1_STRONG not in results[1].evidence_tags
 
         # Third variant: frameshift + rare + high REVEL + ClinVar pathogenic
         tags = results[2].evidence_tags
-        assert EvidenceTag.PVS1 in tags
+        assert tags & {EvidenceTag.PVS1, EvidenceTag.PVS1_STRONG}
         assert EvidenceTag.PM2 in tags
         # REVEL 0.9 > 0.773 fires PP3_Moderate (ClinGen-calibrated moderate threshold)
         assert EvidenceTag.PP3_MODERATE in tags

@@ -245,7 +245,10 @@ class TestCombiningWithBenign:
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert results[0].classification == ACMGClassification.BENIGN
-        assert EvidenceTag.PVS1 in results[0].evidence_tags
+        assert results[0].evidence_tags & {
+            EvidenceTag.PVS1,
+            EvidenceTag.PVS1_STRONG,
+        }
         assert EvidenceTag.BA1 in results[0].evidence_tags
 
 
