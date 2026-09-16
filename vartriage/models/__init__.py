@@ -1,5 +1,6 @@
 """Data models for variant representation, configuration, and warnings."""
 
+from vartriage.models.resolution import Resolution, ResolutionState
 from vartriage.models.variant import (
     CLASSIFICATION_SEVERITY_ORDER,
     CONSEQUENCE_SEVERITY_ORDER,
@@ -26,6 +27,8 @@ __all__ = [
     "EvidenceStrength",
     "EvidenceTag",
     "FunctionalConsequence",
+    "Resolution",
+    "ResolutionState",
     "ScoredVariant",
     "Variant",
 ]
