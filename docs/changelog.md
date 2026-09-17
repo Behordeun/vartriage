@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Performance
+
+- **gnomAD absence is cached across runs**: when the gnomAD GraphQL API reports a variant as absent (a "Variant not found" response), the remote client now records that absence in the response cache alongside frequency hits. A repeated lookup for an absent variant is served from the cache instead of issuing a fresh rate-limited request, so a validation pass over tens of thousands of variants pays the per-request cost once rather than on every run. Other GraphQL errors (rate limit, timeout, schema drift) remain uncached and are retried on the next run.
+
 ### Fixed
 
 - **SV parser tolerates VCFs that declare only the INFO fields they use**: the structural variant parser probes caller-specific END/SVLEN/copy-number/mate fields (END2, CHR2_POS, INSLEN, HOMLEN, CN, ...) to support multiple SV callers. It now checks the VCF header before reading each field, so a file that declares only standard fields parses cleanly instead of aborting. This matches pysam 0.24's behaviour of raising on access to an undeclared INFO key.

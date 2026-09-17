@@ -200,11 +200,24 @@ class GnomADClient:
         except (ValueError, AttributeError):
             return None
 
-        # GraphQL can return errors with data.variant == null; don't cache
-        # these as genuine misses since they may be transient failures
+        # gnomAD signals a genuinely-absent variant with a GraphQL error whose
+        # message is "Variant not found" (data.variant is null). That absence is
+        # cacheable — otherwise every run re-queries it and repeatedly pays the
+        # per-request rate limit. Any other error message (rate limit, timeout,
+        # schema drift) is treated as transient and left uncached so a later run
+        # retries it.
         errors = data.get("errors")
         if errors:
-            logger.debug("gnomAD GraphQL errors for %s: %s", variant_id, errors)
+            messages = " ".join(str(e.get("message", "")) for e in errors).lower()
+            if "variant not found" in messages:
+                self._cache.put(
+                    key=cache_key,
+                    value={"not_found": True},
+                    source="gnomad",
+                    genome_build=self._dataset,
+                )
+            else:
+                logger.debug("gnomAD GraphQL errors for %s: %s", variant_id, errors)
             return None
 
         variant_data = data.get("data", {}).get("variant")
