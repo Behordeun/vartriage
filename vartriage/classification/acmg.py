@@ -41,6 +41,8 @@ _PM2_AF_THRESHOLD: float = 0.0001
 _PP3_REVEL_THRESHOLD: float = 0.644
 
 _PP3_REVEL_MODERATE_THRESHOLD: float = 0.773
+# Strong level: REVEL > 0.932 (Pejaver et al. 2022 calibrated threshold)
+_PP3_REVEL_STRONG_THRESHOLD: float = 0.932
 
 _PP3_SPLICEAI_THRESHOLD: float = 0.5
 
@@ -393,6 +395,7 @@ class ACMGClassifier:
         """Assign PP3 based on ClinGen-calibrated REVEL or SpliceAI thresholds.
 
         Strength-modulated per Pejaver et al. (2022):
+        - PP3_Strong: REVEL > 0.932
         - PP3_Moderate: REVEL > 0.773
         - PP3 (supporting): REVEL > 0.644
         - PP3 (supporting): SpliceAI > 0.5 on splice-adjacent variant
@@ -412,7 +415,12 @@ class ACMGClassifier:
             missing_sources.add("SpliceAI")
             return
 
-        # Check REVEL at moderate threshold first (higher bar = stronger evidence)
+        # Check REVEL at strong threshold first (highest bar = strongest evidence)
+        if revel is not None and revel > _PP3_REVEL_STRONG_THRESHOLD:
+            tags.add(EvidenceTag.PP3_STRONG)
+            return
+
+        # Then moderate threshold
         if revel is not None and revel > _PP3_REVEL_MODERATE_THRESHOLD:
             tags.add(EvidenceTag.PP3_MODERATE)
             return

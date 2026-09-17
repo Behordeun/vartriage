@@ -146,6 +146,7 @@ class EvidenceTag(Enum):
     PM5 = "PM5"
     PP3 = "PP3"
     PP3_MODERATE = "PP3_Moderate"
+    PP3_STRONG = "PP3_Strong"
     PP5 = "PP5"
 
     # Benign evidence
@@ -190,6 +191,7 @@ EVIDENCE_STRENGTH_MAP: dict[EvidenceTag, EvidenceStrength] = {
     EvidenceTag.PM5: EvidenceStrength.MODERATE,
     EvidenceTag.PP3: EvidenceStrength.SUPPORTING,
     EvidenceTag.PP3_MODERATE: EvidenceStrength.MODERATE,
+    EvidenceTag.PP3_STRONG: EvidenceStrength.STRONG,
     EvidenceTag.PP5: EvidenceStrength.SUPPORTING,
     # Benign evidence
     EvidenceTag.BA1: EvidenceStrength.STANDALONE,

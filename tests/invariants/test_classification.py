@@ -208,9 +208,16 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
     if not revel_available and not spliceai_available:
         assert EvidenceTag.PP3 not in classified.evidence_tags
         assert EvidenceTag.PP3_MODERATE not in classified.evidence_tags
+        assert EvidenceTag.PP3_STRONG not in classified.evidence_tags
         return
 
-    # REVEL path: moderate level (> 0.773) or supporting level (> 0.644)
+    # REVEL path: strong (> 0.932), moderate (> 0.773), or supporting (> 0.644)
+    if revel_available and revel > 0.932:
+        assert EvidenceTag.PP3_STRONG in classified.evidence_tags, (
+            f"PP3_Strong should be assigned for REVEL={revel} > 0.932"
+        )
+        return
+
     if revel_available and revel > 0.773:
         assert EvidenceTag.PP3_MODERATE in classified.evidence_tags, (
             f"PP3_Moderate should be assigned for REVEL={revel} > 0.773"
@@ -238,6 +245,9 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
     )
     assert EvidenceTag.PP3_MODERATE not in classified.evidence_tags, (
         f"PP3_Moderate should NOT be assigned: REVEL={revel}"
+    )
+    assert EvidenceTag.PP3_STRONG not in classified.evidence_tags, (
+        f"PP3_Strong should NOT be assigned: REVEL={revel}"
     )
 
 
@@ -333,6 +343,7 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
         expected_tags.add(EvidenceTag.PM2)
 
     # PP3: ClinGen-calibrated REVEL thresholds (Pejaver et al. 2022)
+    # Strong: REVEL > 0.932
     # Moderate: REVEL > 0.773
     # Supporting: REVEL > 0.644
     # OR SpliceAI > 0.5 on splice-adjacent (supporting only)
@@ -341,7 +352,9 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
     spliceai_available = spliceai is not None
 
     if revel_available or spliceai_available:
-        if revel_available and revel > 0.773:
+        if revel_available and revel > 0.932:
+            expected_tags.add(EvidenceTag.PP3_STRONG)
+        elif revel_available and revel > 0.773:
             expected_tags.add(EvidenceTag.PP3_MODERATE)
         elif (
             revel_available

@@ -148,6 +148,40 @@ class TestPP3Assignment:
         assert EvidenceTag.PP3_MODERATE in results[0].evidence_tags
         assert EvidenceTag.PP3 not in results[0].evidence_tags
 
+    def test_assigns_pp3_strong_for_revel_above_strong_threshold(self) -> None:
+        # REVEL 0.95 is above the strong threshold (0.932), Pejaver et al. 2022
+        sv = _make_scored_variant(revel_score=0.95)
+        classifier = ACMGClassifier()
+        results = list(classifier.classify(iter([sv])))
+        tags = results[0].evidence_tags
+        assert EvidenceTag.PP3_STRONG in tags
+        assert EvidenceTag.PP3_MODERATE not in tags
+        assert EvidenceTag.PP3 not in tags
+
+    def test_pp3_moderate_below_strong_threshold(self) -> None:
+        # REVEL 0.90 is above moderate (0.773) but below strong (0.932)
+        sv = _make_scored_variant(revel_score=0.90)
+        classifier = ACMGClassifier()
+        results = list(classifier.classify(iter([sv])))
+        tags = results[0].evidence_tags
+        assert EvidenceTag.PP3_MODERATE in tags
+        assert EvidenceTag.PP3_STRONG not in tags
+
+    def test_high_revel_missense_absent_reaches_likely_pathogenic(self) -> None:
+        # A missense absent from gnomAD (PM2, Moderate=2) with REVEL 0.95
+        # (PP3_Strong, 4) sums to 6 points, reaching Likely Pathogenic under
+        # the SVI point system. Guards against the missense arm collapsing to
+        # VUS when only computational + absence evidence is available.
+        sv = _make_scored_variant(
+            revel_score=0.95, allele_frequency=None, frequency_unknown=True
+        )
+        classifier = ACMGClassifier()
+        results = list(classifier.classify(iter([sv])))
+        tags = results[0].evidence_tags
+        assert EvidenceTag.PM2 in tags
+        assert EvidenceTag.PP3_STRONG in tags
+        assert results[0].classification == ACMGClassification.LIKELY_PATHOGENIC
+
     def test_does_not_assign_pp3_at_threshold(self) -> None:
         # REVEL 0.644 is at the boundary, not above — should not fire
         sv = _make_scored_variant(revel_score=0.644)
