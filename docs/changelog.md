@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Added
+
+- **PP3_Strong for high-confidence missense (REVEL > 0.932)**: the PP3 computational-evidence ladder now escalates to Strong at the ClinGen-calibrated REVEL threshold of 0.932 (Pejaver et al. 2022), above the existing Moderate (> 0.773) and Supporting (> 0.644) tiers. Under the SVI point system a missense variant absent from gnomAD (PM2, Moderate) with a REVEL score above 0.932 (PP3_Strong) now reaches Likely Pathogenic on computational and frequency evidence alone, which the Moderate ceiling could not express.
+
 ### Performance
 
 - **gnomAD absence is cached across runs**: when the gnomAD GraphQL API reports a variant as absent (a "Variant not found" response), the remote client now records that absence in the response cache alongside frequency hits. A repeated lookup for an absent variant is served from the cache instead of issuing a fresh rate-limited request, so a validation pass over tens of thousands of variants pays the per-request cost once rather than on every run. Other GraphQL errors (rate limit, timeout, schema drift) remain uncached and are retried on the next run.
