@@ -114,3 +114,41 @@ def test_transient_error_is_not_cached(
     second = client.lookup_frequency("1", 12345, "C", "G")
     assert second is None
     assert calls[0] == 2, "a transient error must be retried, never cached as a miss"
+
+
+_MALFORMED_BODY = {
+    "errors": ["a bare string, not an object"],
+    "data": {"variant": None},
+}
+_MIXED_BODY = {
+    "errors": [{"message": "Variant not found"}, {"message": "Rate limit exceeded"}],
+    "data": {"variant": None},
+}
+
+
+def test_malformed_error_entry_is_not_cached(
+    rate_limiter: RateLimiter,
+    circuit_breaker: CircuitBreaker,
+    cache: ResponseCache,
+) -> None:
+    # A non-dict error entry must not crash and must not be cached as a miss.
+    client, calls = _build_client(
+        rate_limiter, circuit_breaker, cache, [_MALFORMED_BODY]
+    )
+    assert client.lookup_frequency("1", 222, "C", "G") is None
+    assert calls[0] == 1
+    assert client.lookup_frequency("1", 222, "C", "G") is None
+    assert calls[0] == 2, "a malformed error response must be retried, not cached"
+
+
+def test_not_found_mixed_with_transient_is_not_cached(
+    rate_limiter: RateLimiter,
+    circuit_breaker: CircuitBreaker,
+    cache: ResponseCache,
+) -> None:
+    # "Variant not found" alongside a transient error is not a clean absence.
+    client, calls = _build_client(rate_limiter, circuit_breaker, cache, [_MIXED_BODY])
+    assert client.lookup_frequency("1", 333, "A", "G") is None
+    assert calls[0] == 1
+    assert client.lookup_frequency("1", 333, "A", "G") is None
+    assert calls[0] == 2, "a mixed not-found/transient response must be retried"

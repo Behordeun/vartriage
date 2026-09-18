@@ -207,9 +207,23 @@ class GnomADClient:
         # schema drift) is treated as transient and left uncached so a later run
         # retries it.
         errors = data.get("errors")
+        variant_data = data.get("data", {}).get("variant")
         if errors:
-            messages = " ".join(str(e.get("message", "")) for e in errors).lower()
-            if "variant not found" in messages:
+            # Read messages only from dict entries; a malformed non-dict error
+            # entry is treated as a transient failure, never a cacheable miss.
+            per_error = [
+                str(e.get("message", "")).strip().lower()
+                for e in errors
+                if isinstance(e, dict)
+            ]
+            only_not_found = bool(per_error) and all(
+                m == "variant not found" for m in per_error
+            )
+            # Cache an absence only when "Variant not found" is the sole error
+            # and the payload carries no variant. Anything else (rate limit,
+            # timeout, schema drift, or a mixed response) is transient: leave it
+            # uncached so a later run retries.
+            if only_not_found and variant_data is None:
                 self._cache.put(
                     key=cache_key,
                     value={"not_found": True},
@@ -220,7 +234,6 @@ class GnomADClient:
                 logger.debug("gnomAD GraphQL errors for %s: %s", variant_id, errors)
             return None
 
-        variant_data = data.get("data", {}).get("variant")
         if variant_data is None:
             # Variant genuinely not found in gnomAD (no errors) — cache the miss
             self._cache.put(
