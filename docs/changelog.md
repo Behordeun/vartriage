@@ -6,91 +6,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-09-18
+
 ### Added
 
+- **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. `combine_evidence` delegates to this engine.
 - **PP3_Strong for high-confidence missense (REVEL > 0.932)**: the PP3 computational-evidence ladder now escalates to Strong at the ClinGen-calibrated REVEL threshold of 0.932 (Pejaver et al. 2022), above the existing Moderate (> 0.773) and Supporting (> 0.644) tiers. Under the SVI point system a missense variant absent from gnomAD (PM2, Moderate) with a REVEL score above 0.932 (PP3_Strong) now reaches Likely Pathogenic on computational and frequency evidence alone, which the Moderate ceiling could not express.
-
-### Performance
-
-- **gnomAD absence is cached across runs**: when the gnomAD GraphQL API reports a variant as absent (a "Variant not found" response), the remote client now records that absence in the response cache alongside frequency hits. A repeated lookup for an absent variant is served from the cache instead of issuing a fresh rate-limited request, so a validation pass over tens of thousands of variants pays the per-request cost once rather than on every run. Other GraphQL errors (rate limit, timeout, schema drift) remain uncached and are retried on the next run.
-### Added
-
 - **Tri-state lookup resolution type** (`vartriage.models.Resolution`): a value resolved from an external source (allele frequency, CADD score, gene constraint) now carries one of three states, `FOUND`, `CONFIRMED_ABSENT`, or `LOOKUP_FAILED`, so a source that was consulted and returned nothing is distinguishable from a source that could not be consulted. The type is additive; existing lookups are unchanged until later work routes them through it.
 
-### Added
-
-- **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. The engine ships alongside the existing combining rules; the classifier is not yet wired onto it.
 ### Changed
 
 - **Evidence combining uses the ClinGen SVI point system**: `combine_evidence` now sums the signed points for a variant's evidence tags and maps the total through the Tavtigian threshold ladder, replacing the combinatorial rule table. Opposing evidence resolves by arithmetic (a pathogenic and a benign criterion net to their difference) rather than by forcing VUS whenever both signs are present; `has_conflicting_evidence` remains as a reporting-only annotation. This corrects tier assignments the rule table produced, most notably that two Moderate criteria sum to 4 points and classify as VUS rather than Likely Pathogenic, and that a single Very Strong criterion (8 points) reaches Likely Pathogenic. Across the 1,023 pathogenic-side tag combinations, 31 percent change tier under the point system.
-
-### Added
-
-- **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. `combine_evidence` delegates to this engine.
-### Changed
-
-- **PM2 requires consulted population data**: the "absent from or rare in controls" criterion now fires only when the population database was consulted, either an observed allele frequency below the rarity threshold in every available population, or a confirmed gnomAD miss recorded during annotation. A variant with no frequency data and no record of a completed lookup is treated as missing data (gnomAD recorded as a missing source) rather than as evidence of rarity.
-### Changed
-
+- **PM2 requires consulted population data**: the "absent from or rare in controls" criterion now fires only when the population database was consulted, either an observed allele frequency below the rarity threshold in every available population, or a confirmed gnomAD miss recorded during annotation. A variant with no frequency data and no record of a completed lookup is treated as missing data rather than as evidence of rarity.
 - **PVS1 strength reflects the loss-of-function mechanism evidence**: a null variant (nonsense or frameshift) reaches Very Strong only when loss of function is an established mechanism for the gene, shown by membership of a supplied LoF gene list or by gnomAD constraint (pLI greater than 0.9). When no such evidence is available the mechanism is unknown, and the criterion fires at Strong rather than Very Strong. The gene-list and constraint routes to Very Strong are unchanged.
-### Changed
-
 - **BP4 has a CADD fallback for missense variants**: when a missense variant carries no REVEL score, a low CADD Phred (below 10) now supports BP4, mirroring the CADD path already used for other consequence classes and the SpliceAI fallback the pathogenic PP3 criterion uses. A missense variant with neither REVEL nor CADD records REVEL as a missing source. The REVEL-driven BP4 and BP4_Moderate calls are unchanged and still take precedence when REVEL is present.
-
-- **Tri-state lookup resolution type** (`vartriage.models.Resolution`): a value resolved from an external source (allele frequency, CADD score, gene constraint) now carries one of three states, `FOUND`, `CONFIRMED_ABSENT`, or `LOOKUP_FAILED`, so a source that was consulted and returned nothing is distinguishable from a source that could not be consulted. The type is additive; existing lookups are unchanged until later work routes them through it.
-### Changed
-
-- **Evidence combining uses the ClinGen SVI point system**: `combine_evidence` now sums the signed points for a variant's evidence tags and maps the total through the Tavtigian threshold ladder, replacing the combinatorial rule table. Opposing evidence resolves by arithmetic (a pathogenic and a benign criterion net to their difference) rather than by forcing VUS whenever both signs are present; `has_conflicting_evidence` remains as a reporting-only annotation. This corrects tier assignments the rule table produced, most notably that two Moderate criteria sum to 4 points and classify as VUS rather than Likely Pathogenic, and that a single Very Strong criterion (8 points) reaches Likely Pathogenic. Across the 1,023 pathogenic-side tag combinations, 31 percent change tier under the point system.
-
-### Added
-
-- **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. `combine_evidence` delegates to this engine.
-### Changed
-
 - **Coding single-base variants are classified from their resolved codon**: a substitution inside a coding region is refined to NONSENSE (stop gained), STOP_LOSS (stop removed), or SYNONYMOUS (same amino acid) using the codon the annotation engine resolves, instead of the interval backend's base "coding SNV maps to missense" call. The refinement runs at the engine level, so the pyranges and pure-Python backends now return the same amino-acid-level consequence for the same variant. Variants whose codon cannot be resolved keep their base call.
-### Changed
-
-- **Coding single-base variants are classified from their resolved codon**: a substitution inside a coding region is refined to NONSENSE (stop gained), STOP_LOSS (stop removed), or SYNONYMOUS (same amino acid) using the codon the annotation engine resolves, instead of the interval backend's base "coding SNV maps to missense" call. The refinement runs at the engine level, so the pyranges and pure-Python backends now return the same amino-acid-level consequence for the same variant. Variants whose codon cannot be resolved keep their base call.
-### Changed
-
 - **Multi-allelic records are split into one variant per ALT**: a VCF line carrying several comma-separated ALT alleles now yields one variant per allele, each sharing the record's CHROM, POS, REF, QUAL, FILTER, and INFO, so every alternate allele is triaged instead of only the first.
 - **ClinVar significance parsing handles compound and qualified terms**: significance strings are normalized (whitespace, case) and parsed for compound assertions joined by "/" or "|" (the more clinically significant component wins), a trailing qualifier after a comma, and the "Conflicting interpretations of pathogenicity" category (treated as uncertain). A recognized assertion such as "Pathogenic/Likely pathogenic" is no longer discarded as unknown. Both the pure-Python and polars ClinVar loaders share one parser.
-### Changed
-
-- **Coding single-base variants are classified from their resolved codon**: a substitution inside a coding region is refined to NONSENSE (stop gained), STOP_LOSS (stop removed), or SYNONYMOUS (same amino acid) using the codon the annotation engine resolves, instead of the interval backend's base "coding SNV maps to missense" call. The refinement runs at the engine level, so the pyranges and pure-Python backends now return the same amino-acid-level consequence for the same variant. Variants whose codon cannot be resolved keep their base call.
-### Changed
-
-- **Multi-allelic records are split into one variant per ALT**: a VCF line carrying several comma-separated ALT alleles now yields one variant per allele, each sharing the record's CHROM, POS, REF, QUAL, FILTER, and INFO, so every alternate allele is triaged instead of only the first.
-- **ClinVar significance parsing handles compound and qualified terms**: significance strings are normalized (whitespace, case) and parsed for compound assertions joined by "/" or "|" (the more clinically significant component wins), a trailing qualifier after a comma, and the "Conflicting interpretations of pathogenicity" category (treated as uncertain). A recognized assertion such as "Pathogenic/Likely pathogenic" is no longer discarded as unknown. Both the pure-Python and polars ClinVar loaders share one parser.
-### Changed
-
+- **Per-population gnomAD frequencies are threaded through annotation**: when the frequency backend can return ancestry-group frequencies, the annotation engine now populates the variant's per-population frequencies (the global AF plus each `AF_<pop>`) rather than only the single global number. BA1, BS1, and PM2 can then reason about a variant that is common in one ancestry but globally rare. Backends that expose only the global lookup are unchanged and leave the per-population frequencies unset.
 - **Remote score cache is isolated by reference build, version, and dataset**: cached gnomAD and CADD scores are now keyed by a source id derived from the resolved preset (which encodes build, version, and dataset kind, for example `gnomad-genomes-v4-grch38`) or, for a raw URL, a stable hash of that URL. A GRCh37 run and a GRCh38 run, or an exomes run and a genomes run, no longer share cache rows.
 - **Installed bundles are checksum-verified on load**: when a bundle manifest records a checksum for its transformed file, the on-disk file is verified before the pipeline uses it and a mismatch raises rather than being used silently. A manifest with no recorded checksum skips verification unchanged.
-### Changed
-
 - **Knowledge-library loaders validate their TSV header on load**: the OMIM, HPO, ClinGen validity, actionability, and gnomAD constraint loaders now check that their required columns are present and raise an error naming the file and the missing columns, instead of a renamed or missing column loading zero rows with only an informational log.
-### Changed
-
-- **Per-population gnomAD frequencies are threaded through annotation**: when the frequency backend can return ancestry-group frequencies, the annotation engine now populates the variant's per-population frequencies (the global AF plus each `AF_<pop>`) rather than only the single global number. BA1, BS1, and PM2 can then reason about a variant that is common in one ancestry but globally rare. Backends that expose only the global lookup are unchanged and leave the per-population frequencies unset.
-### Changed
-
 - **QC warns instead of passing when a metric cannot be evaluated**: a sample with no genotype calls (the het/hom ratio) or no indels (the ins/del ratio) is now reported as a warning rather than a pass, so an empty or sites-only input no longer clears strict QC on those axes silently.
 - **Cohort config rejects the singleton recurrence inversion**: `include_singletons=True` with `min_recurrence` greater than 2 is refused, because it would keep variants seen in one sample while dropping variants seen in two. Use `include_singletons=False`, or a `min_recurrence` of 1 or 2.
-
-### Fixed
-
-- **INFO extraction tolerates a single malformed field**: reading a per-record INFO field whose stored value is inconsistent with the VCF header (which pysam signals by raising) now skips that one field instead of dropping the record's entire INFO dictionary, so the remaining INFO fields are preserved.
-- **A systematic client error trips the API circuit breaker**: a non-retryable 4xx response (a revoked key, a moved endpoint, a schema mismatch) now records a circuit-breaker failure instead of a success, so a run of them opens the breaker rather than leaving a totally misconfigured upstream looking healthy while every call fails. Successful (2xx and 3xx) responses still reset the breaker as before.
-### Changed
-
 - **Mitochondrial routing recognizes chrMT and the RefSeq mtDNA accession**: the mitochondrial check now matches the "chr" prefix as a literal and recognizes chrM, chrMT, MT, M, and NC_012920, so mtDNA is routed to the mitochondrial classifier and an unrelated contig is not misrouted.
 - **Heteroplasmy data is available in the default mitochondrial run**: per-sample allele-depth and allele-fraction fields are now extracted whenever mitochondrial analysis is active, not only when an inheritance or single-sample selection is configured, so the mitochondrial classifier's heteroplasmy axis is populated in the common single-sample run.
 
 ### Fixed
 
 - **A maternal no-call no longer produces a de novo mtDNA call**: maternal inheritance now carries the three-state parental genotype, so an all-missing maternal genotype resolves to unknown rather than being read as absence. A de novo call requires a confirmed reference genotype in the mother.
-
+- **A systematic client error trips the API circuit breaker**: a non-retryable 4xx response (a revoked key, a moved endpoint, a schema mismatch) now records a circuit-breaker failure instead of a success, so a run of them opens the breaker rather than leaving a misconfigured upstream looking healthy while every call fails. Successful (2xx and 3xx) responses still reset the breaker as before.
+- **INFO extraction tolerates a single malformed field**: reading a per-record INFO field whose stored value is inconsistent with the VCF header (which pysam signals by raising) now skips that one field instead of dropping the record's entire INFO dictionary, so the remaining INFO fields are preserved.
 - **SV parser tolerates VCFs that declare only the INFO fields they use**: the structural variant parser probes caller-specific END/SVLEN/copy-number/mate fields (END2, CHR2_POS, INSLEN, HOMLEN, CN, ...) to support multiple SV callers. It now checks the VCF header before reading each field, so a file that declares only standard fields parses cleanly instead of aborting. This matches pysam 0.24's behaviour of raising on access to an undeclared INFO key.
+
+### Performance
+
+- **gnomAD absence is cached across runs**: when the gnomAD GraphQL API reports a variant as absent (a "Variant not found" response), the remote client now records that absence in the response cache alongside frequency hits. A repeated lookup for an absent variant is served from the cache instead of issuing a fresh rate-limited request, so a validation pass over tens of thousands of variants pays the per-request cost once rather than on every run. Other GraphQL errors (rate limit, timeout, schema drift) remain uncached and are retried on the next run.
+
 
 ## [0.18.2] - 2026-09-15
 
