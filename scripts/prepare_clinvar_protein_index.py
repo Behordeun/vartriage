@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import gzip
 import logging
 import sys
 from pathlib import Path
@@ -26,6 +27,17 @@ from pathlib import Path
 import pysam
 
 logger = logging.getLogger(__name__)
+
+
+def _gtf_attr(attrs: str, key: str) -> str | None:
+    """Extract a value from a GTF attribute string: key \"value\"; ..."""
+    marker = f'{key} "'
+    i = attrs.find(marker)
+    if i == -1:
+        return None
+    i += len(marker)
+    j = attrs.find('"', i)
+    return attrs[i:j] if j != -1 else None
 
 
 def _parse_args() -> argparse.Namespace:
@@ -90,22 +102,32 @@ def _resolve_snv_entry(
 ) -> tuple | None:
     if len(record.ref) != 1 or len(alt) != 1:
         return None
+    # ClinVar VCF uses '1'/'MT'; the FASTA/GTF use 'chr1'/'chrM'. Normalize.
+    chrom = record.chrom
+    if not chrom.startswith("chr"):
+        chrom = "chrM" if chrom in ("MT", "M") else f"chr{chrom}"
     try:
-        context = resolver.resolve(record.chrom, record.pos, record.ref, alt)  # type: ignore[attr-defined]
-    except Exception:
+        context = resolver.resolve(chrom, record.pos, record.ref, alt)  # type: ignore[attr-defined]
+    except (KeyError, ValueError, AttributeError, IndexError):
         skipped[0] += 1
         return None
     if context is None:
         skipped[0] += 1
         return None
-    if context.ref_aa == context.alt_aa or context.alt_aa == "*":
+    # Index only true missense substitutions: exclude synonymous, stop-gain
+    # (altered "*") and stop-loss (reference "*").
+    if (
+        context.reference_aa == context.altered_aa
+        or context.altered_aa == "*"
+        or context.reference_aa == "*"
+    ):
         return None
     return (
         context.gene_name or "UNKNOWN",
-        context.aa_position,
-        context.ref_aa,
-        context.alt_aa,
-        record.chrom,
+        context.codon_index + 1,
+        context.reference_aa,
+        context.altered_aa,
+        chrom,
         record.pos,
         record.ref,
         alt,
@@ -163,15 +185,53 @@ def main() -> None:
 
     logger.info("Building transcript CDS index from %s...", args.gene_annotation)
     cds_index = TranscriptCDSIndex()
-    cds_index.load_from_gtf(args.gene_annotation)
-    logger.info("Loaded %d transcripts", cds_index.transcript_count)
+    gtf_path = str(args.gene_annotation)
+    gtf_open = gzip.open if gtf_path.endswith(".gz") else open
+    with gtf_open(gtf_path, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#"):
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 9 or parts[2] != "CDS":
+                continue
+            chrom = parts[0]
+            start = int(parts[3]) - 1  # GTF is 1-based; convert to 0-based
+            end = int(parts[4])  # GTF end inclusive -> exclusive
+            strand = parts[6]
+            try:
+                frame = int(parts[7]) if parts[7] != "." else 0
+            except ValueError:
+                frame = 0
+            attrs = parts[8]
+            transcript_id = _gtf_attr(attrs, "transcript_id")
+            if not transcript_id:
+                continue
+            cds_index.add_cds_exon(
+                transcript_id=transcript_id,
+                gene_name=_gtf_attr(attrs, "gene_name") or "unknown",
+                chrom=chrom,
+                start=start,
+                end=end,
+                strand=strand,
+                frame=frame,
+            )
+    cds_index.finalize()
+    count = (
+        cds_index.transcript_count()
+        if callable(cds_index.transcript_count)
+        else cds_index.transcript_count
+    )
+    logger.info("Loaded %d transcripts", count)
 
-    fasta = pysam.FastaFile(str(args.reference_fasta))
-    resolver = CodonResolver(fasta=fasta, transcript_index=cds_index)
+    resolver = CodonResolver(
+        fasta_path=args.reference_fasta, transcript_index=cds_index
+    )
 
     logger.info("Processing ClinVar VCF: %s", args.clinvar_vcf)
-    entries, processed, skipped = _process_vcf(args.clinvar_vcf, resolver)
-    fasta.close()
+    try:
+        entries, processed, skipped = _process_vcf(args.clinvar_vcf, resolver)
+    finally:
+        resolver.close()
 
     logger.info(
         "Done. %d pathogenic missense entries from %d records (%d skipped)",
