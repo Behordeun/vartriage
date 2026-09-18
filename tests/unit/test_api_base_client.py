@@ -235,7 +235,7 @@ class TestNonRetryableErrors:
 
         assert exc_info.value.status_code == 404
 
-    def test_non_retryable_does_not_trigger_circuit_breaker(
+    def test_non_retryable_client_error_records_a_breaker_failure(
         self,
         rate_limiter: RateLimiter,
         circuit_breaker: CircuitBreaker,
@@ -247,8 +247,9 @@ class TestNonRetryableErrors:
         with pytest.raises(APIClientError):
             client.request("POST", "/validate")
 
-        # 4xx (non-429) counts as a successful circuit interaction
-        assert circuit_breaker.failure_count == 0
+        # A non-retryable 4xx is a client error, counted toward opening the
+        # breaker rather than treated as a healthy interaction.
+        assert circuit_breaker.failure_count == 1
 
 
 class TestRateLimitHandling:

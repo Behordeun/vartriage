@@ -203,7 +203,11 @@ class BaseAPIClient:
             )
 
         if response.status_code not in _RETRYABLE_STATUS_CODES:
-            self._circuit_breaker.record_success()
+            # A non-retryable >= 400 response is a client error (schema drift,
+            # a revoked key, a moved endpoint). Counting it as a circuit
+            # success would keep the breaker healthy through a systematic
+            # misconfiguration, so it is recorded as a failure instead.
+            self._circuit_breaker.record_failure()
             return _AttemptOutcome(
                 response=None,
                 status_code=response.status_code,

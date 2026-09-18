@@ -76,6 +76,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Fixed
 
 - **INFO extraction tolerates a single malformed field**: reading a per-record INFO field whose stored value is inconsistent with the VCF header (which pysam signals by raising) now skips that one field instead of dropping the record's entire INFO dictionary, so the remaining INFO fields are preserved.
+- **A systematic client error trips the API circuit breaker**: a non-retryable 4xx response (a revoked key, a moved endpoint, a schema mismatch) now records a circuit-breaker failure instead of a success, so a run of them opens the breaker rather than leaving a totally misconfigured upstream looking healthy while every call fails. Successful (2xx and 3xx) responses still reset the breaker as before.
 
 - **SV parser tolerates VCFs that declare only the INFO fields they use**: the structural variant parser probes caller-specific END/SVLEN/copy-number/mate fields (END2, CHR2_POS, INSLEN, HOMLEN, CN, ...) to support multiple SV callers. It now checks the VCF header before reading each field, so a file that declares only standard fields parses cleanly instead of aborting. This matches pysam 0.24's behaviour of raising on access to an undeclared INFO key.
 
