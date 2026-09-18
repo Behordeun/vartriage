@@ -16,6 +16,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Added
 
 - **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. The engine ships alongside the existing combining rules; the classifier is not yet wired onto it.
+### Changed
+
+- **Evidence combining uses the ClinGen SVI point system**: `combine_evidence` now sums the signed points for a variant's evidence tags and maps the total through the Tavtigian threshold ladder, replacing the combinatorial rule table. Opposing evidence resolves by arithmetic (a pathogenic and a benign criterion net to their difference) rather than by forcing VUS whenever both signs are present; `has_conflicting_evidence` remains as a reporting-only annotation. This corrects tier assignments the rule table produced, most notably that two Moderate criteria sum to 4 points and classify as VUS rather than Likely Pathogenic, and that a single Very Strong criterion (8 points) reaches Likely Pathogenic. Across the 1,023 pathogenic-side tag combinations, 31 percent change tier under the point system.
+
+### Added
+
+- **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. `combine_evidence` delegates to this engine.
+### Changed
+
+- **PM2 requires consulted population data**: the "absent from or rare in controls" criterion now fires only when the population database was consulted, either an observed allele frequency below the rarity threshold in every available population, or a confirmed gnomAD miss recorded during annotation. A variant with no frequency data and no record of a completed lookup is treated as missing data (gnomAD recorded as a missing source) rather than as evidence of rarity.
 
 ### Fixed
 

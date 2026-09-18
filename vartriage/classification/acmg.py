@@ -83,6 +83,7 @@ _PM4_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset(
     }
 )
 
+_MISSING_SOURCE_GNOMAD = "gnomAD"
 _MISSING_SOURCE_GNOMAD_CONSTRAINT = "gnomAD_constraint"
 
 
@@ -339,18 +340,24 @@ class ACMGClassifier:
         tags: set[EvidenceTag],
         missing_sources: set[str],
     ) -> None:
-        """Assign PM2 if allele frequency is below 0.0001 in ALL populations.
+        """Assign PM2 when the variant is rare in consulted population data.
 
-        Uses population-specific frequencies when available. If any
-        population exceeds the threshold, PM2 does not fire (the variant
-        is not truly rare). Falls back to global AF when per-population
-        data is absent. Treats all-None population data as missing.
+        PM2 encodes "absent from, or rare in, population controls", which
+        requires the population database to have been consulted. Two inputs
+        satisfy that: an observed allele frequency below the threshold in
+        every available population, or ``frequency_unknown`` set, which the
+        annotation stage sets when gnomAD was queried and returned no record
+        for the variant.
+
+        A variant with no frequency data and ``frequency_unknown`` not set
+        was never consulted (annotation not run, or the lookup did not
+        complete). That is the absence of evidence, not evidence of rarity,
+        so PM2 does not fire and gnomAD is recorded as a missing source.
         """
         annotated = variant.annotated
         pop_freq = annotated.population_frequencies
 
         if pop_freq is not None:
-            # Guard: if all population fields are None, treat as missing data
             has_any_data = any(
                 v is not None
                 for v in (
@@ -364,25 +371,31 @@ class ACMGClassifier:
                     pop_freq.global_af,
                 )
             )
-            if not has_any_data:
-                # All population fields are None = variant absent from gnomAD.
-                # Absent from controls satisfies PM2 per ACMG/AMP 2015.
-                tags.add(EvidenceTag.PM2)
+            if has_any_data:
+                if pop_freq.all_below(_PM2_AF_THRESHOLD):
+                    tags.add(EvidenceTag.PM2)
                 return
-            if pop_freq.all_below(_PM2_AF_THRESHOLD):
+            # Every per-population field is None. Only a confirmed gnomAD
+            # miss (frequency_unknown) counts as absence; otherwise the data
+            # was never obtained.
+            if annotated.frequency_unknown:
+                tags.add(EvidenceTag.PM2)
+            else:
+                missing_sources.add(_MISSING_SOURCE_GNOMAD)
+            return
+
+        af = annotated.allele_frequency
+        if af is not None:
+            if af < _PM2_AF_THRESHOLD:
                 tags.add(EvidenceTag.PM2)
             return
 
-        # Fallback: global AF
-        af = annotated.allele_frequency
-        if af is None:
-            # Absent from gnomAD = not observed in 730K+ exomes.
-            # Per ACMG/AMP 2015: "Absent from controls" satisfies PM2.
+        # No observed AF. A confirmed gnomAD miss is absence; a bare None
+        # with no such confirmation is missing data.
+        if annotated.frequency_unknown:
             tags.add(EvidenceTag.PM2)
-            return
-
-        if af < _PM2_AF_THRESHOLD:
-            tags.add(EvidenceTag.PM2)
+        else:
+            missing_sources.add(_MISSING_SOURCE_GNOMAD)
 
     def _evaluate_pp3(
         self,
