@@ -22,6 +22,7 @@ class CDSExon:
 
     start: int
     end: int
+    frame: int = 0
 
 
 @dataclass
@@ -106,8 +107,18 @@ class TranscriptCDS:
         return None
 
     def finalize(self) -> None:
-        """Sort CDS exons by genomic position. Call after all exons are added."""
+        """Sort CDS exons by genomic position and set the start-codon frame.
+
+        ``frame_offset`` is taken from the translation-start exon: the
+        lowest-coordinate exon on the plus strand, the highest-coordinate exon
+        on the minus strand. This is independent of the order in which exons
+        were added, so a coordinate-sorted GTF yields the same frame as a
+        transcript-ordered one.
+        """
         self.cds_exons.sort(key=lambda e: e.start)
+        if self.cds_exons:
+            start_exon = self.cds_exons[-1] if self.strand == "-" else self.cds_exons[0]
+            self.frame_offset = start_exon.frame
 
 
 class TranscriptCDSIndex:
@@ -159,7 +170,9 @@ class TranscriptCDSIndex:
                 strand=strand,
                 frame_offset=frame,
             )
-        self._transcripts[transcript_id].cds_exons.append(CDSExon(start=start, end=end))
+        self._transcripts[transcript_id].cds_exons.append(
+            CDSExon(start=start, end=end, frame=frame)
+        )
         self._finalized = False
 
     def finalize(self) -> None:
@@ -215,7 +228,7 @@ class TranscriptCDSIndex:
                 "chrom": tc.chrom,
                 "strand": tc.strand,
                 "frame_offset": tc.frame_offset,
-                "cds_exons": [(e.start, e.end) for e in tc.cds_exons],
+                "cds_exons": [(e.start, e.end, e.frame) for e in tc.cds_exons],
             }
         return data
 
@@ -234,8 +247,11 @@ class TranscriptCDSIndex:
                 frame_offset=int(info.get("frame_offset", 0)),
             )
             for exon_tuple in info.get("cds_exons", []):
-                if isinstance(exon_tuple, (list, tuple)) and len(exon_tuple) == 2:
-                    tc.cds_exons.append(CDSExon(start=exon_tuple[0], end=exon_tuple[1]))
+                if isinstance(exon_tuple, (list, tuple)) and len(exon_tuple) >= 2:
+                    frame = exon_tuple[2] if len(exon_tuple) >= 3 else 0
+                    tc.cds_exons.append(
+                        CDSExon(start=exon_tuple[0], end=exon_tuple[1], frame=frame)
+                    )
             index._transcripts[tid] = tc
         index._finalized = True
         return index
