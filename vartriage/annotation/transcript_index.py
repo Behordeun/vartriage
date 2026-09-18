@@ -18,11 +18,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class CDSExon:
-    """A single CDS exon in genomic coordinates (0-based, half-open)."""
+    """A single CDS exon in genomic coordinates (0-based, half-open).
+
+    ``frame`` is the GTF reading-frame of this exon, or None when the frame was
+    not supplied (e.g. a legacy cache entry or a directly-constructed exon). A
+    None frame is not used to derive the transcript frame_offset.
+    """
 
     start: int
     end: int
-    frame: int = 0
+    frame: int | None = None
 
 
 @dataclass
@@ -43,9 +48,10 @@ class TranscriptCDS:
     strand
         "+" or "-".
     frame_offset
-        Reading frame offset (0, 1, or 2) from the GTF frame column
-        of the first CDS exon. Indicates how many bases to skip before
-        the first complete codon.
+        Reading frame offset (0, 1, or 2) of the translation-start CDS exon
+        (lowest-coordinate exon on the '+' strand, highest-coordinate on '-'),
+        derived in finalize. Indicates how many bases to skip before the first
+        complete codon.
     """
 
     transcript_id: str
@@ -109,16 +115,19 @@ class TranscriptCDS:
     def finalize(self) -> None:
         """Sort CDS exons by genomic position and set the start-codon frame.
 
-        ``frame_offset`` is taken from the translation-start exon: the
+        ``frame_offset`` is derived from the translation-start exon (the
         lowest-coordinate exon on the plus strand, the highest-coordinate exon
-        on the minus strand. This is independent of the order in which exons
-        were added, so a coordinate-sorted GTF yields the same frame as a
-        transcript-ordered one.
+        on the minus strand), independent of the order exons were added, so a
+        coordinate-sorted GTF yields the same frame as a transcript-ordered one.
+        Derivation happens only when that exon carries a known frame; when the
+        frame is unknown (a directly-constructed exon or a legacy cache entry)
+        the existing ``frame_offset`` is preserved.
         """
         self.cds_exons.sort(key=lambda e: e.start)
         if self.cds_exons:
             start_exon = self.cds_exons[-1] if self.strand == "-" else self.cds_exons[0]
-            self.frame_offset = start_exon.frame
+            if start_exon.frame is not None:
+                self.frame_offset = start_exon.frame
 
 
 class TranscriptCDSIndex:
@@ -248,7 +257,9 @@ class TranscriptCDSIndex:
             )
             for exon_tuple in info.get("cds_exons", []):
                 if isinstance(exon_tuple, (list, tuple)) and len(exon_tuple) >= 2:
-                    frame = exon_tuple[2] if len(exon_tuple) >= 3 else 0
+                    # Legacy 2-field entries have no per-exon frame; use None so a
+                    # later finalize() preserves the separately-restored frame_offset.
+                    frame = exon_tuple[2] if len(exon_tuple) >= 3 else None
                     tc.cds_exons.append(
                         CDSExon(start=exon_tuple[0], end=exon_tuple[1], frame=frame)
                     )

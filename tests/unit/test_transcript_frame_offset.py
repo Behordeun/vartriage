@@ -54,3 +54,36 @@ def test_minus_strand_independent_of_add_order() -> None:
 def test_minus_strand_nonzero_start_frame_preserved() -> None:
     # Highest-coord exon carries frame 2; that must be the offset regardless of order.
     assert _build("-", [(100, 130, 0), (300, 330, 2), (200, 230, 1)]) == 2
+
+
+def test_finalize_preserves_offset_when_exon_frames_unknown() -> None:
+    # A TranscriptCDS built with frame-less exons (legacy/direct construction)
+    # but an explicit frame_offset must keep that offset through finalize.
+    from vartriage.annotation.transcript_index import CDSExon, TranscriptCDS
+
+    tc = TranscriptCDS(
+        transcript_id="T1", gene_name="G", chrom="chr1", strand="-", frame_offset=2
+    )
+    tc.cds_exons.append(CDSExon(start=300, end=330))  # frame defaults to None
+    tc.cds_exons.append(CDSExon(start=100, end=130))
+    tc.finalize()
+    assert tc.frame_offset == 2, "unknown exon frames must not overwrite frame_offset"
+
+
+def test_legacy_cache_roundtrip_preserves_offset() -> None:
+    # A legacy 2-field serialized index restores frame_offset directly; a later
+    # finalize must not reset it to 0.
+    from vartriage.annotation.transcript_index import TranscriptCDSIndex
+
+    legacy = {
+        "T1": {
+            "gene_name": "G",
+            "chrom": "chr1",
+            "strand": "-",
+            "frame_offset": 1,
+            "cds_exons": [(300, 330), (100, 130)],  # 2-field, no frame
+        }
+    }
+    idx = TranscriptCDSIndex.from_serializable(legacy)
+    idx._transcripts["T1"].finalize()
+    assert idx.get_transcript("T1").frame_offset == 1
