@@ -417,6 +417,10 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
                     expected_tags.add(EvidenceTag.BP4_MODERATE)
                 elif revel < 0.290:
                     expected_tags.add(EvidenceTag.BP4)
+            else:
+                cadd = variant.cadd_phred
+                if cadd is not None and cadd < 10.0:
+                    expected_tags.add(EvidenceTag.BP4)
         else:
             cadd = variant.cadd_phred
             if cadd is not None and cadd < 10.0:
@@ -483,6 +487,15 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
             expected_missing.add("REVEL")
         if not spliceai_available:
             expected_missing.add("SpliceAI")
+
+    # BP4 fallback records REVEL missing for a missense variant that has
+    # neither a REVEL score nor a CADD score to fall back on.
+    if (
+        consequence == FunctionalConsequence.MISSENSE
+        and not revel_available
+        and variant.cadd_phred is None
+    ):
+        expected_missing.add("REVEL")
 
     # PVS1 missing source tracking for SPLICE_SITE
     if (
