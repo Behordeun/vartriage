@@ -55,6 +55,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 - **Multi-allelic records are split into one variant per ALT**: a VCF line carrying several comma-separated ALT alleles now yields one variant per allele, each sharing the record's CHROM, POS, REF, QUAL, FILTER, and INFO, so every alternate allele is triaged instead of only the first.
 - **ClinVar significance parsing handles compound and qualified terms**: significance strings are normalized (whitespace, case) and parsed for compound assertions joined by "/" or "|" (the more clinically significant component wins), a trailing qualifier after a comma, and the "Conflicting interpretations of pathogenicity" category (treated as uncertain). A recognized assertion such as "Pathogenic/Likely pathogenic" is no longer discarded as unknown. Both the pure-Python and polars ClinVar loaders share one parser.
+### Changed
+
+- **Coding single-base variants are classified from their resolved codon**: a substitution inside a coding region is refined to NONSENSE (stop gained), STOP_LOSS (stop removed), or SYNONYMOUS (same amino acid) using the codon the annotation engine resolves, instead of the interval backend's base "coding SNV maps to missense" call. The refinement runs at the engine level, so the pyranges and pure-Python backends now return the same amino-acid-level consequence for the same variant. Variants whose codon cannot be resolved keep their base call.
+### Changed
+
+- **Multi-allelic records are split into one variant per ALT**: a VCF line carrying several comma-separated ALT alleles now yields one variant per allele, each sharing the record's CHROM, POS, REF, QUAL, FILTER, and INFO, so every alternate allele is triaged instead of only the first.
+- **ClinVar significance parsing handles compound and qualified terms**: significance strings are normalized (whitespace, case) and parsed for compound assertions joined by "/" or "|" (the more clinically significant component wins), a trailing qualifier after a comma, and the "Conflicting interpretations of pathogenicity" category (treated as uncertain). A recognized assertion such as "Pathogenic/Likely pathogenic" is no longer discarded as unknown. Both the pure-Python and polars ClinVar loaders share one parser.
+### Changed
+
+- **Remote score cache is isolated by reference build, version, and dataset**: cached gnomAD and CADD scores are now keyed by a source id derived from the resolved preset (which encodes build, version, and dataset kind, for example `gnomad-genomes-v4-grch38`) or, for a raw URL, a stable hash of that URL. A GRCh37 run and a GRCh38 run, or an exomes run and a genomes run, no longer share cache rows.
+- **Installed bundles are checksum-verified on load**: when a bundle manifest records a checksum for its transformed file, the on-disk file is verified before the pipeline uses it and a mismatch raises rather than being used silently. A manifest with no recorded checksum skips verification unchanged.
+### Changed
+
+- **Knowledge-library loaders validate their TSV header on load**: the OMIM, HPO, ClinGen validity, actionability, and gnomAD constraint loaders now check that their required columns are present and raise an error naming the file and the missing columns, instead of a renamed or missing column loading zero rows with only an informational log.
+### Changed
+
+- **Per-population gnomAD frequencies are threaded through annotation**: when the frequency backend can return ancestry-group frequencies, the annotation engine now populates the variant's per-population frequencies (the global AF plus each `AF_<pop>`) rather than only the single global number. BA1, BS1, and PM2 can then reason about a variant that is common in one ancestry but globally rare. Backends that expose only the global lookup are unchanged and leave the per-population frequencies unset.
 
 ### Fixed
 
