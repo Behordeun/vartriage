@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import gzip
 import logging
 import sys
 from pathlib import Path
@@ -107,13 +108,19 @@ def _resolve_snv_entry(
         chrom = "chrM" if chrom in ("MT", "M") else f"chr{chrom}"
     try:
         context = resolver.resolve(chrom, record.pos, record.ref, alt)  # type: ignore[attr-defined]
-    except Exception:
+    except (KeyError, ValueError, AttributeError, IndexError):
         skipped[0] += 1
         return None
     if context is None:
         skipped[0] += 1
         return None
-    if context.reference_aa == context.altered_aa or context.altered_aa == "*":
+    # Index only true missense substitutions: exclude synonymous, stop-gain
+    # (altered "*") and stop-loss (reference "*").
+    if (
+        context.reference_aa == context.altered_aa
+        or context.altered_aa == "*"
+        or context.reference_aa == "*"
+    ):
         return None
     return (
         context.gene_name or "UNKNOWN",
@@ -178,7 +185,9 @@ def main() -> None:
 
     logger.info("Building transcript CDS index from %s...", args.gene_annotation)
     cds_index = TranscriptCDSIndex()
-    with open(args.gene_annotation, encoding="utf-8") as fh:
+    gtf_path = str(args.gene_annotation)
+    gtf_open = gzip.open if gtf_path.endswith(".gz") else open
+    with gtf_open(gtf_path, "rt", encoding="utf-8") as fh:
         for line in fh:
             if line.startswith("#"):
                 continue
@@ -219,7 +228,10 @@ def main() -> None:
     )
 
     logger.info("Processing ClinVar VCF: %s", args.clinvar_vcf)
-    entries, processed, skipped = _process_vcf(args.clinvar_vcf, resolver)
+    try:
+        entries, processed, skipped = _process_vcf(args.clinvar_vcf, resolver)
+    finally:
+        resolver.close()
 
     logger.info(
         "Done. %d pathogenic missense entries from %d records (%d skipped)",
