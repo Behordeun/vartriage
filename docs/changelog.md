@@ -9,6 +9,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Performance
 
 - **gnomAD absence is cached across runs**: when the gnomAD GraphQL API reports a variant as absent (a "Variant not found" response), the remote client now records that absence in the response cache alongside frequency hits. A repeated lookup for an absent variant is served from the cache instead of issuing a fresh rate-limited request, so a validation pass over tens of thousands of variants pays the per-request cost once rather than on every run. Other GraphQL errors (rate limit, timeout, schema drift) remain uncached and are retried on the next run.
+### Added
+
+- **Tri-state lookup resolution type** (`vartriage.models.Resolution`): a value resolved from an external source (allele frequency, CADD score, gene constraint) now carries one of three states, `FOUND`, `CONFIRMED_ABSENT`, or `LOOKUP_FAILED`, so a source that was consulted and returned nothing is distinguishable from a source that could not be consulted. The type is additive; existing lookups are unchanged until later work routes them through it.
 
 ### Fixed
 
