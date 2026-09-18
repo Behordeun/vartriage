@@ -34,6 +34,7 @@ site/
 
 # Archives
 archives/
+review/
 
 # Temp test files
 test_*.tmp.py

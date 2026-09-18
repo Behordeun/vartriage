@@ -45,6 +45,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Added
 
 - **ClinGen SVI Bayesian point engine** (`vartriage.classification.points`): a pure scoring function that assigns each ACMG evidence criterion a signed point value by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), sums them, and maps the total through the Tavtigian threshold ladder (Pathogenic at 10, Likely Pathogenic 6 to 9, Likely Benign minus 6 to minus 1, Benign at minus 7), with BA1 as a stand-alone Benign override. `combine_evidence` delegates to this engine.
+### Changed
+
+- **Coding single-base variants are classified from their resolved codon**: a substitution inside a coding region is refined to NONSENSE (stop gained), STOP_LOSS (stop removed), or SYNONYMOUS (same amino acid) using the codon the annotation engine resolves, instead of the interval backend's base "coding SNV maps to missense" call. The refinement runs at the engine level, so the pyranges and pure-Python backends now return the same amino-acid-level consequence for the same variant. Variants whose codon cannot be resolved keep their base call.
 
 ### Fixed
 

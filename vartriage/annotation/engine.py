@@ -16,10 +16,12 @@ from pathlib import Path
 from typing import Any
 
 from vartriage._internal.path_safety import resolve_path
+from vartriage.annotation.consequence_refine import refine_coding_snv_consequence
 from vartriage.models.config import AnnotationConfig
 from vartriage.models.variant import (
     AnnotatedVariant,
     ClinVarAssertion,
+    FunctionalConsequence,
     ProteinChange,
     Variant,
 )
@@ -190,6 +192,11 @@ class AnnotationEngine:
         """Run consequence + frequency + ClinVar on a single batch."""
         # Consequence assignment (uses original coordinates for overlap)
         consequences = self._consequence_annotator.assign_batch(batch)
+
+        # Refine coding SNVs from their resolved codon so a stop-gain reads
+        # as NONSENSE (and a same-amino-acid change as SYNONYMOUS) instead of
+        # the interval backend's base "coding SNV -> missense" call.
+        consequences = self._refine_snv_consequences(batch, consequences)
 
         # Gene name + protein change extraction via overlap queries
         gene_names, protein_changes = self._extract_gene_and_protein(batch)
@@ -383,9 +390,90 @@ class AnnotationEngine:
 
         return protein_changes
 
+    def _refine_snv_consequences(
+        self,
+        batch: list[Variant],
+        consequences: list[FunctionalConsequence],
+    ) -> list[FunctionalConsequence]:
+        """Refine coding-SNV consequences from resolved codons.
+
+        The interval backends call every coding SNV missense. For each such
+        SNV this resolves the codon (via the pyranges CodonResolver, or via
+        the codon context the pure-Python backend attaches to overlaps) and
+        upgrades the consequence to NONSENSE, STOP_LOSS, or SYNONYMOUS when
+        the amino acid change warrants it. Non-SNVs and non-coding calls are
+        left untouched, and a variant whose codon cannot be resolved keeps
+        its base call.
+        """
+        refined = list(consequences)
+
+        coding_snv_indices = [
+            i
+            for i, v in enumerate(batch)
+            if len(v.ref) == 1
+            and len(v.alt) == 1
+            and consequences[i]
+            in (
+                FunctionalConsequence.MISSENSE,
+                FunctionalConsequence.SYNONYMOUS,
+            )
+        ]
+        if not coding_snv_indices:
+            return refined
+
+        # Pyranges backend: resolve via the dedicated CodonResolver keyed on
+        # the CDS-overlapping transcripts.
+        if self._supports_batch_cds and self._pyranges_codon_resolver is not None:
+            cds_overlaps = self._consequence_annotator.cds_overlaps_batch(batch)  # type: ignore[attr-defined]
+            for i in coding_snv_indices:
+                ctx = self._best_codon_context(batch[i], cds_overlaps[i])
+                refined[i] = refine_coding_snv_consequence(consequences[i], ctx)
+            return refined
+
+        # Pure-Python backend: the codon context rides along on the overlap
+        # records already produced by the interval index.
+        for i in coding_snv_indices:
+            variant = batch[i]
+            overlaps = self._consequence_annotator.overlap(
+                chrom=variant.chrom,
+                pos=variant.pos,
+                ref=variant.ref,
+                alt=variant.alt,
+            )
+            ctx = next(
+                (o.get("codon_context") for o in overlaps if o.get("codon_context")),
+                None,
+            )
+            refined[i] = refine_coding_snv_consequence(consequences[i], ctx)
+
+        return refined
+
+    def _best_codon_context(self, variant: Variant, transcript_ids: list[str]) -> Any:
+        """Resolve a codon context for a coding SNV via the pyranges resolver.
+
+        Prefers a nonsense or otherwise non-synonymous result across the
+        overlapping transcripts, so a stop-gain in any transcript is not
+        masked by a synonymous call in another.
+        """
+        best: Any = None
+        for tid in transcript_ids:
+            ctx = self._pyranges_codon_resolver.resolve(
+                chrom=variant.chrom,
+                pos=variant.pos,
+                ref=variant.ref,
+                alt=variant.alt,
+                transcript_id=tid,
+            )
+            if ctx is None:
+                continue
+            if ctx.is_nonsense:
+                return ctx
+            if best is None or (best.is_synonymous and not ctx.is_synonymous):
+                best = ctx
+        return best
+
     def _build_pyranges_codon_resolver(self) -> Any:
         """Build a CodonResolver for the pyranges backend path.
-
         Called once at init time. Returns None if construction fails.
         """
         try:
