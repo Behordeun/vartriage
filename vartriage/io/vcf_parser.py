@@ -154,12 +154,17 @@ class VCFParser:
                     detail=f"Failed to parse VCF data line: {exc}",
                 ) from exc
             line_number += 1
-            yield self._record_to_variant(record, line_number)
+            yield from self._record_to_variants(record, line_number)
 
-    def _record_to_variant(
+    def _record_to_variants(
         self, record: pysam.VariantRecord, line_number: int
-    ) -> Variant:
-        """Convert a pysam VariantRecord to our Variant dataclass.
+    ) -> list[Variant]:
+        """Convert a pysam VariantRecord to one Variant per ALT allele.
+
+        A multi-allelic record (several comma-separated ALTs) is split into
+        one Variant per ALT so every allele is triaged independently; a
+        biallelic record yields a single-element list. Shared fields (CHROM,
+        POS, REF, QUAL, FILTER, INFO) are copied to each split allele.
 
         Parameters
         ----------
@@ -170,8 +175,8 @@ class VCFParser:
 
         Returns
         -------
-        Variant
-            Immutable variant record.
+        list[Variant]
+            One immutable variant record per ALT allele.
 
         Raises
         ------
@@ -237,7 +242,7 @@ class VCFParser:
                 detail=f"Invalid ALT value: {exc}",
             ) from exc
 
-        alt = alts[0] if alts else "."
+        alt_alleles = list(alts) if alts else ["."]
 
         qual: float | None = None
         try:
@@ -254,16 +259,19 @@ class VCFParser:
         filter_status = self._extract_filter(record, line_number)
         info = self._extract_info(record, line_number)
 
-        return Variant(
-            chrom=chrom,
-            pos=pos,
-            id=variant_id,
-            ref=ref,
-            alt=alt,
-            qual=qual,
-            filter_status=filter_status,
-            info=info,
-        )
+        return [
+            Variant(
+                chrom=chrom,
+                pos=pos,
+                id=variant_id,
+                ref=ref,
+                alt=alt,
+                qual=qual,
+                filter_status=filter_status,
+                info=info,
+            )
+            for alt in alt_alleles
+        ]
 
     def _extract_filter(self, record: pysam.VariantRecord, line_number: int) -> str:
         """Extract the FILTER field value from a record.
@@ -317,14 +325,22 @@ class VCFParser:
         """
         info: dict[str, Any] = {}
         try:
-            for key in record.info:
-                value = record.info[key]
-                if isinstance(value, tuple):
-                    info[key] = list(value)
-                else:
-                    info[key] = value
+            keys = list(record.info)
         except (AttributeError, TypeError):
-            pass
+            keys = []
+
+        for key in keys:
+            try:
+                value = record.info[key]
+            except (AttributeError, TypeError, ValueError, KeyError):
+                # pysam raises on access to a field whose stored value is
+                # inconsistent with the header (or absent from it). Skip that
+                # one field rather than losing the entire INFO dict.
+                continue
+            if isinstance(value, tuple):
+                info[key] = list(value)
+            else:
+                info[key] = value
 
         if self._extract_samples:
             info[PYSAM_SAMPLES_KEY] = self._extract_sample_data(record)
