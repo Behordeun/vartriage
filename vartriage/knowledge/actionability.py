@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 
 from vartriage._internal.path_safety import resolve_path
+from vartriage.knowledge._validation import require_columns
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class ActionabilityDB:
         tsv_path = resolve_path(tsv_path)
         with open(tsv_path, newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh, delimiter="\t")
+            require_columns(reader, ["gene_symbol", "intervention_type"], tsv_path)
             for row in reader:
                 gene = row.get("gene_symbol", "").strip()
                 intervention = row.get("intervention_type", "").strip()
