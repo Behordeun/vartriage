@@ -36,7 +36,7 @@ path_segments = st.text(
     alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.",
     min_size=1,
     max_size=40,
-)
+).filter(lambda s: s.strip(".") != "")
 
 file_extensions = st.sampled_from(
     [
