@@ -138,6 +138,66 @@ class TestBundleStorage:
         assert resolved is not None
         assert resolved.name == "clinvar.tsv"
 
+    def test_resolve_path_verifies_matching_checksum(self, tmp_path: Path) -> None:
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+        bundle_dir = storage.bundle_dir("grch38", "clinvar")
+        content = "chrom\tpos\n"
+        (bundle_dir / "clinvar.tsv").write_text(content)
+
+        from vartriage.bundle._checksums import compute_sha256
+
+        checksum = compute_sha256(bundle_dir / "clinvar.tsv")
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            transformed_filename="clinvar.tsv",
+            transformed_checksum=checksum,
+        )
+        manifest.save(storage.manifest_path("grch38", "clinvar"))
+
+        resolved = storage.resolve_path("grch38", "clinvar")
+        assert resolved is not None
+
+    def test_resolve_path_raises_on_checksum_mismatch(self, tmp_path: Path) -> None:
+        from vartriage.bundle._checksums import ChecksumMismatchError
+
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+        bundle_dir = storage.bundle_dir("grch38", "clinvar")
+        (bundle_dir / "clinvar.tsv").write_text("chrom\tpos\n")
+
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            transformed_filename="clinvar.tsv",
+            transformed_checksum="sha256:deadbeef",
+        )
+        manifest.save(storage.manifest_path("grch38", "clinvar"))
+
+        with pytest.raises(ChecksumMismatchError):
+            storage.resolve_path("grch38", "clinvar")
+
+    def test_resolve_path_skips_verification_when_no_checksum(
+        self, tmp_path: Path
+    ) -> None:
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+        bundle_dir = storage.bundle_dir("grch38", "clinvar")
+        (bundle_dir / "clinvar.tsv").write_text("chrom\tpos\n")
+
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            transformed_filename="clinvar.tsv",
+        )
+        manifest.save(storage.manifest_path("grch38", "clinvar"))
+
+        assert storage.resolve_path("grch38", "clinvar") is not None
+
     def test_list_installed_empty(self, tmp_path: Path) -> None:
         storage = BundleStorage(tmp_path)
         assert storage.list_installed("grch38") == []

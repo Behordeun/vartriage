@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from vartriage.bundle._checksums import ChecksumMismatchError, compute_sha256
 from vartriage.bundle.manifest import BundleManifest
 
 
@@ -90,9 +91,21 @@ class BundleStorage:
         transformed = (
             self.bundle_dir(build, bundle_name) / manifest.transformed_filename
         )
-        if transformed.exists():
-            return transformed
-        return None
+        if not transformed.exists():
+            return None
+
+        # When the manifest records a checksum for the transformed file,
+        # verify the on-disk copy before handing it to the pipeline so a
+        # truncated or altered reference is caught rather than used. An empty
+        # checksum (nothing recorded) skips verification.
+        if manifest.transformed_checksum:
+            actual = compute_sha256(transformed)
+            if actual != manifest.transformed_checksum:
+                raise ChecksumMismatchError(
+                    transformed, manifest.transformed_checksum, actual
+                )
+
+        return transformed
 
     def ensure_dirs(self, build: str, bundle_name: str) -> None:
         """Create the bundle directory structure if it doesn't exist."""
