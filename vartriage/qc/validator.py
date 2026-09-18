@@ -135,15 +135,21 @@ class QCValidator:
         warn_range = self._config.expected_het_hom or thresholds.het_hom_warn
         fail_range = thresholds.het_hom_fail
 
-        # No genotype calls for this sample: ratio is undefined, not a signal
+        # No genotype calls for this sample: the ratio cannot be evaluated.
+        # A resolved sample with zero calls is a red flag (likely a wrong
+        # sample id or a sites-only VCF), so this warns rather than passing.
         if metrics.het_count == 0 and metrics.hom_alt_count == 0:
             return QCCheckResult(
                 metric_name="Het/Hom Ratio",
                 value=value,
                 expected_min=warn_range[0],
                 expected_max=warn_range[1],
-                status=QCStatus.PASS,
-                message="No genotype calls present; het/hom ratio not evaluated",
+                status=QCStatus.WARN,
+                message=(
+                    "No genotype calls present; het/hom ratio could not be "
+                    "evaluated (check sample selection and that the VCF has "
+                    "genotypes)"
+                ),
             )
 
         if value < fail_range[0] or value > fail_range[1]:
@@ -228,15 +234,19 @@ class QCValidator:
         warn_range = thresholds.ins_del_warn
         fail_range = thresholds.ins_del_fail
 
-        # No indels present: ratio is undefined, not a failure signal
+        # No indels called at all: for a WGS or WES sample this is itself a
+        # red flag (indel calling likely broken), so warn rather than pass.
         if metrics.insertion_count == 0 and metrics.deletion_count == 0:
             return QCCheckResult(
                 metric_name="Ins/Del Ratio",
                 value=value,
                 expected_min=warn_range[0],
                 expected_max=warn_range[1],
-                status=QCStatus.PASS,
-                message="No indels present; ins/del ratio not evaluated",
+                status=QCStatus.WARN,
+                message=(
+                    "No indels present; ins/del ratio could not be evaluated "
+                    "(check indel calling upstream)"
+                ),
             )
 
         if value < fail_range[0] or value > fail_range[1]:
