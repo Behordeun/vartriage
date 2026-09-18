@@ -26,6 +26,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Changed
 
 - **PM2 requires consulted population data**: the "absent from or rare in controls" criterion now fires only when the population database was consulted, either an observed allele frequency below the rarity threshold in every available population, or a confirmed gnomAD miss recorded during annotation. A variant with no frequency data and no record of a completed lookup is treated as missing data (gnomAD recorded as a missing source) rather than as evidence of rarity.
+### Changed
+
+- **PVS1 strength reflects the loss-of-function mechanism evidence**: a null variant (nonsense or frameshift) reaches Very Strong only when loss of function is an established mechanism for the gene, shown by membership of a supplied LoF gene list or by gnomAD constraint (pLI greater than 0.9). When no such evidence is available the mechanism is unknown, and the criterion fires at Strong rather than Very Strong. The gene-list and constraint routes to Very Strong are unchanged.
 
 ### Fixed
 

@@ -139,14 +139,17 @@ class TestPVS1LoFGating:
         assert EvidenceTag.PVS1_STRONG in results[0].evidence_tags
         assert EvidenceTag.PVS1 not in results[0].evidence_tags
 
-    def test_pvs1_very_strong_for_unknown_gene_no_constraint(self) -> None:
+    def test_pvs1_strong_for_unknown_gene_no_constraint(self) -> None:
         sv = _make_scored(
             consequence=FunctionalConsequence.NONSENSE,
             gene_context=None,
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
-        assert EvidenceTag.PVS1 in results[0].evidence_tags
+        # LoF mechanism unknown for want of constraint data: the criterion
+        # fires at Strong, not Very Strong.
+        assert EvidenceTag.PVS1_STRONG in results[0].evidence_tags
+        assert EvidenceTag.PVS1 not in results[0].evidence_tags
 
     def test_lof_gene_list_overrides_pli_gene_on_list(self) -> None:
         sv = _make_scored(
