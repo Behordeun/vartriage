@@ -60,3 +60,7 @@ vt_cohort_test/
 
 # e2e Results
 e2e_results
+
+# Local working notes and run logs (never committed)
+logs/
+review/
