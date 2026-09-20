@@ -10,7 +10,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files, remote tabix, or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (12 criteria with strength modulation: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BP4, BP7), Bayesian-adapted combining rules (Tavtigian et al. 2018), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, **remote tabix scoring (CADD/gnomAD via HTTP byte-range, no 80 GB download)**, **VCF quality control (Ti/Tv, het/hom, variant count sanity checks with strict-gate support)**, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files, remote tabix, or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (12 criteria with strength modulation: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BP4, BP7), ClinGen SVI point-system combining (Tavtigian et al. 2018, 2020), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, **remote tabix scoring (CADD/gnomAD via HTTP byte-range, no 80 GB download)**, **VCF quality control (Ti/Tv, het/hom, variant count sanity checks with strict-gate support)**, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
@@ -18,7 +18,7 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
 - Streams 4M+ variant WGS files under 2 GB RAM
 - Codon-level consequence calling with reference FASTA (correct missense vs synonymous)
 - Benign + pathogenic ACMG criteria (12 criteria, ClinGen-calibrated): classifies variants across all 5 tiers
-- Bayesian-adapted combining rules (Tavtigian et al. 2018): 2 Moderate = LP, 1 Moderate + 4 Supporting = LP
+- ClinGen SVI point-system combining (Tavtigian et al. 2018, 2020): signed points summed per variant and mapped through the Tavtigian threshold ladder; opposing evidence nets by arithmetic
 - Gene-disease linkage: OMIM, ClinGen validity, HPO phenotype matching, gnomAD constraint, actionability
 - Phenotype-driven: `--hpo-terms` boosts variants in genes matching patient symptoms
 - Trio-aware: de novo, dominant, recessive, compound het, X-linked
@@ -512,7 +512,7 @@ When only two scores are available, weights redistribute proportionally. Single 
 | BP4_MODERATE  | Moderate    | REVEL < 0.183 (ClinGen-calibrated)                                                                               |
 | BP7           | Supporting  | Synonymous + SpliceAI < 0.1                                                                                      |
 
-Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign using Bayesian-adapted combining rules (Tavtigian et al. 2018). Relaxed LP rules: 2 Moderate = LP, 1 Moderate + 4 Supporting = LP. BA1 is standalone and overrides all conflicting pathogenic evidence. Missing data sources mean the tag is simply omitted.
+Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign through the ClinGen SVI point system (Tavtigian et al. 2018, 2020): each criterion contributes signed points by strength, the total maps through the Tavtigian threshold ladder, and opposing evidence nets by arithmetic. BA1 is standalone and overrides all conflicting pathogenic evidence. Missing data sources mean the tag is simply omitted.
 
 BS2 (strong benign, observed in healthy adults) exists in the evidence-tag enum and the combining rules but has no evaluator; it is never emitted until gnomAD homozygote-count parsing is added.
 

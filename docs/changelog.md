@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+## [0.18.4] - 2026-09-20
+
+### Performance
+
+- **Splice-site consequence check is vectorized over exons**: the pyranges consequence index evaluates the donor and acceptor splice-site windows as a NumPy boolean mask across a chromosome's exon boundaries, rather than iterating exon rows in Python once per variant. Annotation cost stays flat as exon count grows; a full chr22 run that previously took over an hour now completes in minutes, with identical splice-site calls.
+
 ## [0.18.3] - 2026-09-18
 
 ### Added

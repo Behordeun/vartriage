@@ -67,3 +67,6 @@ logs/
 review/
 
 paper*.py
+# Manuscript figure-pipeline scripts (renamed from paper*.py; kept local like the manuscript)
+scripts/erepo_concordance_analysis.py
+scripts/erepo_concordance_figures.py

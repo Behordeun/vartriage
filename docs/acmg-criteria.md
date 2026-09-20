@@ -4,7 +4,7 @@ How vartriage evaluates ACMG/AMP 2015 evidence criteria and combines them into a
 
 ## Overview
 
-The `ACMGClassifier` evaluates each scored variant against 12 evidence criteria (8 pathogenic: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5; 4 benign: BA1, BS1, BP4, BP7) and applies ACMG/AMP 2015 combining rules to produce a final classification: Pathogenic, Likely Pathogenic, VUS, Likely Benign, or Benign. PVS1, PP3, and BP4 fire at two strength levels (PVS1 very-strong or strong; PP3 and BP4 supporting or moderate) based on ClinGen-calibrated thresholds, but they are single criteria with strength modulation, not separate criteria. BS2 exists as an evidence tag in the combining rules but has no evaluator; it is never emitted.
+The `ACMGClassifier` evaluates each scored variant against 12 evidence criteria (8 pathogenic: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5; 4 benign: BA1, BS1, BP4, BP7) and combines them through the ClinGen SVI point system to produce a final classification: Pathogenic, Likely Pathogenic, VUS, Likely Benign, or Benign. PVS1, PP3, and BP4 fire at two strength levels (PVS1 very-strong or strong; PP3 and BP4 supporting or moderate) based on ClinGen-calibrated thresholds, but they are single criteria with strength modulation, not separate criteria. BS2 exists as an evidence tag in the combining rules but has no evaluator; it is never emitted.
 
 When a required data source is unavailable for a criterion, that criterion is skipped and the source is recorded in `missing_data_sources` on the output. This makes the system additive: providing more reference data enables more criteria without changing behavior for the criteria you already have.
 
@@ -157,58 +157,49 @@ The logic: a synonymous change that doesn't affect splicing has no plausible mec
 
 ## Combining rules
 
-Evidence tags combine into a final classification following ACMG/AMP 2015 Table 5.
+Evidence tags combine into a final classification through the ClinGen SVI point system (Tavtigian et al. 2018, 2020). Each criterion contributes a signed point value by strength; the classifier sums them and maps the total through the Tavtigian threshold ladder.
 
-### Pathogenic
+### Point values
 
-| Rule | Example |
-| ---- | ------- |
-| 1 Very Strong + 1 Strong | PVS1 + PS1 |
-| 2 Strong + 1 Supporting | PS1 + (hypothetical second Strong) + PP3 |
-| 1 Very Strong + 2 Supporting | PVS1 + PP3 + PP5 |
+| Strength | Pathogenic | Benign |
+| -------- | ---------- | ------ |
+| Supporting | +1 | -1 |
+| Moderate | +2 | -2 |
+| Strong | +4 | -4 |
+| Very Strong | +8 | -8 |
 
-### Likely Pathogenic
+### Threshold ladder
 
-| Rule | Example |
-| ---- | ------- |
-| 1 Very Strong + 1 Moderate | PVS1 + PM2 |
-| 1 Strong + 1 or more Moderate | PS1 + PM2, or PS1 + PM2 + PM5 |
-| 1 Strong + 2 Supporting | PS1 + PP3 + PP5 |
-| 2 Moderate (Bayesian-adapted) | PP3_Moderate + PM2 |
-| 1 Moderate + 4 Supporting (Bayesian-adapted) | PM2 + PP3 + PP5 + ... |
+| Summed points | Classification |
+| ------------- | -------------- |
+| >= 10 | Pathogenic |
+| 6 to 9 | Likely Pathogenic |
+| -5 to 5 | VUS |
+| -6 to -1 | Likely Benign |
+| <= -7 | Benign |
 
-The 2M and 1M+4Sup rules are Bayesian-adapted extensions from Tavtigian et al. (2018), accepted by ClinGen. The 1M+4Sup rule is currently unreachable in practice (only 2 pathogenic supporting tags exist: PP3 and PP5).
+BA1 is a standalone benign override: when it fires the classification is Benign regardless of any co-occurring pathogenic evidence.
 
-Note: having more moderate evidence than the minimum (e.g., 1S + 3M) still qualifies. The threshold is a floor, not a bounded range.
+Worked examples:
 
-### Benign
-
-| Rule | Example |
-| ---- | ------- |
-| 1 BA (Standalone) | BA1 alone |
-| 2 Strong benign | BS1 + BS2 |
-
-Note: BS2 (observed in a healthy adult with full penetrance for a recessive condition) exists as a tag in the combining rules but has no evaluator implemented yet. It requires gnomAD homozygote count data that is not currently parsed. The 2-Strong-benign rule activates only if BS2 is manually assigned or added in a future release.
-
-### Likely Benign
-
-| Rule | Example |
-| ---- | ------- |
-| 1 Strong benign + 1 Supporting benign | BS1 + BP4 |
-| 1 Strong benign + 1 Moderate benign | BS1 + BP4_Moderate |
-| 2 Moderate benign | BP4_Moderate + BP4_Moderate |
-| 1 Moderate benign + 2 Supporting benign | BP4_Moderate + BP4 + BP7 |
+- PVS1 (8) + PM2 (2) = 10 -> Pathogenic
+- PVS1 (8) alone = 8 -> Likely Pathogenic
+- PM2 (2) + PP3_Strong (4) = 6 -> Likely Pathogenic
+- PM2 (2) + PP3_Moderate (2) = 4 -> VUS (two moderate criteria do not reach Likely Pathogenic under the point system)
+- BS1 (-4) + BP4 (-1) = -5 -> VUS boundary; BS1 (-4) + BP4_Moderate (-2) = -6 -> Likely Benign
 
 ### Conflicting evidence
 
-When both pathogenic and benign tags are present on the same variant, the result is VUS. The system does not attempt to weigh conflicting evidence against each other.
+Opposing evidence resolves by arithmetic: a variant carrying both pathogenic and benign criteria takes its signed total through the threshold ladder rather than being forced to VUS whenever both signs are present. `has_conflicting_evidence` remains as a reporting-only annotation. BA1 is the one exception, overriding all pathogenic evidence.
+
+Note: BS2 (observed in a healthy adult with full penetrance for a recessive condition) exists as a tag but has no evaluator implemented yet. It requires gnomAD homozygote count data that is not currently parsed.
 
 ### VUS (default)
 
-Any tag combination that doesn't meet the thresholds above results in VUS. This includes:
+Any evidence total between -5 and 5 results in VUS. This includes:
 
-- Single moderate pathogenic evidence (PM2 alone)
-- Single supporting benign evidence (BP7 alone)
+- Single moderate pathogenic evidence (PM2 alone, +2)
+- Single supporting benign evidence (BP7 alone, -1)
 - No evidence at all (when all data sources are missing)
 
 ## Enabling PS1/PM5

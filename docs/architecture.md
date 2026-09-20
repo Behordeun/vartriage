@@ -41,7 +41,7 @@ vartriage/
 │   └── scoring.py           # Score normalization + composite + prioritization_score
 ├── classification/
 │   ├── acmg.py              # Evidence tag assignment (pathogenic + benign criteria)
-│   └── combining.py         # ACMG combining rules (all 5 tiers, Bayesian-adapted Tavtigian 2018)
+│   └── combining.py         # SVI point-system combining (all 5 tiers, Tavtigian 2018/2020)
 ├── cohort/                  # Multi-sample cohort analysis (v0.11.0)
 │   ├── __init__.py          # Public exports
 │   ├── aggregator.py        # Cross-sample variant merging by coordinate
