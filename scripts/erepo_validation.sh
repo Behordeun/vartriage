@@ -1,5 +1,5 @@
 #!/bin/bash
-# eRepo Validation Pipeline for VarTriage Paper 1
+# eRepo Validation Pipeline for VarTriage: concordance against the ClinGen Evidence Repository
 # Runs in ~/Documents/DevProjects/personal_projects/Bioinformatics_Libraries/vartriage
 set -euo pipefail
 
