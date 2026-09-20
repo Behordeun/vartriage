@@ -335,17 +335,17 @@ Benign criteria:
 
 BS2 (strong benign) is defined in the evidence-tag enum and combining rules but has no evaluator; the classifier never emits it. Emitting it needs gnomAD homozygote-count data that is not parsed yet. The "2 Strong benign" combining rule therefore activates only through BS1 plus a future BS2.
 
-**Combining rules (Bayesian-adapted, Tavtigian et al. 2018):**
+**Combining (ClinGen SVI point system, Tavtigian et al. 2018, 2020):**
 
-Tags combine into a final classification across all five ACMG tiers:
+Each criterion contributes signed points by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign negated). The classifier sums them and maps the total through the Tavtigian threshold ladder:
 
-- **Pathogenic:** 1 Very Strong + 1 Strong, or 2 Strong + 1 Supporting, or 1 Very Strong + 2 Supporting
-- **Likely_Pathogenic:** 1 Very Strong + 1 Moderate, or 1 Strong + 1-2 Moderate, or 1 Strong + 2 Supporting, or 2 Moderate, or 1 Moderate + 4 Supporting
-- **VUS:** Insufficient evidence for either direction, or conflicting pathogenic + benign evidence
-- **Likely_Benign:** 1 Strong benign + 1 Supporting benign, or 1 Strong benign + 1 Moderate benign, or 2 Moderate benign, or 1 Moderate benign + 2 Supporting benign
-- **Benign:** BA1 alone (standalone), or 2 Strong benign
+- **Pathogenic:** total >= 10
+- **Likely_Pathogenic:** total 6 to 9
+- **VUS:** total -5 to 5 (insufficient net evidence in either direction)
+- **Likely_Benign:** total -6 to -1
+- **Benign:** total <= -7, or BA1 (standalone override)
 
-BA1 is standalone: when assigned, it overrides all pathogenic evidence and forces a Benign classification.
+Opposing evidence resolves by arithmetic rather than forcing VUS whenever both signs are present. BA1 is standalone: when assigned, it overrides all pathogenic evidence and forces a Benign classification.
 
 When a required data source is unavailable for a criterion, that tag is omitted and the source name is recorded in `missing_data_sources`.
 

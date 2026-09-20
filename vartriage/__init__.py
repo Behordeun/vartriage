@@ -86,7 +86,7 @@ try:
 
     __version__ = _get_version("vartriage")
 except Exception:
-    __version__ = "0.18.3"
+    __version__ = "0.18.4"
 
 __all__ = [
     # Pipeline orchestrator
