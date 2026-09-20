@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import time
 
-import pandas as pd
-import pyranges as pr
+import pytest
+
+pd = pytest.importorskip("pandas")
+pr = pytest.importorskip("pyranges")
 
 from vartriage.annotation.consequence_pyranges import PyRangesIntervalIndex
 
