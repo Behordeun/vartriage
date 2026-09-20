@@ -208,23 +208,19 @@ class PyRangesIntervalIndex:
         if chrom_exons.empty:
             return False
 
-        for _, exon in chrom_exons.iterrows():
-            exon_start = exon["Start"]
-            exon_end = exon["End"]
+        # Vectorized splice-site test across all exons on the chromosome.
+        # Donor site: within 2 bases of the exon end; acceptor site: within 2
+        # bases of the exon start. A variant [var_start, var_end) hits a splice
+        # site when it overlaps either window for any exon. Evaluated as a
+        # boolean mask rather than a per-row Python loop, which is orders of
+        # magnitude faster on chromosomes with thousands of exons.
+        exon_start = chrom_exons["Start"].to_numpy()
+        exon_end = chrom_exons["End"].to_numpy()
 
-            # Donor site: 2 bases around exon end (exon-intron junction)
-            donor_start = exon_end - 2
-            donor_end = exon_end + 2
-            # Acceptor site: 2 bases around exon start (intron-exon junction)
-            acceptor_start = exon_start - 2
-            acceptor_end = exon_start + 2
+        donor_hit = (var_start < exon_end + 2) & (var_end > exon_end - 2)
+        acceptor_hit = (var_start < exon_start + 2) & (var_end > exon_start - 2)
 
-            if (var_start < donor_end and var_end > donor_start) or (
-                var_start < acceptor_end and var_end > acceptor_start
-            ):
-                return True
-
-        return False
+        return bool((donor_hit | acceptor_hit).any())
 
 
 class PyRangesConsequenceAnnotator:
