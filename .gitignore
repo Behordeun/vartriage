@@ -65,3 +65,5 @@ e2e_results
 # Local working notes and run logs (never committed)
 logs/
 review/
+
+paper*.py
