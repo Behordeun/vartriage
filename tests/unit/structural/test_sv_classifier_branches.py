@@ -54,38 +54,38 @@ def _make_scored(
 class TestScoreToClassification:
     def test_vus_range(self) -> None:
         classifier = SVClassifier()
-        assert classifier._score_to_classification(0.5) == SVClassification.VUS
+        assert classifier._score_to_classification(0.4) == SVClassification.VUS
         assert classifier._score_to_classification(0.0) == SVClassification.VUS
-        assert classifier._score_to_classification(-0.5) == SVClassification.VUS
+        assert classifier._score_to_classification(-0.4) == SVClassification.VUS
 
     def test_pathogenic_threshold(self) -> None:
         classifier = SVClassifier()
-        assert classifier._score_to_classification(0.99) == SVClassification.PATHOGENIC
+        assert classifier._score_to_classification(0.90) == SVClassification.PATHOGENIC
         assert classifier._score_to_classification(1.5) == SVClassification.PATHOGENIC
 
     def test_likely_pathogenic(self) -> None:
         classifier = SVClassifier()
         assert (
-            classifier._score_to_classification(0.90)
+            classifier._score_to_classification(0.45)
             == SVClassification.LIKELY_PATHOGENIC
         )
         assert (
-            classifier._score_to_classification(0.95)
+            classifier._score_to_classification(0.89)
             == SVClassification.LIKELY_PATHOGENIC
         )
 
     def test_likely_benign(self) -> None:
         classifier = SVClassifier()
         assert (
-            classifier._score_to_classification(-0.90) == SVClassification.LIKELY_BENIGN
+            classifier._score_to_classification(-0.45) == SVClassification.LIKELY_BENIGN
         )
         assert (
-            classifier._score_to_classification(-0.95) == SVClassification.LIKELY_BENIGN
+            classifier._score_to_classification(-0.89) == SVClassification.LIKELY_BENIGN
         )
 
     def test_benign_threshold(self) -> None:
         classifier = SVClassifier()
-        assert classifier._score_to_classification(-0.99) == SVClassification.BENIGN
+        assert classifier._score_to_classification(-0.90) == SVClassification.BENIGN
         assert classifier._score_to_classification(-2.0) == SVClassification.BENIGN
 
 

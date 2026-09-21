@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Changed
+
+- **Structural-variant classification thresholds are calibrated to the evidence scale**: the copy-number classifier maps its accumulated ClinGen Section 1-4 evidence score to the five-tier verdict at thresholds that match the additive strength of the evidence lines it evaluates (a strong line contributes about 0.45, moderate 0.25, supporting 0.10). Pathogenic is reached by two independent strong lines, Likely Pathogenic by one; the benign side is symmetric, so one strong benign line reaches Likely Benign and two reach Benign. This makes every tier, including the benign tiers, reachable from evidence the pipeline accumulates.
+- **A clearly common structural variant is strong benign evidence on its own**: a gnomAD-SV population frequency at or above 5 percent now contributes a strong benign score line, enough to reach Likely Benign without any other evidence, and enough to reach Benign when combined with a benign-region overlap. The 1 percent, 0.5 percent, and 0.1 percent bands are unchanged.
+- **Missing structural-variant annotation resolves to neutral evidence**: an SV with no gnomAD-SV frequency match now scores neutral for the frequency component rather than the maximum pathogenic-direction value, and a gene overlap with no ClinGen dosage record scores neutral rather than a partial-pathogenic default. Absence of a lookup result is treated as absence of evidence, not as evidence of rarity or dosage sensitivity, matching the point-variant path.
+
+
 ## [0.18.4] - 2026-09-20
 
 ### Performance
