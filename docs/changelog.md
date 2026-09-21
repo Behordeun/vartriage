@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+## [0.18.5] - 2026-09-21
+
 ### Changed
 
 - **Structural-variant classification thresholds are calibrated to the evidence scale**: the copy-number classifier maps its accumulated ClinGen Section 1-4 evidence score to the five-tier verdict at thresholds that match the additive strength of the evidence lines it evaluates (a strong line contributes about 0.45, moderate 0.25, supporting 0.10). Pathogenic is reached by two independent strong lines, Likely Pathogenic by one; the benign side is symmetric, so one strong benign line reaches Likely Benign and two reach Benign. This makes every tier, including the benign tiers, reachable from evidence the pipeline accumulates.
