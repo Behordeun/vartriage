@@ -246,3 +246,112 @@ class TestClassifierMissingData:
 
         assert "pathogenic_regions" in result.missing_data_sources
         assert "benign_regions" in result.missing_data_sources
+
+
+class TestClassifierTierReachability:
+    """The calibrated thresholds make every tier reachable from the evidence
+    the pipeline can actually accumulate, including the benign tiers that were
+    previously unreachable.
+    """
+
+    def test_common_sv_reaches_likely_benign(self) -> None:
+        scored = _make_scored_sv(
+            consequence=SVConsequence.INTERGENIC,
+            genes_affected=0,
+            hi_genes_affected=0,
+            population_frequency=0.06,
+            frequency_unknown=False,
+            gene_overlaps=(),
+        )
+
+        classifier = SVClassifier()
+        result = list(classifier.classify(iter([scored])))[0]
+
+        assert result.classification in (
+            SVClassification.LIKELY_BENIGN,
+            SVClassification.BENIGN,
+        )
+
+    def test_common_sv_in_benign_region_reaches_benign(self) -> None:
+        scored = _make_scored_sv(
+            chrom="chr15",
+            start=20200000,
+            end=20400000,
+            consequence=SVConsequence.INTERGENIC,
+            genes_affected=0,
+            hi_genes_affected=0,
+            population_frequency=0.06,
+            frequency_unknown=False,
+            gene_overlaps=(),
+        )
+        benign_regions = [("chr15", 20143000, 20570000)]
+
+        classifier = SVClassifier(benign_regions=benign_regions)
+        result = list(classifier.classify(iter([scored])))[0]
+
+        assert SVEvidenceCategory.CONTAINED_WITHIN_BENIGN in result.evidence_categories
+        assert result.classification == SVClassification.BENIGN
+
+    def test_hi_gene_deletion_in_pathogenic_region_reaches_pathogenic(self) -> None:
+        overlap = GeneOverlap(
+            gene_symbol="TBX1",
+            gene_chrom="chr22",
+            gene_start=19750000,
+            gene_end=19790000,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=10,
+            total_exons=10,
+            is_haploinsufficient=True,
+            is_triplosensitive=False,
+            hi_score=3.0,
+            ts_score=None,
+        )
+        scored = _make_scored_sv(
+            chrom="chr22",
+            start=18916842,
+            end=21465659,
+            consequence=SVConsequence.WHOLE_GENE_DELETION,
+            genes_affected=1,
+            hi_genes_affected=1,
+            gene_overlaps=(overlap,),
+        )
+        pathogenic_regions = [("chr22", 18916842, 21465659)]
+
+        classifier = SVClassifier(pathogenic_regions=pathogenic_regions)
+        result = list(classifier.classify(iter([scored])))[0]
+
+        assert result.classification == SVClassification.PATHOGENIC
+
+    def test_lone_hi_gene_deletion_reaches_at_least_likely_pathogenic(self) -> None:
+        overlap = GeneOverlap(
+            gene_symbol="NRXN1",
+            gene_chrom="chr2",
+            gene_start=50000000,
+            gene_end=51100000,
+            overlap_fraction=1.0,
+            is_whole_gene=True,
+            exons_affected=20,
+            total_exons=20,
+            is_haploinsufficient=True,
+            is_triplosensitive=False,
+            hi_score=3.0,
+            ts_score=None,
+        )
+        scored = _make_scored_sv(
+            chrom="chr2",
+            start=50000000,
+            end=51100000,
+            consequence=SVConsequence.WHOLE_GENE_DELETION,
+            genes_affected=1,
+            hi_genes_affected=1,
+            gene_overlaps=(overlap,),
+        )
+
+        classifier = SVClassifier()
+        result = list(classifier.classify(iter([scored])))[0]
+
+        assert result.classification in (
+            SVClassification.PATHOGENIC,
+            SVClassification.LIKELY_PATHOGENIC,
+        )

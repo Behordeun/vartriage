@@ -184,7 +184,7 @@ class TestDosageScore:
         scored = list(scorer.score(iter([annotated])))[0]
         assert scored.dosage_score >= 0.9
 
-    def test_no_dosage_data_gives_modest_default(self) -> None:
+    def test_no_dosage_data_scores_neutral(self) -> None:
         overlap = GeneOverlap(
             gene_symbol="GENE1",
             gene_chrom="chr1",
@@ -203,8 +203,9 @@ class TestDosageScore:
             genes_affected=1,
         )
         scored = list(scorer.score(iter([annotated])))[0]
-        # Default is 0.3 when no dosage data but genes are affected
-        assert scored.dosage_score == pytest.approx(0.3)
+        # No dosage data is not evidence of dosage sensitivity: neutral 0.0,
+        # not a manufactured partial-pathogenic default.
+        assert scored.dosage_score == pytest.approx(0.0)
 
 
 class TestSizeScore:
@@ -234,11 +235,13 @@ class TestSizeScore:
 
 
 class TestFrequencyScore:
-    def test_absent_from_population_gets_max(self) -> None:
+    def test_unknown_frequency_scores_neutral(self) -> None:
         scorer = SVScorer(max_allele_frequency=0.01)
         annotated = _make_annotated(frequency_unknown=True)
         scored = list(scorer.score(iter([annotated])))[0]
-        assert scored.frequency_score == 1.0
+        # Unknown frequency is not evidence of rarity: neutral 0.0, so missing
+        # gnomAD-SV data cannot manufacture pathogenic ranking weight.
+        assert scored.frequency_score == 0.0
 
     def test_at_threshold_boundary_gets_zero(self) -> None:
         scorer = SVScorer(max_allele_frequency=0.01)

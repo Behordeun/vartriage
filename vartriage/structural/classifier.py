@@ -7,11 +7,11 @@ classification (Pathogenic through Benign).
 
 The point-based scoring system maps accumulated evidence to final
 classification using ClinGen-defined thresholds:
-  >= 0.99  Pathogenic
-  0.90-0.98  Likely Pathogenic
-  -0.89 to 0.89  VUS (uncertain)
-  -0.98 to -0.90  Likely Benign
-  <= -0.99  Benign
+  >= 0.90  Pathogenic
+  0.45-0.89  Likely Pathogenic
+  -0.44 to 0.44  VUS (uncertain)
+  -0.89 to -0.45  Likely Benign
+  <= -0.90  Benign
 """
 
 from __future__ import annotations
@@ -30,11 +30,19 @@ from vartriage.structural.models import (
 
 logger = logging.getLogger(__name__)
 
-# Classification thresholds from ClinGen scoring framework
-_PATHOGENIC_THRESHOLD: float = 0.99
-_LIKELY_PATHOGENIC_THRESHOLD: float = 0.90
-_LIKELY_BENIGN_THRESHOLD: float = -0.90
-_BENIGN_THRESHOLD: float = -0.99
+# Classification thresholds, calibrated to the additive evidence scale used
+# by the Section 1-4 evaluators below. Each strong evidence line contributes
+# about 0.45, moderate about 0.25, supporting about 0.10, mirroring the
+# ClinGen 2020 point tiers. Two independent strong lines (for example an
+# established HI gene fully contained plus a complete overlap with a known
+# pathogenic region) reach Pathogenic; one strong line reaches Likely
+# Pathogenic. The benign side is symmetric: one strong benign line (contained
+# within a benign region, or an unambiguously common population frequency)
+# reaches Likely Benign, two reach Benign.
+_PATHOGENIC_THRESHOLD: float = 0.90
+_LIKELY_PATHOGENIC_THRESHOLD: float = 0.45
+_LIKELY_BENIGN_THRESHOLD: float = -0.45
+_BENIGN_THRESHOLD: float = -0.90
 
 
 class SVClassifier:
@@ -383,6 +391,10 @@ class SVClassifier:
 
         # Very common SVs that somehow passed filtering get strong
         # benign evidence
+        if af >= 0.05:
+            # Unambiguously common polymorphism: strong benign evidence,
+            # enough on its own to reach Likely Benign.
+            return -0.90
         if af >= 0.01:
             return -0.60
         if af >= 0.005:

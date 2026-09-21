@@ -177,22 +177,23 @@ class SVScorer:
                     normalized = min(1.0, overlap.ts_score / 3.0)
                     best_score = max(best_score, normalized)
 
-        # If no dosage data available, use a modest default for
-        # protein-coding gene overlap (some pathogenicity assumed)
-        if best_score == 0.0 and sv.genes_affected > 0:
-            best_score = 0.3
-
+        # No dosage data for the overlapped genes is not evidence of
+        # dosage sensitivity. Leave the score at 0.0 rather than assuming
+        # partial pathogenicity from bare gene overlap.
         return best_score
 
     def _compute_frequency_score(self, sv: AnnotatedSV) -> float:
         """Score based on population rarity.
 
-        Absent from gnomAD-SV = 1.0 (rare, potentially pathogenic).
-        Very common = 0.0 (likely benign, but these are already
-        filtered by max_af so this mainly distinguishes among rare SVs).
+        Unknown frequency = 0.0 (neutral; absence of data is not
+        evidence of rarity). Among SVs with a known frequency, rarer
+        SVs score higher; common SVs score toward 0.0.
         """
         if sv.frequency_unknown or sv.population_frequency is None:
-            return 1.0
+            # Unknown frequency is not evidence of rarity. Return a neutral
+            # score so missing gnomAD-SV data cannot manufacture pathogenic
+            # ranking weight.
+            return 0.0
 
         af = sv.population_frequency
 
