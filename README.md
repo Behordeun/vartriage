@@ -50,11 +50,13 @@ Reference files are cached after first parse. Subsequent runs load from cache in
 
 Splice-site sensitivity improved from 9.8% to 55.9% once the SpliceAI SQLite backend (`--spliceai-db`) landed in v0.17.5.
 
+These figures were measured on v0.17.5 and predate the ClinGen SVI Bayesian point engine that became the combining path in v0.18.3. Under the point system, 31% of pathogenic-side tag combinations map to a different tier than the earlier rule table produced, so the numbers above do not describe the classifier as it behaves at v0.18.5. Treat them as the last published run pending a refreshed eRepo validation on the current combining path.
+
 **Known limitations:**
 
 - BS2 is defined as an evidence tag but is not emitted by the classifier (it needs gnomAD homozygote-count data that is not parsed yet).
 - BP1, BP3, BP6 benign criteria are not implemented.
-- Benign sensitivity is low (6.0%) because of the missing benign criteria; VUS is the default when evidence is absent.
+- Benign sensitivity is low because of the missing benign criteria (BS2, BP1, BP3, BP6); VUS is the default when evidence is absent. The 6.0% figure from the v0.17.5 run predates the v0.18.3 point engine and has not been re-measured.
 
 ## Install
 
@@ -496,23 +498,24 @@ When only two scores are available, weights redistribute proportionally. Single 
 
 | Tag           | Strength    | Condition                                                                                                        |
 | ------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| PVS1          | Very Strong | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 (strength modulated by pLI/LOEUF)                          |
-| PVS1_Strong   | Strong      | PVS1 downgraded when gene constraint is moderate (0.5 < pLI < 0.9)                                               |
+| PVS1          | Very Strong | Nonsense/Frameshift where LoF is an established mechanism (gene on the LoF list or gnomAD pLI > 0.9), or Splice_Site + SpliceAI > 0.8 |
+| PVS1_Strong   | Strong      | Null variant where the LoF mechanism is not established (gene off the LoF list, or pLI ≤ 0.9, or no constraint data) |
 | PS1           | Strong      | Same amino acid change as ClinVar Pathogenic via different nucleotide (requires protein index + reference FASTA) |
 | PM1           | Moderate    | Missense in a critical functional domain (missense constraint region, gnomAD mis_z > 3.09)                       |
-| PM2           | Moderate    | All population AFs < 0.0001, or absent from gnomAD (population-aware)                                            |
+| PM2           | Moderate    | Population database was consulted and returned all AFs < 0.0001, or a confirmed gnomAD miss (population-aware; not fired on missing data) |
 | PM4           | Moderate    | In-frame insertion/deletion or stop-loss variant in a non-repetitive region                                      |
 | PM5           | Moderate    | Novel missense at amino acid position with known pathogenic missense in ClinVar (requires protein index)         |
 | PP3           | Supporting  | REVEL > 0.644 or SpliceAI > 0.5 on splice-adjacent                                                               |
 | PP3_MODERATE  | Moderate    | REVEL > 0.773 (ClinGen-calibrated)                                                                               |
+| PP3_STRONG    | Strong      | REVEL > 0.932 (ClinGen-calibrated, Pejaver et al. 2022)                                                          |
 | PP5           | Supporting  | ClinVar Pathogenic without conflicting Benign                                                                    |
 | BA1           | Standalone  | Any population AF > 5% (standalone Benign, overrides all pathogenic evidence)                                    |
 | BS1           | Strong      | Any population AF > 1% (strong benign)                                                                           |
-| BP4           | Supporting  | REVEL < 0.290 (missense) or CADD < 10 (non-missense)                                                             |
+| BP4           | Supporting  | REVEL < 0.290 (missense), or CADD < 10 as a fallback for missense without REVEL and for non-missense             |
 | BP4_MODERATE  | Moderate    | REVEL < 0.183 (ClinGen-calibrated)                                                                               |
 | BP7           | Supporting  | Synonymous + SpliceAI < 0.1                                                                                      |
 
-Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign through the ClinGen SVI point system (Tavtigian et al. 2018, 2020): each criterion contributes signed points by strength, the total maps through the Tavtigian threshold ladder, and opposing evidence nets by arithmetic. BA1 is standalone and overrides all conflicting pathogenic evidence. Missing data sources mean the tag is simply omitted.
+Only the highest applicable strength fires for a given criterion (PP3_Strong outranks PP3_Moderate outranks PP3). Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign through the ClinGen SVI point system (Tavtigian et al. 2018, 2020): each criterion contributes signed points by strength (Supporting 1, Moderate 2, Strong 4, Very Strong 8; benign criteria negated), the total maps through the Tavtigian threshold ladder, and opposing evidence nets by arithmetic. BA1 is standalone and overrides all conflicting pathogenic evidence. Missing data sources mean the tag is simply omitted.
 
 BS2 (strong benign, observed in healthy adults) exists in the evidence-tag enum and the combining rules but has no evaluator; it is never emitted until gnomAD homozygote-count parsing is added.
 

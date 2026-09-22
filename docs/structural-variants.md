@@ -132,13 +132,15 @@ The classifier implements the ACMG/ClinGen Technical Standards (Riggs et al. 202
 - 4G: Gene disrupted by dup breakpoint
 - 4H: Intragenic dup without disruption
 
-Evidence points accumulate and map to classification:
+Evidence points accumulate and map to classification. The thresholds are calibrated to the additive strength of the evidence lines the classifier accumulates, where a strong line contributes about 0.45, a moderate line about 0.25, and a supporting line about 0.10:
 
-- >= 0.99: Pathogenic
-- 0.90 - 0.98: Likely Pathogenic
-- -0.89 to 0.89: VUS
-- -0.98 to -0.90: Likely Benign
-- <= -0.99: Benign
+- >= 0.90: Pathogenic (two independent strong lines)
+- 0.45 to 0.89: Likely Pathogenic (one strong line)
+- -0.44 to 0.44: VUS
+- -0.89 to -0.45: Likely Benign (one strong benign line)
+- <= -0.90: Benign (two strong benign lines)
+
+The benign side is symmetric with the pathogenic side, so every tier is reachable from the evidence the pipeline accumulates. A gnomAD-SV population frequency at or above 5 percent is a strong benign line on its own: it reaches Likely Benign without other evidence, and reaches Benign when combined with a benign-region overlap. An SV with no gnomAD-SV frequency match scores neutral for the frequency component, and a gene overlap with no ClinGen dosage record scores neutral for the dosage component; absence of a lookup result is treated as absence of evidence, not as evidence in either direction.
 
 ## Python API
 
