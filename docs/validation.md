@@ -111,7 +111,7 @@ The script produces four output files:
 
 **Why pipeline might flag variants ClinVar does not:**
 
-- PM2 fires for rare variants absent from gnomAD, even without ClinVar annotation
+- PM2 fires for rare variants once population data has been consulted (rare in every available population, or a confirmed gnomAD miss), even without ClinVar annotation
 - PP3 fires on high predictor scores regardless of ClinVar status
 - These are *candidates* for clinical review, not false positives per se
 

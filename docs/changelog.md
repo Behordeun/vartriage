@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Documentation
+
+- **Structural-variant classification thresholds in the docs match the calibrated evidence scale**: `docs/structural-variants.md` states the five-tier ladder as the classifier applies it (Pathogenic at 0.90, Likely Pathogenic at 0.45, Likely Benign at -0.45, Benign at -0.90), with the per-line strengths (strong about 0.45, moderate about 0.25, supporting about 0.10), the gnomAD-SV 5 percent strong-benign line, and neutral scoring for an absent frequency or dosage lookup.
+- **PM2 documentation reflects the consulted-data requirement**: `docs/acmg-criteria.md` and `docs/validation.md` describe PM2 as firing only when the population database was consulted, either rare in every available population or a confirmed gnomAD miss, and record that a variant with no completed lookup is treated as missing data rather than as evidence of rarity.
+- **Five-tier classification is stated consistently**: the pipeline report's executive-summary description in `docs/pipeline-stages.md` lists all five tiers (Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, Benign), and the ACMG classifier docstring and README describe the ClinGen SVI point system, the twelve base criteria with their strength-modulated tags, and the five reachable tiers.
+
 ## [0.18.5] - 2026-09-21
 
 ### Changed

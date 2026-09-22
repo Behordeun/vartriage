@@ -384,7 +384,7 @@ Produces structured, sign-off-ready clinical variant reports from ClassifiedVari
 **Report sections (in order):**
 
 1. **Header:** patient ID, panel name, analysis date (ISO 8601), pipeline version.
-2. **Executive Summary:** total variants analyzed, count per classification tier (Pathogenic, Likely_Pathogenic, VUS).
+2. **Executive Summary:** total variants analyzed, count per classification tier (Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, Benign).
 3. **Findings Table:** variants ranked by tier (Pathogenic first), then by composite rank descending within tier.
 4. **Evidence Cards:** one per variant. Each card contains gene name, consequence, population frequency, predictor scores, ClinVar data, inheritance pattern, and ACMG criteria with plain-language explanations.
 5. **Limitations:** lists any data sources that were unavailable during classification.

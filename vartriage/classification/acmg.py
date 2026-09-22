@@ -92,21 +92,35 @@ _MISSING_SOURCE_GNOMAD_CONSTRAINT = "gnomAD_constraint"
 class ACMGClassifier:
     """Assign ACMG/AMP evidence tags and final classification.
 
-    The classifier evaluates each ScoredVariant against ten evidence criteria:
+    The classifier evaluates each ScoredVariant against twelve evidence
+    criteria. Several fire at strength-modulated levels, so the emitted tag
+    set is a superset of the twelve base criteria (PVS1_Strong, PP3_Moderate,
+    PP3_Strong, BP4_Moderate).
 
     Pathogenic:
-    - PVS1: Nonsense or Frameshift consequence (null variant)
+    - PVS1: Null variant (nonsense/frameshift) where LoF is the established
+      mechanism, or splice-site with SpliceAI > 0.8. Downgrades to PVS1_Strong
+      when the LoF mechanism is not established.
     - PS1: Same amino acid change as established pathogenic (different nucleotide)
-    - PM2: gnomAD allele frequency below 0.0001 (absent from controls)
+    - PM1: Missense in a critical functional domain (missense constraint region)
+    - PM2: Population database consulted and allele frequency below 0.0001, or a
+      confirmed gnomAD miss (not fired on missing data)
+    - PM4: In-frame indel or stop-loss in a non-repetitive region
     - PM5: Novel missense at amino acid position with known pathogenic change
-    - PP3: REVEL score above threshold (computational evidence)
+    - PP3: Computational evidence (REVEL/SpliceAI), escalating to PP3_Moderate
+      (REVEL > 0.773) or PP3_Strong (REVEL > 0.932)
     - PP5: ClinVar Pathogenic with no conflicting Benign/Likely_Benign
 
     Benign:
     - BA1: Any population AF > 5% (standalone benign)
     - BS1: Any population AF > 1%
-    - BP4: Low computational pathogenicity score
+    - BP4: Low computational pathogenicity score, escalating to BP4_Moderate
+      (REVEL < 0.183); CADD < 10 is the fallback when REVEL is absent
     - BP7: Synonymous with no splice impact
+
+    BS2 exists in the evidence-tag enum and the combining rules but has no
+    evaluator here; it is never emitted until gnomAD homozygote-count parsing
+    is added.
 
     When a required data source is unavailable for a given criterion, that
     tag is omitted and the source name is recorded in the output.
@@ -142,8 +156,9 @@ class ACMGClassifier:
         """Assign evidence tags and classify each scored variant.
 
         Evaluates ACMG/AMP 2015 evidence criteria for each variant, then
-        applies combining rules to determine the final classification
-        (Pathogenic, Likely_Pathogenic, or VUS).
+        combines them through the ClinGen SVI point system to determine the
+        final classification (Pathogenic, Likely_Pathogenic, VUS,
+        Likely_Benign, or Benign).
 
         Parameters
         ----------

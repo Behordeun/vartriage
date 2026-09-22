@@ -52,9 +52,9 @@ The logic: if a different DNA change producing the same protein-level effect is 
 
 Absent from controls (or at extremely low frequency if recessive).
 
-Fires when all population-specific allele frequencies are below 0.0001. Uses gnomAD per-population data when available (AFR, AMR, ASJ, EAS, FIN, NFE, SAS). If any single population exceeds the threshold, PM2 does not fire.
+Fires only when the population database was actually consulted. Two inputs satisfy that: an observed allele frequency below 0.0001 in every available population (gnomAD per-population data when present: AFR, AMR, ASJ, EAS, FIN, NFE, SAS), or a confirmed gnomAD miss recorded during annotation. If any single population exceeds the threshold, PM2 does not fire.
 
-When a variant is entirely absent from gnomAD (no frequency data available), PM2 fires. Per ACMG/AMP 2015, "absent from controls" satisfies PM2. With gnomAD v4.1.1 covering 730K+ exomes, absence from the database is strong evidence that the variant is rare in the general population.
+A confirmed gnomAD miss (the database was queried and returned no record for the variant) satisfies "absent from controls" per ACMG/AMP 2015; with gnomAD v4.1.1 covering 730K+ exomes, a confirmed absence is strong evidence the variant is rare. A variant with no frequency data and no record of a completed lookup is treated as missing data rather than as evidence of rarity: PM2 is withheld and gnomAD is recorded as a missing source.
 
 Falls back to global allele frequency when per-population data is absent. When all frequency fields are None, "gnomAD" is recorded as missing.
 
