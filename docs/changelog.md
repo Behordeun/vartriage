@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+_Nothing yet. The most recent release is 0.19.0, below._
+
 ## [0.19.0] - 2026-10-03
 
 ### Added
