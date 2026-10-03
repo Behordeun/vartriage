@@ -201,28 +201,30 @@ class RemoteTabixGnomAD:
             )
             return results
 
-        # Phase 2: query remote for cache misses only.
+        # Phase 2+3: query remote for cache misses, persisting each group's
+        # results as soon as they are fetched. Per-group persistence means an
+        # interrupted run resumes from the last completed group rather than
+        # losing a whole batch of work.
         uncached_variants = [variants[i] for i in uncached_indices]
         indices_by_variant: dict[_VariantKey, list[int]] = defaultdict(list)
         for idx in uncached_indices:
             indices_by_variant[variants[idx]].append(idx)
 
-        fetched: dict[_VariantKey, dict[str, float]] = {}
         for chrom, group in self._iter_groups(uncached_variants):
             group_maps = self._query_range_populations(chrom, group)
-            fetched.update(group_maps)
+            for variant, af_map in group_maps.items():
+                for idx in indices_by_variant.get(variant, ()):
+                    results[idx] = af_map
 
-        for variant, af_map in fetched.items():
-            for idx in indices_by_variant.get(variant, ()):
-                results[idx] = af_map
-
-        # Phase 3: cache every queried variant, including those not found
-        # (stored as an empty map) so a confirmed absence is not re-queried.
-        cache_entries: list[tuple[str, int, str, str, dict[str, float]]] = []
-        for variant in uncached_variants:
-            chrom, pos, ref, alt = variant
-            cache_entries.append((chrom, pos, ref, alt, fetched.get(variant, {})))
-        self._cache.put_population_batch(self._source_id, cache_entries)
+            # Cache every variant in this group, including those not found
+            # (empty map), so a confirmed absence is not re-queried next run.
+            group_entries: list[tuple[str, int, str, str, dict[str, float]]] = []
+            for variant in group:
+                chrom_g, pos_g, ref_g, alt_g = variant
+                group_entries.append(
+                    (chrom_g, pos_g, ref_g, alt_g, group_maps.get(variant, {}))
+                )
+            self._cache.put_population_batch(self._source_id, group_entries)
 
         return results
 
