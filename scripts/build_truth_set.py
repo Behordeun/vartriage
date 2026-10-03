@@ -118,6 +118,29 @@ def _open_maybe_gzip(path: Path):
     return open(path, encoding="utf-8")
 
 
+def _read_contigs(fasta_path: Path) -> list[tuple[str, int]]:
+    """Read (contig, length) pairs from the FASTA .fai index.
+
+    The truth VCF declares these contigs so pysam parses it without a
+    tabix index and the records survive header validation. Returns an
+    empty list when the index is absent, in which case the VCF simply
+    carries no contig lines.
+    """
+    fai = Path(str(fasta_path) + ".fai")
+    if not fai.exists():
+        return []
+    contigs: list[tuple[str, int]] = []
+    with open(fai, encoding="utf-8") as handle:
+        for line in handle:
+            cols = line.split("\t")
+            if len(cols) >= 2:
+                try:
+                    contigs.append((cols[0], int(cols[1])))
+                except ValueError:
+                    continue
+    return contigs
+
+
 def build_truth_set(clinvar_path: Path, out_dir: Path, fasta_path: Path) -> _Counters:
     """Construct the truth set from a ClinVar VCF; write VCF + labels + provenance."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -134,6 +157,14 @@ def build_truth_set(clinvar_path: Path, out_dir: Path, fasta_path: Path) -> _Cou
     ):
         vcf_fh.write("##fileformat=VCFv4.2\n")
         vcf_fh.write(f"##source=build_truth_set.py from {clinvar_path.name}\n")
+        for contig, length in _read_contigs(fasta_path):
+            vcf_fh.write(f"##contig=<ID={contig},length={length}>\n")
+        vcf_fh.write(
+            '##INFO=<ID=CLNSIG,Number=.,Type=String,Description="truth sig">\n'
+        )
+        vcf_fh.write(
+            '##INFO=<ID=CLNREVSTAT,Number=.,Type=String,Description="review status">\n'
+        )
         vcf_fh.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
         labels_fh.write("chrom\tpos\tref\talt\tgene\tclinvar_class\tlabel\n")
 
@@ -188,7 +219,7 @@ def build_truth_set(clinvar_path: Path, out_dir: Path, fasta_path: Path) -> _Cou
 
             vcf_fh.write(
                 f"{norm_chrom}\t{norm_pos}\t{vid}\t{norm_ref}\t{norm_alt}\t"
-                f".\tPASS\tCLNSIG={clnsig};CLNREVSTAT={info.get('CLNREVSTAT', '')}\n"
+                f"100\tPASS\tCLNSIG={clnsig};CLNREVSTAT={info.get('CLNREVSTAT', '')}\n"
             )
             labels_fh.write(
                 f"{norm_chrom}\t{norm_pos}\t{norm_ref}\t{norm_alt}\t"
