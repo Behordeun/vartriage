@@ -14,6 +14,8 @@ This document describes how to validate vartriage against benchmark datasets. Tw
 
 The eRepo run classifies 21,506 variants. Pathogenic sensitivity rose from 65.6% (v0.17.3, no SpliceAI) to 70.5% once the SpliceAI SQLite backend landed in v0.17.5.
 
+These figures were measured on v0.17.5 and predate the ClinGen SVI Bayesian point engine that became the combining path in v0.18.3, under which 31% of pathogenic-side tag combinations map to a different tier than the earlier rule table produced. They are the last published run and do not describe the classifier at the current release; a refreshed eRepo validation on the current combining path is pending (see the validation-benchmarks spec).
+
 **Known limitations:**
 
 - Splice-site sensitivity: 55.9% (up from 9.8% before the SpliceAI SQLite backend). Splice calls still depend on precomputed SpliceAI delta scores being available for the variant.
