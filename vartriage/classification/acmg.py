@@ -108,21 +108,37 @@ _MISSING_SOURCE_GNOMAD_CONSTRAINT = "gnomAD_constraint"
 class ACMGClassifier:
     """Assign ACMG/AMP evidence tags and final classification.
 
-    The classifier evaluates each ScoredVariant against ten evidence criteria:
+    The classifier evaluates each ScoredVariant against 13 evidence criteria
+    and combines them through the ClinGen SVI point system.
 
     Pathogenic:
-    - PVS1: Nonsense or Frameshift consequence (null variant)
-    - PS1: Same amino acid change as established pathogenic (different nucleotide)
-    - PM2: gnomAD allele frequency below 0.0001 (absent from controls)
-    - PM5: Novel missense at amino acid position with known pathogenic change
-    - PP3: REVEL score above threshold (computational evidence)
-    - PP5: ClinVar Pathogenic with no conflicting Benign/Likely_Benign
+    - PVS1: null variant (nonsense/frameshift), or splice-site with SpliceAI
+      > 0.8. Strength is Very Strong when loss of function is an established
+      mechanism (LoF gene list or pLI > 0.9) and Strong otherwise; a Very
+      Strong result is downgraded to Strong when the variant escapes
+      nonsense-mediated decay (last exon, within 50 nt of the final junction,
+      or single-exon gene) given a transcript-structure lookup.
+    - PS1: same amino acid change as an established pathogenic variant.
+    - PM1: missense in a functionally constrained region (gnomAD mis_z).
+    - PM2: rare in, or absent from, consulted population data.
+    - PM4: protein-length-changing (in-frame indel, stop-loss).
+    - PM5: novel missense at a residue with a known pathogenic change.
+    - PP3: computational evidence (REVEL/SpliceAI), supporting to strong.
+    - PP5: ClinVar Pathogenic. Supporting by default; Strong (PP5_Strong)
+      for an expert-panel review status; does not fire for a no-criteria or
+      conflicting status.
 
     Benign:
-    - BA1: Any population AF > 5% (standalone benign)
-    - BS1: Any population AF > 1%
-    - BP4: Low computational pathogenicity score
-    - BP7: Synonymous with no splice impact
+    - BA1: any population AF above the benign ceiling (standalone).
+    - BS1: any population AF above the strong-benign threshold.
+    - BS2: observed homozygous in gnomAD for a dominant-disorder gene.
+    - BP4: low computational pathogenicity score, supporting to moderate.
+    - BP7: synonymous with no predicted splice impact.
+
+    PM2, BA1, and BS1 use fixed frequency thresholds by default; when
+    ``use_disease_thresholds`` is set and the gene's inheritance mode is
+    known, the thresholds are selected per variant (stricter for dominant
+    disorders).
 
     When a required data source is unavailable for a given criterion, that
     tag is omitted and the source name is recorded in the output.

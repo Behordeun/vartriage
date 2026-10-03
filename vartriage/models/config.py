@@ -444,6 +444,7 @@ class PipelineConfig:
     inheritance: InheritanceConfig | None = field(default=None)
     clinical_report: ClinicalReportConfig | None = field(default=None)
     use_bundles: bool = False
+    use_disease_thresholds: bool = False
     genome_build: str = "grch38"
     api: object | None = field(default=None)
     knowledge: KnowledgeBaseConfig | None = field(default=None)

@@ -66,6 +66,10 @@ class Pipeline:
         self._warning_accumulator = WarningAccumulator(config.missing_data)
         self._validate_config(config)
 
+        # NMD-escape lookup is built lazily from the GTF and cached. The
+        # sentinel False means "not yet built"; None means "built, unavailable".
+        self._nmd_lookup_cached: object | None | bool = False
+
         # Gene-disease linkage annotator: constructed once, reused across runs
         self._gene_knowledge_annotator = None  # type: GeneKnowledgeAnnotator | None
         if config.knowledge is not None:
@@ -133,7 +137,7 @@ class Pipeline:
         prioritization_engine = PrioritizationEngine(
             self._config.prioritization, remote_config=self._config.remote
         )
-        acmg_classifier = ACMGClassifier()
+        acmg_classifier = self._build_acmg_classifier()
         report_generator = ReportGenerator(
             self._config.report,
             clinical_config=self._config.clinical_report,
@@ -500,7 +504,7 @@ class Pipeline:
         prioritization_engine = PrioritizationEngine(
             self._config.prioritization, remote_config=self._config.remote
         )
-        acmg_classifier = ACMGClassifier()
+        acmg_classifier = self._build_acmg_classifier()
 
         try:
             with VCFParser(effective_vcf_path) as parser:
@@ -538,6 +542,45 @@ class Pipeline:
                 yield from acmg_classifier.classify(scored)
         finally:
             prioritization_engine.close()
+
+    def _build_nmd_lookup(self) -> object | None:
+        """Build the NMD-escape transcript lookup from the GTF annotation.
+
+        PVS1 NMD-escape downgrades need only CDS exon coordinates, which the
+        GTF supplies without a reference FASTA. Returns None when no GTF is
+        configured (API mode, or annotation disabled), in which case PVS1
+        keeps its current strength and records transcript_structure missing.
+        The index is built once and cached on the instance.
+        """
+        if self._nmd_lookup_cached is not False:
+            return self._nmd_lookup_cached
+        lookup: object | None = None
+        annotation = self._config.annotation
+        if annotation is not None and annotation.gene_annotation_path is not None:
+            try:
+                from vartriage.annotation.transcript_index import TranscriptCDSIndex
+
+                lookup = TranscriptCDSIndex.build_from_gtf(
+                    str(annotation.gene_annotation_path)
+                )
+            except (OSError, ValueError) as exc:
+                logger.warning("NMD lookup unavailable: %s", exc)
+                lookup = None
+        self._nmd_lookup_cached = lookup
+        return lookup
+
+    def _build_acmg_classifier(self) -> ACMGClassifier:
+        """Construct the ACMG classifier with the v0.19.0 refinements wired in.
+
+        Supplies the NMD-escape lookup (from the GTF) and the disease-threshold
+        flag (from config) so PVS1 NMD downgrades and disease-specific
+        PM2/BA1/BS1 thresholds are active in normal pipeline runs, not only when
+        a caller constructs the classifier directly.
+        """
+        return ACMGClassifier(
+            nmd_lookup=self._build_nmd_lookup(),  # type: ignore[arg-type]
+            use_disease_thresholds=self._config.use_disease_thresholds,
+        )
 
     def _inject_remote_gnomad(self, annotation_engine: AnnotationEngine | None) -> None:
         """Inject remote gnomAD tabix backend if configured and needed."""

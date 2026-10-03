@@ -250,3 +250,79 @@ class TestBS2:
         )
         tags, _ = classifier._assign_tags(variant)
         assert EvidenceTag.BS2 not in tags
+
+
+class TestPipelineWiring:
+    """The pipeline activates the v0.19.0 refinements in normal runs."""
+
+    def _write_gtf(self, tmp_path: object) -> str:
+        import os
+
+        path = os.path.join(str(tmp_path), "genes.gtf")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(
+                "chr1\tsrc\tCDS\t1\t100\t.\t+\t0\t"
+                'gene_name "GENE"; transcript_id "t1";\n'
+            )
+            handle.write(
+                "chr1\tsrc\tCDS\t201\t300\t.\t+\t0\t"
+                'gene_name "GENE"; transcript_id "t1";\n'
+            )
+        return path
+
+    def test_classifier_receives_nmd_lookup_and_disease_flag(
+        self, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        from vartriage.models.config import AnnotationConfig, PipelineConfig
+        from vartriage.pipeline import Pipeline
+
+        gtf = self._write_gtf(tmp_path)
+        config = PipelineConfig(
+            vcf_path=Path("input.vcf"),
+            output_path=Path("out.json"),
+            annotation=AnnotationConfig(gene_annotation_path=Path(gtf)),
+            use_disease_thresholds=True,
+        )
+        classifier = Pipeline(config)._build_acmg_classifier()
+        assert classifier._nmd_lookup is not None
+        assert classifier._use_disease_thresholds is True
+
+    def test_classifier_without_gtf_has_no_nmd_lookup(self) -> None:
+        from pathlib import Path
+
+        from vartriage.models.config import PipelineConfig
+        from vartriage.pipeline import Pipeline
+
+        config = PipelineConfig(
+            vcf_path=Path("input.vcf"), output_path=Path("out.json")
+        )
+        classifier = Pipeline(config)._build_acmg_classifier()
+        assert classifier._nmd_lookup is None
+        assert classifier._use_disease_thresholds is False
+
+
+class TestTranscriptIndexFromGtf:
+    def test_build_from_gtf_parses_cds_and_resolves_escape_zone(
+        self, tmp_path: object
+    ) -> None:
+        import os
+
+        from vartriage.annotation.transcript_index import TranscriptCDSIndex
+
+        path = os.path.join(str(tmp_path), "genes.gtf")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(
+                "chr1\tsrc\tCDS\t1\t100\t.\t+\t0\t"
+                'gene_name "GENE"; transcript_id "t1";\n'
+            )
+            handle.write(
+                "chr1\tsrc\tCDS\t201\t300\t.\t+\t0\t"
+                'gene_name "GENE"; transcript_id "t1";\n'
+            )
+        index = TranscriptCDSIndex.build_from_gtf(path)
+        assert index.transcript_count == 1
+        zone = index.escape_zone("GENE", "chr1", 250)
+        assert zone is not None
+        assert zone.last_exon_start == 200

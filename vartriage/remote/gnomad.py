@@ -45,6 +45,10 @@ _POP_AF_KEYS: tuple[str, ...] = ("AF",) + tuple(
     f"AF_{pop}" for pop in GNOMAD_POPULATIONS
 )
 
+# Homozygote-count key carried alongside the AF subfields for BS2 evaluation.
+# gnomAD v4 names it nhomalt; it is split per-ALT like the AF_* fields.
+_HOM_COUNT_KEY = "nhomalt"
+
 _VariantKey = tuple[str, int, str, str]
 
 
@@ -461,11 +465,13 @@ class RemoteTabixGnomAD:
     ) -> list[tuple[int, str, str, dict[str, float]]] | None:
         """Parse a gnomAD VCF record into (pos, ref, alt, per-population AF map).
 
-        Returns one entry per alternate allele. The AF map holds the global "AF"
-        plus each "AF_<pop>" subfield present for that allele; missing or malformed
-        subfields are omitted rather than defaulted, so a caller can tell absent
-        from zero. Multi-allelic records split every AF_* field on comma and index
-        by ALT position, matching the global-AF parser.
+        Returns one entry per alternate allele. The map holds the global "AF"
+        plus each "AF_<pop>" subfield present for that allele and, when present,
+        the "nhomalt" homozygote count (carried as a float, read back as an int
+        for BS2). Missing or malformed subfields are omitted rather than
+        defaulted, so a caller can tell absent from zero. Multi-allelic records
+        split every field on comma and index by ALT position, matching the
+        global-AF parser.
         """
         fields = record_line.split("\t")
         if len(fields) < 8:
@@ -481,7 +487,7 @@ class RemoteTabixGnomAD:
         info_field = fields[7]
 
         per_key_values: dict[str, list[str]] = {}
-        for key in _POP_AF_KEYS:
+        for key in (*_POP_AF_KEYS, _HOM_COUNT_KEY):
             raw = _extract_info_field(info_field, key)
             if raw is not None:
                 per_key_values[key] = raw.split(",")

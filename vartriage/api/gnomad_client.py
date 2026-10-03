@@ -35,6 +35,7 @@ query VariantFrequency($variantId: String!, $dataset: DatasetId!) {
       ac
       an
       af
+      homozygote_count
       populations {
         id
         ac
@@ -45,6 +46,7 @@ query VariantFrequency($variantId: String!, $dataset: DatasetId!) {
       ac
       an
       af
+      homozygote_count
       populations {
         id
         ac
@@ -309,6 +311,9 @@ class GnomADClient:
             if pop_freqs[mapped] is None or af > pop_freqs[mapped]:
                 pop_freqs[mapped] = af
 
+        hom_raw = source.get("homozygote_count")
+        hom_count = int(hom_raw) if isinstance(hom_raw, (int, float)) else None
+
         return PopulationFrequencies(
             global_af=global_af,
             afr=pop_freqs["afr"],
@@ -318,6 +323,7 @@ class GnomADClient:
             fin=pop_freqs["fin"],
             nfe=pop_freqs["nfe"],
             sas=pop_freqs["sas"],
+            hom_count=hom_count,
         )
 
     def _select_source(

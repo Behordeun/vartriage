@@ -307,6 +307,69 @@ class TranscriptCDSIndex:
         """Number of transcripts in the index."""
         return len(self._transcripts)
 
+    @classmethod
+    def build_from_gtf(cls, gtf_path: str) -> TranscriptCDSIndex:
+        """Build a finalized index from a GTF file's CDS features.
+
+        Parses only the CDS feature lines, which is all the NMD-escape
+        geometry needs; no reference FASTA is required. Returns a finalized
+        index ready for ``escape_zone`` lookups. A line that cannot be parsed
+        is skipped rather than aborting the build.
+        """
+        index = cls()
+        with open(gtf_path, encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("#"):
+                    continue
+                record = cls._parse_gtf_cds_line(line)
+                if record is not None:
+                    transcript_id, gene_name, chrom, start, end, strand, frame = record
+                    index.add_cds_exon(
+                        transcript_id=transcript_id,
+                        gene_name=gene_name,
+                        chrom=chrom,
+                        start=start,
+                        end=end,
+                        strand=strand,
+                        frame=frame,
+                    )
+        index.finalize()
+        return index
+
+    @staticmethod
+    def _parse_gtf_cds_line(
+        line: str,
+    ) -> tuple[str, str, str, int, int, str, int] | None:
+        """Parse one GTF CDS line into add_cds_exon arguments, or None to skip."""
+        import re
+
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) < 9 or parts[2] != "CDS":
+            return None
+        try:
+            start = int(parts[3]) - 1
+            end = int(parts[4])
+        except ValueError:
+            return None
+        try:
+            frame = int(parts[7]) if parts[7] != "." else 0
+        except ValueError:
+            frame = 0
+        attrs = parts[8]
+        transcript_match = re.search(r'transcript_id\s+"([^"]+)"', attrs)
+        if not transcript_match:
+            return None
+        gene_match = re.search(r'gene_name\s+"([^"]+)"', attrs)
+        return (
+            transcript_match.group(1),
+            gene_match.group(1) if gene_match else "unknown",
+            parts[0],
+            start,
+            end,
+            parts[6],
+            frame,
+        )
+
     def to_serializable(self) -> dict[str, object]:
         """Serialize for caching alongside the interval tree."""
         data: dict[str, object] = {}
