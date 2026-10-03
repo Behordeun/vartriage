@@ -90,6 +90,35 @@ class ClinVarAssertion(Enum):
     BENIGN = "Benign"
 
 
+class ClinVarReviewStatus(Enum):
+    """ClinVar review-status tiers used to modulate PP5 strength.
+
+    Maps the ClinVar ``review_status`` string onto the levels that matter
+    for evidence weighting: an expert-panel assertion carries more weight
+    than a single-submitter one, and an assertion with no criteria does
+    not support PP5 at all.
+
+    Attributes
+    ----------
+    EXPERT_PANEL : str
+        Reviewed by an expert panel. Upgrades PP5 to Strong.
+    MULTIPLE_NO_CONFLICTS : str
+        Criteria provided, multiple submitters, no conflicts. PP5 supporting.
+    SINGLE_SUBMITTER : str
+        Criteria provided, single submitter. PP5 supporting.
+    NO_CRITERIA : str
+        No assertion criteria provided. PP5 does not fire.
+    CONFLICTING : str
+        Criteria provided, conflicting interpretations. PP5 does not fire.
+    """
+
+    EXPERT_PANEL = "reviewed_by_expert_panel"
+    MULTIPLE_NO_CONFLICTS = "criteria_provided_multiple_submitters_no_conflicts"
+    SINGLE_SUBMITTER = "criteria_provided_single_submitter"
+    NO_CRITERIA = "no_assertion_criteria_provided"
+    CONFLICTING = "criteria_provided_conflicting_interpretations"
+
+
 class ACMGClassification(Enum):
     """Final ACMG/AMP 2015 classification for a variant.
 
@@ -148,6 +177,7 @@ class EvidenceTag(Enum):
     PP3_MODERATE = "PP3_Moderate"
     PP3_STRONG = "PP3_Strong"
     PP5 = "PP5"
+    PP5_STRONG = "PP5_Strong"
 
     # Benign evidence
     BA1 = "BA1"
@@ -193,6 +223,7 @@ EVIDENCE_STRENGTH_MAP: dict[EvidenceTag, EvidenceStrength] = {
     EvidenceTag.PP3_MODERATE: EvidenceStrength.MODERATE,
     EvidenceTag.PP3_STRONG: EvidenceStrength.STRONG,
     EvidenceTag.PP5: EvidenceStrength.SUPPORTING,
+    EvidenceTag.PP5_STRONG: EvidenceStrength.STRONG,
     # Benign evidence
     EvidenceTag.BA1: EvidenceStrength.STANDALONE,
     EvidenceTag.BS1: EvidenceStrength.STRONG,
@@ -273,6 +304,7 @@ class PopulationFrequencies:
     fin: float | None = None
     nfe: float | None = None
     sas: float | None = None
+    hom_count: int | None = None
 
     @property
     def max_population_af(self) -> float | None:
@@ -376,6 +408,7 @@ class AnnotatedVariant:
     consequence: FunctionalConsequence
     allele_frequency: float | None = None
     clinvar_assertion: ClinVarAssertion | None = None
+    clinvar_review_status: ClinVarReviewStatus | None = None
     frequency_unknown: bool = False
     clinvar_unknown: bool = False
     gene_name: str | None = None

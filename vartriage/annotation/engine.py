@@ -21,6 +21,7 @@ from vartriage.models.config import AnnotationConfig
 from vartriage.models.variant import (
     AnnotatedVariant,
     ClinVarAssertion,
+    ClinVarReviewStatus,
     FunctionalConsequence,
     PopulationFrequencies,
     ProteinChange,
@@ -53,6 +54,29 @@ def _polars_available() -> bool:
 
 
 _GTF_ATTR_CACHE: dict[str, _re.Pattern[str]] = {}
+
+
+def _coerce_hom_count(raw: object) -> int | None:
+    """Coerce a gnomAD homozygote-count field (nhomalt / AC_Hom) to int.
+
+    The field arrives as an int, a float, or a numeric string depending on
+    the backend. A missing or unparseable value yields None so BS2 records
+    the homozygote source as absent rather than firing on bad data.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        # bool is an int subclass but a homozygote count is never a bool;
+        # treat it as unparseable rather than coercing True to 1.
+        return None
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, (float, str)):
+        try:
+            return int(float(raw))
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 def _extract_gtf_attr(attrs: str, key: str) -> str | None:
@@ -229,6 +253,12 @@ class AnnotationEngine:
         else:
             clinvar_assertions = [None] * len(batch)
 
+        # ClinVar review status, when the backend exposes the extended column.
+        # Backends loading only the basic (chrom,pos,ref,alt,significance)
+        # format leave every entry None, so PP5 keeps its single-assertion
+        # behavior unchanged.
+        review_statuses = self._lookup_review_statuses(variant_keys)
+
         # Compose results
         results: list[AnnotatedVariant] = []
         for i, variant in enumerate(batch):
@@ -269,6 +299,7 @@ class AnnotationEngine:
                     consequence=consequences[i],
                     allele_frequency=freq,
                     clinvar_assertion=clinvar,
+                    clinvar_review_status=review_statuses[i],
                     frequency_unknown=frequency_unknown,
                     clinvar_unknown=clinvar_unknown,
                     gene_name=gene_names[i],
@@ -311,9 +342,29 @@ class AnnotationEngine:
                     fin=af_map.get("AF_fin"),
                     nfe=af_map.get("AF_nfe"),
                     sas=af_map.get("AF_sas"),
+                    hom_count=_coerce_hom_count(af_map.get("nhomalt")),
                 )
             )
         return result
+
+    def _lookup_review_statuses(
+        self, variant_keys: list[tuple[str, int, str, str]]
+    ) -> list[ClinVarReviewStatus | None]:
+        """Fetch ClinVar review status when the backend exposes it.
+
+        Only a backend loaded from the extended ClinVar format (one carrying
+        a ``review_status`` column) implements ``lookup_batch_review_status``.
+        Every other backend leaves each entry None, so PP5 falls back to its
+        single-assertion behavior with no change to existing output.
+        """
+        empty: list[ClinVarReviewStatus | None] = [None] * len(variant_keys)
+        db = self._clinvar_db
+        if db is None or not hasattr(db, "lookup_batch_review_status"):
+            return empty
+        statuses: list[ClinVarReviewStatus | None] = db.lookup_batch_review_status(  # type: ignore[attr-defined]
+            variant_keys
+        )
+        return statuses
 
     def _extract_gene_and_protein(
         self, batch: list[Variant]

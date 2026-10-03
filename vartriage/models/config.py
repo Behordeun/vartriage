@@ -19,6 +19,71 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class DiseaseThresholds:
+    """Disease-context-aware allele-frequency thresholds for BA1/BS1/PM2.
+
+    A carrier frequency that is benign for a common recessive disorder is
+    suspicious for a dominant one, so the frequency gates are selected by
+    the gene's inheritance mode rather than fixed globally.
+
+    Parameters
+    ----------
+    ba1_af : float
+        Stand-alone benign threshold. Any population AF above this fires BA1.
+    bs1_af : float
+        Strong benign threshold. Any population AF above this fires BS1.
+    pm2_af : float
+        Rarity threshold. An AF below this in every consulted population
+        supports PM2.
+    """
+
+    ba1_af: float
+    bs1_af: float
+    pm2_af: float
+
+
+DOMINANT_THRESHOLDS = DiseaseThresholds(ba1_af=0.001, bs1_af=0.0003, pm2_af=0.00001)
+RECESSIVE_THRESHOLDS = DiseaseThresholds(ba1_af=0.05, bs1_af=0.01, pm2_af=0.0001)
+DEFAULT_THRESHOLDS = DiseaseThresholds(ba1_af=0.05, bs1_af=0.01, pm2_af=0.0001)
+
+
+@dataclass(frozen=True)
+class DiseaseContext:
+    """Disease context used to select frequency thresholds for a variant.
+
+    Parameters
+    ----------
+    inheritance_mode : str | None
+        Inheritance pattern code (AD, AR, XL, XLD, XLR, MT) or None when
+        unknown. Drives threshold selection; an unknown mode falls back to
+        the default thresholds.
+    prevalence : float | None
+        Disease prevalence (0.0-1.0), optional. Reserved for a future
+        prevalence-derived PM2 carrier threshold.
+    heterogeneity_factor : float | None
+        Genetic heterogeneity factor, optional.
+    """
+
+    inheritance_mode: str | None = None
+    prevalence: float | None = None
+    heterogeneity_factor: float | None = None
+
+    def thresholds(self) -> DiseaseThresholds:
+        """Select the threshold set for this disease context.
+
+        Dominant modes use the stricter dominant thresholds; recessive and
+        X-linked modes use the recessive set; an unknown mode uses the
+        backward-compatible defaults.
+        """
+        mode = (self.inheritance_mode or "").upper()
+        if mode in ("AD",):
+            return DOMINANT_THRESHOLDS
+        if mode in ("AR", "XL", "XLR", "XLD", "MT"):
+            return RECESSIVE_THRESHOLDS
+        return DEFAULT_THRESHOLDS
+
+
+@dataclass(frozen=True)
 class QualityFilterConfig:
     """Configuration for quality-based variant filtering.
 

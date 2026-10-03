@@ -4,7 +4,7 @@ How vartriage evaluates ACMG/AMP 2015 evidence criteria and combines them into a
 
 ## Overview
 
-The `ACMGClassifier` evaluates each scored variant against 12 evidence criteria (8 pathogenic: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5; 4 benign: BA1, BS1, BP4, BP7) and combines them through the ClinGen SVI point system to produce a final classification: Pathogenic, Likely Pathogenic, VUS, Likely Benign, or Benign. PVS1, PP3, and BP4 fire at two strength levels (PVS1 very-strong or strong; PP3 and BP4 supporting or moderate) based on ClinGen-calibrated thresholds, but they are single criteria with strength modulation, not separate criteria. BS2 exists as an evidence tag in the combining rules but has no evaluator; it is never emitted.
+The `ACMGClassifier` evaluates each scored variant against 13 evidence criteria (8 pathogenic: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5; 5 benign: BA1, BS1, BS2, BP4, BP7) and combines them through the ClinGen SVI point system to produce a final classification: Pathogenic, Likely Pathogenic, VUS, Likely Benign, or Benign. PVS1, PP3, PP5, and BP4 fire at multiple strength levels (PVS1 very-strong or strong; PP3 and BP4 supporting or moderate; PP5 supporting or strong) based on ClinGen-calibrated thresholds and, for PVS1, nonsense-mediated-decay geometry and, for PP5, ClinVar review status; these are single criteria with strength modulation, not separate criteria.
 
 When a required data source is unavailable for a criterion, that criterion is skipped and the source is recorded in `missing_data_sources` on the output. This makes the system additive: providing more reference data enables more criteria without changing behavior for the criteria you already have.
 
@@ -16,18 +16,18 @@ Null variant in a gene where loss-of-function is a known mechanism of disease.
 
 | Condition | Fires when | Strength |
 | --------- | ---------- | -------- |
-| Nonsense or Frameshift in LoF-intolerant gene (pLI > 0.9) | Always | Very Strong |
+| Nonsense or Frameshift in LoF-intolerant gene (pLI > 0.9) | Always | Very Strong (downgraded to Strong on NMD escape) |
 | Nonsense or Frameshift in LoF-tolerant gene (pLI < 0.9) | Always | Strong (PVS1_Strong) |
-| Nonsense or Frameshift without constraint data | Always | Very Strong (benefit of the doubt) |
+| Nonsense or Frameshift without constraint data | Always | Strong (mechanism unknown; not Very Strong on absence of data) |
 | Splice site | SpliceAI max delta > 0.8 | Very Strong |
 
 When an explicit `lof_gene_list` is provided to the classifier, genes on the list always receive Very Strong PVS1. Genes not on the list receive Strong (downgraded), regardless of pLI. This allows labs to curate a trusted list of LoF-mechanism genes.
 
 If a splice-site variant lacks SpliceAI data, PVS1 is not assigned and "SpliceAI" is recorded as a missing source.
 
-**Required data:** Functional consequence (from GTF annotation). SpliceAI scores for splice-site variants. gnomAD constraint data (pLI) for strength determination.
+**Required data:** Functional consequence (from GTF annotation). SpliceAI scores for splice-site variants. gnomAD constraint data (pLI) for strength determination. Transcript CDS structure (from the GTF annotation already loaded for consequence calling) for the NMD-escape downgrade.
 
-**Limitation:** PVS1 does not check the following per the 2018 ClinGen PVS1 specification (Tayoun et al. 2018): variants near the 3' end of the transcript, alternatively spliced exons, or single-exon genes. These refinements are planned for a future release.
+**NMD escape (v0.19.0):** when a transcript CDS index is available, a Very Strong PVS1 for a nonsense or frameshift variant is downgraded to Strong (PVS1_Strong) if the variant escapes nonsense-mediated decay: it falls in the last exon, within 50 nt of the final exon-exon junction, or in a single-exon gene. Such a variant may produce a truncated but partially functional protein, so the Very Strong assignment is not warranted. The downgrade only ever lowers strength and never applies to a non-null variant. When no transcript structure is available the strength is unchanged and `transcript_structure` is recorded as a missing source for any Very Strong PVS1.
 
 ### PS1 (Strong)
 
@@ -96,13 +96,25 @@ SpliceAI-based PP3 applies only to variants with SPLICE_SITE or MISSENSE consequ
 
 **Previous behavior (v0.13.0):** PP3 fired at supporting level only, with REVEL > 0.7. The ClinGen-calibrated thresholds in v0.14.0 lower the supporting threshold to 0.644 and add a moderate tier at 0.773.
 
-### PP5 (Supporting)
+### PP5 (Supporting or Strong)
 
 Reputable source (ClinVar) reports the variant as Pathogenic.
 
 Fires when the variant has a ClinVar Pathogenic assertion and no conflicting Benign or Likely Benign assertion exists in ClinVar for the same variant.
 
-**Required data:** ClinVar annotations.
+**Strength modulation by review status (v0.19.0):** when the ClinVar reference supplies a review status (the extended reference format with a `review_status` column), PP5 strength tracks the assertion's review level:
+
+| Review status | PP5 strength |
+| ------------- | ------------ |
+| Reviewed by expert panel | Strong (PP5_Strong) |
+| Criteria provided, multiple submitters, no conflicts | Supporting |
+| Criteria provided, single submitter | Supporting |
+| No assertion criteria provided | Does not fire |
+| Conflicting interpretations | Does not fire |
+
+When the reference uses the basic format (no `review_status` column), every Pathogenic assertion fires PP5 at Supporting, matching pre-v0.19.0 behavior.
+
+**Required data:** ClinVar annotations; the extended format with a review-status column for strength modulation.
 
 ## Benign criteria
 
@@ -124,7 +136,18 @@ Only evaluated when BA1 did not fire (BA1 already covers frequencies above 5%). 
 
 **Required data:** gnomAD allele frequencies.
 
-### BP4 (Supporting or Moderate)
+### BS2 (Strong)
+
+Observed in a healthy control at a frequency inconsistent with a fully penetrant dominant disorder.
+
+Implemented in v0.19.0. Fires when all of the following hold:
+
+1. The gnomAD homozygote count for the variant is greater than zero.
+2. The gene is associated with a dominant (AD) disorder in the gene-disease knowledge base.
+
+A homozygous observation of an allegedly dominant-pathogenic variant in a healthy-control database argues strongly against pathogenicity. BS2 does not fire for recessive disorders, where homozygous carriers are expected. It is applicable only when a dominant association is known: for a gene with no dominant association the criterion is not applicable and nothing is recorded. When the gene is dominant but the homozygote count is unavailable, `gnomAD_homozygotes` is recorded as a missing source.
+
+**Required data:** gnomAD homozygote counts (nhomalt / AC_Hom, from the gnomAD VCF or an extended frequency source) and gene-disease inheritance mode.
 
 Computational evidence supports no impact on gene or gene product.
 
@@ -191,8 +214,6 @@ Worked examples:
 ### Conflicting evidence
 
 Opposing evidence resolves by arithmetic: a variant carrying both pathogenic and benign criteria takes its signed total through the threshold ladder rather than being forced to VUS whenever both signs are present. `has_conflicting_evidence` remains as a reporting-only annotation. BA1 is the one exception, overriding all pathogenic evidence.
-
-Note: BS2 (observed in a healthy adult with full penetrance for a recessive condition) exists as a tag but has no evaluator implemented yet. It requires gnomAD homozygote count data that is not currently parsed.
 
 ### VUS (default)
 
@@ -333,10 +354,12 @@ Complete mapping of tags to strength tiers in vartriage:
 | PM5 | Moderate | Pathogenic | Evaluated |
 | PP3 | Supporting | Pathogenic | Evaluated |
 | PP3_MODERATE | Moderate | Pathogenic | Evaluated |
+| PP3_STRONG | Strong | Pathogenic | Evaluated (v0.18.3) |
 | PP5 | Supporting | Pathogenic | Evaluated |
+| PP5_Strong | Strong | Pathogenic | Evaluated (v0.19.0) |
 | BA1 | Standalone | Benign | Evaluated |
 | BS1 | Strong | Benign | Evaluated |
-| BS2 | Strong | Benign | Placeholder (not evaluated) |
+| BS2 | Strong | Benign | Evaluated (v0.19.0) |
 | BP4 | Supporting | Benign | Evaluated |
 | BP4_MODERATE | Moderate | Benign | Evaluated |
 | BP7 | Supporting | Benign | Evaluated |
@@ -350,7 +373,6 @@ The following ACMG/AMP 2015 criteria are not currently evaluated:
 | PM3 | Requires phase data (detected in trans with pathogenic variant) |
 | PP1 | Requires pedigree cosegregation data |
 | PP2 | Requires per-gene benign missense rate data |
-| BS2 | Requires gnomAD homozygote count data |
 | BS3 | Requires functional assay data |
 
 ## Missing data handling
@@ -363,6 +385,8 @@ Common missing data patterns:
 | -------------- | ----------------- | -------------- |
 | gnomAD | PM2, BA1, BS1 | Provide gnomAD frequencies (local or API) |
 | gnomAD_constraint | PVS1 strength, PM1 | Provide gene knowledge data (--knowledge-dir or bundled) |
+| gnomAD_homozygotes | BS2 | Provide gnomAD homozygote counts (nhomalt / AC_Hom) |
+| transcript_structure | PVS1 NMD-escape downgrade | Provide the GTF annotation (loaded for consequence calling) |
 | REVEL | PP3, BP4 | Provide REVEL scores TSV |
 | SpliceAI | PVS1 (splice), PP3 (splice), BP7 | Provide SpliceAI scores TSV |
 | ClinVar | PP5 | Provide ClinVar annotation file |
@@ -381,9 +405,9 @@ When both pathogenic and benign evidence tags are present for the same variant, 
 
 **Mitochondrial haplogroup context:** Haplogroup assignment is not performed. Variants defining rare haplogroups may appear rare in HelixMTdb and receive false-positive pathogenicity scores. Manual haplogroup confirmation is recommended for ambiguous mtDNA results.
 
-**PP5 single-assertion model:** ClinVar entries frequently have multiple submissions with conflicting interpretations. The library stores a single assertion per variant. A multi-submitter ClinVar entry classified as "Pathogenic" by one lab and "Likely Benign" by another will show whichever assertion the reference file provides. Future releases may incorporate review_status filtering.
+**PP5 review status:** ClinVar entries vary in review quality, from expert-panel assertions to single-submitter claims. When the ClinVar reference supplies a review status, PP5 strength tracks it (expert panel to Strong, no-criteria does not fire); see the PP5 section. The library stores a single assertion per variant, so a variant with genuinely conflicting multi-lab interpretations is represented by whichever assertion the reference file provides.
 
-**Disease-specific thresholds:** PM2, BA1, and BS1 use fixed population frequency thresholds regardless of disease inheritance mode. Disease-specific carrier frequency calibration is not implemented.
+**Disease-specific thresholds:** PM2, BA1, and BS1 use fixed population-frequency thresholds by default. When disease-aware thresholds are enabled and the gene-disease knowledge base supplies an inheritance mode, the gates are selected per variant: a dominant disorder uses stricter benign thresholds (BA1 at 0.001, BS1 at 0.0003) than a recessive one (BA1 at 0.05, BS1 at 0.01). A gene with no known inheritance mode uses the fixed defaults.
 
 ## References
 

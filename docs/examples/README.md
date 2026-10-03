@@ -17,7 +17,7 @@ All samples use synthetic variant data. Patient identifiers are fictional.
 
 - `prioritization_score`: literature-validated ranking (REVEL for missense, SpliceAI for splice-adjacent, CADD Phred/99 capped at 1.0 for others). Recommended for triage.
 - `composite_rank`: legacy weighted average. Deprecated, will be removed in v1.0.0.
-- `evidence_tags`: ACMG criteria the classifier emits (PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BP4, BP7, plus the strength-modulated PVS1_Strong, PP3_Moderate, BP4_Moderate). BS2 is defined but not emitted.
+- `evidence_tags`: ACMG criteria the classifier emits (PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BS2, BP4, BP7, plus the strength-modulated PVS1_Strong, PP3_Moderate, PP3_Strong, PP5_Strong, BP4_Moderate).
 - `acmg_classification`: final 5-tier call (Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, Benign)
 
 ---

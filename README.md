@@ -10,14 +10,14 @@ vartriage --vcf patient.vcf.gz --output report.html --output-format clinical-htm
   --patient-id PAT-001 --panel-name "Cardiac Panel v3" --use-bundles
 ```
 
-**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files, remote tabix, or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (12 criteria with strength modulation: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BP4, BP7), ClinGen SVI point-system combining (Tavtigian et al. 2018, 2020), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, **remote tabix scoring (CADD/gnomAD via HTTP byte-range, no 80 GB download)**, **VCF quality control (Ti/Tv, het/hom, variant count sanity checks with strict-gate support)**, and clinical report generation with audit trail and computational-only disclaimer.
+**What it does:** quality filtering, consequence annotation (GENCODE, with codon-level resolution via reference FASTA), population frequency lookup (gnomAD, population-specific via local files, remote tabix, or API), pathogenicity scoring (CADD/REVEL/SpliceAI with ClinGen-calibrated thresholds), gene-disease linkage (OMIM/ClinGen/HPO/gnomAD constraint), phenotype-driven prioritization, ACMG/AMP classification (13 criteria with strength modulation: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5, BA1, BS1, BS2, BP4, BP7), ClinGen SVI point-system combining (Tavtigian et al. 2018, 2020), trio inheritance analysis, multi-sample cohort analysis (recurrence, gene burden), ACMG Secondary Findings screening, **structural variant triage (ClinGen 2020 framework)**, **mitochondrial variant analysis (mtDNA-specific classification with heteroplasmy, MITOMAP, and HelixMTdb)**, **remote tabix scoring (CADD/gnomAD via HTTP byte-range, no 80 GB download)**, **VCF quality control (Ti/Tv, het/hom, variant count sanity checks with strict-gate support)**, and clinical report generation with audit trail and computational-only disclaimer.
 
 **Why use it:**
 
 - Single Python package, no Java/Perl/Spark dependencies
 - Streams 4M+ variant WGS files under 2 GB RAM
 - Codon-level consequence calling with reference FASTA (correct missense vs synonymous)
-- Benign + pathogenic ACMG criteria (12 criteria, ClinGen-calibrated): classifies variants across all 5 tiers
+- Benign + pathogenic ACMG criteria (13 criteria, ClinGen-calibrated): classifies variants across all 5 tiers
 - ClinGen SVI point-system combining (Tavtigian et al. 2018, 2020): signed points summed per variant and mapped through the Tavtigian threshold ladder; opposing evidence nets by arithmetic
 - Gene-disease linkage: OMIM, ClinGen validity, HPO phenotype matching, gnomAD constraint, actionability
 - Phenotype-driven: `--hpo-terms` boosts variants in genes matching patient symptoms
@@ -52,7 +52,7 @@ Splice-site sensitivity improved from 9.8% to 55.9% once the SpliceAI SQLite bac
 
 **Known limitations:**
 
-- BS2 is defined as an evidence tag but is not emitted by the classifier (it needs gnomAD homozygote-count data that is not parsed yet).
+- BS2 (observed in healthy controls) is emitted for dominant-disorder genes when gnomAD homozygote counts are available; it does not fire for recessive genes or without homozygote-count data.
 - BP1, BP3, BP6 benign criteria are not implemented.
 - Benign sensitivity is low (6.0%) because of the missing benign criteria; VUS is the default when evidence is absent.
 
@@ -497,7 +497,7 @@ When only two scores are available, weights redistribute proportionally. Single 
 | Tag           | Strength    | Condition                                                                                                        |
 | ------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
 | PVS1          | Very Strong | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 (strength modulated by pLI/LOEUF)                          |
-| PVS1_Strong   | Strong      | PVS1 downgraded when gene constraint is moderate (0.5 < pLI < 0.9)                                               |
+| PVS1_Strong   | Strong      | PVS1 downgraded: gene not LoF-intolerant, no constraint data, or the null variant escapes NMD (last exon, within 50 nt of the final junction, or single-exon gene) |
 | PS1           | Strong      | Same amino acid change as ClinVar Pathogenic via different nucleotide (requires protein index + reference FASTA) |
 | PM1           | Moderate    | Missense in a critical functional domain (missense constraint region, gnomAD mis_z > 3.09)                       |
 | PM2           | Moderate    | All population AFs < 0.0001, or absent from gnomAD (population-aware)                                            |
@@ -505,16 +505,18 @@ When only two scores are available, weights redistribute proportionally. Single 
 | PM5           | Moderate    | Novel missense at amino acid position with known pathogenic missense in ClinVar (requires protein index)         |
 | PP3           | Supporting  | REVEL > 0.644 or SpliceAI > 0.5 on splice-adjacent                                                               |
 | PP3_MODERATE  | Moderate    | REVEL > 0.773 (ClinGen-calibrated)                                                                               |
-| PP5           | Supporting  | ClinVar Pathogenic without conflicting Benign                                                                    |
+| PP5           | Supporting  | ClinVar Pathogenic without conflicting Benign (basic format, or non-expert review status)                       |
+| PP5_Strong    | Strong      | ClinVar Pathogenic reviewed by an expert panel (extended review-status format)                                  |
 | BA1           | Standalone  | Any population AF > 5% (standalone Benign, overrides all pathogenic evidence)                                    |
 | BS1           | Strong      | Any population AF > 1% (strong benign)                                                                           |
+| BS2           | Strong      | Homozygous in gnomAD for a dominant-disorder gene (observed in healthy controls)                                |
 | BP4           | Supporting  | REVEL < 0.290 (missense) or CADD < 10 (non-missense)                                                             |
 | BP4_MODERATE  | Moderate    | REVEL < 0.183 (ClinGen-calibrated)                                                                               |
 | BP7           | Supporting  | Synonymous + SpliceAI < 0.1                                                                                      |
 
 Tags combine into Pathogenic, Likely_Pathogenic, VUS, Likely_Benign, or Benign through the ClinGen SVI point system (Tavtigian et al. 2018, 2020): each criterion contributes signed points by strength, the total maps through the Tavtigian threshold ladder, and opposing evidence nets by arithmetic. BA1 is standalone and overrides all conflicting pathogenic evidence. Missing data sources mean the tag is simply omitted.
 
-BS2 (strong benign, observed in healthy adults) exists in the evidence-tag enum and the combining rules but has no evaluator; it is never emitted until gnomAD homozygote-count parsing is added.
+BS2 (strong benign, observed in healthy controls) fires for a variant observed homozygous in gnomAD when the gene is associated with a dominant disorder; it does not fire for recessive genes, where homozygous carriers are expected, and records `gnomAD_homozygotes` as missing when a dominant gene lacks a homozygote count.
 
 **Report output** - JSON and CSV stream directly from the iterator (no buffering). PDF materializes for page layout. VCF re-reads the source file, injects VARTRIAGE_* INFO fields for classified variants, and writes bgzipped output with a tabix index. Clinical formats (`clinical-html`, `clinical-pdf`, `clinical-docx`) produce structured reports with a computational-only disclaimer (citing ACMG/AMP 2015), per-variant evidence narratives, an executive summary, a Sample Quality Control section (when QC runs), findings table, evidence cards, limitations, methodology, and sign-off sections. A JSON audit trail sidecar (`.audit.json`) is written alongside each clinical report. Output fields: chromosome, position, ref/alt alleles, gene_name, functional consequence, allele frequency, revel_score, composite rank, prioritization_score, ClinVar assertion, ACMG classification, evidence tags, disease_associations, clingen_validity, gene_constraint, is_actionable, phenotype_match_score.
 

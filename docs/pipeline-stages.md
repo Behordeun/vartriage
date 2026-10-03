@@ -152,11 +152,13 @@ When a proband-mother-father trio is configured, replaces SampleExtractor and cl
 | --------- | ----------- |
 | de_novo | Proband has alt, both parents hom-ref |
 | dominant | Proband het, exactly one parent het |
-| recessive | Proband hom-alt, both parents het |
+| recessive | Proband hom-alt with both parents het, or (consanguinity) one parent het and the other het, hom-alt, or unavailable |
 | compound_het | Two+ het variants in same gene from different parents (trans) |
 | x_linked | ChrX variant, proband has alt, mother is het carrier |
 
 A single variant can carry multiple labels when it satisfies more than one rule. Variants where the proband is hom-ref or has missing genotype are skipped.
+
+When a gene-inheritance map is supplied, inheritance calls incompatible with the gene's expected mode are dropped: a dominant-only gene keeps dominant and de_novo calls, a recessive gene keeps recessive and compound_het calls, and an X-linked gene keeps x_linked calls. A gene absent from the map, or no map at all, leaves all patterns in place.
 
 Compound het requires gene annotation, so the pipeline positions InheritanceFilter after AnnotationEngine when compound_het is in the patterns list.
 
@@ -333,7 +335,7 @@ Benign criteria:
 | BP4 | Moderate | Missense with REVEL < 0.183 (ClinGen-calibrated, Pejaver et al. 2022) |
 | BP7 | Supporting | Synonymous with SpliceAI < 0.1 |
 
-BS2 (strong benign) is defined in the evidence-tag enum and combining rules but has no evaluator; the classifier never emits it. Emitting it needs gnomAD homozygote-count data that is not parsed yet. The "2 Strong benign" combining rule therefore activates only through BS1 plus a future BS2.
+BS2 (strong benign) is emitted for a variant observed homozygous in gnomAD when the gene is associated with a dominant disorder, using the gnomAD homozygote count (nhomalt / AC_Hom). It does not fire for recessive genes, where homozygous carriers are expected. The "2 Strong benign" combining path can therefore be reached by BS1 plus BS2.
 
 **Combining (ClinGen SVI point system, Tavtigian et al. 2018, 2020):**
 

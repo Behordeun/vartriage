@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-03
+
+### Added
+
+- **BS2 evaluator (observed in healthy controls)**: the classifier now fires BS2 at Strong benign strength when a variant is observed homozygous in gnomAD (homozygote count above zero) and the gene is associated with a dominant disorder in the gene-disease knowledge base. A homozygous observation of a dominant-pathogenic candidate in a healthy-control database is strong evidence against pathogenicity. BS2 does not fire for recessive disorders, where homozygous carriers are expected, and is applicable only when a dominant association is known. Homozygote counts are read from the gnomAD `nhomalt` / `AC_Hom` field; when a dominant gene lacks that count, `gnomAD_homozygotes` is recorded as a missing source.
+- **PP5 strength tracks ClinVar review status**: when the ClinVar reference supplies a review-status column, a Pathogenic assertion reviewed by an expert panel contributes PP5 at Strong (PP5_Strong), while single-submitter and multiple-submitter assertions contribute PP5 at Supporting, and an assertion with no criteria or with conflicting interpretations does not contribute PP5. A reference in the basic format without a review-status column fires PP5 at Supporting for every Pathogenic assertion, matching prior behavior. `PP5_Strong` is a new evidence tag scored at the Strong tier by the SVI point engine.
+- **Disease-specific frequency thresholds for PM2, BA1, and BS1**: with disease-aware thresholds enabled, the benign frequency gates are selected per variant from the gene's inheritance mode. A dominant disorder uses stricter thresholds (BA1 at 0.001, BS1 at 0.0003, PM2 at 0.00001) than a recessive one (BA1 at 0.05, BS1 at 0.01, PM2 at 0.0001). A gene with no known inheritance mode, or a run with the feature disabled, uses the fixed defaults, so existing output is unchanged until a disease context is supplied.
+
+### Changed
+
+- **PVS1 is downgraded to Strong for variants that escape nonsense-mediated decay**: when the transcript CDS structure is available, a Very Strong PVS1 for a nonsense or frameshift variant becomes Strong (PVS1_Strong) if the variant falls in the last exon, within 50 nt of the final exon-exon junction, or in a single-exon gene, because such a truncating variant may still produce a partially functional protein. The transcript structure is derived from the GTF annotation already loaded for consequence calling, so no new reference file is required. The downgrade only ever lowers strength and never affects a non-null variant; when no transcript structure is available the strength is unchanged and `transcript_structure` is recorded as a missing source for a Very Strong PVS1.
+- **PVS1 without gene-constraint data resolves to Strong rather than Very Strong**: a null variant whose gene has no pLI constraint record is assigned PVS1 at Strong, since loss of function cannot be confirmed as the disease mechanism from absence of data. The gene-list and pLI routes to Very Strong are unchanged. (Documentation for this behavior, shipped in the 0.17.x line, is corrected in this release.)
+- **The trio inheritance filter recognizes consanguineous recessive transmission**: a homozygous-recessive variant in the proband now classifies as recessive when at least one parent is heterozygous and the other parent is heterozygous, homozygous-alt, or unavailable, rather than requiring both parents heterozygous. A parent confirmed homozygous-reference still rejects the call.
+- **The trio inheritance filter integrates gene-disease inheritance mode**: when a gene-inheritance map is supplied, inheritance calls incompatible with the gene's expected mode are dropped — a dominant-only gene keeps dominant and de novo calls, a recessive gene keeps recessive and compound-het calls, an X-linked gene keeps X-linked calls. A gene absent from the map, or no map at all, leaves all patterns in place.
+
+### Internal
+
+- `AnnotatedVariant` carries an optional `clinvar_review_status`; `PopulationFrequencies` carries an optional `hom_count`. The annotation engine populates both when the backend exposes them, through optional backend methods that leave existing backends unchanged.
+
 ## [0.18.5] - 2026-09-21
 
 ### Changed
