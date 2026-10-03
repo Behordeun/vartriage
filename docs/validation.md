@@ -19,7 +19,7 @@ The eRepo run classifies 21,506 variants. Pathogenic sensitivity rose from 65.6%
 - Splice-site sensitivity: 55.9% (up from 9.8% before the SpliceAI SQLite backend). Splice calls still depend on precomputed SpliceAI delta scores being available for the variant.
 - Benign sensitivity: 6.0% (BP1, BP3, BP6 not implemented; VUS is the default when evidence is absent).
 - Missense sensitivity: 46.9% (limited by the ClinGen-calibrated PP3/REVEL threshold).
-- BS2 is defined as an evidence tag but is not emitted by the classifier (needs gnomAD homozygote-count data that is not parsed yet).
+- BS2 is emitted for dominant-disorder genes when gnomAD homozygote counts are available (observed-in-healthy-controls evidence); it does not fire for recessive genes or without homozygote-count data.
 
 ---
 

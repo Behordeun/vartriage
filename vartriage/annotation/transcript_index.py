@@ -17,6 +17,37 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
+class NMDEscapeZone:
+    """Last-exon / last-junction geometry for one transcript.
+
+    Derived from a transcript's ordered CDS exons plus strand. Used to
+    downgrade PVS1 for nonsense/frameshift variants that escape
+    nonsense-mediated decay: variants in the last exon, within ``margin``
+    nt of the final exon-exon junction, or in a single-exon gene.
+
+    Coordinates are 0-based genomic; ``last_exon`` is half-open.
+    """
+
+    is_single_exon: bool
+    last_exon_start: int
+    last_exon_end: int
+    last_junction_pos: int
+
+    def is_in_last_exon(self, pos: int) -> bool:
+        """True if a 0-based genomic position falls in the last CDS exon."""
+        return self.last_exon_start <= pos < self.last_exon_end
+
+    def is_near_last_junction(self, pos: int, margin: int = 50) -> bool:
+        """True if a position is within ``margin`` nt of the final junction.
+
+        The NMD-escape rule covers the last 50 nt before the final
+        exon-exon junction, so a variant on either side of the junction
+        within the margin escapes decay.
+        """
+        return abs(pos - self.last_junction_pos) <= margin
+
+
+@dataclass(frozen=True, slots=True)
 class CDSExon:
     """A single CDS exon in genomic coordinates (0-based, half-open).
 
@@ -129,6 +160,37 @@ class TranscriptCDS:
             if start_exon.frame is not None:
                 self.frame_offset = start_exon.frame
 
+    def escape_zone(self) -> NMDEscapeZone | None:
+        """Build the NMD-escape geometry for this transcript.
+
+        Call after :meth:`finalize` (CDS exons sorted by genomic start).
+        The last exon in transcription order is the highest-coordinate exon
+        on the plus strand and the lowest-coordinate exon on the minus
+        strand; the final exon-exon junction is that exon's boundary facing
+        the rest of the transcript. Returns None when the transcript has no
+        CDS exons.
+        """
+        if not self.cds_exons:
+            return None
+
+        is_single = len(self.cds_exons) == 1
+
+        if self.strand == "-":
+            last_exon = self.cds_exons[0]
+            # Transcription reads high->low; the junction is the 3' (high) end.
+            junction = last_exon.end - 1
+        else:
+            last_exon = self.cds_exons[-1]
+            # Transcription reads low->high; the junction is the 5' (low) end.
+            junction = last_exon.start
+
+        return NMDEscapeZone(
+            is_single_exon=is_single,
+            last_exon_start=last_exon.start,
+            last_exon_end=last_exon.end,
+            last_junction_pos=junction,
+        )
+
 
 class TranscriptCDSIndex:
     """Index of CDS structures for all transcripts in a GTF file.
@@ -223,10 +285,90 @@ class TranscriptCDSIndex:
                     break
         return results
 
+    def escape_zone(self, gene_name: str, chrom: str, pos: int) -> NMDEscapeZone | None:
+        """Resolve the NMD-escape geometry covering a genomic position.
+
+        Finds the transcript of ``gene_name`` whose CDS overlaps ``pos`` on
+        ``chrom`` and returns its :class:`NMDEscapeZone`. When several
+        transcripts of the gene overlap, the one with the most CDS exons is
+        used (the most complete model). Returns None when no transcript of
+        the gene covers the position, so PVS1 keeps its current strength.
+        """
+        candidates = [
+            t for t in self.find_overlapping(chrom, pos) if t.gene_name == gene_name
+        ]
+        if not candidates:
+            return None
+        best = max(candidates, key=lambda t: len(t.cds_exons))
+        return best.escape_zone()
+
     @property
     def transcript_count(self) -> int:
         """Number of transcripts in the index."""
         return len(self._transcripts)
+
+    @classmethod
+    def build_from_gtf(cls, gtf_path: str) -> TranscriptCDSIndex:
+        """Build a finalized index from a GTF file's CDS features.
+
+        Parses only the CDS feature lines, which is all the NMD-escape
+        geometry needs; no reference FASTA is required. Returns a finalized
+        index ready for ``escape_zone`` lookups. A line that cannot be parsed
+        is skipped rather than aborting the build.
+        """
+        index = cls()
+        with open(gtf_path, encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("#"):
+                    continue
+                record = cls._parse_gtf_cds_line(line)
+                if record is not None:
+                    transcript_id, gene_name, chrom, start, end, strand, frame = record
+                    index.add_cds_exon(
+                        transcript_id=transcript_id,
+                        gene_name=gene_name,
+                        chrom=chrom,
+                        start=start,
+                        end=end,
+                        strand=strand,
+                        frame=frame,
+                    )
+        index.finalize()
+        return index
+
+    @staticmethod
+    def _parse_gtf_cds_line(
+        line: str,
+    ) -> tuple[str, str, str, int, int, str, int] | None:
+        """Parse one GTF CDS line into add_cds_exon arguments, or None to skip."""
+        import re
+
+        parts = line.rstrip("\n").split("\t")
+        if len(parts) < 9 or parts[2] != "CDS":
+            return None
+        try:
+            start = int(parts[3]) - 1
+            end = int(parts[4])
+        except ValueError:
+            return None
+        try:
+            frame = int(parts[7]) if parts[7] != "." else 0
+        except ValueError:
+            frame = 0
+        attrs = parts[8]
+        transcript_match = re.search(r'transcript_id\s+"([^"]+)"', attrs)
+        if not transcript_match:
+            return None
+        gene_match = re.search(r'gene_name\s+"([^"]+)"', attrs)
+        return (
+            transcript_match.group(1),
+            gene_match.group(1) if gene_match else "unknown",
+            parts[0],
+            start,
+            end,
+            parts[6],
+            frame,
+        )
 
     def to_serializable(self) -> dict[str, object]:
         """Serialize for caching alongside the interval tree."""

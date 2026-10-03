@@ -39,6 +39,7 @@ class InheritanceFilter:
         self,
         config: InheritanceConfig,
         sample_names: list[str],
+        gene_inheritance_modes: dict[str, str] | None = None,
     ) -> None:
         for name, role in [
             (config.proband, "proband"),
@@ -55,6 +56,7 @@ class InheritanceFilter:
         self._mother = config.mother
         self._father = config.father
         self._patterns = config.patterns
+        self._gene_modes = gene_inheritance_modes
 
     def apply(self, variants: Iterator[Variant]) -> Iterator[Variant]:
         """Classify variants by inheritance pattern and yield results.
@@ -357,16 +359,35 @@ class InheritanceFilter:
         mother_gt: str,
         father_gt: str,
     ) -> bool:
-        """Classify recessive: proband hom-alt, both parents het.
+        """Classify recessive, including the consanguineous case.
 
-        Returns True iff proband is homozygous-alternate AND both
-        mother and father are heterozygous.
+        Standard: proband homozygous-alt with both parents heterozygous.
+
+        Consanguinity: a homozygous-recessive variant can descend from a
+        single carrier lineage, so a proband hom-alt still classifies as
+        recessive when at least one parent is heterozygous and the other
+        parent is heterozygous, homozygous-alt, or unavailable (no-call).
+        A parent confirmed homozygous-reference breaks transmission and
+        rejects the call.
         """
         if not self._is_hom_alt(proband_gt):
             return False
-        if not self._is_het(mother_gt):
+
+        # Standard trio: both parents het.
+        if self._is_het(mother_gt) and self._is_het(father_gt):
+            return True
+
+        # Consanguinity: at least one parent het, the other not hom-ref.
+        mother_het = self._is_het(mother_gt)
+        father_het = self._is_het(father_gt)
+        if not (mother_het or father_het):
             return False
-        return self._is_het(father_gt)
+
+        other_gt = father_gt if mother_het else mother_gt
+        # The non-het parent must not be a confirmed hom-ref (which would
+        # break transmission of the recessive allele). An unavailable
+        # genotype is permitted (the data is simply missing).
+        return not self._is_hom_ref(other_gt)
 
     def _classify_x_linked(
         self,
@@ -460,6 +481,34 @@ class InheritanceFilter:
                 patterns = patterns + ["compound_het"]
             yield self._build_output(variant, proband_gt, patterns)
 
+    _MODE_ALLOWED_PATTERNS: dict[str, frozenset[str]] = {
+        "AD": frozenset({"dominant", "de_novo"}),
+        "AR": frozenset({"recessive", "compound_het"}),
+        "XL": frozenset({"x_linked"}),
+        "XLR": frozenset({"x_linked"}),
+        "XLD": frozenset({"x_linked"}),
+    }
+
+    def _filter_by_gene_mode(self, patterns: list[str], gene: str | None) -> list[str]:
+        """Drop inheritance calls incompatible with the gene's expected mode.
+
+        When a gene-inheritance map is supplied and names this gene, only the
+        patterns compatible with that mode survive: an AD-only gene keeps
+        dominant and de_novo calls, an AR gene keeps recessive and
+        compound_het, an X-linked gene keeps x_linked. A gene absent from the
+        map, an unrecognized mode, or no map at all leaves the patterns
+        untouched (backward compatible).
+        """
+        if self._gene_modes is None or gene is None:
+            return patterns
+        mode = self._gene_modes.get(gene)
+        if mode is None:
+            return patterns
+        allowed = self._MODE_ALLOWED_PATTERNS.get(mode.upper())
+        if allowed is None:
+            return patterns
+        return [p for p in patterns if p in allowed]
+
     def _build_output(
         self,
         variant: Variant,
@@ -488,6 +537,8 @@ class InheritanceFilter:
         sample_data = variant.info.get("_pysam_samples", {})
         proband_entry = sample_data.get(self._proband, {})
         gq = proband_entry.get("GQ")
+
+        patterns = self._filter_by_gene_mode(patterns, variant.info.get("gene"))
 
         new_info = dict(variant.info)
         new_info.pop("_pysam_samples", None)

@@ -668,3 +668,66 @@ def test_single_supporting_tag_yields_vus(data: st.DataObject) -> None:
     assert result == ACMGClassification.VUS, (
         f"Single {tag.value} should yield VUS, got {result.value}"
     )
+
+
+# ---------------------------------------------------------------------------
+# v0.19.0: PVS1 NMD-escape downgrade invariants
+# ---------------------------------------------------------------------------
+
+from vartriage.annotation.transcript_index import TranscriptCDSIndex  # noqa: E402
+from vartriage.knowledge.models import GeneConstraint, GeneContext  # noqa: E402
+from vartriage.models.variant import (  # noqa: E402
+    EVIDENCE_STRENGTH_MAP,
+    EvidenceStrength,
+)
+
+_LOF = GeneConstraint(pli=0.99, loeuf=0.1, mis_z=1.0)
+
+
+def _nmd_index() -> TranscriptCDSIndex:
+    index = TranscriptCDSIndex()
+    index.add_cds_exon("t", "GENE", "chr1", 0, 100, "+", 0)
+    index.add_cds_exon("t", "GENE", "chr1", 200, 300, "+", 0)
+    index.finalize()
+    return index
+
+
+@settings(max_examples=200)
+@given(pos=st.integers(min_value=0, max_value=299))
+def test_nmd_downgrade_never_exceeds_very_strong(pos: int) -> None:
+    """The NMD check never produces a PVS1 result stronger than Very Strong.
+
+    For a null variant in a LoF-intolerant gene, PVS1 resolves to Very
+    Strong and the NMD check may lower it to Strong, but the resulting
+    strength is never above Very Strong regardless of position.
+    """
+    classifier = ACMGClassifier(nmd_lookup=_nmd_index())
+    annotated = AnnotatedVariant(
+        variant=Variant("chr1", pos, None, "A", "T", 99.0, "PASS", {}),
+        consequence=FunctionalConsequence.NONSENSE,
+        gene_name="GENE",
+        gene_context=GeneContext(disease_associations=(), constraint=_LOF),
+    )
+    tags, _ = classifier._assign_tags(ScoredVariant(annotated=annotated))
+    pvs1_tags = {t for t in tags if t in (EvidenceTag.PVS1, EvidenceTag.PVS1_STRONG)}
+    assert len(pvs1_tags) == 1
+    strength = EVIDENCE_STRENGTH_MAP[next(iter(pvs1_tags))]
+    assert strength in (EvidenceStrength.VERY_STRONG, EvidenceStrength.STRONG)
+
+
+@settings(max_examples=100)
+@given(consequence=st.sampled_from(_NON_PVS1_CONSEQUENCES))
+def test_nmd_lookup_never_adds_pvs1_to_non_null_variants(
+    consequence: FunctionalConsequence,
+) -> None:
+    """An NMD lookup must not cause PVS1 to fire on a non-null variant."""
+    classifier = ACMGClassifier(nmd_lookup=_nmd_index())
+    annotated = AnnotatedVariant(
+        variant=Variant("chr1", 250, None, "A", "T", 99.0, "PASS", {}),
+        consequence=consequence,
+        gene_name="GENE",
+        gene_context=GeneContext(disease_associations=(), constraint=_LOF),
+    )
+    tags, _ = classifier._assign_tags(ScoredVariant(annotated=annotated))
+    assert EvidenceTag.PVS1 not in tags
+    assert EvidenceTag.PVS1_STRONG not in tags

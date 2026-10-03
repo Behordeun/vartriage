@@ -39,6 +39,8 @@ from vartriage.models.cohort import (
 )
 from vartriage.models.config import (
     AnnotationConfig,
+    DiseaseContext,
+    DiseaseThresholds,
     MissingDataConfig,
     PipelineConfig,
     PrioritizationConfig,
@@ -51,6 +53,7 @@ from vartriage.models.variant import (
     AnnotatedVariant,
     ClassifiedVariant,
     ClinVarAssertion,
+    ClinVarReviewStatus,
     EvidenceStrength,
     EvidenceTag,
     FunctionalConsequence,
@@ -86,7 +89,7 @@ try:
 
     __version__ = _get_version("vartriage")
 except Exception:
-    __version__ = "0.18.5"
+    __version__ = "0.19.0"
 
 __all__ = [
     # Pipeline orchestrator
@@ -130,6 +133,7 @@ __all__ = [
     # Enums
     "FunctionalConsequence",
     "ClinVarAssertion",
+    "ClinVarReviewStatus",
     "ACMGClassification",
     "EvidenceTag",
     "EvidenceStrength",
@@ -142,6 +146,8 @@ __all__ = [
     "ReportConfig",
     "MissingDataConfig",
     "PipelineConfig",
+    "DiseaseContext",
+    "DiseaseThresholds",
     # Exceptions
     "VariantPrioritizationError",
     "ParseError",
