@@ -50,11 +50,13 @@ Reference files are cached after first parse. Subsequent runs load from cache in
 
 Splice-site sensitivity improved from 9.8% to 55.9% once the SpliceAI SQLite backend (`--spliceai-db`) landed in v0.17.5.
 
+These figures were measured on v0.17.5 and predate the ClinGen SVI Bayesian point engine that became the combining path in v0.18.3. Under the point system, 31% of pathogenic-side tag combinations map to a different tier than the earlier rule table produced, so the numbers above do not describe the classifier as it behaves at the current release. Treat them as the last published run pending a refreshed eRepo validation on the current combining path.
+
 **Known limitations:**
 
 - BS2 (observed in healthy controls) is emitted for dominant-disorder genes when gnomAD homozygote counts are available; it does not fire for recessive genes or without homozygote-count data.
 - BP1, BP3, BP6 benign criteria are not implemented.
-- Benign sensitivity is low (6.0%) because of the missing benign criteria; VUS is the default when evidence is absent.
+- Benign sensitivity is low because of the missing benign criteria; VUS is the default when evidence is absent. The 6.0% figure from the v0.17.5 run predates the v0.18.3 point engine and has not been re-measured.
 
 ## Install
 
