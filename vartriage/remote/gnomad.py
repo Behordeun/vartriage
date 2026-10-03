@@ -391,7 +391,7 @@ class RemoteTabixGnomAD:
                     return None
                 time.sleep(backoff)
                 backoff *= 2.0
-            except (OSError, ValueError) as exc:
+            except (OSError, ValueError, pysam.utils.SamtoolsError) as exc:
                 if attempt == max_retries:
                     self._breaker.record_failure()
                     logger.warning(
@@ -405,6 +405,35 @@ class RemoteTabixGnomAD:
 
                 logger.debug(
                     "Remote gnomAD query attempt %d failed, retrying in %.1fs: %s",
+                    attempt + 1,
+                    backoff,
+                    exc,
+                )
+                time.sleep(backoff)
+                backoff *= 2.0
+                self._reset_chrom_connection(chrom)
+            except Exception as exc:
+                # htslib surfaces transient S3/BGZF read failures (libcurl socket
+                # errors, truncated BGZF blocks) as exceptions outside the OSError
+                # hierarchy. A single bad range read must never abort a
+                # genome-wide run, so treat any remote read failure the same as a
+                # retryable fetch error: back off and retry, then degrade to no
+                # frequency for this range.
+                if attempt == max_retries:
+                    self._breaker.record_failure()
+                    logger.warning(
+                        "Remote gnomAD query failed (non-standard error) for "
+                        "%s:%d-%d: %s",
+                        chrom,
+                        start,
+                        end,
+                        exc,
+                    )
+                    return None
+
+                logger.debug(
+                    "Remote gnomAD query attempt %d hit a non-standard error, "
+                    "retrying in %.1fs: %s",
                     attempt + 1,
                     backoff,
                     exc,
