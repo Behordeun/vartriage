@@ -170,32 +170,59 @@ class RemoteTabixGnomAD:
         "AF_afr".."AF_sas"). None marks a variant not found or a query skipped
         because the circuit breaker is open.
 
-        This is the ancestry-aware companion to lookup_batch. It does not use the
-        single-float score cache (which cannot hold a population map); it queries
-        remote directly through the same batched, retrying range fetch. The global
-        FrequencyDatabase protocol path (lookup_batch) is unchanged.
+        This is the ancestry-aware companion to lookup_batch. It is backed by a
+        dedicated population-map cache (JSON per variant) with the same TTL and
+        pinning semantics as the single-float cache, so repeat runs are cache
+        hits rather than fresh remote queries. The global FrequencyDatabase
+        protocol path (lookup_batch) is unchanged.
         """
         if not variants:
             return []
 
         results: list[dict[str, float] | None] = [None] * len(variants)
+        uncached_indices: list[int] = []
+
+        # Phase 1: check the population cache. A stored empty map is a hit
+        # (confirmed queried, nothing found) and leaves the result at None.
+        cached_maps = self._cache.get_population_batch(self._source_id, list(variants))
+        for i, af_map in enumerate(cached_maps):
+            if af_map is None:
+                uncached_indices.append(i)
+            elif af_map:
+                results[i] = af_map
+
+        if not uncached_indices:
+            return results
 
         if self._breaker.is_open:
             logger.debug(
                 "Circuit breaker open — skipping %d remote gnomAD population queries",
-                len(variants),
+                len(uncached_indices),
             )
             return results
 
+        # Phase 2: query remote for cache misses only.
+        uncached_variants = [variants[i] for i in uncached_indices]
         indices_by_variant: dict[_VariantKey, list[int]] = defaultdict(list)
-        for i, variant in enumerate(variants):
-            indices_by_variant[variant].append(i)
+        for idx in uncached_indices:
+            indices_by_variant[variants[idx]].append(idx)
 
-        for chrom, group in self._iter_groups(variants):
+        fetched: dict[_VariantKey, dict[str, float]] = {}
+        for chrom, group in self._iter_groups(uncached_variants):
             group_maps = self._query_range_populations(chrom, group)
-            for variant, af_map in group_maps.items():
-                for idx in indices_by_variant.get(variant, ()):
-                    results[idx] = af_map
+            fetched.update(group_maps)
+
+        for variant, af_map in fetched.items():
+            for idx in indices_by_variant.get(variant, ()):
+                results[idx] = af_map
+
+        # Phase 3: cache every queried variant, including those not found
+        # (stored as an empty map) so a confirmed absence is not re-queried.
+        cache_entries: list[tuple[str, int, str, str, dict[str, float]]] = []
+        for variant in uncached_variants:
+            chrom, pos, ref, alt = variant
+            cache_entries.append((chrom, pos, ref, alt, fetched.get(variant, {})))
+        self._cache.put_population_batch(self._source_id, cache_entries)
 
         return results
 

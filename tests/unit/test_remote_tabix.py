@@ -1077,7 +1077,8 @@ class TestPerPopulationParsing:
 class TestPopulationLookupBatch:
     """lookup_batch_populations positional-result behavior."""
 
-    def _make_backend(self) -> object:
+    def _make_backend(self, tmp_path: Path) -> object:
+        from vartriage.remote.cache import RemoteScoreCache
         from vartriage.remote.gnomad import RemoteTabixGnomAD
 
         config = RemoteTabixConfig(gnomad_remote_url="gnomad-genomes-v4-grch38")
@@ -1085,10 +1086,14 @@ class TestPopulationLookupBatch:
         backend._config = config
         backend._breaker = CircuitBreaker()
         backend._network_fetches = 0
+        backend._source_id = "gnomad-genomes-v4-grch38"
+        backend._cache = RemoteScoreCache(
+            db_path=tmp_path / "pop_cache.db", ttl_days=-1
+        )
         return backend
 
-    def test_duplicate_variant_gets_result_at_every_index(self) -> None:
-        backend = self._make_backend()
+    def test_duplicate_variant_gets_result_at_every_index(self, tmp_path: Path) -> None:
+        backend = self._make_backend(tmp_path)
         variant = ("chr1", 100, "A", "G")
         af_map = {"AF": 0.01, "AF_afr": 0.08}
 
@@ -1101,12 +1106,12 @@ class TestPopulationLookupBatch:
 
         assert results == [af_map, af_map]
 
-    def test_empty_batch_returns_empty(self) -> None:
-        backend = self._make_backend()
+    def test_empty_batch_returns_empty(self, tmp_path: Path) -> None:
+        backend = self._make_backend(tmp_path)
         assert backend.lookup_batch_populations([]) == []
 
-    def test_missing_variant_stays_none(self) -> None:
-        backend = self._make_backend()
+    def test_missing_variant_stays_none(self, tmp_path: Path) -> None:
+        backend = self._make_backend(tmp_path)
         found = ("chr1", 100, "A", "G")
         missing = ("chr1", 200, "C", "T")
         with patch.object(
@@ -1117,3 +1122,31 @@ class TestPopulationLookupBatch:
             results = backend.lookup_batch_populations([found, missing])
         assert results[0] == {"AF": 0.02}
         assert results[1] is None
+
+    def test_second_lookup_is_cache_hit_without_remote_query(
+        self, tmp_path: Path
+    ) -> None:
+        backend = self._make_backend(tmp_path)
+        found = ("chr1", 100, "A", "G")
+        missing = ("chr1", 200, "C", "T")
+
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value={found: {"AF": 0.02, "AF_afr": 0.05}},
+        ) as mocked:
+            first = backend.lookup_batch_populations([found, missing])
+            assert mocked.call_count >= 1
+
+        # Second pass must be served entirely from the population cache,
+        # including the confirmed-absent variant, with no remote query.
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            side_effect=AssertionError("must not query remote on a cache hit"),
+        ):
+            second = backend.lookup_batch_populations([found, missing])
+
+        assert second == first
+        assert second[0] == {"AF": 0.02, "AF_afr": 0.05}
+        assert second[1] is None

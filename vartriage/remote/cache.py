@@ -11,6 +11,7 @@ for high-volume batch lookups.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import threading
@@ -33,6 +34,18 @@ CREATE TABLE IF NOT EXISTS remote_scores (
 );
 CREATE INDEX IF NOT EXISTS idx_remote_scores_fetched
     ON remote_scores(fetched_at);
+CREATE TABLE IF NOT EXISTS remote_population_scores (
+    source TEXT NOT NULL,
+    chrom TEXT NOT NULL,
+    pos INTEGER NOT NULL,
+    ref TEXT NOT NULL,
+    alt TEXT NOT NULL,
+    af_map TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL,
+    PRIMARY KEY (source, chrom, pos, ref, alt)
+);
+CREATE INDEX IF NOT EXISTS idx_remote_population_fetched
+    ON remote_population_scores(fetched_at);
 """
 
 
@@ -162,6 +175,59 @@ class RemoteScoreCache:
             )
             conn.commit()
 
+    def get_population_batch(
+        self,
+        source: str,
+        variants: list[tuple[str, int, str, str]],
+    ) -> list[dict[str, float] | None]:
+        """Batch lookup of cached per-population allele-frequency maps.
+
+        Mirrors get_batch for the population path. Expired entries are
+        deleted on access (lazy eviction). Returns the stored map per
+        variant (global "AF" plus "AF_<pop>" and optional "nhomalt"),
+        positionally matched; None for a cache miss.
+        """
+        results: list[dict[str, float] | None] = [None] * len(variants)
+        now = int(time.time())
+
+        with self._lock:
+            conn = self._ensure_connection()
+            for i, (chrom, pos, ref, alt) in enumerate(variants):
+                results[i] = self._lookup_population_row(
+                    conn, source, chrom, pos, ref, alt, now
+                )
+            conn.commit()
+
+        return results
+
+    def put_population_batch(
+        self,
+        source: str,
+        entries: list[tuple[str, int, str, str, dict[str, float]]],
+    ) -> None:
+        """Store multiple per-population AF maps in a single transaction.
+
+        The map is serialized as JSON. An empty map is still stored so a
+        confirmed "queried, nothing found" result is cached as a hit rather
+        than re-queried every run.
+        """
+        if not entries:
+            return
+
+        now = int(time.time())
+        with self._lock:
+            conn = self._ensure_connection()
+            conn.executemany(
+                "INSERT OR REPLACE INTO remote_population_scores "
+                "(source, chrom, pos, ref, alt, af_map, fetched_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (source, chrom, pos, ref, alt, json.dumps(af_map), now)
+                    for chrom, pos, ref, alt, af_map in entries
+                ],
+            )
+            conn.commit()
+
     def evict_expired(self) -> int:
         """Remove all expired entries. Returns count evicted.
 
@@ -176,8 +242,11 @@ class RemoteScoreCache:
             cursor = conn.execute(
                 "DELETE FROM remote_scores WHERE fetched_at < ?", (cutoff,)
             )
+            pop_cursor = conn.execute(
+                "DELETE FROM remote_population_scores WHERE fetched_at < ?", (cutoff,)
+            )
             conn.commit()
-            return cursor.rowcount
+            return cursor.rowcount + pop_cursor.rowcount
 
     def clear(self, source: str | None = None) -> int:
         """Delete cache entries. Returns count deleted.
@@ -275,6 +344,41 @@ class RemoteScoreCache:
             return None
 
         return float(score)
+
+    def _lookup_population_row(
+        self,
+        conn: sqlite3.Connection,
+        source: str,
+        chrom: str,
+        pos: int,
+        ref: str,
+        alt: str,
+        now: int,
+    ) -> dict[str, float] | None:
+        """Look up a single population-map row and lazily evict if expired.
+
+        Caller must hold self._lock. A single commit() after a batch suffices.
+        """
+        cursor = conn.execute(
+            "SELECT af_map, fetched_at FROM remote_population_scores "
+            "WHERE source = ? AND chrom = ? AND pos = ? AND ref = ? AND alt = ?",
+            (source, chrom, pos, ref, alt),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+
+        af_map_json, fetched_at = row
+        if self._is_expired(fetched_at, now):
+            conn.execute(
+                "DELETE FROM remote_population_scores "
+                "WHERE source = ? AND chrom = ? AND pos = ? AND ref = ? AND alt = ?",
+                (source, chrom, pos, ref, alt),
+            )
+            return None
+
+        parsed: dict[str, float] = json.loads(af_map_json)
+        return parsed
 
     def _ensure_connection(self) -> sqlite3.Connection:
         """Lazy-init the SQLite connection and schema. Caller holds lock."""
