@@ -9,6 +9,7 @@ Satisfies the FrequencyDatabase protocol from vartriage.protocols.
 
 from __future__ import annotations
 
+import concurrent.futures
 import contextlib
 import logging
 import time
@@ -346,8 +347,6 @@ class RemoteTabixGnomAD:
         Uses a thread-based timeout to prevent indefinite hangs on stalled
         S3 connections (pysam/htslib has no built-in timeout).
         """
-        import concurrent.futures
-
         max_retries = self._config.max_retries
         timeout = self._config.read_timeout
         backoff = 1.0
@@ -553,7 +552,20 @@ class RemoteTabixGnomAD:
 
         url = self._url_template.format(chrom=chrom)
         logger.info("Opening remote gnomAD tabix for %s: %s", chrom, url)
-        handle = pysam.TabixFile(url)
+
+        # pysam.TabixFile opens the remote index over HTTP with no connect
+        # timeout (htslib has none), so a stalled S3 connection would block the
+        # whole run forever. Bound the open with the configured connect timeout;
+        # a timeout raises TimeoutError into the caller's retry/degrade path.
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            future = pool.submit(pysam.TabixFile, url)
+            handle: pysam.TabixFile = future.result(
+                timeout=self._config.connect_timeout
+            )
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
         self._tabix_handles[chrom] = handle
         return handle
 

@@ -567,6 +567,35 @@ class TestRemoteTabixGnomAD:
         )
 
     @patch("vartriage.remote.gnomad.pysam.TabixFile")
+    def test_stalled_index_open_degrades_without_hanging(
+        self, mock_tabix_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        config = RemoteTabixConfig(
+            gnomad_remote_url="https://example.com/{chrom}.vcf.bgz",
+            cache_path=tmp_path / "stalled_open_cache.db",
+            cache_ttl_days=30,
+            connect_timeout=0.2,
+            max_retries=0,
+        )
+
+        def _never_returns(_url: str) -> object:
+            time.sleep(30)
+            raise AssertionError("open should have timed out")
+
+        mock_tabix_cls.side_effect = _never_returns
+
+        backend = RemoteTabixGnomAD(config)
+        start = time.monotonic()
+        results = backend.lookup_batch([("chr22", 100, "A", "T")])
+        elapsed = time.monotonic() - start
+        backend.close()
+
+        assert results == [None]
+        assert elapsed < 5.0
+
+    @patch("vartriage.remote.gnomad.pysam.TabixFile")
     def test_lookup_batch_parses_gnomad_vcf(
         self, mock_tabix_cls: MagicMock, tmp_path: Path
     ) -> None:
