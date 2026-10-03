@@ -61,6 +61,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--revel", type=Path, default=None)
     parser.add_argument("--cadd", type=Path, default=None)
     parser.add_argument("--fasta", type=Path, default=None)
+    parser.add_argument(
+        "--gnomad-remote",
+        default=None,
+        help="Remote gnomAD preset name or URL (e.g. gnomad-exomes-v4-grch38). "
+        "Supplies allele frequencies by HTTP range query when no local "
+        "--gnomad is given, so BA1/BS1/BS2/PM2 fire genome-wide.",
+    )
+    parser.add_argument(
+        "--cadd-remote",
+        default=None,
+        help="Remote CADD preset name or URL (e.g. cadd-v1.7-grch38).",
+    )
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--scope", default="harness")
     args = parser.parse_args(argv)
@@ -74,6 +86,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {label} not found: {path}", file=sys.stderr)
             return 1
 
+    remote = None
+    if args.gnomad_remote is not None or args.cadd_remote is not None:
+        from vartriage.remote.config import RemoteTabixConfig
+
+        remote = RemoteTabixConfig(
+            gnomad_remote_url=args.gnomad_remote,
+            cadd_remote_url=args.cadd_remote,
+            cache_ttl_days=-1,
+        )
+
     config = PipelineConfig(
         vcf_path=args.truth_vcf,
         output_path=args.out.with_suffix(".classified.json"),
@@ -86,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             revel_scores_path=args.revel,
             cadd_scores_path=args.cadd,
         ),
+        remote=remote,
     )
 
     pipeline = Pipeline(config)
