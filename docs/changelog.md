@@ -6,7 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
-_Nothing yet. The most recent release is 0.19.0, below._
+_Nothing yet. The most recent release is 1.0.0, below._
+
+## [1.0.0] - 2026-10-04
+
+### Added
+
+- **Quantified full-genome accuracy validation**: v1.0.0 is the first release with release-grade accuracy figures measured against an expert-curated truth set of 18,166 pinned-ClinVar variants (12,545 Pathogenic/Likely Pathogenic, 5,621 Benign/Likely Benign) on GRCh38. On the Pathogenic/Likely Pathogenic call the classifier reaches a PPV of 0.999 (95% CI [0.997, 0.999], n=8,062) with specificity 0.990 (95% CI [0.982, 0.994]); pathogenic sensitivity is 0.642 (95% CI [0.633, 0.650]). The thresholds and their interpretation were pre-registered before any figure existed. Judged against that rule, v1.0.0 is a research-grade computational-triage tool: the PPV lower bound clears the clinical bar, while sensitivity below 0.70 keeps it short of clinical-grade. Full detail, coverage boundaries, and the path to clinical-grade are in the validation guide (docs/validation.md).
+- **Remote gnomAD per-population frequency cache**: the ancestry-aware population lookup backing BA1, BS1, BS2 and PM2 is now cached on disk with the same TTL and clinical-pinning semantics as the scalar score cache, storing each variant's global and per-population allele frequencies and homozygote count. The first run over a cohort populates and pins the cache; subsequent runs read from it rather than re-querying the remote server. Results persist per query-group, so an interrupted run resumes from the last completed group.
+- **Benchmark runner and truth-set builder**: `vartriage/validation/benchmark.py` computes PPV, sensitivity, specificity, NPV, Cohen's kappa and a five-class confusion matrix, each binomial metric with a Wilson confidence interval; `scripts/build_truth_set.py` builds the normalized truth set deterministically from a pinned ClinVar release.
+
+### Changed
+
+- **Remote tabix queries are robust to transient failures**: a remote gnomAD range query now treats a transient read failure (a timeout, a socket error, or a truncated block) as a retryable event and degrades to no frequency for that one range after exhausting retries, and the index open is bounded by a connect timeout. A single stalled or failed range read can no longer abort a genome-wide run.
+
+### Internal
+
+- The test suite redirects its temporary base to a filesystem that can host a WAL SQLite database when the inherited `TMPDIR` cannot, so cache-backed tests exercise the code rather than the environment's filesystem limits.
 
 ## [0.19.0] - 2026-10-03
 

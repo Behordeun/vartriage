@@ -55,7 +55,7 @@
 
 ## Validation report
 
-- [ ] 31. Implement report_generator: produce docs/validation_report.md from BenchmarkReport
+- [ ] 31. Fold the release report into docs/validation.md (chosen over a standalone validation_report.md to avoid duplicate figures that can drift)
 - [ ] 32. Include: truth set description, pipeline config, all metrics with CIs, confusion matrix
 - [ ] 33. Include: per-criterion table, known limitations, comparison summary
 - [ ] 34. Generate publication-ready figures (matplotlib): ROC-like plot, bar chart per criterion
