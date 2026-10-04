@@ -20,7 +20,7 @@ The thresholds were pre-registered before the figures existed (`.kiro/specs/vali
 
 Confusion counts: 8,050 true positive, 12 false positive, 1,175 true negative, 4,495 false negative. Of the P/LP variants not recovered, 4,486 were classified VUS rather than mis-called benign. Specificity recovered from 0.0 (frequency-blind REVEL-only run) to 0.990 once gnomAD frequency was available, confirming the benign-evidence path depends on frequency data rather than any classifier defect.
 
-**Coverage boundaries (these bound the figures):** frequency is from gnomAD exomes v4.1.1 only (genomes not queried); the 127 mitochondrial truth variants received no gnomAD frequency; CADD and SpliceAI were not used, so REVEL was the only in-silico score. Each plausibly suppresses sensitivity and is the subject of the sensitivity-evidence-coverage work scoped for v1.1.0.
+**Coverage boundaries (these bound the figures):** frequency is from gnomAD exomes v4.1.1 only (genomes not queried); the 127 mitochondrial truth variants received no gnomAD frequency; CADD and SpliceAI were not used, so REVEL was the only in-silico score. Each plausibly suppresses sensitivity and is the subject of the sensitivity-evidence-coverage work scoped for v1.2.0.
 
 **Reproducibility:** the gnomAD remote cache is pinned (entries never expire), the truth set is built deterministically from a pinned ClinVar release, and reference versions are fixed, so a re-run reproduces these figures.
 
@@ -28,7 +28,7 @@ Confusion counts: 8,050 true positive, 12 false positive, 1,175 true negative, 4
 
 Clinical-grade status has two distinct requirements, and both must hold.
 
-1. **Clear the pre-registered gate honestly.** The only unmet threshold is sensitivity (0.642, needs ≥ 0.70). It must rise by giving the classifier evidence it currently lacks — gnomAD genomes, CADD, SpliceAI, and chrM frequency let PP3, splice, and rarity criteria fire on variants presently held at VUS — never by fitting thresholds to the truth set, which the pre-registration forbids. Whether sensitivity reaches 0.70 is then measured on a re-run under the same frozen rule. This is scoped in the sensitivity-evidence-coverage spec for v1.1.0.
+1. **Clear the pre-registered gate honestly.** The only unmet threshold is sensitivity (0.642, needs ≥ 0.70). It must rise by giving the classifier evidence it currently lacks — gnomAD genomes, CADD, SpliceAI, and chrM frequency let PP3, splice, and rarity criteria fire on variants presently held at VUS — never by fitting thresholds to the truth set, which the pre-registration forbids. Whether sensitivity reaches 0.70 is then measured on a re-run under the same frozen rule. This is scoped in the sensitivity-evidence-coverage spec for v1.2.0.
 2. **Validate beyond ClinVar.** The current benchmark measures concordance against ClinVar, and the classifier itself uses ClinVar-derived evidence (PP5/BP6, review status), so the study carries a circularity risk stated plainly here. Clinical-grade validation requires an independent, orthogonal truth set the classifier did not learn from, per-gene and per-disease breakdowns rather than one global number, and concordance against the full ACMG five-tier rather than the collapsed P/VUS/B this run produced. Formal CAP/CLIA validation and regulatory review are a separate organizational track required before any diagnostic use. This is a later milestone.
 
 ### Historical run (v0.17.5 eRepo, superseded)
@@ -42,7 +42,7 @@ The earlier eRepo figures below predate both the ClinGen SVI Bayesian point engi
 
 **Known limitations:**
 
-- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than escalated, pending the additional in-silico and frequency evidence scoped for v1.1.0 (gnomAD genomes, CADD, SpliceAI, chrM frequency). Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
+- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than escalated, pending the additional in-silico and frequency evidence scoped for v1.2.0 (gnomAD genomes, CADD, SpliceAI, chrM frequency). Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
 - NPV 0.207: a non-pathogenic call is weak evidence of benignity, a consequence of the VUS-heavy behavior.
 - Validation is concordance against ClinVar, which also supplies some classifier evidence (PP5/BP6, review status); an independent, orthogonal truth set is required for clinical-grade validation.
 - BS2 is emitted for dominant-disorder genes when gnomAD homozygote counts are available; it does not fire for recessive genes or without homozygote-count data.

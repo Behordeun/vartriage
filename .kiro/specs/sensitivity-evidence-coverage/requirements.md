@@ -1,4 +1,4 @@
-# Sensitivity Evidence Coverage - Requirements
+# Sensitivity Evidence Coverage (v1.2.0) - Requirements
 
 ## Problem Statement
 

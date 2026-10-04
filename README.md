@@ -54,7 +54,7 @@ Thresholds were pre-registered before the figures existed. The PPV lower bound (
 
 **Known limitations:**
 
-- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than overcalled; the v1.1.0 evidence-coverage work (gnomAD genomes, CADD, SpliceAI, chrM frequency) targets this. Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
+- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than overcalled; the v1.2.0 evidence-coverage work (gnomAD genomes, CADD, SpliceAI, chrM frequency) targets this. Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
 - Validation is concordance against ClinVar, which also supplies some classifier evidence; an independent truth set is required for clinical-grade validation.
 - BS2 (observed in healthy controls) is emitted for dominant-disorder genes when gnomAD homozygote counts are available; it does not fire for recessive genes or without homozygote-count data.
 - BP1, BP3, BP6 benign criteria are not implemented.
