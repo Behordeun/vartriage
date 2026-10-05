@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -68,7 +69,7 @@ class BundleDownloader:
     """
 
     # HTTP status codes that warrant a retry
-    _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+    _RETRYABLE_STATUS: ClassVar[set[int]] = {429, 500, 502, 503, 504}
 
     def __init__(
         self,

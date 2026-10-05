@@ -67,7 +67,7 @@ class TestImpactScore:
     def test_whole_gene_deletion_gets_highest_base(self) -> None:
         scorer = SVScorer()
         annotated = _make_annotated(consequence=SVConsequence.WHOLE_GENE_DELETION)
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.pathogenicity_score is not None
         assert scored.pathogenicity_score > 0.3
 
@@ -79,7 +79,7 @@ class TestImpactScore:
             population_frequency=0.001,
             frequency_unknown=False,
         )
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.pathogenicity_score is not None
         assert scored.pathogenicity_score < 0.3
 
@@ -90,7 +90,7 @@ class TestImpactScore:
             genes_affected=0,
             frequency_unknown=True,
         )
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.pathogenicity_score is None
 
     def test_multi_gene_boost(self) -> None:
@@ -103,8 +103,8 @@ class TestImpactScore:
             consequence=SVConsequence.PARTIAL_GENE_DELETION,
             genes_affected=5,
         )
-        s1 = list(scorer.score(iter([single])))[0]
-        s5 = list(scorer.score(iter([multi])))[0]
+        s1 = next(iter(scorer.score(iter([single]))))
+        s5 = next(iter(scorer.score(iter([multi]))))
         assert s5.pathogenicity_score > s1.pathogenicity_score
 
 
@@ -130,7 +130,7 @@ class TestDosageScore:
             genes_affected=1,
             hi_genes_affected=1,
         )
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.dosage_score is not None
         assert scored.dosage_score >= 0.9
 
@@ -156,7 +156,7 @@ class TestDosageScore:
             gene_overlaps=(overlap,),
             genes_affected=1,
         )
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.dosage_score >= 0.9
 
     def test_cnv_loss_uses_hi_score(self) -> None:
@@ -181,7 +181,7 @@ class TestDosageScore:
             genes_affected=1,
             hi_genes_affected=1,
         )
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.dosage_score >= 0.9
 
     def test_no_dosage_data_scores_neutral(self) -> None:
@@ -202,7 +202,7 @@ class TestDosageScore:
             gene_overlaps=(overlap,),
             genes_affected=1,
         )
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         # No dosage data is not evidence of dosage sensitivity: neutral 0.0,
         # not a manufactured partial-pathogenic default.
         assert scored.dosage_score == pytest.approx(0.0)
@@ -212,25 +212,25 @@ class TestSizeScore:
     def test_large_sv_scores_high(self) -> None:
         scorer = SVScorer()
         annotated = _make_annotated(length=2_000_000)
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.size_score == 1.0
 
     def test_medium_sv_scores_mid(self) -> None:
         scorer = SVScorer()
         annotated = _make_annotated(length=500_000)
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert 0.5 < scored.size_score < 1.0
 
     def test_small_sv_scores_low(self) -> None:
         scorer = SVScorer()
         annotated = _make_annotated(length=5_000)
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.size_score < 0.3
 
     def test_tiny_sv_scores_near_zero(self) -> None:
         scorer = SVScorer()
         annotated = _make_annotated(length=100)
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.size_score < 0.05
 
 
@@ -238,7 +238,7 @@ class TestFrequencyScore:
     def test_unknown_frequency_scores_neutral(self) -> None:
         scorer = SVScorer(max_allele_frequency=0.01)
         annotated = _make_annotated(frequency_unknown=True)
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         # Unknown frequency is not evidence of rarity: neutral 0.0, so missing
         # gnomAD-SV data cannot manufacture pathogenic ranking weight.
         assert scored.frequency_score == 0.0
@@ -249,7 +249,7 @@ class TestFrequencyScore:
             population_frequency=0.01,
             frequency_unknown=False,
         )
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.frequency_score == pytest.approx(0.0)
 
     def test_half_threshold_gives_half(self) -> None:
@@ -258,5 +258,5 @@ class TestFrequencyScore:
             population_frequency=0.005,
             frequency_unknown=False,
         )
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
         assert scored.frequency_score == pytest.approx(0.5)

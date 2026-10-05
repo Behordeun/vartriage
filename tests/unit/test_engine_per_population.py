@@ -18,15 +18,15 @@ from vartriage.models.variant import Variant
 
 
 class _GlobalOnlyDB:
-    def load(self, reference_path):  # noqa: ANN001, ANN201
+    def load(self, reference_path):
         pass
 
-    def lookup_batch(self, variants):  # noqa: ANN001, ANN201
+    def lookup_batch(self, variants):
         return [0.001 for _ in variants]
 
 
 class _PerPopulationDB(_GlobalOnlyDB):
-    def lookup_batch_populations(self, variants):  # noqa: ANN001, ANN201
+    def lookup_batch_populations(self, variants):
         # A variant common in AFR but globally rare.
         return [{"AF": 0.001, "AF_afr": 0.08, "AF_nfe": 0.0005} for _ in variants]
 
@@ -38,7 +38,7 @@ def gene_annotation(tmp_path: Path) -> Path:
     return gtf
 
 
-def _engine_with_db(db, gene_annotation: Path) -> AnnotationEngine:  # noqa: ANN001
+def _engine_with_db(db, gene_annotation: Path) -> AnnotationEngine:
     engine = AnnotationEngine(AnnotationConfig(gene_annotation_path=gene_annotation))
     engine.set_frequency_db(db)
     return engine
@@ -58,9 +58,9 @@ def _variant() -> Variant:
 
 
 class TestPerPopulationWiring:
-    def test_per_population_frequencies_are_populated(self, gene_annotation) -> None:  # noqa: ANN001
+    def test_per_population_frequencies_are_populated(self, gene_annotation) -> None:
         engine = _engine_with_db(_PerPopulationDB(), gene_annotation)
-        annotated = list(engine.annotate(iter([_variant()])))[0]
+        annotated = next(iter(engine.annotate(iter([_variant()]))))
         pf = annotated.population_frequencies
         assert pf is not None
         assert pf.afr == 0.08
@@ -69,17 +69,17 @@ class TestPerPopulationWiring:
 
     def test_global_only_backend_leaves_population_frequencies_none(
         self, gene_annotation
-    ) -> None:  # noqa: ANN001
+    ) -> None:
         engine = _engine_with_db(_GlobalOnlyDB(), gene_annotation)
-        annotated = list(engine.annotate(iter([_variant()])))[0]
+        annotated = next(iter(engine.annotate(iter([_variant()]))))
         assert annotated.population_frequencies is None
         assert annotated.allele_frequency == 0.001
 
     def test_max_population_af_reflects_the_ancestry_spike(
         self, gene_annotation
-    ) -> None:  # noqa: ANN001
+    ) -> None:
         engine = _engine_with_db(_PerPopulationDB(), gene_annotation)
-        annotated = list(engine.annotate(iter([_variant()])))[0]
+        annotated = next(iter(engine.annotate(iter([_variant()]))))
         pf = annotated.population_frequencies
         assert pf is not None
         assert pf.max_population_af == 0.08

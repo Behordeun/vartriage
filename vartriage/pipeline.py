@@ -68,13 +68,13 @@ class Pipeline:
 
         # NMD-escape lookup is built lazily from the GTF and cached. The
         # sentinel False means "not yet built"; None means "built, unavailable".
-        self._nmd_lookup_cached: object | None | bool = False
+        self._nmd_lookup_cached: object | bool | None = False
 
         # Gene-disease linkage annotator: constructed once, reused across runs
         self._gene_knowledge_annotator = None  # type: GeneKnowledgeAnnotator | None
         if config.knowledge is not None:
             from vartriage.knowledge.annotator import (
-                GeneKnowledgeAnnotator,  # noqa: F811
+                GeneKnowledgeAnnotator,
             )
 
             self._gene_knowledge_annotator = GeneKnowledgeAnnotator(config.knowledge)

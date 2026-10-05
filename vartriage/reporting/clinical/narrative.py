@@ -156,9 +156,10 @@ class EvidenceNarrativeBuilder:
 
         # Evidence tags with explanations.
         if variant.evidence_tags:
-            tag_explanations: list[str] = []
-            for tag in sorted(variant.evidence_tags, key=lambda t: t.value):
-                tag_explanations.append(self.format_evidence_tag(tag, variant))
+            tag_explanations: list[str] = [
+                self.format_evidence_tag(tag, variant)
+                for tag in sorted(variant.evidence_tags, key=lambda t: t.value)
+            ]
             parts.append(
                 _ACMG_CRITERIA_HEADER + " " + ", ".join(tag_explanations) + "."
             )
@@ -199,9 +200,7 @@ class EvidenceNarrativeBuilder:
                 + ", ".join(e for e in score_entries if "not available" not in e)
                 + "."
             )
-        for entry in score_entries:
-            if "not available" in entry:
-                parts.append(entry)
+        parts.extend(entry for entry in score_entries if "not available" in entry)
 
     def format_allele_frequency(self, af: float) -> str:
         """Format AF with decimal representation and denominator context.
@@ -232,7 +231,7 @@ class EvidenceNarrativeBuilder:
 
         # Format the AF value: use enough decimal places to show
         # at least 2 significant figures.
-        sig_digits = max(2, -int(math.floor(math.log10(safe_af))) + 1)
+        sig_digits = max(2, -math.floor(math.log10(safe_af)) + 1)
         af_str = f"{af:.{sig_digits}f}"
 
         return f"{af_str} (1 in {denominator_str})"  # nosec: numeric values only, not user-controlled strings

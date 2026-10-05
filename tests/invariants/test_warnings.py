@@ -90,9 +90,9 @@ def multi_source_scenario(
     does not (or vice versa), simulating partial multi-source resolution.
     """
     num_variants = draw(st.integers(min_value=2, max_value=10))
-    all_keys: list[tuple[str, int, str, str]] = []
-    for _ in range(num_variants):
-        all_keys.append(draw(variant_key()))
+    all_keys: list[tuple[str, int, str, str]] = [
+        draw(variant_key()) for _ in range(num_variants)
+    ]
 
     # Deduplicate
     all_keys = list(set(all_keys))

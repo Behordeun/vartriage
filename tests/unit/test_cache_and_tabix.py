@@ -1,7 +1,5 @@
 """Unit and property tests for cache infrastructure, TabixFrequencyDatabase,
 and AnnotationEngine backend selection.
-
-Covers tasks 7.1–7.6 of the reference-loading-performance spec.
 """
 
 from __future__ import annotations

@@ -73,7 +73,7 @@ class TestFullPipeline22q11Deletion:
 
         # Score
         scorer = SVScorer(max_allele_frequency=0.01)
-        scored = list(scorer.score(iter([annotated])))[0]
+        scored = next(iter(scorer.score(iter([annotated]))))
 
         assert scored.pathogenicity_score is not None
         assert scored.pathogenicity_score > 0.5
@@ -88,7 +88,7 @@ class TestFullPipeline22q11Deletion:
             pathogenic_regions=pathogenic_regions,
             pathogenic_region_names=region_names,
         )
-        classified = list(classifier.classify(iter([scored])))[0]
+        classified = next(iter(classifier.classify(iter([scored]))))
 
         # The combination of HI gene (Section 1B + 3A) + pathogenic region
         # overlap (Section 2A) should push this to Pathogenic

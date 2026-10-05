@@ -13,7 +13,7 @@ import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import ClassVar, Protocol
 
 from vartriage._internal.path_safety import safe_write_path
 
@@ -265,7 +265,7 @@ class ClinvarVcfTransformer(VcfToTsvTransformer):
 
         return TransformResult(output_path=dest, rows_written=rows, source_path=source)
 
-    _SIG_MAP = {
+    _SIG_MAP: ClassVar[dict[str, str]] = {
         "Pathogenic": "Pathogenic",
         "Likely_pathogenic": "Likely pathogenic",
         "Uncertain_significance": "Uncertain significance",

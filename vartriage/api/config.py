@@ -59,10 +59,8 @@ def _merge_toml_values(toml_values: dict[str, object]) -> dict[str, object]:
     merged: dict[str, object] = {}
     for key, val in toml_values.items():
         mapping = _TOML_SECTION_KEYS.get(key)
-        if (
-            mapping is None
-            and key not in _TOML_SECTION_KEYS
-            or not isinstance(val, dict)
+        if (mapping is None and key not in _TOML_SECTION_KEYS) or not isinstance(
+            val, dict
         ):
             merged[key] = val
         elif mapping is None:

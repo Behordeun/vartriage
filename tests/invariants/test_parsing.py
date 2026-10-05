@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import ClassVar
 
 from hypothesis import given, settings
 
@@ -117,7 +118,7 @@ class TestMalformedVCFDetection:
     # pysam tolerates these. It logs a warning but doesn't error out.
     # "invalid_qual" is silently coerced to 0.0 by pysam's htslib layer,
     # so the parser has no way to detect the malformation at runtime.
-    PYSAM_TOLERANT_VIOLATIONS = {"malformed_info", "invalid_qual"}
+    PYSAM_TOLERANT_VIOLATIONS: ClassVar[set[str]] = {"malformed_info", "invalid_qual"}
 
     @settings(max_examples=100, deadline=None)
     @given(data=malformed_vcf_content())
