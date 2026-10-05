@@ -2,7 +2,9 @@
 
 Provides a shared cache infrastructure for serializing parsed reference
 data (GTF interval trees, score dictionaries) to disk. Uses mtime-based
-invalidation and version stamping to detect stale or incompatible caches.
+invalidation and version stamping (vartriage, Python, and the pandas/
+pyranges/polars serialization backends) to detect stale or incompatible
+caches and rebuild them rather than deserialize an incompatible object.
 
 All public functions handle errors gracefully. Cache failures never
 propagate exceptions to callers.
@@ -37,6 +39,13 @@ class CacheEnvelope:
         Python major.minor at serialization time.
     source_mtime : float
         Source file mtime at serialization time.
+    backend_versions : str
+        Versions of the serialization backend libraries (pandas, pyranges,
+        polars) at serialization time. A cache pickles backend objects
+        (e.g. a pyranges PyRanges wrapping a pandas frame), so a backend
+        upgrade can make a previously-written cache deserialize into an
+        object the current backend mishandles. Stamping and checking these
+        versions turns that silent incompatibility into a clean rebuild.
     data : Any
         The actual cached object.
     """
@@ -44,12 +53,32 @@ class CacheEnvelope:
     vartriage_version: str
     python_version: str
     source_mtime: float
+    backend_versions: str
     data: Any
 
 
 def _current_python_version() -> str:
     """Return 'major.minor' string for current interpreter."""
     return f"{sys.version_info.major}.{sys.version_info.minor}"
+
+
+def _current_backend_versions() -> str:
+    """Return a stable fingerprint of the serialization-backend library versions.
+
+    Covers the libraries whose objects get pickled into caches (pandas,
+    pyranges, polars). A library that is not installed is recorded as absent
+    rather than raising, so the fingerprint is always computable.
+    """
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _dist_version
+
+    parts = []
+    for name in ("pandas", "pyranges", "polars"):
+        try:
+            parts.append(f"{name}={_dist_version(name)}")
+        except PackageNotFoundError:
+            parts.append(f"{name}=absent")
+    return ";".join(parts)
 
 
 def _current_vartriage_version() -> str:
@@ -59,25 +88,32 @@ def _current_vartriage_version() -> str:
     return __version__
 
 
-def cache_path_for(source_path: Path) -> Path:
+def cache_path_for(source_path: Path, tag: str | None = None) -> Path:
     """Compute cache file path for a given source file.
 
     Parameters
     ----------
     source_path : Path
         Path to the original data file.
+    tag : str, optional
+        A backend/shape namespace. Different consumers of the same source file
+        (e.g. the pyranges consequence backend vs the pure-Python interval
+        tree) serialize incompatible payloads, so each must use its own tag to
+        avoid reading a cache another backend wrote. Omitted (None) keeps the
+        historical un-tagged name.
 
     Returns
     -------
     Path
-        A sibling file in the same directory with '.vartriage.cache' appended
-        to the source filename.
+        A sibling file in the same directory with '.vartriage.cache' (or
+        '.<tag>.vartriage.cache') appended to the source filename.
     """
     resolved = source_path.resolve()
-    return resolved.parent / (resolved.name + ".vartriage.cache")
+    suffix = f".{tag}.vartriage.cache" if tag else ".vartriage.cache"
+    return resolved.parent / (resolved.name + suffix)
 
 
-def try_load_cache(source_path: Path) -> Any | None:
+def try_load_cache(source_path: Path, tag: str | None = None) -> Any | None:
     """Attempt to load cached data for source_path.
 
     Returns the cached data if:
@@ -85,6 +121,7 @@ def try_load_cache(source_path: Path) -> Any | None:
     - Pickle deserialization succeeds
     - vartriage_version matches current version
     - python_version matches current major.minor
+    - backend_versions (pandas/pyranges/polars) match current
     - source_mtime matches source file's current mtime
 
     On any failure, logs a warning, deletes the invalid cache
@@ -100,7 +137,7 @@ def try_load_cache(source_path: Path) -> Any | None:
     Optional[Any]
         The cached data, or None on miss/failure.
     """
-    cp = cache_path_for(source_path)
+    cp = cache_path_for(source_path, tag)
 
     if not cp.exists():
         return None
@@ -149,6 +186,17 @@ def try_load_cache(source_path: Path) -> Any | None:
         _delete_cache(cp)
         return None
 
+    current_backends = _current_backend_versions()
+    if envelope.backend_versions != current_backends:
+        logger.info(
+            "Cache %s has backend versions %s, current is %s",
+            cp,
+            envelope.backend_versions,
+            current_backends,
+        )
+        _delete_cache(cp)
+        return None
+
     try:
         current_mtime = source_path.stat().st_mtime
     except OSError as exc:
@@ -169,7 +217,7 @@ def try_load_cache(source_path: Path) -> Any | None:
     return envelope.data
 
 
-def try_write_cache(source_path: Path, data: Any) -> None:
+def try_write_cache(source_path: Path, data: Any, tag: str | None = None) -> None:
     """Serialize data to cache file with atomic write.
 
     Writes to a temporary file in the same directory, then
@@ -184,7 +232,7 @@ def try_write_cache(source_path: Path, data: Any) -> None:
     data : Any
         The object to serialize via pickle.
     """
-    cp = safe_write_path(cache_path_for(source_path), "Cache write")
+    cp = safe_write_path(cache_path_for(source_path, tag), "Cache write")
 
     try:
         source_mtime = source_path.stat().st_mtime
@@ -200,6 +248,7 @@ def try_write_cache(source_path: Path, data: Any) -> None:
         vartriage_version=_current_vartriage_version(),
         python_version=_current_python_version(),
         source_mtime=source_mtime,
+        backend_versions=_current_backend_versions(),
         data=data,
     )
 
