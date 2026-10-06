@@ -6,7 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
-_Nothing yet. The most recent release is 1.0.0, below._
+_Nothing yet. The most recent release is 1.0.1, below._
+
+## [1.0.1] - 2026-10-05
+
+### Fixed
+
+- **Reference-cache compatibility across backend upgrades**: the on-disk cache for parsed reference data (notably the GENCODE gene-model used for consequence assignment) now stamps and checks the versions of its serialization-backend libraries (pandas, pyranges, polars) alongside the vartriage version, Python version, and source mtime it already validated. A cache written under one backend version is rejected and transparently rebuilt rather than deserialized into an object a newer backend mishandles. No behaviour change when the cache is fresh or absent.
+- **Reference-cache namespacing per backend**: the pyranges consequence backend and the pure-Python interval-tree backend serialize incompatible payloads but previously shared one `.vartriage.cache` filename per source, so whichever ran last could leave a cache the other could not read. Each backend now tags its cache file, so both can coexist for the same source and switching backends between runs no longer corrupts the read path.
+- **Vectorized consequence path degrades instead of aborting**: if the pyranges vectorized overlap raises at run time, the affected batch now falls back to the pure-Python consequence annotator (same rules, same result) for that batch rather than failing the whole classification run. Makes the optional accelerated path (`vartriage[accelerated]`) robust to backend hiccups.
 
 ## [1.0.0] - 2026-10-04
 

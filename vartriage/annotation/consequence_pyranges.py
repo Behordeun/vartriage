@@ -7,6 +7,7 @@ is installed; otherwise falls back to SortedArrayIntervalIndex.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,8 @@ from vartriage.models.variant import (
     FunctionalConsequence,
     Variant,
 )
+
+logger = logging.getLogger(__name__)
 
 try:
     import pandas as pd
@@ -86,10 +89,13 @@ class PyRangesIntervalIndex:
         from vartriage._internal.cache import try_load_cache, try_write_cache
 
         # Cache is validated by try_load_cache: checks source mtime,
-        # vartriage version, and Python version before accepting. The cache
-        # file is co-located with the GTF and shares its trust boundary
-        # (an attacker who can write the cache can also write the GTF).
-        cached = try_load_cache(annotation_path)
+        # vartriage version, Python version, and the pandas/pyranges/polars
+        # backend versions before accepting (a backend upgrade can otherwise
+        # make a previously-written cache deserialize into an object the
+        # current backend mishandles). The cache file is co-located with the
+        # GTF and shares its trust boundary (an attacker who can write the
+        # cache can also write the GTF).
+        cached = try_load_cache(annotation_path, tag="pyranges")
         if cached is not None:
             self._gr, self._exon_gr = cached
             self._loaded = True
@@ -113,7 +119,7 @@ class PyRangesIntervalIndex:
         self._loaded = True
 
         # Save cache for next run
-        try_write_cache(annotation_path, (self._gr, self._exon_gr))
+        try_write_cache(annotation_path, (self._gr, self._exon_gr), tag="pyranges")
 
     def overlap(self, chrom: str, pos: int, ref: str, alt: str) -> list[dict[str, Any]]:
         """Return overlapping gene regions for a variant coordinate.
@@ -248,6 +254,24 @@ class PyRangesConsequenceAnnotator:
     def __init__(self, annotation_path: Path) -> None:
         self._index = PyRangesIntervalIndex()
         self._index.load(annotation_path)
+        # Retained so assign_batch can lazily build the pure-Python annotator
+        # and degrade to it if the vectorized join raises at run time, rather
+        # than aborting the whole classification run.
+        self._annotation_path = annotation_path
+        self._fallback: Any | None = None
+
+    def _fallback_batch(self, variants: list[Variant]) -> list[FunctionalConsequence]:
+        """Delegate a batch to the pure-Python annotator (built once, lazily).
+
+        The pandas backend computes the same consequences by the same rules; it
+        is the correct degradation when the vectorized path raises, so a backend
+        hiccup costs speed, not a failed run.
+        """
+        if self._fallback is None:
+            from vartriage.annotation.consequence import ConsequenceAnnotator
+
+            self._fallback = ConsequenceAnnotator(self._annotation_path)
+        return self._fallback.assign_batch(variants)
 
     def load(self, annotation_path: Path) -> None:
         """Load gene annotation from a GTF/GFF file.
@@ -355,6 +379,37 @@ class PyRangesConsequenceAnnotator:
         return gene_names
 
     def assign_batch(self, variants: list[Variant]) -> list[FunctionalConsequence]:
+        """Assign consequences to a batch, with a safe pure-Python fallback.
+
+        Runs the vectorized pyranges path and, if it raises for any reason
+        (e.g. a backend-version hiccup in the overlap join), degrades to the
+        pure-Python annotator for this batch instead of aborting the run. The
+        two backends apply the same consequence rules, so the fallback changes
+        speed, not the result.
+
+        Parameters
+        ----------
+        variants : list[Variant]
+            List of variants to annotate.
+
+        Returns
+        -------
+        list[FunctionalConsequence]
+            Consequences in the same order as input variants.
+        """
+        try:
+            return self._assign_batch_vectorized(variants)
+        except Exception as exc:
+            logger.warning(
+                "pyranges batch annotation failed (%s); falling back to the "
+                "pure-Python backend for this batch",
+                exc,
+            )
+            return self._fallback_batch(variants)
+
+    def _assign_batch_vectorized(
+        self, variants: list[Variant]
+    ) -> list[FunctionalConsequence]:
         """Assign consequences to a batch of variants using vectorized join.
 
         Builds a single PyRanges from all variant positions, joins against

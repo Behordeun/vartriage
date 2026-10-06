@@ -154,7 +154,7 @@ vartriage/
 │       └── helixmtdb_frequency.tsv
 └── _internal/
     ├── batch.py             # Batch iteration utilities
-    ├── cache.py             # Pickle caching with mtime invalidation
+    ├── cache.py             # Pickle caching with mtime + version-stamp invalidation
     ├── genetic_code.py      # Standard genetic code + translate_codon() (v0.8.0)
     ├── normalizer.py        # Left-align + trim indel normalization (v0.8.0)
     ├── interval_tree.py     # Sorted-array interval tree
@@ -321,7 +321,7 @@ To add a new ACMG evidence criterion:
 
 1. Caller asks for cached data via `load_cached(source_path, parser_fn, version)`.
 2. Cache checks for a `.vartriage.cache` file adjacent to the source.
-3. If the cache exists, has a matching version stamp, and the source mtime hasn't changed, it deserializes and returns.
+3. If the cache exists, has a matching version stamp (vartriage version, Python major.minor, and the pandas/pyranges/polars backend versions), and the source mtime hasn't changed, it deserializes and returns.
 4. Otherwise, it calls `parser_fn`, serializes the result, writes atomically (temp file + `os.rename`), and returns.
 
 Currently cached: GTF interval trees, CADD score dicts, REVEL score dicts, SpliceAI score dicts.
@@ -330,6 +330,8 @@ Cache invalidation triggers:
 
 - Source file mtime changes (you downloaded a new GENCODE release, etc.)
 - vartriage version changes (internal data structures may have changed)
+- Python major.minor changes
+- pandas / pyranges / polars backend version changes (a cache pickles backend objects, so a backend upgrade can otherwise make a stored cache deserialize into an object the current backend mishandles)
 - Cache file deleted manually
 
 The atomic write ensures a crash during serialization won't leave a corrupt cache.

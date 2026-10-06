@@ -243,7 +243,7 @@ class SortedArrayIntervalIndex:
         self._transcript_index = None
         self._loaded = False
 
-        cached = try_load_cache(annotation_path)
+        cached = try_load_cache(annotation_path, tag="intervaltree")
         if cached is not None:
             self._chromosomes = cached["chromosomes"]
             self._exon_boundaries = cached["exon_boundaries"]
@@ -278,6 +278,7 @@ class SortedArrayIntervalIndex:
                 "chromosomes": self._chromosomes,
                 "exon_boundaries": self._exon_boundaries,
             },
+            tag="intervaltree",
         )
 
     def _parse_gtf(self, path: Path) -> None:

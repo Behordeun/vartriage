@@ -18,6 +18,7 @@ from hypothesis import strategies as st
 
 from vartriage._internal.cache import (
     CacheEnvelope,
+    _current_backend_versions,
     cache_path_for,
     try_load_cache,
     try_write_cache,
@@ -131,6 +132,7 @@ def test_cache_envelope_round_trip(
         vartriage_version=vt_version,
         python_version=py_version,
         source_mtime=mtime,
+        backend_versions="pandas=0.0.0;pyranges=0.0.0;polars=0.0.0",
         data=data,
     )
 
@@ -141,6 +143,7 @@ def test_cache_envelope_round_trip(
     assert restored.vartriage_version == vt_version
     assert restored.python_version == py_version
     assert restored.source_mtime == mtime
+    assert restored.backend_versions == "pandas=0.0.0;pyranges=0.0.0;polars=0.0.0"
     assert restored.data == data
 
 
@@ -177,6 +180,7 @@ def test_cache_write_stamps_current_versions(data: object) -> None:
 
         assert envelope.vartriage_version == current_vt_version
         assert envelope.python_version == expected_py_version
+        assert envelope.backend_versions == _current_backend_versions()
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +240,7 @@ class TestVersionMismatchInvalidatesCache:
             vartriage_version="0.0.0-fake",
             python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
             source_mtime=source.stat().st_mtime,
+            backend_versions=_current_backend_versions(),
             data={"cached": True},
         )
         cache_file = cache_path_for(source)
@@ -256,6 +261,32 @@ class TestVersionMismatchInvalidatesCache:
             vartriage_version=vt_version,
             python_version="2.7",  # obviously wrong
             source_mtime=source.stat().st_mtime,
+            backend_versions=_current_backend_versions(),
+            data={"cached": True},
+        )
+        cache_file = cache_path_for(source)
+        with open(cache_file, "wb") as f:
+            pickle.dump(envelope, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        result = try_load_cache(source)
+        assert result is None
+        assert not cache_file.exists()
+
+    def test_backend_version_mismatch_returns_none(self, tmp_path: Path) -> None:
+        """A cache stamped with different pandas/pyranges/polars versions is
+        rejected and rebuilt, rather than deserialized into an object the
+        current backend mishandles.
+        """
+        from vartriage import __version__ as vt_version
+
+        source = tmp_path / "data.tsv"
+        source.write_text("content", encoding="utf-8")
+
+        envelope = CacheEnvelope(
+            vartriage_version=vt_version,
+            python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+            source_mtime=source.stat().st_mtime,
+            backend_versions="pandas=0.0.0;pyranges=0.0.0;polars=0.0.0",
             data={"cached": True},
         )
         cache_file = cache_path_for(source)
