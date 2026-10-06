@@ -21,6 +21,7 @@ from vartriage.models.variant import (
 logger = logging.getLogger(__name__)
 
 try:
+    import numpy as np
     import pandas as pd
     import pyranges as pr
 
@@ -521,28 +522,54 @@ class PyRangesConsequenceAnnotator:
         self,
         query_df: pd.DataFrame,
     ) -> set[int]:
-        """Identify variant indices that overlap splice sites."""
+        """Identify variant indices that overlap splice sites.
+
+        Resolves the whole batch with one interval join instead of scanning
+        the exon frame once per variant. Each exon contributes two 4bp
+        boundary windows, a donor window straddling the exon end and an
+        acceptor window straddling the exon start, matching the half-open
+        edge test in the single-variant path. A variant hits a splice site
+        when its interval overlaps any such window, which is exactly a
+        sorted-interval overlap join.
+        """
         splice_positions: set[int] = set()
         if self._index._exon_gr is None or self._index._exon_gr.df.empty:
             return splice_positions
+        if query_df.empty:
+            return splice_positions
 
         exon_df = self._index._exon_gr.df
-        for _, v_row in query_df.iterrows():
-            chrom = v_row["Chromosome"]
-            chrom_exons = exon_df[exon_df["Chromosome"] == chrom]
-            if chrom_exons.empty:
-                continue
+        exon_start = exon_df["Start"].to_numpy()
+        exon_end = exon_df["End"].to_numpy()
+        exon_chrom = exon_df["Chromosome"].to_numpy()
 
-            vs, ve = v_row["Start"], v_row["End"]
-            starts = chrom_exons["Start"].values
-            ends = chrom_exons["End"].values
+        # The single-variant test accepts a variant [vs, ve) at an edge when
+        # vs < edge + 2 and ve > edge - 2. Overlap of [vs, ve) with a half-open
+        # window [W_start, W_end) is vs < W_end and ve > W_start, so the
+        # equivalent window is [edge - 2, edge + 2): a donor window at the exon
+        # end and an acceptor window at the exon start.
+        window_chrom = np.concatenate([exon_chrom, exon_chrom])
+        window_start = np.concatenate([exon_end - 2, exon_start - 2])
+        window_end = np.concatenate([exon_end + 2, exon_start + 2])
 
-            donor_hit = ((vs < ends + 2) & (ve > ends - 2)).any()
-            acceptor_hit = ((vs < starts + 2) & (ve > starts - 2)).any()
-            if donor_hit or acceptor_hit:
-                splice_positions.add(v_row["_idx"])
+        windows_gr = pr.PyRanges(
+            pd.DataFrame(
+                {
+                    "Chromosome": window_chrom,
+                    "Start": window_start,
+                    "End": window_end,
+                }
+            )
+        )
 
-        return splice_positions
+        query_gr = pr.PyRanges(query_df[["Chromosome", "Start", "End", "_idx"]].copy())
+
+        hits = query_gr.join(windows_gr)
+        hits_df = hits.df
+        if hits_df.empty:
+            return splice_positions
+
+        return {int(i) for i in hits_df["_idx"].unique()}
 
     def cds_overlaps_batch(self, variants: list[Variant]) -> list[list[str]]:
         """Find CDS-overlapping transcript IDs for a batch of variants.
