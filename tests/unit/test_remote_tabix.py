@@ -1100,7 +1100,7 @@ class TestPopulationLookupBatch:
         with patch.object(
             type(backend),
             "_query_range_populations",
-            return_value={variant: af_map},
+            return_value=(True, {variant: af_map}),
         ):
             results = backend.lookup_batch_populations([variant, variant])
 
@@ -1117,7 +1117,7 @@ class TestPopulationLookupBatch:
         with patch.object(
             type(backend),
             "_query_range_populations",
-            return_value={found: {"AF": 0.02}},
+            return_value=(True, {found: {"AF": 0.02}}),
         ):
             results = backend.lookup_batch_populations([found, missing])
         assert results[0] == {"AF": 0.02}
@@ -1133,7 +1133,7 @@ class TestPopulationLookupBatch:
         with patch.object(
             type(backend),
             "_query_range_populations",
-            return_value={found: {"AF": 0.02, "AF_afr": 0.05}},
+            return_value=(True, {found: {"AF": 0.02, "AF_afr": 0.05}}),
         ) as mocked:
             first = backend.lookup_batch_populations([found, missing])
             assert mocked.call_count >= 1
@@ -1150,3 +1150,129 @@ class TestPopulationLookupBatch:
         assert second == first
         assert second[0] == {"AF": 0.02, "AF_afr": 0.05}
         assert second[1] is None
+
+
+# ============================================================
+# Regression: transient failure must not poison population cache
+# ============================================================
+
+
+class TestPopulationCacheTransientFailure:
+    """A failed range query must not cache variants as confirmed-absent.
+
+    When _fetch_records exhausts its retries, _query_range_populations returns
+    (False, {}).  The batch loop must skip the cache-write for that group so the
+    variants are re-queried on the next run rather than permanently recorded as
+    absent under clinical pinning (cache_ttl_days=-1).
+    """
+
+    @staticmethod
+    def _make_backend(tmp_path: Path) -> object:
+        from vartriage.remote.cache import RemoteScoreCache
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        config = RemoteTabixConfig(gnomad_remote_url="gnomad-genomes-v4-grch38")
+        backend = object.__new__(RemoteTabixGnomAD)
+        backend._config = config
+        backend._breaker = CircuitBreaker()
+        backend._network_fetches = 0
+        backend._source_id = "gnomad-genomes-v4-grch38"
+        backend._cache = RemoteScoreCache(
+            db_path=tmp_path / "pop_cache.db", ttl_days=-1
+        )
+        return backend
+
+    def test_failed_fetch_does_not_cache_variants(self, tmp_path: Path) -> None:
+        backend = self._make_backend(tmp_path)
+        variant = ("chr1", 100, "A", "G")
+
+        # First lookup: remote query fails (exhausted retries).
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value=(False, {}),
+        ):
+            first = backend.lookup_batch_populations([variant])
+        assert first == [None], "failed fetch must not populate results"
+
+        # Second lookup: remote succeeds with real data. If the failed fetch
+        # had been cached as confirmed-absent, this would be a cache hit
+        # returning None rather than querying remote again.
+        af_map = {"AF": 0.03, "AF_eas": 0.12}
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value=(True, {variant: af_map}),
+        ) as mocked:
+            second = backend.lookup_batch_populations([variant])
+            assert mocked.call_count >= 1, "must re-query remote after a prior failure"
+        assert second == [af_map]
+
+    def test_successful_fetch_caches_confirmed_absence(self, tmp_path: Path) -> None:
+        """A successful query that found nothing IS cached (confirmed absent)."""
+        backend = self._make_backend(tmp_path)
+        variant = ("chr1", 100, "A", "G")
+
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value=(True, {}),
+        ):
+            first = backend.lookup_batch_populations([variant])
+        assert first == [None]
+
+        # Second lookup must be a cache hit: the confirmed absence was stored.
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            side_effect=AssertionError("must not re-query a confirmed absence"),
+        ):
+            second = backend.lookup_batch_populations([variant])
+        assert second == [None]
+
+
+# ============================================================
+# Regression: stalled TabixFile open cleans up late-arriving handle
+# ============================================================
+
+
+class TestStalledOpenHandleCleanup:
+    """A timed-out TabixFile open must close any late-arriving handle.
+
+    When the connect timeout fires, a done-callback is attached so that if
+    the htslib open eventually completes, the handle is closed rather than
+    leaked for the process lifetime.
+    """
+
+    def test_late_arriving_handle_is_closed(self) -> None:
+        import concurrent.futures
+
+        from vartriage.remote.gnomad import _close_late_tabix_handle
+
+        handle = MagicMock()
+        future: concurrent.futures.Future[MagicMock] = concurrent.futures.Future()
+        future.set_result(handle)
+
+        _close_late_tabix_handle(future)
+        handle.close.assert_called_once()
+
+    def test_failed_open_does_not_crash_callback(self) -> None:
+        import concurrent.futures
+
+        from vartriage.remote.gnomad import _close_late_tabix_handle
+
+        future: concurrent.futures.Future[MagicMock] = concurrent.futures.Future()
+        future.set_exception(OSError("connection refused"))
+
+        # Must not raise — the callback just swallows the error.
+        _close_late_tabix_handle(future)
+
+    def test_cancelled_future_does_not_crash_callback(self) -> None:
+        import concurrent.futures
+
+        from vartriage.remote.gnomad import _close_late_tabix_handle
+
+        future: concurrent.futures.Future[MagicMock] = concurrent.futures.Future()
+        future.cancel()
+
+        _close_late_tabix_handle(future)

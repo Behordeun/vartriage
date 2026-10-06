@@ -211,13 +211,20 @@ class RemoteTabixGnomAD:
             indices_by_variant[variants[idx]].append(idx)
 
         for chrom, group in self._iter_groups(uncached_variants):
-            group_maps = self._query_range_populations(chrom, group)
+            fetch_ok, group_maps = self._query_range_populations(chrom, group)
             for variant, af_map in group_maps.items():
                 for idx in indices_by_variant.get(variant, ()):
                     results[idx] = af_map
 
-            # Cache every variant in this group, including those not found
-            # (empty map), so a confirmed absence is not re-queried next run.
+            # Only cache when the range query actually completed. A failed or
+            # timed-out fetch returns no maps, which is indistinguishable from a
+            # genuine absence by result alone — caching it as an empty map under
+            # clinical pinning (cache_ttl_days=-1) would permanently record a
+            # transiently-unreachable variant as confirmed-absent and never
+            # re-query it, silently suppressing frequency evidence. Persist a
+            # confirmed absence (empty map) only on a successful query.
+            if not fetch_ok:
+                continue
             group_entries: list[tuple[str, int, str, str, dict[str, float]]] = []
             for variant in group:
                 chrom_g, pos_g, ref_g, alt_g = variant
@@ -230,8 +237,15 @@ class RemoteTabixGnomAD:
 
     def _query_range_populations(
         self, chrom: str, group: list[_VariantKey]
-    ) -> dict[_VariantKey, dict[str, float]]:
-        """Range-query the remote gnomAD VCF, returning per-population AF maps."""
+    ) -> tuple[bool, dict[_VariantKey, dict[str, float]]]:
+        """Range-query the remote gnomAD VCF, returning per-population AF maps.
+
+        Returns a (fetch_ok, maps) pair. fetch_ok is True when the remote range
+        query completed (including a successful query that found nothing), and
+        False when the fetch exhausted its retries or degraded. The caller must
+        not cache results from a failed fetch, since an empty map then means
+        "query failed", not "confirmed absent".
+        """
         results: dict[_VariantKey, dict[str, float]] = {}
 
         wanted: dict[tuple[int, str, str], _VariantKey] = {}
@@ -245,7 +259,7 @@ class RemoteTabixGnomAD:
 
         records = self._fetch_records(chrom, query_chrom, start_pos - 1, end_pos)
         if records is None:
-            return results
+            return False, results
 
         for record_line in records:
             parsed = self._parse_gnomad_record_populations(record_line)
@@ -257,7 +271,7 @@ class RemoteTabixGnomAD:
                     results[wanted[lookup_key]] = af_map
                     self._network_fetches += 1
 
-        return results
+        return True, results
 
     def close(self) -> None:
         """Release resources."""
@@ -586,12 +600,22 @@ class RemoteTabixGnomAD:
         # timeout (htslib has none), so a stalled S3 connection would block the
         # whole run forever. Bound the open with the configured connect timeout;
         # a timeout raises TimeoutError into the caller's retry/degrade path.
+        #
+        # The open runs in a C call that cannot be cancelled, so on timeout the
+        # worker thread stays alive until htslib finally returns or errors. A
+        # done-callback closes any handle that arrives after we have given up,
+        # so the connection is reclaimed when the stalled open eventually
+        # completes rather than leaking for the life of the process. The pool is
+        # shut down without waiting so the caller is not blocked by the stall.
         pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = pool.submit(pysam.TabixFile, url)
         try:
-            future = pool.submit(pysam.TabixFile, url)
             handle: pysam.TabixFile = future.result(
                 timeout=self._config.connect_timeout
             )
+        except BaseException:
+            future.add_done_callback(_close_late_tabix_handle)
+            raise
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
 
@@ -604,6 +628,28 @@ class RemoteTabixGnomAD:
         if handle is not None:
             with contextlib.suppress(Exception):
                 handle.close()
+
+
+def _close_late_tabix_handle(
+    future: concurrent.futures.Future[pysam.TabixFile],
+) -> None:
+    """Close a TabixFile handle that opened after its wait timed out.
+
+    When a remote index open exceeds the connect timeout, the caller abandons
+    the wait but the htslib open cannot be cancelled and keeps running. This
+    callback runs when that open finally resolves: it closes a successfully
+    opened handle so the connection is released, and swallows the stored error
+    of a failed open. Without it, every stalled open leaks an open connection
+    for the life of the process.
+    """
+    if future.cancelled():
+        return
+    exc = future.exception()
+    if exc is not None:
+        return
+    handle = future.result()
+    with contextlib.suppress(Exception):
+        handle.close()
 
 
 def _extract_info_field(info: str, key: str) -> str | None:
