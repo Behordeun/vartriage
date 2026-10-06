@@ -44,8 +44,12 @@ pip install vartriage[all]
 ```python
 from pathlib import Path
 from vartriage import (
-    Pipeline, PipelineConfig, AnnotationConfig,
-    PrioritizationConfig, QualityFilterConfig, ReportConfig,
+    Pipeline,
+    PipelineConfig,
+    AnnotationConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+    ReportConfig,
 )
 
 config = PipelineConfig(

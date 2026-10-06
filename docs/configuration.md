@@ -111,7 +111,9 @@ config = InheritanceConfig(proband="CHILD", mother="MOM", father="DAD")
 
 # Only de novo and recessive
 config = InheritanceConfig(
-    proband="CHILD", mother="MOM", father="DAD",
+    proband="CHILD",
+    mother="MOM",
+    father="DAD",
     patterns=["de_novo", "recessive"],
 )
 ```
@@ -269,7 +271,11 @@ from pathlib import Path
 from vartriage import CohortConfig
 
 config = CohortConfig(
-    sample_vcfs=[Path("sample1.vcf.gz"), Path("sample2.vcf.gz"), Path("sample3.vcf.gz")],
+    sample_vcfs=[
+        Path("sample1.vcf.gz"),
+        Path("sample2.vcf.gz"),
+        Path("sample3.vcf.gz"),
+    ],
     output_path=Path("cohort_results/"),
     cohort_name="cardiac_study",
     min_recurrence=2,
@@ -504,10 +510,12 @@ from vartriage import VCFParser, QualityFilter, AnnotationEngine
 
 with VCFParser(Path("input.vcf.gz")) as parser:
     qf = QualityFilter(QualityFilterConfig(min_qual=20.0))
-    engine = AnnotationEngine(AnnotationConfig(
-        gene_annotation_path=Path("gencode.v44.gtf"),
-        gnomad_path=Path("gnomad.v4.sites.tsv"),
-    ))
+    engine = AnnotationEngine(
+        AnnotationConfig(
+            gene_annotation_path=Path("gencode.v44.gtf"),
+            gnomad_path=Path("gnomad.v4.sites.tsv"),
+        )
+    )
     for annotated in engine.annotate(qf.apply(iter(parser))):
         print(annotated.consequence, annotated.allele_frequency)
 ```
@@ -574,8 +582,8 @@ Add `use_bundles=True` to auto-resolve missing reference paths:
 config = PipelineConfig(
     vcf_path=Path("patient.vcf.gz"),
     output_path=Path("results.json"),
-    use_bundles=True,        # resolve from ~/.vartriage/bundles/
-    genome_build="grch38",   # which build to look up
+    use_bundles=True,  # resolve from ~/.vartriage/bundles/
+    genome_build="grch38",  # which build to look up
 )
 ```
 

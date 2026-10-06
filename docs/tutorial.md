@@ -25,8 +25,12 @@ The parser streams records one at a time. Memory stays flat regardless of file s
 
 ```python
 from vartriage import (
-    Pipeline, PipelineConfig, AnnotationConfig,
-    PrioritizationConfig, QualityFilterConfig, ReportConfig,
+    Pipeline,
+    PipelineConfig,
+    AnnotationConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+    ReportConfig,
 )
 
 config = PipelineConfig(
@@ -161,7 +165,8 @@ print(f"{len(results)} classified variants")
 
 ```python
 actionable = [
-    v for v in results
+    v
+    for v in results
     if v["acmg_classification"] in ("Pathogenic", "Likely_Pathogenic")
 ]
 print(f"{len(actionable)} pathogenic/likely pathogenic variants")
@@ -173,9 +178,14 @@ print(f"{len(actionable)} pathogenic/likely pathogenic variants")
 import csv
 
 fields = [
-    "chromosome", "position", "ref_allele", "alt_allele",
-    "functional_consequence", "allele_frequency",
-    "composite_rank", "acmg_classification",
+    "chromosome",
+    "position",
+    "ref_allele",
+    "alt_allele",
+    "functional_consequence",
+    "allele_frequency",
+    "composite_rank",
+    "acmg_classification",
 ]
 
 with open("results/top_candidates.csv", "w", newline="") as f:
@@ -255,8 +265,12 @@ This produces two files:
 ```python
 from pathlib import Path
 from vartriage import (
-    Pipeline, PipelineConfig, AnnotationConfig,
-    PrioritizationConfig, QualityFilterConfig, ReportConfig,
+    Pipeline,
+    PipelineConfig,
+    AnnotationConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+    ReportConfig,
 )
 from vartriage.models.config import ClinicalReportConfig
 
@@ -339,9 +353,7 @@ The `.audit.json` sidecar captures everything needed to reproduce the analysis:
 import json
 from pathlib import Path
 
-audit = json.loads(
-    Path("results/clinical_report.html.audit.json").read_text()
-)
+audit = json.loads(Path("results/clinical_report.html.audit.json").read_text())
 
 # Run manifest: config, references, timestamps
 manifest = audit["run_manifest"]

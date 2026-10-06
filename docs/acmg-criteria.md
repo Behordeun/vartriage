@@ -294,9 +294,11 @@ classifier = ACMGClassifier(protein_index=protein_index)
 
 # Classify variants (from your pipeline's scored variant stream)
 for classified in classifier.classify(scored_variants):
-    print(f"{classified.scored.annotated.variant}: "
-          f"{classified.classification.value} "
-          f"[{', '.join(t.value for t in classified.evidence_tags)}]")
+    print(
+        f"{classified.scored.annotated.variant}: "
+        f"{classified.classification.value} "
+        f"[{', '.join(t.value for t in classified.evidence_tags)}]"
+    )
 ```
 
 ### Without the protein index
