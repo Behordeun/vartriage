@@ -401,7 +401,7 @@ class VEPClient:
 
         for variant in colocated:
             frequencies = variant.get("frequencies", {})
-            for _allele, sources in frequencies.items():
+            for sources in frequencies.values():
                 freq = self._freq_from_sources(sources, primary_key, fallback_key)
                 if freq is not None:
                     return freq

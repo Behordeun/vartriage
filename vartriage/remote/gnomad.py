@@ -42,8 +42,9 @@ GNOMAD_POPULATIONS: tuple[str, ...] = (
 )
 
 # INFO keys parsed for per-population lookups: global AF plus AF_<pop> for each group.
-_POP_AF_KEYS: tuple[str, ...] = ("AF",) + tuple(
-    f"AF_{pop}" for pop in GNOMAD_POPULATIONS
+_POP_AF_KEYS: tuple[str, ...] = (
+    "AF",
+    *tuple(f"AF_{pop}" for pop in GNOMAD_POPULATIONS),
 )
 
 # Homozygote-count key carried alongside the AF subfields for BS2 evaluation.

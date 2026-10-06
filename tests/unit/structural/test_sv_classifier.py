@@ -74,7 +74,7 @@ class TestClassifierHIGeneDeletion:
         )
 
         classifier = SVClassifier()
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         # HI gene fully deleted with Section 1B + Section 3A evidence
         # should get >= 0.90 (Likely Pathogenic or Pathogenic)
@@ -113,7 +113,7 @@ class TestClassifierHIGeneDeletion:
         )
 
         classifier = SVClassifier()
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert result.classification in (
             SVClassification.LIKELY_PATHOGENIC,
@@ -136,7 +136,7 @@ class TestClassifierCommonSVBenign:
         )
 
         classifier = SVClassifier()
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         # High AF pushes score negative
         assert result.evidence_score < 0.0
@@ -155,7 +155,7 @@ class TestClassifierCommonSVBenign:
         benign_regions = [("chr15", 20143000, 20570000)]
 
         classifier = SVClassifier(benign_regions=benign_regions)
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert SVEvidenceCategory.CONTAINED_WITHIN_BENIGN in result.evidence_categories
         assert result.evidence_score < 0.0
@@ -185,7 +185,7 @@ class TestClassifierPathogenicRegionMatch:
             pathogenic_regions=pathogenic_regions,
             pathogenic_region_names=region_names,
         )
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert (
             SVEvidenceCategory.COMPLETE_OVERLAP_PATHOGENIC in result.evidence_categories
@@ -225,7 +225,7 @@ class TestClassifierDuplicationSpecific:
         )
 
         classifier = SVClassifier()
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert SVEvidenceCategory.DUP_TS_GENE_CONTAINED in result.evidence_categories
 
@@ -242,7 +242,7 @@ class TestClassifierMissingData:
 
         # No pathogenic or benign regions provided
         classifier = SVClassifier()
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert "pathogenic_regions" in result.missing_data_sources
         assert "benign_regions" in result.missing_data_sources
@@ -265,7 +265,7 @@ class TestClassifierTierReachability:
         )
 
         classifier = SVClassifier()
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert result.classification in (
             SVClassification.LIKELY_BENIGN,
@@ -287,7 +287,7 @@ class TestClassifierTierReachability:
         benign_regions = [("chr15", 20143000, 20570000)]
 
         classifier = SVClassifier(benign_regions=benign_regions)
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert SVEvidenceCategory.CONTAINED_WITHIN_BENIGN in result.evidence_categories
         assert result.classification == SVClassification.BENIGN
@@ -319,7 +319,7 @@ class TestClassifierTierReachability:
         pathogenic_regions = [("chr22", 18916842, 21465659)]
 
         classifier = SVClassifier(pathogenic_regions=pathogenic_regions)
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert result.classification == SVClassification.PATHOGENIC
 
@@ -349,7 +349,7 @@ class TestClassifierTierReachability:
         )
 
         classifier = SVClassifier()
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
 
         assert result.classification in (
             SVClassification.PATHOGENIC,

@@ -348,7 +348,7 @@ class PyRangesConsequenceAnnotator:
         if not self._index._loaded or self._index._gr is None:
             return [None] * len(variants)
 
-        query_df, query_gr = self._build_query(variants)
+        _query_df, query_gr = self._build_query(variants)
 
         hits = self._index._gr.join(query_gr)
         hits_df = hits.df
@@ -568,7 +568,7 @@ class PyRangesConsequenceAnnotator:
         if not self._index._loaded or self._index._gr is None:
             return [[] for _ in variants]
 
-        query_df, query_gr = self._build_query(variants)
+        _query_df, query_gr = self._build_query(variants)
 
         hits = self._index._gr.join(query_gr)
         hits_df = hits.df

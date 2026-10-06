@@ -290,7 +290,9 @@ To add a new annotation source (e.g., OMIM):
     ```python
     class OMIMDatabase(Protocol):
         def load(self, reference_path: Path) -> None: ...
-        def lookup_batch(self, variants: list[tuple[str, int, str, str]]) -> list[Optional[str]]: ...
+        def lookup_batch(
+            self, variants: list[tuple[str, int, str, str]]
+        ) -> list[Optional[str]]: ...
     ```
 
 2. Write the pure-Python implementation in `annotation/omim.py`.

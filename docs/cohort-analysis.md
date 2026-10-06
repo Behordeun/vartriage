@@ -121,8 +121,10 @@ report_paths = pipeline.run()
 ```python
 from pathlib import Path
 from vartriage import (
-    CohortPipeline, CohortConfig,
-    AnnotationConfig, PrioritizationConfig,
+    CohortPipeline,
+    CohortConfig,
+    AnnotationConfig,
+    PrioritizationConfig,
 )
 
 annotation = AnnotationConfig(
@@ -163,16 +165,20 @@ pipeline.run()
 
 # All aggregated variants
 for v in pipeline.variants:
-    print(f"{v.gene_name} {v.chrom}:{v.pos} {v.ref}>{v.alt} "
-          f"in {v.sample_count}/{v.total_samples} samples "
-          f"(freq={v.cohort_frequency:.2f})")
+    print(
+        f"{v.gene_name} {v.chrom}:{v.pos} {v.ref}>{v.alt} "
+        f"in {v.sample_count}/{v.total_samples} samples "
+        f"(freq={v.cohort_frequency:.2f})"
+    )
 
 # Per-gene burden
 for burden in pipeline.gene_burdens:
-    print(f"{burden.gene_name}: "
-          f"{burden.total_variants} variants, "
-          f"{burden.pathogenic_count} pathogenic, "
-          f"penetrance={burden.penetrance:.0%}")
+    print(
+        f"{burden.gene_name}: "
+        f"{burden.total_variants} variants, "
+        f"{burden.pathogenic_count} pathogenic, "
+        f"penetrance={burden.penetrance:.0%}"
+    )
 
 # Summary metrics
 summary = pipeline.summary

@@ -404,15 +404,15 @@ class TestValueErrorContent:
             QualityFilterConfig(min_qual=2_000_000)
 
     def test_prioritization_config_af_error_includes_lower_bound(self) -> None:
-        with pytest.raises(ValueError, match="0.0"):
+        with pytest.raises(ValueError, match=r"0\.0"):
             PrioritizationConfig(max_allele_frequency=-0.5)
 
     def test_prioritization_config_af_error_includes_upper_bound(self) -> None:
-        with pytest.raises(ValueError, match="1.0"):
+        with pytest.raises(ValueError, match=r"1\.0"):
             PrioritizationConfig(max_allele_frequency=-0.5)
 
     def test_prioritization_config_af_error_includes_value(self) -> None:
-        with pytest.raises(ValueError, match="2.0"):
+        with pytest.raises(ValueError, match=r"2\.0"):
             PrioritizationConfig(max_allele_frequency=2.0)
 
     def test_annotation_config_batch_size_error_includes_lower_bound(self) -> None:

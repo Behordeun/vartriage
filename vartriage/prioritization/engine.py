@@ -87,7 +87,7 @@ class PrioritizationEngine:
 
         # SpliceAI: SQLite backend takes precedence over TSV
         if config.spliceai_db_path is not None:
-            from vartriage.prioritization.spliceai_db import (  # noqa: TC004
+            from vartriage.prioritization.spliceai_db import (
                 SpliceAISQLiteLoader as _SpliceAILoader,
             )
 

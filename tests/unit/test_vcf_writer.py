@@ -72,7 +72,7 @@ def _create_source_vcf(path: Path, records: list[dict]) -> None:
 
     with pysam.VariantFile(str(path), "wz", header=header) as out:
         for rec in records:
-            alleles = (rec["ref"],) + tuple(rec.get("alts", [rec.get("alt")]))
+            alleles = (rec["ref"], *tuple(rec.get("alts", [rec.get("alt")])))
             new_rec = out.new_record(
                 contig=rec["chrom"],
                 start=rec["pos"] - 1,

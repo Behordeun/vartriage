@@ -326,7 +326,7 @@ class AnnotationEngine:
         if db is None or not hasattr(db, "lookup_batch_populations"):
             return empty
 
-        maps = db.lookup_batch_populations(variant_keys)  # type: ignore[attr-defined]
+        maps = db.lookup_batch_populations(variant_keys)
         result: list[PopulationFrequencies | None] = []
         for af_map in maps:
             if not af_map:
@@ -361,7 +361,7 @@ class AnnotationEngine:
         db = self._clinvar_db
         if db is None or not hasattr(db, "lookup_batch_review_status"):
             return empty
-        statuses: list[ClinVarReviewStatus | None] = db.lookup_batch_review_status(  # type: ignore[attr-defined]
+        statuses: list[ClinVarReviewStatus | None] = db.lookup_batch_review_status(
             variant_keys
         )
         return statuses

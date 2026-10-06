@@ -298,9 +298,9 @@ def test_malformed_line_resilience(
 
     shuffled = data.draw(st.permutations(all_lines)) if all_lines else []
 
-    expected: dict[tuple[str, int, str, str], float] = {}
-    for _, key, score in valid_lines:
-        expected[key] = score
+    expected: dict[tuple[str, int, str, str], float] = {
+        key: score for _, key, score in valid_lines
+    }
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tsv_path = Path(tmpdir) / "scores.tsv"

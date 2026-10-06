@@ -143,7 +143,7 @@ class ReportTemplateEngine:
             If WeasyPrint is not installed.
         """
         try:
-            import weasyprint  # type: ignore[import-not-found]  # noqa: F401
+            import weasyprint  # noqa: F401
         except ImportError as exc:
             raise ImportError(
                 "PDF output requires the 'weasyprint' package. "
@@ -184,7 +184,7 @@ class ReportTemplateEngine:
         """
         try:
             from docx import Document
-            from docx.enum.table import WD_TABLE_ALIGNMENT  # noqa: E501
+            from docx.enum.table import WD_TABLE_ALIGNMENT
         except ImportError as exc:
             raise ImportError(
                 "DOCX output requires the 'python-docx' package. "
@@ -529,8 +529,10 @@ class ReportTemplateEngine:
         parts.append(
             LIMITATIONS_TEMPLATE_HEADER.format(section_id=SECTION_ID_LIMITATIONS)
         )
-        for limitation in sections.limitations:
-            parts.append(LIMITATIONS_ITEM.format(limitation=limitation))
+        parts.extend(
+            LIMITATIONS_ITEM.format(limitation=limitation)
+            for limitation in sections.limitations
+        )
         parts.append(LIMITATIONS_TEMPLATE_FOOTER)
         return "".join(parts)
 

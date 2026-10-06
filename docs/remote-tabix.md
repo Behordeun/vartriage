@@ -125,18 +125,22 @@ config = RemoteTabixConfig(
 
 # CADD lookups
 cadd = RemoteTabixCADD(config)
-scores = cadd.lookup_batch([
-    ("chr22", 28695868, "A", "G"),
-    ("chr22", 28695869, "C", "T"),
-])
+scores = cadd.lookup_batch(
+    [
+        ("chr22", 28695868, "A", "G"),
+        ("chr22", 28695869, "C", "T"),
+    ]
+)
 # Returns: {("chr22", 28695868, "A", "G"): 23.5, ...}
 cadd.close()
 
 # gnomAD lookups (satisfies FrequencyDatabase protocol)
 gnomad = RemoteTabixGnomAD(config)
-frequencies = gnomad.lookup_batch([
-    ("chr22", 28695868, "A", "G"),
-])
+frequencies = gnomad.lookup_batch(
+    [
+        ("chr22", 28695868, "A", "G"),
+    ]
+)
 # Returns: [0.00032]  (positional list, None for not found)
 gnomad.close()
 ```

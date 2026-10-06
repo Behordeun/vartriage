@@ -47,9 +47,11 @@ def extract_snvs(vcf_path: Path) -> list[tuple[str, int, str, str]]:
     with pysam.VariantFile(str(vcf_path)) as vcf:
         for record in vcf:
             ref = record.ref
-            for alt in record.alts or []:
-                if len(ref) == 1 and len(alt) == 1 and ref != alt:
-                    snvs.append((record.chrom, record.pos, ref, alt))
+            snvs.extend(
+                (record.chrom, record.pos, ref, alt)
+                for alt in record.alts or []
+                if len(ref) == 1 and len(alt) == 1 and ref != alt
+            )
     print(f"Extracted {len(snvs)} SNVs from {vcf_path}")
     return snvs
 

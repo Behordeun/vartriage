@@ -19,9 +19,9 @@ pipeline = CohortPipeline(cohort_config=config)
 report_paths = pipeline.run()
 
 # Access results after run()
-pipeline.variants       # list[CohortVariant]
-pipeline.gene_burdens   # list[GeneBurden]
-pipeline.summary        # CohortSummary
+pipeline.variants  # list[CohortVariant]
+pipeline.gene_burdens  # list[GeneBurden]
+pipeline.summary  # CohortSummary
 ```
 
 **Parameters:**

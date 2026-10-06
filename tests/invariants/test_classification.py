@@ -375,17 +375,13 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
             expected_tags.add(EvidenceTag.PP3_STRONG)
         elif revel_available and revel > 0.773:
             expected_tags.add(EvidenceTag.PP3_MODERATE)
-        elif (
-            revel_available
-            and revel > 0.644
-            or (
-                spliceai_available
-                and spliceai > 0.5
-                and consequence
-                in (
-                    FunctionalConsequence.SPLICE_SITE,
-                    FunctionalConsequence.MISSENSE,
-                )
+        elif (revel_available and revel > 0.644) or (
+            spliceai_available
+            and spliceai > 0.5
+            and consequence
+            in (
+                FunctionalConsequence.SPLICE_SITE,
+                FunctionalConsequence.MISSENSE,
             )
         ):
             expected_tags.add(EvidenceTag.PP3)
@@ -674,9 +670,9 @@ def test_single_supporting_tag_yields_vus(data: st.DataObject) -> None:
 # v0.19.0: PVS1 NMD-escape downgrade invariants
 # ---------------------------------------------------------------------------
 
-from vartriage.annotation.transcript_index import TranscriptCDSIndex  # noqa: E402
-from vartriage.knowledge.models import GeneConstraint, GeneContext  # noqa: E402
-from vartriage.models.variant import (  # noqa: E402
+from vartriage.annotation.transcript_index import TranscriptCDSIndex
+from vartriage.knowledge.models import GeneConstraint, GeneContext
+from vartriage.models.variant import (
     EVIDENCE_STRENGTH_MAP,
     EvidenceStrength,
 )

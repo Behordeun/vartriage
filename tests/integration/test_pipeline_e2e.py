@@ -182,28 +182,22 @@ def _write_gnomad(tmp_dir: Path, vcf_lines: list[str]) -> Path:
     rows = [["chrom", "pos", "ref", "alt", "af"]]
 
     # Give low AF to first 10 CDS missense variants (chr1:1050-1059)
-    for pos in range(1050, 1060):
-        rows.append(["chr1", str(pos), "A", "G", "0.00005"])
+    rows.extend(["chr1", str(pos), "A", "G", "0.00005"] for pos in range(1050, 1060))
 
     # Give moderate AF to next 10 CDS missense variants (chr1:1060-1069)
-    for pos in range(1060, 1070):
-        rows.append(["chr1", str(pos), "A", "G", "0.005"])
+    rows.extend(["chr1", str(pos), "A", "G", "0.005"] for pos in range(1060, 1070))
 
     # Give high AF to some exon/UTR variants -> should be excluded
-    for pos in range(910, 915):
-        rows.append(["chr1", str(pos), "G", "A", "0.05"])
+    rows.extend(["chr1", str(pos), "G", "A", "0.05"] for pos in range(910, 915))
 
     # Intergenic variants with high AF
-    for pos in range(5000, 5010):
-        rows.append(["chr2", str(pos), "T", "C", "0.15"])
+    rows.extend(["chr2", str(pos), "T", "C", "0.15"] for pos in range(5000, 5010))
 
     # TP53 CDS variants: very low AF for frameshift variants
-    for pos in range(3100, 3105):
-        rows.append(["chr3", str(pos), "AC", "A", "0.00001"])
+    rows.extend(["chr3", str(pos), "AC", "A", "0.00001"] for pos in range(3100, 3105))
 
     # TP53 missense variants: moderate AF
-    for pos in range(3050, 3055):
-        rows.append(["chr3", str(pos), "A", "G", "0.003"])
+    rows.extend(["chr3", str(pos), "A", "G", "0.003"] for pos in range(3050, 3055))
 
     # Remaining TP53 missense: absent from gnomAD -> frequency_unknown
 
@@ -228,12 +222,15 @@ def _write_clinvar(tmp_dir: Path) -> Path:
     rows = [["chrom", "pos", "ref", "alt", "clinical_significance"]]
 
     # Frameshift variants in TP53 marked Pathogenic
-    for pos in range(3100, 3105):
-        rows.append(["chr3", str(pos), "AC", "A", "Pathogenic"])
+    rows.extend(
+        ["chr3", str(pos), "AC", "A", "Pathogenic"] for pos in range(3100, 3105)
+    )
 
     # Some CDS missense in BRCA1 region marked VUS
-    for pos in range(1050, 1055):
-        rows.append(["chr1", str(pos), "A", "G", "Uncertain significance"])
+    rows.extend(
+        ["chr1", str(pos), "A", "G", "Uncertain significance"]
+        for pos in range(1050, 1055)
+    )
 
     # One missense in chr1 marked Likely pathogenic
     rows.append(["chr1", "1055", "A", "G", "Likely pathogenic"])
@@ -425,7 +422,7 @@ class TestPipelineE2E:
         self, pipeline_data: dict[str, Path]
     ) -> None:
         """Running the full pipeline produces a non-empty classified list."""
-        output_path, classified = _run_pipeline(
+        _output_path, classified = _run_pipeline(
             vcf_path=pipeline_data["vcf_path"],
             gtf_path=pipeline_data["gtf_path"],
             gnomad_path=pipeline_data["gnomad_path"],
@@ -766,7 +763,7 @@ class TestCSVOutput:
         self, pipeline_data: dict[str, Path]
     ) -> None:
         """Absent values are represented as empty strings in CSV."""
-        output_path, classified = _run_pipeline(
+        output_path, _classified = _run_pipeline(
             vcf_path=pipeline_data["vcf_path"],
             gtf_path=pipeline_data["gtf_path"],
             gnomad_path=pipeline_data["gnomad_path"],

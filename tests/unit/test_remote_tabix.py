@@ -125,7 +125,7 @@ class TestPresets:
             resolve_preset("nonexistent")
 
     def test_error_message_lists_available_presets(self) -> None:
-        with pytest.raises(ValueError, match="cadd-v1.7-grch38"):
+        with pytest.raises(ValueError, match=r"cadd-v1\.7-grch38"):
             resolve_preset("bogus")
 
     def test_get_preset_returns_entry(self) -> None:

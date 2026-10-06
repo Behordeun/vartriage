@@ -77,16 +77,14 @@ def _write_minimal_gtf(path: Path) -> None:
 def _write_minimal_gnomad(path: Path) -> None:
     """Write a minimal gnomAD TSV with a few entries."""
     lines = ["chrom\tpos\tref\talt\taf\n"]
-    for i in range(100):
-        lines.append(f"chr1\t{i + 1}\tA\tG\t0.001\n")
+    lines.extend(f"chr1\t{i + 1}\tA\tG\t0.001\n" for i in range(100))
     path.write_text("".join(lines), encoding="utf-8")
 
 
 def _write_minimal_clinvar(path: Path) -> None:
     """Write a minimal ClinVar TSV with a few entries."""
     lines = ["chrom\tpos\tref\talt\tclinical_significance\n"]
-    for i in range(50):
-        lines.append(f"chr1\t{i + 1}\tA\tG\tPathogenic\n")
+    lines.extend(f"chr1\t{i + 1}\tA\tG\tPathogenic\n" for i in range(50))
     path.write_text("".join(lines), encoding="utf-8")
 
 

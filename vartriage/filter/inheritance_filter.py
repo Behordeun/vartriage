@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Generator, Iterator
+from typing import ClassVar
 
 from vartriage.models.config import InheritanceConfig
 from vartriage.models.variant import Variant
@@ -210,9 +211,7 @@ class InheritanceFilter:
         str
             VCF-style genotype, e.g. "0/1", "./.".
         """
-        alleles = []
-        for a in gt:
-            alleles.append(str(a) if a is not None else ".")
+        alleles = [str(a) if a is not None else "." for a in gt]
         return "/".join(alleles)
 
     @staticmethod
@@ -478,10 +477,10 @@ class InheritanceFilter:
             patterns,
         ) in enumerate(buffer):
             if i in compound_het_indices:
-                patterns = patterns + ["compound_het"]
+                patterns = [*patterns, "compound_het"]
             yield self._build_output(variant, proband_gt, patterns)
 
-    _MODE_ALLOWED_PATTERNS: dict[str, frozenset[str]] = {
+    _MODE_ALLOWED_PATTERNS: ClassVar[dict[str, frozenset[str]]] = {
         "AD": frozenset({"dominant", "de_novo"}),
         "AR": frozenset({"recessive", "compound_het"}),
         "XL": frozenset({"x_linked"}),

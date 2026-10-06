@@ -170,9 +170,9 @@ registry = GeneKnowledgeRegistry(config)
 
 # Gene-level annotations
 ann = registry.annotate_gene("SCN1A")
-print(ann.disease_associations)   # tuple of DiseaseAssociation
-print(ann.constraint.pli)         # 1.0
-print(ann.clingen_validity)       # "Definitive"
+print(ann.disease_associations)  # tuple of DiseaseAssociation
+print(ann.constraint.pli)  # 1.0
+print(ann.clingen_validity)  # "Definitive"
 
 # Phenotype overlap
 overlap = registry.phenotype_overlap("SCN1A")  # 1.0

@@ -18,7 +18,7 @@ from vartriage.qc.metrics import QCMetrics
 from vartriage.qc.validator import QCStatus, QCValidator
 
 
-def _metrics(**overrides) -> QCMetrics:  # noqa: ANN003
+def _metrics(**overrides) -> QCMetrics:
     base = dict(
         total_variants=0,
         snv_count=0,

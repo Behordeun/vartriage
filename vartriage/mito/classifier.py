@@ -173,14 +173,15 @@ class MitochondrialClassifier:
         if (
             mitomap_entry is not None
             and mitomap_entry.is_confirmed
+            and heteroplasmy is not None
             and has_high_heteroplasmy
             and is_rare
         ):
             return (
                 MitoClassification.PATHOGENIC,
                 f"Confirmed pathogenic in MITOMAP ({mitomap_entry.disease}), "
-                f"heteroplasmy {heteroplasmy.percentage:.1f}% "  # type: ignore[union-attr]
-                f"({heteroplasmy.category}), rare in population",  # type: ignore[union-attr]
+                f"heteroplasmy {heteroplasmy.percentage:.1f}% "
+                f"({heteroplasmy.category}), rare in population",
             )
 
         # Rule 2: Benign — common haplogroup marker
@@ -204,6 +205,7 @@ class MitochondrialClassifier:
             mitomap_entry is not None
             and mitomap_entry.is_confirmed
             and gene_context.is_in_coding_or_trna
+            and heteroplasmy is not None
             and has_moderate_or_high
         ):
             return (
@@ -211,7 +213,7 @@ class MitochondrialClassifier:
                 f"Confirmed in MITOMAP ({mitomap_entry.disease}, "
                 f"status={mitomap_entry.status}), "
                 f"in {gene_context.gene_type} region ({gene_context.gene_name}), "
-                f"heteroplasmy {heteroplasmy.percentage:.1f}%",  # type: ignore[union-attr]
+                f"heteroplasmy {heteroplasmy.percentage:.1f}%",
             )
 
         # Rule 4b: Unconfirmed MITOMAP report — insufficient for LP
