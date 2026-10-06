@@ -369,11 +369,12 @@ class PyRangesConsequenceAnnotator:
             return gene_names
 
         seen: set[int] = set()
-        for _, row in hits_df.iterrows():
-            var_idx = int(row["_idx"])
+        idx_col = hits_df["_idx"].to_numpy()
+        gene_vals = hits_df[gene_col].to_numpy()
+        for raw_idx, val in zip(idx_col, gene_vals, strict=True):
+            var_idx = int(raw_idx)
             if var_idx not in seen:
                 seen.add(var_idx)
-                val = row[gene_col]
                 if pd.notna(val):
                     gene_names[var_idx] = str(val)
 
@@ -455,11 +456,32 @@ class PyRangesConsequenceAnnotator:
             c.value: idx for idx, c in enumerate(CONSEQUENCE_SEVERITY_ORDER)
         }
 
-        for _, row in hits_df.iterrows():
-            var_idx = int(row["_idx"])
-            feature_type = row.get("Feature", "unknown")
-            ref = row.get("_ref", "")
-            alt = row.get("_alt", "")
+        # Iterate the join hits as column arrays, not row Series. iterrows
+        # builds a pandas Series per hit, and the batch produces roughly 20
+        # hits per variant (gene, transcript, exon, CDS across transcripts),
+        # so per-row Series construction dominated the whole annotation stage.
+        # Columns pulled once as numpy arrays and zipped drop that cost.
+        feature_col = (
+            hits_df["Feature"].to_numpy()
+            if "Feature" in hits_df.columns
+            else np.full(len(hits_df), "unknown")
+        )
+        idx_col = hits_df["_idx"].to_numpy()
+        ref_col = (
+            hits_df["_ref"].to_numpy()
+            if "_ref" in hits_df.columns
+            else np.full(len(hits_df), "")
+        )
+        alt_col = (
+            hits_df["_alt"].to_numpy()
+            if "_alt" in hits_df.columns
+            else np.full(len(hits_df), "")
+        )
+
+        for raw_idx, feature_type, ref, alt in zip(
+            idx_col, feature_col, ref_col, alt_col, strict=True
+        ):
+            var_idx = int(raw_idx)
             is_splice = var_idx in splice_positions
 
             consequence_str = _determine_consequence_pyranges(
@@ -609,9 +631,12 @@ class PyRangesConsequenceAnnotator:
         if cds_hits.empty:
             return result
 
-        for _, row in cds_hits.iterrows():
-            var_idx = int(row["_idx"])
-            transcript_id = row.get("transcript_id", "")
+        if "transcript_id" not in cds_hits.columns:
+            return result
+        idx_col = cds_hits["_idx"].to_numpy()
+        tid_col = cds_hits["transcript_id"].to_numpy()
+        for raw_idx, transcript_id in zip(idx_col, tid_col, strict=True):
+            var_idx = int(raw_idx)
             if transcript_id and transcript_id not in result[var_idx]:
                 result[var_idx].append(transcript_id)
 
