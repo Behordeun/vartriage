@@ -192,8 +192,7 @@ class ReportlabPDFRenderer:
         elements.append(Spacer(1, 1 * cm))
 
         table_data: list[list[str]] = [_OUTPUT_FIELDS]
-        for variant in variants:
-            table_data.append(_extract_row(variant))
+        table_data.extend(_extract_row(variant) for variant in variants)
 
         col_widths = [
             2.0 * cm,  # Chromosome

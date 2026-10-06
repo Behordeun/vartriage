@@ -123,7 +123,7 @@ class TestFrequencyEvidence:
             population_frequency=0.02,
             frequency_unknown=False,
         )
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
         # AF >= 0.01 gives -0.60
         assert result.evidence_score < -0.5
 
@@ -133,7 +133,7 @@ class TestFrequencyEvidence:
             population_frequency=0.007,
             frequency_unknown=False,
         )
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
         assert result.evidence_score < -0.2
 
     def test_slightly_common_gets_weak_benign(self) -> None:
@@ -142,7 +142,7 @@ class TestFrequencyEvidence:
             population_frequency=0.002,
             frequency_unknown=False,
         )
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
         assert result.evidence_score < 0.0
 
     def test_rare_sv_no_frequency_penalty(self) -> None:
@@ -151,7 +151,7 @@ class TestFrequencyEvidence:
             population_frequency=0.0005,
             frequency_unknown=False,
         )
-        list(classifier.classify(iter([scored])))[0]
+        next(iter(classifier.classify(iter([scored]))))
         # AF < 0.001 returns 0.0 from frequency evidence
         freq_contribution = classifier._evaluate_frequency_evidence(
             scored.annotated, set()
@@ -188,7 +188,7 @@ class TestSection3GeneEvaluation:
             gene_overlaps=(overlap,),
             genes_affected=1,
         )
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
         assert SVEvidenceCategory.BREAKPOINT_WITHIN_GENE in result.evidence_categories
 
 
@@ -215,7 +215,7 @@ class TestSection4Duplication:
             gene_overlaps=(overlap,),
             genes_affected=1,
         )
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
         assert SVEvidenceCategory.DUP_GENE_DISRUPTED in result.evidence_categories
 
     def test_dup_identical_to_pathogenic_region(self) -> None:
@@ -239,7 +239,7 @@ class TestSection4Duplication:
             gene_overlaps=(overlap,),
             genes_affected=1,
         )
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
         assert (
             SVEvidenceCategory.DUP_IDENTICAL_TO_PATHOGENIC in result.evidence_categories
         )
@@ -266,7 +266,7 @@ class TestSection4Duplication:
             gene_overlaps=(overlap,),
             genes_affected=1,
         )
-        result = list(classifier.classify(iter([scored])))[0]
+        result = next(iter(classifier.classify(iter([scored]))))
         assert (
             SVEvidenceCategory.DUP_COMPLETE_OVERLAP_PATHOGENIC
             in result.evidence_categories

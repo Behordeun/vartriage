@@ -35,7 +35,7 @@ class TestIsMitochondrial:
         assert not is_mitochondrial("CHACM")
 
 
-def _sample(gt: tuple) -> dict:  # noqa: ANN001
+def _sample(gt: tuple) -> dict:
     return {"GT": list(gt)}
 
 

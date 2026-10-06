@@ -114,8 +114,13 @@ line-length = 88
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM"]
-ignore = ["E501"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PERF"]
+# E501: line length handled by the formatter.
+# RUF022: __all__ is grouped by concern with section comments, not sorted.
+# PERF203: flagged try/except blocks are per-iteration retry/continue handlers.
+ignore = ["E501", "RUF022", "PERF203"]
+# Bandit codes (S*) are checked by a separate tool; keep its noqa directives.
+external = ["S"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["E402"]

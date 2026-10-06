@@ -12,8 +12,8 @@ from __future__ import annotations
 from vartriage.api.config import APIConfig
 
 __all__ = [
-    "APIConfig",
     "APIAnnotationEngine",
+    "APIConfig",
     "APIScoreProvider",
 ]
 

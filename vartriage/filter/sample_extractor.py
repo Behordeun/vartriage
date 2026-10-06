@@ -124,9 +124,7 @@ class SampleExtractor:
         str
             e.g. "0/1", "./.".
         """
-        alleles = []
-        for a in gt:
-            alleles.append(str(a) if a is not None else ".")
+        alleles = [str(a) if a is not None else "." for a in gt]
         return "/".join(alleles)
 
     @staticmethod

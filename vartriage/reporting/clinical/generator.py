@@ -292,11 +292,10 @@ class ClinicalReportGenerator:
             inheritance = annotated.variant.info.get("inheritance_pattern")
 
             # Evidence tags with explanations.
-            tags_explained: list[str] = []
-            for tag in sorted(v.evidence_tags, key=lambda t: t.value):
-                tags_explained.append(
-                    self._narrative_builder.format_evidence_tag(tag, v)
-                )
+            tags_explained: list[str] = [
+                self._narrative_builder.format_evidence_tag(tag, v)
+                for tag in sorted(v.evidence_tags, key=lambda t: t.value)
+            ]
 
             # Full narrative text.
             narrative = self._narrative_builder.build_narrative(v)

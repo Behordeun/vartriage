@@ -131,11 +131,11 @@ class TestFrequencyFilterConfigValidation:
     """Configuration validation at construction time."""
 
     def test_rejects_negative_threshold(self) -> None:
-        with pytest.raises(ValueError, match="between 0.0 and 1.0"):
+        with pytest.raises(ValueError, match=r"between 0\.0 and 1\.0"):
             PrioritizationConfig(max_allele_frequency=-0.1)
 
     def test_rejects_threshold_above_one(self) -> None:
-        with pytest.raises(ValueError, match="between 0.0 and 1.0"):
+        with pytest.raises(ValueError, match=r"between 0\.0 and 1\.0"):
             PrioritizationConfig(max_allele_frequency=1.5)
 
     def test_accepts_threshold_at_zero(self) -> None:

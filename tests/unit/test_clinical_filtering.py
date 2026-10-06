@@ -307,7 +307,7 @@ class TestSampleExtractorValidation:
     def test_available_samples_in_error_message(self) -> None:
         """ValueError lists available sample names."""
         config = SampleConfig(sample_name="MISSING")
-        with pytest.raises(ValueError, match="S1.*S2.*S3|Available"):
+        with pytest.raises(ValueError, match=r"S1.*S2.*S3|Available"):
             SampleExtractor(config, ["S1", "S2", "S3"])
 
     def test_output_has_sample_gt_gq_name(self) -> None:

@@ -18,11 +18,11 @@ from vartriage.api._rate_limiter import RateLimiter
 
 httpx = pytest.importorskip("httpx")
 
-from vartriage.api._cache import ResponseCache  # noqa: E402
+from vartriage.api._cache import ResponseCache
 
 
-def _mock_transport(status: int):  # noqa: ANN202
-    def handler(request):  # noqa: ANN001, ANN202
+def _mock_transport(status: int):
+    def handler(request):
         return httpx.Response(status, text="error")
 
     return httpx.MockTransport(handler)

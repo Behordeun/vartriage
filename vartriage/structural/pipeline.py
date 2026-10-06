@@ -226,21 +226,20 @@ class SVTriagePipeline:
         sv = classified.scored.annotated.sv
         annotated = classified.scored.annotated
 
-        gene_details = []
-        for overlap in annotated.gene_overlaps:
-            gene_details.append(
-                {
-                    "symbol": overlap.gene_symbol,
-                    "overlap_fraction": round(overlap.overlap_fraction, 4),
-                    "is_whole_gene": overlap.is_whole_gene,
-                    "exons_affected": overlap.exons_affected,
-                    "total_exons": overlap.total_exons,
-                    "is_haploinsufficient": overlap.is_haploinsufficient,
-                    "is_triplosensitive": overlap.is_triplosensitive,
-                    "hi_score": overlap.hi_score,
-                    "ts_score": overlap.ts_score,
-                }
-            )
+        gene_details = [
+            {
+                "symbol": overlap.gene_symbol,
+                "overlap_fraction": round(overlap.overlap_fraction, 4),
+                "is_whole_gene": overlap.is_whole_gene,
+                "exons_affected": overlap.exons_affected,
+                "total_exons": overlap.total_exons,
+                "is_haploinsufficient": overlap.is_haploinsufficient,
+                "is_triplosensitive": overlap.is_triplosensitive,
+                "hi_score": overlap.hi_score,
+                "ts_score": overlap.ts_score,
+            }
+            for overlap in annotated.gene_overlaps
+        ]
 
         return {
             "chrom": sv.chrom,
