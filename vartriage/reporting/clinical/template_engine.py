@@ -143,7 +143,7 @@ class ReportTemplateEngine:
             If WeasyPrint is not installed.
         """
         try:
-            import weasyprint  # noqa: F401
+            import weasyprint
         except ImportError as exc:
             raise ImportError(
                 "PDF output requires the 'weasyprint' package. "

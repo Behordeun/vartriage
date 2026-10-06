@@ -14,8 +14,8 @@ from vartriage.models.variant import FunctionalConsequence, Variant
 
 pytest.importorskip("pyranges")
 
-from vartriage._internal.cache import cache_path_for  # noqa: E402
-from vartriage.annotation.consequence_pyranges import (  # noqa: E402
+from vartriage._internal.cache import cache_path_for
+from vartriage.annotation.consequence_pyranges import (
     PyRangesConsequenceAnnotator,
 )
 
