@@ -5,23 +5,47 @@ This document describes how to validate vartriage against benchmark datasets. Tw
 1. **GIAB chr22** — genomic-scale validation measuring specificity and runtime characteristics
 2. **ClinVar eRepo** — expert-panel curated variants measuring pathogenic sensitivity and PPV
 
-## Summary (v0.17.5 eRepo run: SpliceAI SQLite + remote gnomAD)
+## Summary (v1.0.0 full-genome release run)
+
+The v1.0.0 release figures come from a single full-genome run over an expert-curated truth set of 18,166 pinned-ClinVar variants (GRCh38), using genome-wide REVEL, gnomAD exomes v4.1.1 frequencies (remote tabix, pinned cache), and GENCODE v46. All metrics carry a 95% Wilson confidence interval.
+
+| Metric | Value | 95% CI | n |
+| --- | --- | --- | --- |
+| PPV (P/LP call) | 0.999 | [0.997, 0.999] | 8,062 |
+| Pathogenic sensitivity | 0.642 | [0.633, 0.650] | 12,545 |
+| Specificity | 0.990 | [0.982, 0.994] | 1,187 |
+| NPV | 0.207 | [0.197, 0.218] | 5,670 |
+
+The thresholds were pre-registered before the figures existed (`.kiro/specs/validation-benchmarks/accuracy-decision-rule.md`). The PPV lower bound (0.997) clears the pre-registered clinical bar; sensitivity (0.642) is below the 0.70 clinical gate, so v1.0.0 is positioned as a **research-grade computational-triage tool**: high precision on positive calls, with uncertain variants held at VUS rather than overcalled.
+
+Confusion counts: 8,050 true positive, 12 false positive, 1,175 true negative, 4,495 false negative. Of the P/LP variants not recovered, 4,486 were classified VUS rather than mis-called benign. Specificity recovered from 0.0 (frequency-blind REVEL-only run) to 0.990 once gnomAD frequency was available, confirming the benign-evidence path depends on frequency data rather than any classifier defect.
+
+**Coverage boundaries (these bound the figures):** frequency is from gnomAD exomes v4.1.1 only (genomes not queried); the 127 mitochondrial truth variants received no gnomAD frequency; CADD and SpliceAI were not used, so REVEL was the only in-silico score. Each plausibly suppresses sensitivity and is the subject of the sensitivity-evidence-coverage work scoped for v1.2.0.
+
+**Reproducibility:** the gnomAD remote cache is pinned (entries never expire), the truth set is built deterministically from a pinned ClinVar release, and reference versions are fixed, so a re-run reproduces these figures.
+
+### Path to clinical-grade
+
+Clinical-grade status has two distinct requirements, and both must hold.
+
+1. **Clear the pre-registered gate honestly.** The only unmet threshold is sensitivity (0.642, needs ≥ 0.70). It must rise by giving the classifier evidence it currently lacks — gnomAD genomes, CADD, SpliceAI, and chrM frequency let PP3, splice, and rarity criteria fire on variants presently held at VUS — never by fitting thresholds to the truth set, which the pre-registration forbids. Whether sensitivity reaches 0.70 is then measured on a re-run under the same frozen rule. This is scoped in the sensitivity-evidence-coverage spec for v1.2.0.
+2. **Validate beyond ClinVar.** The current benchmark measures concordance against ClinVar, and the classifier itself uses ClinVar-derived evidence (PP5/BP6, review status), so the study carries a circularity risk stated plainly here. Clinical-grade validation requires an independent, orthogonal truth set the classifier did not learn from, per-gene and per-disease breakdowns rather than one global number, and concordance against the full ACMG five-tier rather than the collapsed P/VUS/B this run produced. Formal CAP/CLIA validation and regulatory review are a separate organizational track required before any diagnostic use. This is a later milestone.
+
+### Historical run (v0.17.5 eRepo, superseded)
+
+The earlier eRepo figures below predate both the ClinGen SVI Bayesian point engine (the combining path since v0.18.3) and the v1.0.0 full-genome benchmark. They are retained for history and do not describe the current release.
 
 | Benchmark     | Variants | Pathogenic Sensitivity | Specificity | PPV   | Runtime |
 | ------------- | -------- | ---------------------- | ----------- | ----- | ------- |
 | GIAB chr22    | 50,284   | n/a                    | 71.8%       | n/a   | 30 s    |
 | ClinVar eRepo | 21,506   | 70.5%                  | n/a          | 99.2% | n/a     |
 
-The eRepo run classifies 21,506 variants. Pathogenic sensitivity rose from 65.6% (v0.17.3, no SpliceAI) to 70.5% once the SpliceAI SQLite backend landed in v0.17.5.
-
-These figures were measured on v0.17.5 and predate the ClinGen SVI Bayesian point engine that became the combining path in v0.18.3, under which 31% of pathogenic-side tag combinations map to a different tier than the earlier rule table produced. They are the last published run and do not describe the classifier at the current release; a refreshed eRepo validation on the current combining path is pending (see the validation-benchmarks spec).
-
 **Known limitations:**
 
-- Splice-site sensitivity: 55.9% (up from 9.8% before the SpliceAI SQLite backend). Splice calls still depend on precomputed SpliceAI delta scores being available for the variant.
-- Benign sensitivity: 6.0% (BP1, BP3, BP6 not implemented; VUS is the default when evidence is absent).
-- Missense sensitivity: 46.9% (limited by the ClinGen-calibrated PP3/REVEL threshold).
-- BS2 is emitted for dominant-disorder genes when gnomAD homozygote counts are available (observed-in-healthy-controls evidence); it does not fire for recessive genes or without homozygote-count data.
+- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than escalated, pending the additional in-silico and frequency evidence scoped for v1.2.0 (gnomAD genomes, CADD, SpliceAI, chrM frequency). Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
+- NPV 0.207: a non-pathogenic call is weak evidence of benignity, a consequence of the VUS-heavy behavior.
+- Validation is concordance against ClinVar, which also supplies some classifier evidence (PP5/BP6, review status); an independent, orthogonal truth set is required for clinical-grade validation.
+- BS2 is emitted for dominant-disorder genes when gnomAD homozygote counts are available; it does not fire for recessive genes or without homozygote-count data.
 
 ---
 
@@ -185,6 +209,8 @@ This runs on-demand rather than on every PR (too slow and too much data).
 ---
 
 ## ClinVar Expert-Panel (eRepo) Validation
+
+> **Historical (v0.17.5), superseded by the v1.0.0 full-genome run at the top of this document.** The figures in this section predate the ClinGen SVI Bayesian point engine (the combining path since v0.18.3) and the v1.0.0 benchmark. They are retained to document the eRepo methodology and the pre-point-engine behavior, and do not describe the current release.
 
 The eRepo validation uses ClinVar submissions from Expert Panels only (review status 3+ stars). These are the highest-confidence clinical variant interpretations available, representing consensus multi-lab assessments.
 

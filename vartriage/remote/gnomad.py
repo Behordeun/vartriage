@@ -9,6 +9,7 @@ Satisfies the FrequencyDatabase protocol from vartriage.protocols.
 
 from __future__ import annotations
 
+import concurrent.futures
 import contextlib
 import logging
 import time
@@ -169,39 +170,82 @@ class RemoteTabixGnomAD:
         "AF_afr".."AF_sas"). None marks a variant not found or a query skipped
         because the circuit breaker is open.
 
-        This is the ancestry-aware companion to lookup_batch. It does not use the
-        single-float score cache (which cannot hold a population map); it queries
-        remote directly through the same batched, retrying range fetch. The global
-        FrequencyDatabase protocol path (lookup_batch) is unchanged.
+        This is the ancestry-aware companion to lookup_batch. It is backed by a
+        dedicated population-map cache (JSON per variant) with the same TTL and
+        pinning semantics as the single-float cache, so repeat runs are cache
+        hits rather than fresh remote queries. The global FrequencyDatabase
+        protocol path (lookup_batch) is unchanged.
         """
         if not variants:
             return []
 
         results: list[dict[str, float] | None] = [None] * len(variants)
+        uncached_indices: list[int] = []
+
+        # Phase 1: check the population cache. A stored empty map is a hit
+        # (confirmed queried, nothing found) and leaves the result at None.
+        cached_maps = self._cache.get_population_batch(self._source_id, list(variants))
+        for i, af_map in enumerate(cached_maps):
+            if af_map is None:
+                uncached_indices.append(i)
+            elif af_map:
+                results[i] = af_map
+
+        if not uncached_indices:
+            return results
 
         if self._breaker.is_open:
             logger.debug(
                 "Circuit breaker open — skipping %d remote gnomAD population queries",
-                len(variants),
+                len(uncached_indices),
             )
             return results
 
+        # Phase 2+3: query remote for cache misses, persisting each group's
+        # results as soon as they are fetched. Per-group persistence means an
+        # interrupted run resumes from the last completed group rather than
+        # losing a whole batch of work.
+        uncached_variants = [variants[i] for i in uncached_indices]
         indices_by_variant: dict[_VariantKey, list[int]] = defaultdict(list)
-        for i, variant in enumerate(variants):
-            indices_by_variant[variant].append(i)
+        for idx in uncached_indices:
+            indices_by_variant[variants[idx]].append(idx)
 
-        for chrom, group in self._iter_groups(variants):
-            group_maps = self._query_range_populations(chrom, group)
+        for chrom, group in self._iter_groups(uncached_variants):
+            fetch_ok, group_maps = self._query_range_populations(chrom, group)
             for variant, af_map in group_maps.items():
                 for idx in indices_by_variant.get(variant, ()):
                     results[idx] = af_map
+
+            # Only cache when the range query actually completed. A failed or
+            # timed-out fetch returns no maps, which is indistinguishable from a
+            # genuine absence by result alone — caching it as an empty map under
+            # clinical pinning (cache_ttl_days=-1) would permanently record a
+            # transiently-unreachable variant as confirmed-absent and never
+            # re-query it, silently suppressing frequency evidence. Persist a
+            # confirmed absence (empty map) only on a successful query.
+            if not fetch_ok:
+                continue
+            group_entries: list[tuple[str, int, str, str, dict[str, float]]] = []
+            for variant in group:
+                chrom_g, pos_g, ref_g, alt_g = variant
+                group_entries.append(
+                    (chrom_g, pos_g, ref_g, alt_g, group_maps.get(variant, {}))
+                )
+            self._cache.put_population_batch(self._source_id, group_entries)
 
         return results
 
     def _query_range_populations(
         self, chrom: str, group: list[_VariantKey]
-    ) -> dict[_VariantKey, dict[str, float]]:
-        """Range-query the remote gnomAD VCF, returning per-population AF maps."""
+    ) -> tuple[bool, dict[_VariantKey, dict[str, float]]]:
+        """Range-query the remote gnomAD VCF, returning per-population AF maps.
+
+        Returns a (fetch_ok, maps) pair. fetch_ok is True when the remote range
+        query completed (including a successful query that found nothing), and
+        False when the fetch exhausted its retries or degraded. The caller must
+        not cache results from a failed fetch, since an empty map then means
+        "query failed", not "confirmed absent".
+        """
         results: dict[_VariantKey, dict[str, float]] = {}
 
         wanted: dict[tuple[int, str, str], _VariantKey] = {}
@@ -215,7 +259,7 @@ class RemoteTabixGnomAD:
 
         records = self._fetch_records(chrom, query_chrom, start_pos - 1, end_pos)
         if records is None:
-            return results
+            return False, results
 
         for record_line in records:
             parsed = self._parse_gnomad_record_populations(record_line)
@@ -227,7 +271,7 @@ class RemoteTabixGnomAD:
                     results[wanted[lookup_key]] = af_map
                     self._network_fetches += 1
 
-        return results
+        return True, results
 
     def close(self) -> None:
         """Release resources."""
@@ -346,8 +390,6 @@ class RemoteTabixGnomAD:
         Uses a thread-based timeout to prevent indefinite hangs on stalled
         S3 connections (pysam/htslib has no built-in timeout).
         """
-        import concurrent.futures
-
         max_retries = self._config.max_retries
         timeout = self._config.read_timeout
         backoff = 1.0
@@ -391,7 +433,7 @@ class RemoteTabixGnomAD:
                     return None
                 time.sleep(backoff)
                 backoff *= 2.0
-            except (OSError, ValueError) as exc:
+            except (OSError, ValueError, pysam.utils.SamtoolsError) as exc:
                 if attempt == max_retries:
                     self._breaker.record_failure()
                     logger.warning(
@@ -405,6 +447,35 @@ class RemoteTabixGnomAD:
 
                 logger.debug(
                     "Remote gnomAD query attempt %d failed, retrying in %.1fs: %s",
+                    attempt + 1,
+                    backoff,
+                    exc,
+                )
+                time.sleep(backoff)
+                backoff *= 2.0
+                self._reset_chrom_connection(chrom)
+            except Exception as exc:
+                # htslib surfaces transient S3/BGZF read failures (libcurl socket
+                # errors, truncated BGZF blocks) as exceptions outside the OSError
+                # hierarchy. A single bad range read must never abort a
+                # genome-wide run, so treat any remote read failure the same as a
+                # retryable fetch error: back off and retry, then degrade to no
+                # frequency for this range.
+                if attempt == max_retries:
+                    self._breaker.record_failure()
+                    logger.warning(
+                        "Remote gnomAD query failed (non-standard error) for "
+                        "%s:%d-%d: %s",
+                        chrom,
+                        start,
+                        end,
+                        exc,
+                    )
+                    return None
+
+                logger.debug(
+                    "Remote gnomAD query attempt %d hit a non-standard error, "
+                    "retrying in %.1fs: %s",
                     attempt + 1,
                     backoff,
                     exc,
@@ -524,7 +595,30 @@ class RemoteTabixGnomAD:
 
         url = self._url_template.format(chrom=chrom)
         logger.info("Opening remote gnomAD tabix for %s: %s", chrom, url)
-        handle = pysam.TabixFile(url)
+
+        # pysam.TabixFile opens the remote index over HTTP with no connect
+        # timeout (htslib has none), so a stalled S3 connection would block the
+        # whole run forever. Bound the open with the configured connect timeout;
+        # a timeout raises TimeoutError into the caller's retry/degrade path.
+        #
+        # The open runs in a C call that cannot be cancelled, so on timeout the
+        # worker thread stays alive until htslib finally returns or errors. A
+        # done-callback closes any handle that arrives after we have given up,
+        # so the connection is reclaimed when the stalled open eventually
+        # completes rather than leaking for the life of the process. The pool is
+        # shut down without waiting so the caller is not blocked by the stall.
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = pool.submit(pysam.TabixFile, url)
+        try:
+            handle: pysam.TabixFile = future.result(
+                timeout=self._config.connect_timeout
+            )
+        except BaseException:
+            future.add_done_callback(_close_late_tabix_handle)
+            raise
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
         self._tabix_handles[chrom] = handle
         return handle
 
@@ -534,6 +628,28 @@ class RemoteTabixGnomAD:
         if handle is not None:
             with contextlib.suppress(Exception):
                 handle.close()
+
+
+def _close_late_tabix_handle(
+    future: concurrent.futures.Future[pysam.TabixFile],
+) -> None:
+    """Close a TabixFile handle that opened after its wait timed out.
+
+    When a remote index open exceeds the connect timeout, the caller abandons
+    the wait but the htslib open cannot be cancelled and keeps running. This
+    callback runs when that open finally resolves: it closes a successfully
+    opened handle so the connection is released, and swallows the stored error
+    of a failed open. Without it, every stalled open leaks an open connection
+    for the life of the process.
+    """
+    if future.cancelled():
+        return
+    exc = future.exception()
+    if exc is not None:
+        return
+    handle = future.result()
+    with contextlib.suppress(Exception):
+        handle.close()
 
 
 def _extract_info_field(info: str, key: str) -> str | None:

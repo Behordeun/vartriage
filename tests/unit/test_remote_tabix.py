@@ -567,6 +567,35 @@ class TestRemoteTabixGnomAD:
         )
 
     @patch("vartriage.remote.gnomad.pysam.TabixFile")
+    def test_stalled_index_open_degrades_without_hanging(
+        self, mock_tabix_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        config = RemoteTabixConfig(
+            gnomad_remote_url="https://example.com/{chrom}.vcf.bgz",
+            cache_path=tmp_path / "stalled_open_cache.db",
+            cache_ttl_days=30,
+            connect_timeout=0.2,
+            max_retries=0,
+        )
+
+        def _never_returns(_url: str) -> object:
+            time.sleep(30)
+            raise AssertionError("open should have timed out")
+
+        mock_tabix_cls.side_effect = _never_returns
+
+        backend = RemoteTabixGnomAD(config)
+        start = time.monotonic()
+        results = backend.lookup_batch([("chr22", 100, "A", "T")])
+        elapsed = time.monotonic() - start
+        backend.close()
+
+        assert results == [None]
+        assert elapsed < 5.0
+
+    @patch("vartriage.remote.gnomad.pysam.TabixFile")
     def test_lookup_batch_parses_gnomad_vcf(
         self, mock_tabix_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -1048,7 +1077,8 @@ class TestPerPopulationParsing:
 class TestPopulationLookupBatch:
     """lookup_batch_populations positional-result behavior."""
 
-    def _make_backend(self) -> object:
+    def _make_backend(self, tmp_path: Path) -> object:
+        from vartriage.remote.cache import RemoteScoreCache
         from vartriage.remote.gnomad import RemoteTabixGnomAD
 
         config = RemoteTabixConfig(gnomad_remote_url="gnomad-genomes-v4-grch38")
@@ -1056,35 +1086,193 @@ class TestPopulationLookupBatch:
         backend._config = config
         backend._breaker = CircuitBreaker()
         backend._network_fetches = 0
+        backend._source_id = "gnomad-genomes-v4-grch38"
+        backend._cache = RemoteScoreCache(
+            db_path=tmp_path / "pop_cache.db", ttl_days=-1
+        )
         return backend
 
-    def test_duplicate_variant_gets_result_at_every_index(self) -> None:
-        backend = self._make_backend()
+    def test_duplicate_variant_gets_result_at_every_index(self, tmp_path: Path) -> None:
+        backend = self._make_backend(tmp_path)
         variant = ("chr1", 100, "A", "G")
         af_map = {"AF": 0.01, "AF_afr": 0.08}
 
         with patch.object(
             type(backend),
             "_query_range_populations",
-            return_value={variant: af_map},
+            return_value=(True, {variant: af_map}),
         ):
             results = backend.lookup_batch_populations([variant, variant])
 
         assert results == [af_map, af_map]
 
-    def test_empty_batch_returns_empty(self) -> None:
-        backend = self._make_backend()
+    def test_empty_batch_returns_empty(self, tmp_path: Path) -> None:
+        backend = self._make_backend(tmp_path)
         assert backend.lookup_batch_populations([]) == []
 
-    def test_missing_variant_stays_none(self) -> None:
-        backend = self._make_backend()
+    def test_missing_variant_stays_none(self, tmp_path: Path) -> None:
+        backend = self._make_backend(tmp_path)
         found = ("chr1", 100, "A", "G")
         missing = ("chr1", 200, "C", "T")
         with patch.object(
             type(backend),
             "_query_range_populations",
-            return_value={found: {"AF": 0.02}},
+            return_value=(True, {found: {"AF": 0.02}}),
         ):
             results = backend.lookup_batch_populations([found, missing])
         assert results[0] == {"AF": 0.02}
         assert results[1] is None
+
+    def test_second_lookup_is_cache_hit_without_remote_query(
+        self, tmp_path: Path
+    ) -> None:
+        backend = self._make_backend(tmp_path)
+        found = ("chr1", 100, "A", "G")
+        missing = ("chr1", 200, "C", "T")
+
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value=(True, {found: {"AF": 0.02, "AF_afr": 0.05}}),
+        ) as mocked:
+            first = backend.lookup_batch_populations([found, missing])
+            assert mocked.call_count >= 1
+
+        # Second pass must be served entirely from the population cache,
+        # including the confirmed-absent variant, with no remote query.
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            side_effect=AssertionError("must not query remote on a cache hit"),
+        ):
+            second = backend.lookup_batch_populations([found, missing])
+
+        assert second == first
+        assert second[0] == {"AF": 0.02, "AF_afr": 0.05}
+        assert second[1] is None
+
+
+# ============================================================
+# Regression: transient failure must not poison population cache
+# ============================================================
+
+
+class TestPopulationCacheTransientFailure:
+    """A failed range query must not cache variants as confirmed-absent.
+
+    When _fetch_records exhausts its retries, _query_range_populations returns
+    (False, {}).  The batch loop must skip the cache-write for that group so the
+    variants are re-queried on the next run rather than permanently recorded as
+    absent under clinical pinning (cache_ttl_days=-1).
+    """
+
+    @staticmethod
+    def _make_backend(tmp_path: Path) -> object:
+        from vartriage.remote.cache import RemoteScoreCache
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        config = RemoteTabixConfig(gnomad_remote_url="gnomad-genomes-v4-grch38")
+        backend = object.__new__(RemoteTabixGnomAD)
+        backend._config = config
+        backend._breaker = CircuitBreaker()
+        backend._network_fetches = 0
+        backend._source_id = "gnomad-genomes-v4-grch38"
+        backend._cache = RemoteScoreCache(
+            db_path=tmp_path / "pop_cache.db", ttl_days=-1
+        )
+        return backend
+
+    def test_failed_fetch_does_not_cache_variants(self, tmp_path: Path) -> None:
+        backend = self._make_backend(tmp_path)
+        variant = ("chr1", 100, "A", "G")
+
+        # First lookup: remote query fails (exhausted retries).
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value=(False, {}),
+        ):
+            first = backend.lookup_batch_populations([variant])
+        assert first == [None], "failed fetch must not populate results"
+
+        # Second lookup: remote succeeds with real data. If the failed fetch
+        # had been cached as confirmed-absent, this would be a cache hit
+        # returning None rather than querying remote again.
+        af_map = {"AF": 0.03, "AF_eas": 0.12}
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value=(True, {variant: af_map}),
+        ) as mocked:
+            second = backend.lookup_batch_populations([variant])
+            assert mocked.call_count >= 1, "must re-query remote after a prior failure"
+        assert second == [af_map]
+
+    def test_successful_fetch_caches_confirmed_absence(self, tmp_path: Path) -> None:
+        """A successful query that found nothing IS cached (confirmed absent)."""
+        backend = self._make_backend(tmp_path)
+        variant = ("chr1", 100, "A", "G")
+
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            return_value=(True, {}),
+        ):
+            first = backend.lookup_batch_populations([variant])
+        assert first == [None]
+
+        # Second lookup must be a cache hit: the confirmed absence was stored.
+        with patch.object(
+            type(backend),
+            "_query_range_populations",
+            side_effect=AssertionError("must not re-query a confirmed absence"),
+        ):
+            second = backend.lookup_batch_populations([variant])
+        assert second == [None]
+
+
+# ============================================================
+# Regression: stalled TabixFile open cleans up late-arriving handle
+# ============================================================
+
+
+class TestStalledOpenHandleCleanup:
+    """A timed-out TabixFile open must close any late-arriving handle.
+
+    When the connect timeout fires, a done-callback is attached so that if
+    the htslib open eventually completes, the handle is closed rather than
+    leaked for the process lifetime.
+    """
+
+    def test_late_arriving_handle_is_closed(self) -> None:
+        import concurrent.futures
+
+        from vartriage.remote.gnomad import _close_late_tabix_handle
+
+        handle = MagicMock()
+        future: concurrent.futures.Future[MagicMock] = concurrent.futures.Future()
+        future.set_result(handle)
+
+        _close_late_tabix_handle(future)
+        handle.close.assert_called_once()
+
+    def test_failed_open_does_not_crash_callback(self) -> None:
+        import concurrent.futures
+
+        from vartriage.remote.gnomad import _close_late_tabix_handle
+
+        future: concurrent.futures.Future[MagicMock] = concurrent.futures.Future()
+        future.set_exception(OSError("connection refused"))
+
+        # Must not raise — the callback just swallows the error.
+        _close_late_tabix_handle(future)
+
+    def test_cancelled_future_does_not_crash_callback(self) -> None:
+        import concurrent.futures
+
+        from vartriage.remote.gnomad import _close_late_tabix_handle
+
+        future: concurrent.futures.Future[MagicMock] = concurrent.futures.Future()
+        future.cancel()
+
+        _close_late_tabix_handle(future)
