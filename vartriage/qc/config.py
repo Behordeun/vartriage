@@ -125,7 +125,7 @@ def _load_toml_qc_section(config_path: Path | None) -> dict[str, object]:
         import tomllib
     else:
         try:
-            import tomli as tomllib  # type: ignore[no-redef]
+            import tomli as tomllib
         except ImportError:
             return {}
 

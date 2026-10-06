@@ -77,9 +77,7 @@ class Pipeline:
                 GeneKnowledgeAnnotator,  # noqa: F811
             )
 
-            self._gene_knowledge_annotator = GeneKnowledgeAnnotator(
-                config.knowledge  # type: ignore[arg-type]
-            )
+            self._gene_knowledge_annotator = GeneKnowledgeAnnotator(config.knowledge)
 
     @property
     def _mito_enabled(self) -> bool:
@@ -733,7 +731,7 @@ class Pipeline:
         sample_names: list[str] | None = None,
     ) -> Iterator[AnnotatedVariant]:
         """Build the filtered and annotated variant stream."""
-        stream: Iterator[Variant] = iter(parser)  # type: ignore[arg-type]
+        stream: Iterator[Variant] = iter(parser)
 
         # Sample extraction or inheritance (mutually exclusive)
         if self._config.inheritance is not None:
@@ -763,7 +761,7 @@ class Pipeline:
         """Resolve sample names from parameter or parser, raising on failure."""
         names = sample_names
         if names is None and hasattr(parser, "sample_names"):
-            names = parser.sample_names  # type: ignore[union-attr]
+            names = parser.sample_names
         if not names:
             raise ValueError(
                 "Sample names required but none available. Ensure the VCF "
