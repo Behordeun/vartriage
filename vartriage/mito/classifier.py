@@ -180,7 +180,7 @@ class MitochondrialClassifier:
                 MitoClassification.PATHOGENIC,
                 f"Confirmed pathogenic in MITOMAP ({mitomap_entry.disease}), "
                 f"heteroplasmy {heteroplasmy.percentage:.1f}% "  # type: ignore[union-attr]
-                f"({heteroplasmy.category}), rare in population",  # type: ignore[union-attr]
+                f"({heteroplasmy.category}), rare in population",
             )
 
         # Rule 2: Benign — common haplogroup marker
