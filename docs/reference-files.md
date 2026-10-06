@@ -271,6 +271,7 @@ The pipeline emits a warning for each variant missing a score lookup. For large 
 ```python
 import warnings
 from vartriage import MissingDataWarning
+
 warnings.filterwarnings("ignore", category=MissingDataWarning)
 ```
 

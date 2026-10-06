@@ -21,6 +21,7 @@ pipeline.run()
 
 # Check how many variants made it through quality filtering
 import json
+
 results = json.loads(Path("wgs_qc.json").read_text())
 print(f"{len(results)} variants passed QC")
 ```
@@ -34,8 +35,12 @@ For rare disease analysis, tighten the allele frequency cutoff to exclude anythi
 ```python
 from pathlib import Path
 from vartriage import (
-    Pipeline, PipelineConfig, AnnotationConfig,
-    PrioritizationConfig, QualityFilterConfig, ReportConfig,
+    Pipeline,
+    PipelineConfig,
+    AnnotationConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+    ReportConfig,
 )
 
 config = PipelineConfig(
@@ -46,7 +51,9 @@ config = PipelineConfig(
         gene_annotation_path=Path("refs/gencode.v44.gtf"),
         gnomad_path=Path("refs/gnomad.v4.exomes.tsv"),
         clinvar_path=Path("refs/clinvar.tsv"),
-        reference_fasta_path=Path("refs/GRCh38.fa"),  # enables codon-level consequence calling
+        reference_fasta_path=Path(
+            "refs/GRCh38.fa"
+        ),  # enables codon-level consequence calling
     ),
     prioritization=PrioritizationConfig(
         max_allele_frequency=0.001,  # 0.1%, strict rare disease threshold
@@ -170,15 +177,20 @@ print(f"{len(passing)} variants passed QUAL >= 30")
 ```python
 from pathlib import Path
 from vartriage import (
-    VCFParser, QualityFilter, QualityFilterConfig,
-    AnnotationEngine, AnnotationConfig,
+    VCFParser,
+    QualityFilter,
+    QualityFilterConfig,
+    AnnotationEngine,
+    AnnotationConfig,
 )
 
-ann = AnnotationEngine(AnnotationConfig(
-    gene_annotation_path=Path("refs/gencode.v44.gtf"),
-    gnomad_path=Path("refs/gnomad.v4.exomes.tsv"),
-    clinvar_path=Path("refs/clinvar.tsv"),
-))
+ann = AnnotationEngine(
+    AnnotationConfig(
+        gene_annotation_path=Path("refs/gencode.v44.gtf"),
+        gnomad_path=Path("refs/gnomad.v4.exomes.tsv"),
+        clinvar_path=Path("refs/clinvar.tsv"),
+    )
+)
 
 with VCFParser(Path("input.vcf.gz")) as parser:
     qf = QualityFilter(QualityFilterConfig(min_qual=30.0))
@@ -186,8 +198,10 @@ with VCFParser(Path("input.vcf.gz")) as parser:
 
 # Now you have AnnotatedVariant objects with consequence, AF, ClinVar
 for v in annotated[:5]:
-    print(f"{v.variant.chromosome}:{v.variant.position} "
-          f"{v.consequence.value} AF={v.allele_frequency}")
+    print(
+        f"{v.variant.chromosome}:{v.variant.position} "
+        f"{v.consequence.value} AF={v.allele_frequency}"
+    )
 ```
 
 ## Custom filtering on output
@@ -203,7 +217,8 @@ results = json.loads(Path("results/candidates.json").read_text())
 
 # Keep only Pathogenic and Likely Pathogenic
 pathogenic = [
-    v for v in results
+    v
+    for v in results
     if v["acmg_classification"] in ("Pathogenic", "Likely_Pathogenic")
 ]
 
@@ -211,9 +226,15 @@ print(f"{len(pathogenic)} actionable variants out of {len(results)} total")
 
 # Export to CSV for sharing with clinicians
 fields = [
-    "chromosome", "position", "ref_allele", "alt_allele",
-    "functional_consequence", "allele_frequency",
-    "composite_rank", "acmg_classification", "clinvar_assertion",
+    "chromosome",
+    "position",
+    "ref_allele",
+    "alt_allele",
+    "functional_consequence",
+    "allele_frequency",
+    "composite_rank",
+    "acmg_classification",
+    "clinvar_assertion",
 ]
 
 with open("results/pathogenic_only.csv", "w", newline="") as f:
@@ -336,8 +357,12 @@ Text in the PDF is selectable and searchable. Evidence cards avoid page breaks m
 ```python
 from pathlib import Path
 from vartriage import (
-    Pipeline, PipelineConfig, AnnotationConfig,
-    PrioritizationConfig, QualityFilterConfig, ReportConfig,
+    Pipeline,
+    PipelineConfig,
+    AnnotationConfig,
+    PrioritizationConfig,
+    QualityFilterConfig,
+    ReportConfig,
 )
 from vartriage.models.config import ClinicalReportConfig
 
@@ -349,7 +374,9 @@ config = PipelineConfig(
         gene_annotation_path=Path("refs/gencode.v44.gtf"),
         gnomad_path=Path("refs/gnomad.v4.exomes.tsv"),
         clinvar_path=Path("refs/clinvar.tsv"),
-        reference_fasta_path=Path("refs/GRCh38.fa"),  # enables codon-level consequence calling
+        reference_fasta_path=Path(
+            "refs/GRCh38.fa"
+        ),  # enables codon-level consequence calling
     ),
     prioritization=PrioritizationConfig(
         max_allele_frequency=0.0001,
@@ -375,9 +402,7 @@ pipeline.run()
 import json
 from pathlib import Path
 
-audit = json.loads(
-    Path("clinical_report.html.audit.json").read_text()
-)
+audit = json.loads(Path("clinical_report.html.audit.json").read_text())
 
 manifest = audit["run_manifest"]
 print(f"Patient: {manifest['patient_id']}")
@@ -470,8 +495,10 @@ Only variants shared by at least 3 samples with population AF below 0.1% show up
 ```python
 from pathlib import Path
 from vartriage import (
-    CohortPipeline, CohortConfig,
-    AnnotationConfig, PrioritizationConfig,
+    CohortPipeline,
+    CohortConfig,
+    AnnotationConfig,
+    PrioritizationConfig,
 )
 
 vcf_dir = Path("samples/")
@@ -501,8 +528,10 @@ pipeline.run()
 
 # Print top recurrent genes
 for burden in pipeline.gene_burdens[:10]:
-    print(f"{burden.gene_name}: {burden.pathogenic_count} pathogenic, "
-          f"{burden.samples_affected}/{cohort_config.sample_count} samples")
+    print(
+        f"{burden.gene_name}: {burden.pathogenic_count} pathogenic, "
+        f"{burden.samples_affected}/{cohort_config.sample_count} samples"
+    )
 ```
 
 ### Post-hoc filtering of cohort results
@@ -513,20 +542,19 @@ Load a previous cohort run and drill into specific genes:
 import json
 from pathlib import Path
 
-variants = json.loads(
-    Path("cohort_results/study_2026_variants.json").read_text()
-)
+variants = json.loads(Path("cohort_results/study_2026_variants.json").read_text())
 
 # Filter to MYBPC3 variants shared by 3+ samples
 mybpc3_shared = [
-    v for v in variants
-    if v["gene_name"] == "MYBPC3" and v["sample_count"] >= 3
+    v for v in variants if v["gene_name"] == "MYBPC3" and v["sample_count"] >= 3
 ]
 
 for v in mybpc3_shared:
     samples = ", ".join(s["sample_id"] for s in v["samples"])
-    print(f"  {v['chrom']}:{v['pos']} {v['ref']}>{v['alt']} "
-          f"({v['max_classification']}) in: {samples}")
+    print(
+        f"  {v['chrom']}:{v['pos']} {v['ref']}>{v['alt']} "
+        f"({v['max_classification']}) in: {samples}"
+    )
 ```
 
 ## Score bundle downloader
