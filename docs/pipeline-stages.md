@@ -318,7 +318,7 @@ Pathogenic criteria:
 | PVS1_Strong | Strong | PVS1 downgraded when gene constraint is moderate (0.5 < pLI < 0.9) |
 | PS1 | Strong | Same amino acid change as established ClinVar Pathogenic, via different nucleotide (requires protein index + codon resolution) |
 | PM1 | Moderate | Missense in a critical functional domain (missense constraint region, gnomAD mis_z > 3.09) |
-| PM2 | Moderate | All population AFs < 0.0001, or absent from gnomAD (population-specific when available) |
+| PM2 | Supporting | All population AFs < 0.0001, or absent from gnomAD (population-specific when available) |
 | PM4 | Moderate | In-frame insertion/deletion or stop-loss variant in a non-repetitive region |
 | PM5 | Moderate | Novel missense at an amino acid position with known pathogenic missense in ClinVar (requires protein index) |
 | PP3 | Supporting | REVEL > 0.644, or SpliceAI > 0.5 on a splice-adjacent variant |

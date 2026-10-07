@@ -48,13 +48,15 @@ The logic: if a different DNA change producing the same protein-level effect is 
 
 **Does not fire when:** The query variant is the exact same nucleotide change as the ClinVar entry (that would be PP5, not PS1).
 
-### PM2 (Moderate)
+### PM2 (Supporting)
 
 Absent from controls (or at extremely low frequency if recessive).
 
 Fires when all population-specific allele frequencies are below 0.0001. Uses gnomAD per-population data when available (AFR, AMR, ASJ, EAS, FIN, NFE, SAS). If any single population exceeds the threshold, PM2 does not fire.
 
-When a variant is entirely absent from gnomAD (no frequency data available), PM2 fires. Per ACMG/AMP 2015, "absent from controls" satisfies PM2. With gnomAD v4.1.1 covering 730K+ exomes, absence from the database is strong evidence that the variant is rare in the general population.
+When a variant is entirely absent from gnomAD (no frequency data available), PM2 fires. Per ACMG/AMP 2015, "absent from controls" satisfies PM2. With gnomAD v4.1.1 covering 730K+ exomes, absence from the database indicates the variant is rare in the general population.
+
+PM2 is applied at Supporting strength (one point), following the ClinGen SVI 2020 recommendation. Absence from population databases is weak standalone evidence, so it contributes Supporting rather than Moderate weight. The strength is the committed default in `EVIDENCE_STRENGTH_MAP` and can be overridden per call through the point engine's `strength_overrides` parameter where a gene-specific VCEP specification applies.
 
 Falls back to global allele frequency when per-population data is absent. When all frequency fields are None, "gnomAD" is recorded as missing.
 
@@ -205,10 +207,10 @@ BA1 is a standalone benign override: when it fires the classification is Benign 
 
 Worked examples:
 
-- PVS1 (8) + PM2 (2) = 10 -> Pathogenic
+- PVS1 (8) + PM2 (1) = 9 -> Likely Pathogenic
 - PVS1 (8) alone = 8 -> Likely Pathogenic
-- PM2 (2) + PP3_Strong (4) = 6 -> Likely Pathogenic
-- PM2 (2) + PP3_Moderate (2) = 4 -> VUS (two moderate criteria do not reach Likely Pathogenic under the point system)
+- PM2 (1) + PP3_Strong (4) = 5 -> VUS (absence plus a strong computational score does not reach Likely Pathogenic on its own)
+- PS1 (4) + PM1 (2) = 6 -> Likely Pathogenic (a Strong plus a Moderate criterion reaches the band)
 - BS1 (-4) + BP4 (-1) = -5 -> VUS boundary; BS1 (-4) + BP4_Moderate (-2) = -6 -> Likely Benign
 
 ### Conflicting evidence
@@ -219,7 +221,7 @@ Opposing evidence resolves by arithmetic: a variant carrying both pathogenic and
 
 Any evidence total between -5 and 5 results in VUS. This includes:
 
-- Single moderate pathogenic evidence (PM2 alone, +2)
+- Single supporting pathogenic evidence (PM2 alone, +1)
 - Single supporting benign evidence (BP7 alone, -1)
 - No evidence at all (when all data sources are missing)
 
@@ -351,7 +353,7 @@ Complete mapping of tags to strength tiers in vartriage:
 | PVS1_Strong | Strong | Pathogenic | Evaluated (v0.17.0) |
 | PS1 | Strong | Pathogenic | Evaluated |
 | PM1 | Moderate | Pathogenic | Evaluated (v0.17.0) |
-| PM2 | Moderate | Pathogenic | Evaluated |
+| PM2 | Supporting | Pathogenic | Evaluated |
 | PM4 | Moderate | Pathogenic | Evaluated (v0.17.0) |
 | PM5 | Moderate | Pathogenic | Evaluated |
 | PP3 | Supporting | Pathogenic | Evaluated |

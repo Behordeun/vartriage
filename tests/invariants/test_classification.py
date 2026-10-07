@@ -642,12 +642,12 @@ def test_pvs1_plus_pp3_pp5_yields_pathogenic(data: st.DataObject) -> None:
 
 @given(data=st.data())
 @settings(max_examples=100)
-def test_pvs1_plus_pm2_yields_pathogenic(data: st.DataObject) -> None:
-    """PVS1 (8) + PM2 (2) sums to 10 points, which is Pathogenic."""
+def test_pvs1_plus_pm2_yields_likely_pathogenic(data: st.DataObject) -> None:
+    """PVS1 (8) + PM2 (1, Supporting) sums to 9 points, which is Likely Pathogenic."""
     tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PM2})
     result = combine_evidence(tags)
-    assert result == ACMGClassification.PATHOGENIC, (
-        f"PVS1+PM2 should be Pathogenic, got {result.value}"
+    assert result == ACMGClassification.LIKELY_PATHOGENIC, (
+        f"PVS1+PM2 should be Likely Pathogenic, got {result.value}"
     )
 
 

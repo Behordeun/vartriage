@@ -6,7 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
-_Nothing yet. The most recent release is 1.0.2, below._
+_Nothing yet. The most recent release is 1.1.0, below._
+
+## [1.1.0] - 2026-10-07
+
+### Changed
+
+- **PM2 (absence/rarity) is applied at Supporting strength by default**: PM2 now contributes one point rather than two, following the ClinGen SVI 2020 recommendation that absence from population databases is Supporting-strength evidence. Absence is weak standalone evidence of pathogenicity, and in an Expert Panel cohort PM2 fires on the large majority of variants, so Supporting is the calibrated weight. On the ClinGen eRepo cohort this moves roughly 8% of variants one tier more conservatively (Likely Pathogenic to VUS, or VUS to Likely Benign); the confident Pathogenic and Benign tiers are unchanged, so the shift only ever moves toward uncertainty, never toward a more confident pathogenic call. A rare missense supported only by a strong computational score plus PM2 now classifies as VUS rather than Likely Pathogenic. The point engine (`score_points`, `classify_by_points`, `combine_evidence`) accepts an optional `strength_overrides` mapping so a caller can substitute a different weight for a specific criterion, for example a gene-specific VCEP specification; the weight applied to any result is therefore traceable to either the documented default map or an explicit per-call override.
 
 ## [1.0.2] - 2026-10-07
 

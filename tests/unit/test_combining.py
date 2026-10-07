@@ -26,7 +26,7 @@ class TestCombineEvidenceVUS:
         )
 
     def test_single_moderate_tag_returns_vus(self) -> None:
-        # 2 points
+        # 1 point (PM2 is Supporting)
         assert combine_evidence(frozenset({EvidenceTag.PM2})) == (
             ACMGClassification.VUS
         )
@@ -39,7 +39,7 @@ class TestCombineEvidenceVUS:
         )
 
     def test_moderate_plus_supporting_returns_vus(self) -> None:
-        # 3 points
+        # 2 points (PM2 Supporting + PP3 Supporting)
         assert (
             combine_evidence(frozenset({EvidenceTag.PM2, EvidenceTag.PP3}))
             == ACMGClassification.VUS
@@ -48,7 +48,7 @@ class TestCombineEvidenceVUS:
     def test_two_moderate_returns_vus(self) -> None:
         # 4 points: the central correction, never Likely Pathogenic.
         assert (
-            combine_evidence(frozenset({EvidenceTag.PM2, EvidenceTag.PM4}))
+            combine_evidence(frozenset({EvidenceTag.PM1, EvidenceTag.PM4}))
             == ACMGClassification.VUS
         )
 
@@ -70,7 +70,7 @@ class TestCombineEvidenceLikelyPathogenic:
     def test_strong_plus_moderate_is_likely_pathogenic(self) -> None:
         # 4 + 2 = 6 points
         assert (
-            combine_evidence(frozenset({EvidenceTag.PS1, EvidenceTag.PM2}))
+            combine_evidence(frozenset({EvidenceTag.PS1, EvidenceTag.PM1}))
             == ACMGClassification.LIKELY_PATHOGENIC
         )
 
@@ -79,7 +79,7 @@ class TestCombineEvidencePathogenic:
     def test_very_strong_plus_moderate_is_pathogenic(self) -> None:
         # 8 + 2 = 10 points
         assert (
-            combine_evidence(frozenset({EvidenceTag.PVS1, EvidenceTag.PM2}))
+            combine_evidence(frozenset({EvidenceTag.PVS1, EvidenceTag.PM1}))
             == ACMGClassification.PATHOGENIC
         )
 
@@ -93,7 +93,7 @@ class TestCombineEvidencePathogenic:
         )
 
     def test_all_four_tags_returns_pathogenic(self) -> None:
-        # 8 + 2 + 1 + 1 = 12 points
+        # 8 + 1 + 1 + 1 = 11 points (PM2 Supporting)
         assert (
             combine_evidence(
                 frozenset(
@@ -145,7 +145,7 @@ class TestConflictResolvedBySummation:
         assert has_conflicting_evidence(tags) is True
 
     def test_dominant_pathogenic_survives_a_supporting_benign(self) -> None:
-        # PVS1 (8) + PM2 (2) + BP4 (-1) = 9 -> Likely Pathogenic, not vetoed.
+        # PVS1 (8) + PM2 (1) + BP4 (-1) = 8 -> Likely Pathogenic, not vetoed.
         tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PM2, EvidenceTag.BP4})
         assert combine_evidence(tags) == ACMGClassification.LIKELY_PATHOGENIC
         assert has_conflicting_evidence(tags) is True
