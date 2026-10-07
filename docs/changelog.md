@@ -6,7 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
-_Nothing yet. The most recent release is 1.0.1, below._
+### Fixed
+
+- **Confirmed-absent gnomAD results are cached on the global-AF path**: when a successful remote tabix query finds no record for a variant, that confirmed absence is now stored in a dedicated `remote_score_absences` table and served as a cache hit on later runs, instead of re-querying the remote server every time. This brings the scalar global-frequency path in line with the per-population path, which already cached confirmed absences. The absence is recorded only on a successful query: a transient read failure is never stored as an absence, so an unreachable variant is re-queried rather than pinned, preserving clinical reproducibility under `--remote-cache-ttl -1`. On a cohort enriched for rare variants (where most variants are genuinely absent from gnomAD), a fully warmed re-run issues zero network fetches and completes in seconds rather than tens of minutes.
 
 ## [1.0.1] - 2026-10-05
 

@@ -122,15 +122,26 @@ class RemoteTabixGnomAD:
         results: list[float | None] = [None] * len(variants)
         uncached_indices: list[int] = []
 
-        # Phase 1: check cache
-        cached_scores = self._cache.get_batch(self._source_id, list(variants))
+        # Phase 1: check cache. A score hit returns the frequency; a confirmed
+        # absence returns None without a remote query. Only variants in neither
+        # table are queried remotely.
+        variant_list = list(variants)
+        cached_scores = self._cache.get_batch(self._source_id, variant_list)
+        absent_flags: list[bool] | None = None
 
         for i, score in enumerate(cached_scores):
             if score is not None:
                 results[i] = score
                 self._cache_hits += 1
             else:
-                uncached_indices.append(i)
+                if absent_flags is None:
+                    absent_flags = self._cache.get_absent_batch(
+                        self._source_id, variant_list
+                    )
+                if absent_flags[i]:
+                    self._cache_hits += 1
+                else:
+                    uncached_indices.append(i)
 
         if not uncached_indices:
             return results
@@ -144,9 +155,11 @@ class RemoteTabixGnomAD:
             return results
 
         uncached_variants = [variants[i] for i in uncached_indices]
-        remote_results = self._query_remote_batched(uncached_variants)
+        remote_results, confirmed_absent = self._query_remote_batched(uncached_variants)
 
-        # Phase 3: merge results and cache
+        # Phase 3: merge results and cache. Present variants cache their score;
+        # variants a successful fetch did not find cache as confirmed absent so
+        # the next run is a hit, not a re-query. A failed fetch yields neither.
         cache_entries: list[tuple[str, int, str, str, float]] = []
 
         for idx, variant in zip(uncached_indices, uncached_variants, strict=True):
@@ -158,6 +171,8 @@ class RemoteTabixGnomAD:
 
         if cache_entries:
             self._cache.put_batch(self._source_id, cache_entries)
+        if confirmed_absent:
+            self._cache.put_absent_batch(self._source_id, confirmed_absent)
 
         return results
 
@@ -298,13 +313,23 @@ class RemoteTabixGnomAD:
 
     def _query_remote_batched(
         self, variants: list[_VariantKey]
-    ) -> dict[_VariantKey, float]:
-        """Group variants by chromosome, batch by window, query remote."""
+    ) -> tuple[dict[_VariantKey, float], list[_VariantKey]]:
+        """Group variants by chromosome, batch by window, query remote.
+
+        Returns a (results, confirmed_absent) pair. confirmed_absent lists the
+        variants a successful range query did not find, so the caller can record
+        them as cache hits rather than re-querying every run. A group whose fetch
+        failed contributes nothing to either collection, so a transient failure
+        is never mistaken for an absence.
+        """
         results: dict[_VariantKey, float] = {}
+        confirmed_absent: list[_VariantKey] = []
         for chrom, group in self._iter_groups(variants):
-            group_results = self._query_range(chrom, group)
+            fetch_ok, group_results = self._query_range(chrom, group)
             results.update(group_results)
-        return results
+            if fetch_ok:
+                confirmed_absent.extend(v for v in group if v not in group_results)
+        return results, confirmed_absent
 
     def _iter_groups(
         self, variants: list[_VariantKey]
@@ -348,8 +373,15 @@ class RemoteTabixGnomAD:
 
     def _query_range(
         self, chrom: str, group: list[_VariantKey]
-    ) -> dict[_VariantKey, float]:
-        """Query a range from the remote gnomAD VCF."""
+    ) -> tuple[bool, dict[_VariantKey, float]]:
+        """Query a range from the remote gnomAD VCF.
+
+        Returns a (fetch_ok, results) pair. fetch_ok is True when the remote
+        range query completed (including a successful query that found nothing),
+        and False when the fetch exhausted its retries or degraded. The caller
+        must not record absences from a failed fetch, since an empty result then
+        means "query failed", not "confirmed absent".
+        """
         results: dict[_VariantKey, float] = {}
 
         wanted: dict[tuple[int, str, str], _VariantKey] = {}
@@ -365,7 +397,7 @@ class RemoteTabixGnomAD:
 
         records = self._fetch_records(chrom, query_chrom, start_pos - 1, end_pos)
         if records is None:
-            return results
+            return False, results
 
         for record_line in records:
             parsed = self._parse_gnomad_record(record_line)
@@ -379,7 +411,7 @@ class RemoteTabixGnomAD:
                     results[original_variant] = af
                     self._network_fetches += 1
 
-        return results
+        return True, results
 
     def _fetch_records(
         self, chrom: str, query_chrom: str, start: int, end: int

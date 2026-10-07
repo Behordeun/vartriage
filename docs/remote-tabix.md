@@ -80,9 +80,9 @@ You can also pass a full URL directly:
 
 When multiple score sources are available:
 
-1. **Local file** (`--cadd-scores /path/to/file.tsv`) — always preferred
-2. **Remote tabix** (`--cadd-remote cadd-v1.7-grch38`) — used when no local file
-3. **REST API** (`--mode api`) — lowest priority for CADD
+1. **Local file** (`--cadd-scores /path/to/file.tsv`): always preferred
+2. **Remote tabix** (`--cadd-remote cadd-v1.7-grch38`): used when no local file
+3. **REST API** (`--mode api`): lowest priority for CADD
 
 If both `--cadd-scores` and `--cadd-remote` are specified, the local file wins and a log message notes the override.
 
@@ -94,9 +94,11 @@ Scores are cached in a SQLite database at `~/.vartriage/remote_cache.db`.
 
 **Pinned mode:** `--remote-cache-ttl -1` disables expiry entirely. Use this in clinical settings where bit-identical reproducibility across runs is required.
 
-**Cache schema:** `(source, chrom, pos, ref, alt)` compound primary key with `score` and `fetched_at` columns.
+**Cache schema:** `(source, chrom, pos, ref, alt)` compound primary key with `score` and `fetched_at` columns. A parallel `remote_score_absences` table, keyed the same way, records variants that a successful remote query confirmed are absent from the source. The per-population frequency maps live in their own `remote_population_scores` table. All three tables share the TTL and clinical-pinning semantics.
 
-**Warm cache performance:** A gene panel (500 variants) with warm cache completes in under 5 seconds. A chr22 WGS (42K variants) with warm cache completes in under 10 seconds.
+**Confirmed-absence caching:** when a successful remote query returns no record for a variant, that confirmed absence is cached so later runs serve it as a hit returning no frequency, rather than re-querying the remote server every time. A variant genuinely missing from gnomAD (common in clinical cohorts enriched for rare disease) is therefore fetched once, not on every run. The absence is recorded only when the query itself succeeded: a transient read failure (timeout, socket error, truncated block) is never stored as an absence, so a variant that was merely unreachable is re-queried on the next run rather than silently pinned as absent. Under `--remote-cache-ttl -1` this boundary matters for clinical reproducibility: a network hiccup cannot leave a variant permanently recorded as absent.
+
+**Warm cache performance:** A gene panel (500 variants) with warm cache completes in under 5 seconds. A chr22 WGS (42K variants) with warm cache completes in under 10 seconds. A fully warmed cohort re-run issues zero network fetches; on the 21,506-variant ClinVar eRepo cohort a cold run that fetches every uncached variant drops from tens of minutes to under 10 seconds once the score and absence tables are warm.
 
 ## Circuit Breaker
 
