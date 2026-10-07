@@ -25,8 +25,7 @@ from vartriage._internal.cache import (
 )
 
 # ---------------------------------------------------------------------------
-# Task 7.1: Property test for cache path computation (Property 1)
-# Validates: Requirements 1.2, 5.2
+# Property tests for cache path computation
 # ---------------------------------------------------------------------------
 
 
@@ -65,18 +64,25 @@ def valid_paths(draw: st.DrawFn) -> Path:
 @given(p=valid_paths())
 @settings(max_examples=200)
 def test_cache_path_appends_suffix(p: Path) -> None:
-    """cache_path_for(p) == Path(str(p) + '.vartriage.cache') for any path."""
+    """The cache name is the resolved source name plus '.vartriage.cache'.
+
+    cache_path_for canonicalizes the source with Path.resolve() so the cache is
+    keyed to the real file, which matters on filesystems that fold case or
+    follow symlinks (macOS resolves /ETC to /private/etc). The expected value
+    is built from the same resolved path for that reason.
+    """
+    resolved = p.resolve()
     result = cache_path_for(p)
-    expected = Path(str(p) + ".vartriage.cache")
+    expected = resolved.parent / (resolved.name + ".vartriage.cache")
     assert result == expected
 
 
 @given(p=valid_paths())
 @settings(max_examples=200)
 def test_cache_path_same_parent_directory(p: Path) -> None:
-    """The cache file always sits in the same parent directory as p."""
+    """The cache file sits in the resolved source file's parent directory."""
     result = cache_path_for(p)
-    assert result.parent == p.parent
+    assert result.parent == p.resolve().parent
 
 
 # ---------------------------------------------------------------------------
