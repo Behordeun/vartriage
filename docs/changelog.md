@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+_Nothing yet. The most recent release is 1.0.2, below._
+
+## [1.0.2] - 2026-10-07
+
+### Changed
+
+- **Batch annotation iterates join hits as columns, not row Series**: the variant-to-gene-model join produces roughly twenty hits per variant, and the three batch annotation methods (`assign_batch`, `gene_names_batch`, `cds_overlaps_batch`) now read each hit column once as an array rather than constructing a pandas Series per hit row. Annotation calls are byte-identical to the prior path, verified on 3,000 eRepo variants, and a scaling guard test fails if per-row iteration returns. On a 2,000-variant batch the annotation stage drops from 5.6s to 1.8s.
+- **Splice-site detection resolves the whole batch in one interval join**: the pyranges consequence index evaluates the donor and acceptor windows for a batch through a single join against the exon model rather than rescanning exon windows per variant, so the cost scales with the join rather than with variants times exon boundaries. Splice-site calls are unchanged.
+
 ### Fixed
 
 - **Confirmed-absent gnomAD results are cached on the global-AF path**: when a successful remote tabix query finds no record for a variant, that confirmed absence is now stored in a dedicated `remote_score_absences` table and served as a cache hit on later runs, instead of re-querying the remote server every time. This brings the scalar global-frequency path in line with the per-population path, which already cached confirmed absences. The absence is recorded only on a successful query: a transient read failure is never stored as an absence, so an unreachable variant is re-queried rather than pinned, preserving clinical reproducibility under `--remote-cache-ttl -1`. On a cohort enriched for rare variants (where most variants are genuinely absent from gnomAD), a fully warmed re-run issues zero network fetches and completes in seconds rather than tens of minutes.
