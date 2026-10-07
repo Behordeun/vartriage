@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS remote_population_scores (
 );
 CREATE INDEX IF NOT EXISTS idx_remote_population_fetched
     ON remote_population_scores(fetched_at);
+CREATE TABLE IF NOT EXISTS remote_score_absences (
+    source TEXT NOT NULL,
+    chrom TEXT NOT NULL,
+    pos INTEGER NOT NULL,
+    ref TEXT NOT NULL,
+    alt TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL,
+    PRIMARY KEY (source, chrom, pos, ref, alt)
+);
+CREATE INDEX IF NOT EXISTS idx_remote_score_absences_fetched
+    ON remote_score_absences(fetched_at);
 """
 
 
@@ -175,6 +186,64 @@ class RemoteScoreCache:
             )
             conn.commit()
 
+    def get_absent_batch(
+        self,
+        source: str,
+        variants: list[tuple[str, int, str, str]],
+    ) -> list[bool]:
+        """Batch lookup of confirmed-absent variants.
+
+        A variant is confirmed absent when a prior successful remote query
+        found no allele frequency for it. Recording that absence turns a known
+        miss into a cache hit rather than a fresh remote query on every run.
+
+        Returns, positionally matched to the input, True when the variant is
+        recorded as confirmed absent (and not expired) and False otherwise.
+        Expired absence rows are deleted on access (lazy eviction), consistent
+        with the score and population paths.
+        """
+        results: list[bool] = [False] * len(variants)
+        now = int(time.time())
+
+        with self._lock:
+            conn = self._ensure_connection()
+            for i, (chrom, pos, ref, alt) in enumerate(variants):
+                results[i] = self._lookup_absence_row(
+                    conn, source, chrom, pos, ref, alt, now
+                )
+            conn.commit()
+
+        return results
+
+    def put_absent_batch(
+        self,
+        source: str,
+        variants: list[tuple[str, int, str, str]],
+    ) -> None:
+        """Record multiple variants as confirmed absent in one transaction.
+
+        Only a variant proven absent by a successful remote query belongs here.
+        A fetch that failed or timed out must never be recorded, since under
+        clinical pinning (ttl_days=-1) it would permanently suppress frequency
+        evidence for a transiently-unreachable variant.
+        """
+        if not variants:
+            return
+
+        now = int(time.time())
+        with self._lock:
+            conn = self._ensure_connection()
+            conn.executemany(
+                "INSERT OR REPLACE INTO remote_score_absences "
+                "(source, chrom, pos, ref, alt, fetched_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    (source, chrom, pos, ref, alt, now)
+                    for chrom, pos, ref, alt in variants
+                ],
+            )
+            conn.commit()
+
     def get_population_batch(
         self,
         source: str,
@@ -245,8 +314,11 @@ class RemoteScoreCache:
             pop_cursor = conn.execute(
                 "DELETE FROM remote_population_scores WHERE fetched_at < ?", (cutoff,)
             )
+            absence_cursor = conn.execute(
+                "DELETE FROM remote_score_absences WHERE fetched_at < ?", (cutoff,)
+            )
             conn.commit()
-            return cursor.rowcount + pop_cursor.rowcount
+            return cursor.rowcount + pop_cursor.rowcount + absence_cursor.rowcount
 
     def clear(self, source: str | None = None) -> int:
         """Delete cache entries. Returns count deleted.
@@ -379,6 +451,41 @@ class RemoteScoreCache:
 
         parsed: dict[str, float] = json.loads(af_map_json)
         return parsed
+
+    def _lookup_absence_row(
+        self,
+        conn: sqlite3.Connection,
+        source: str,
+        chrom: str,
+        pos: int,
+        ref: str,
+        alt: str,
+        now: int,
+    ) -> bool:
+        """Return True when the variant is recorded confirmed-absent, else False.
+
+        Caller must hold self._lock. Expired rows are deleted on access. A
+        single commit() after a batch suffices.
+        """
+        cursor = conn.execute(
+            "SELECT fetched_at FROM remote_score_absences "
+            "WHERE source = ? AND chrom = ? AND pos = ? AND ref = ? AND alt = ?",
+            (source, chrom, pos, ref, alt),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return False
+
+        (fetched_at,) = row
+        if self._is_expired(fetched_at, now):
+            conn.execute(
+                "DELETE FROM remote_score_absences "
+                "WHERE source = ? AND chrom = ? AND pos = ? AND ref = ? AND alt = ?",
+                (source, chrom, pos, ref, alt),
+            )
+            return False
+
+        return True
 
     def _ensure_connection(self) -> sqlite3.Connection:
         """Lazy-init the SQLite connection and schema. Caller holds lock."""
