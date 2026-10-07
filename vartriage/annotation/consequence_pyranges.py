@@ -21,6 +21,7 @@ from vartriage.models.variant import (
 logger = logging.getLogger(__name__)
 
 try:
+    import numpy as np
     import pandas as pd
     import pyranges as pr
 
@@ -368,11 +369,12 @@ class PyRangesConsequenceAnnotator:
             return gene_names
 
         seen: set[int] = set()
-        for _, row in hits_df.iterrows():
-            var_idx = int(row["_idx"])
+        idx_col = hits_df["_idx"].to_numpy()
+        gene_vals = hits_df[gene_col].to_numpy()
+        for raw_idx, val in zip(idx_col, gene_vals, strict=True):
+            var_idx = int(raw_idx)
             if var_idx not in seen:
                 seen.add(var_idx)
-                val = row[gene_col]
                 if pd.notna(val):
                     gene_names[var_idx] = str(val)
 
@@ -454,11 +456,32 @@ class PyRangesConsequenceAnnotator:
             c.value: idx for idx, c in enumerate(CONSEQUENCE_SEVERITY_ORDER)
         }
 
-        for _, row in hits_df.iterrows():
-            var_idx = int(row["_idx"])
-            feature_type = row.get("Feature", "unknown")
-            ref = row.get("_ref", "")
-            alt = row.get("_alt", "")
+        # Iterate the join hits as column arrays, not row Series. iterrows
+        # builds a pandas Series per hit, and the batch produces roughly 20
+        # hits per variant (gene, transcript, exon, CDS across transcripts),
+        # so per-row Series construction dominated the whole annotation stage.
+        # Columns pulled once as numpy arrays and zipped drop that cost.
+        feature_col = (
+            hits_df["Feature"].to_numpy()
+            if "Feature" in hits_df.columns
+            else np.full(len(hits_df), "unknown")
+        )
+        idx_col = hits_df["_idx"].to_numpy()
+        ref_col = (
+            hits_df["_ref"].to_numpy()
+            if "_ref" in hits_df.columns
+            else np.full(len(hits_df), "")
+        )
+        alt_col = (
+            hits_df["_alt"].to_numpy()
+            if "_alt" in hits_df.columns
+            else np.full(len(hits_df), "")
+        )
+
+        for raw_idx, feature_type, ref, alt in zip(
+            idx_col, feature_col, ref_col, alt_col, strict=True
+        ):
+            var_idx = int(raw_idx)
             is_splice = var_idx in splice_positions
 
             consequence_str = _determine_consequence_pyranges(
@@ -521,28 +544,54 @@ class PyRangesConsequenceAnnotator:
         self,
         query_df: pd.DataFrame,
     ) -> set[int]:
-        """Identify variant indices that overlap splice sites."""
+        """Identify variant indices that overlap splice sites.
+
+        Resolves the whole batch with one interval join instead of scanning
+        the exon frame once per variant. Each exon contributes two 4bp
+        boundary windows, a donor window straddling the exon end and an
+        acceptor window straddling the exon start, matching the half-open
+        edge test in the single-variant path. A variant hits a splice site
+        when its interval overlaps any such window, which is exactly a
+        sorted-interval overlap join.
+        """
         splice_positions: set[int] = set()
         if self._index._exon_gr is None or self._index._exon_gr.df.empty:
             return splice_positions
+        if query_df.empty:
+            return splice_positions
 
         exon_df = self._index._exon_gr.df
-        for _, v_row in query_df.iterrows():
-            chrom = v_row["Chromosome"]
-            chrom_exons = exon_df[exon_df["Chromosome"] == chrom]
-            if chrom_exons.empty:
-                continue
+        exon_start = exon_df["Start"].to_numpy()
+        exon_end = exon_df["End"].to_numpy()
+        exon_chrom = exon_df["Chromosome"].to_numpy()
 
-            vs, ve = v_row["Start"], v_row["End"]
-            starts = chrom_exons["Start"].values
-            ends = chrom_exons["End"].values
+        # The single-variant test accepts a variant [vs, ve) at an edge when
+        # vs < edge + 2 and ve > edge - 2. Overlap of [vs, ve) with a half-open
+        # window [W_start, W_end) is vs < W_end and ve > W_start, so the
+        # equivalent window is [edge - 2, edge + 2): a donor window at the exon
+        # end and an acceptor window at the exon start.
+        window_chrom = np.concatenate([exon_chrom, exon_chrom])
+        window_start = np.concatenate([exon_end - 2, exon_start - 2])
+        window_end = np.concatenate([exon_end + 2, exon_start + 2])
 
-            donor_hit = ((vs < ends + 2) & (ve > ends - 2)).any()
-            acceptor_hit = ((vs < starts + 2) & (ve > starts - 2)).any()
-            if donor_hit or acceptor_hit:
-                splice_positions.add(v_row["_idx"])
+        windows_gr = pr.PyRanges(
+            pd.DataFrame(
+                {
+                    "Chromosome": window_chrom,
+                    "Start": window_start,
+                    "End": window_end,
+                }
+            )
+        )
 
-        return splice_positions
+        query_gr = pr.PyRanges(query_df[["Chromosome", "Start", "End", "_idx"]].copy())
+
+        hits = query_gr.join(windows_gr)
+        hits_df = hits.df
+        if hits_df.empty:
+            return splice_positions
+
+        return {int(i) for i in hits_df["_idx"].unique()}
 
     def cds_overlaps_batch(self, variants: list[Variant]) -> list[list[str]]:
         """Find CDS-overlapping transcript IDs for a batch of variants.
@@ -582,9 +631,12 @@ class PyRangesConsequenceAnnotator:
         if cds_hits.empty:
             return result
 
-        for _, row in cds_hits.iterrows():
-            var_idx = int(row["_idx"])
-            transcript_id = row.get("transcript_id", "")
+        if "transcript_id" not in cds_hits.columns:
+            return result
+        idx_col = cds_hits["_idx"].to_numpy()
+        tid_col = cds_hits["transcript_id"].to_numpy()
+        for raw_idx, transcript_id in zip(idx_col, tid_col, strict=True):
+            var_idx = int(raw_idx)
             if transcript_id and transcript_id not in result[var_idx]:
                 result[var_idx].append(transcript_id)
 
