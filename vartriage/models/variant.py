@@ -216,7 +216,11 @@ EVIDENCE_STRENGTH_MAP: dict[EvidenceTag, EvidenceStrength] = {
     EvidenceTag.PVS1_STRONG: EvidenceStrength.STRONG,
     EvidenceTag.PS1: EvidenceStrength.STRONG,
     EvidenceTag.PM1: EvidenceStrength.MODERATE,
-    EvidenceTag.PM2: EvidenceStrength.MODERATE,
+    # PM2 (absence/rarity) is applied at Supporting per ClinGen SVI 2020:
+    # absence from population databases is weak standalone evidence, and in an
+    # Expert Panel cohort it fires on the large majority of variants, so it
+    # carries Supporting weight rather than Moderate.
+    EvidenceTag.PM2: EvidenceStrength.SUPPORTING,
     EvidenceTag.PM4: EvidenceStrength.MODERATE,
     EvidenceTag.PM5: EvidenceStrength.MODERATE,
     EvidenceTag.PP3: EvidenceStrength.SUPPORTING,

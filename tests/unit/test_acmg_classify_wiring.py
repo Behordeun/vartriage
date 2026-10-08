@@ -91,8 +91,8 @@ class TestClassifyCombiningWiring:
         assert EvidenceTag.PP5 in result.evidence_tags
         assert result.classification == ACMGClassification.PATHOGENIC
 
-    def test_pvs1_pm2_yields_pathogenic(self) -> None:
-        """PVS1 (8) + PM2 (2) sums to 10 points -> Pathogenic."""
+    def test_pvs1_pm2_yields_likely_pathogenic(self) -> None:
+        """PVS1 (8) + PM2 (1, Supporting) sums to 9 points -> Likely Pathogenic."""
         sv = _make_scored_variant(
             consequence=FunctionalConsequence.FRAMESHIFT,
             allele_frequency=0.00005,
@@ -109,7 +109,7 @@ class TestClassifyCombiningWiring:
         assert EvidenceTag.PVS1 in result.evidence_tags
         assert EvidenceTag.PM2 in result.evidence_tags
         assert EvidenceTag.PP3 not in result.evidence_tags
-        assert result.classification == ACMGClassification.PATHOGENIC
+        assert result.classification == ACMGClassification.LIKELY_PATHOGENIC
 
     def test_no_tags_yields_vus(self) -> None:
         """A variant with no evidence tags gets classified as VUS."""
@@ -165,8 +165,8 @@ class TestClassifyCombiningWiring:
         assert EvidenceTag.PM2 in result.evidence_tags
         assert "REVEL" in result.missing_data_sources
         assert "ClinVar" in result.missing_data_sources
-        # PVS1 (8) + PM2 (2) = 10 points = Pathogenic
-        assert result.classification == ACMGClassification.PATHOGENIC
+        # PVS1 (8) + PM2 (1, Supporting) = 9 points = Likely Pathogenic
+        assert result.classification == ACMGClassification.LIKELY_PATHOGENIC
 
     def test_all_tags_assigned_yields_pathogenic(self) -> None:
         """All four tags: PVS1+PM2+PP3+PP5 -> Pathogenic."""

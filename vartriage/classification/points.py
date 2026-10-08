@@ -63,19 +63,32 @@ _LIKELY_BENIGN_THRESHOLD = -1
 _BENIGN_THRESHOLD = -7
 
 
-def score_points(tags: frozenset[EvidenceTag]) -> int:
+def score_points(
+    tags: frozenset[EvidenceTag],
+    strength_overrides: dict[EvidenceTag, EvidenceStrength] | None = None,
+) -> int:
     """Sum the signed points for a set of evidence tags.
 
     Pathogenic tags contribute positive points by strength; benign tags
     contribute the same magnitude negated. BA1 carries no point value (it
     is a stand-alone override handled by :func:`classify_by_points`) and
     contributes zero here.
+
+    ``strength_overrides`` lets a caller substitute the weight of specific
+    criteria for one scoring call, e.g. a gene-specific VCEP specification
+    that assigns PM2 a strength other than the ClinGen SVI default. Omit it
+    to use :data:`EVIDENCE_STRENGTH_MAP`, whose committed defaults follow
+    current ClinGen SVI guidance (PM2 at Supporting). An override is explicit
+    and per-call, so the weight applied to a result is always traceable to
+    either the documented default map or a caller-supplied specification.
     """
+    overrides = strength_overrides or {}
     total = 0
     for tag in tags:
         if tag is EvidenceTag.BA1:
             continue
-        magnitude = _PATHOGENIC_POINTS[EVIDENCE_STRENGTH_MAP[tag]]
+        strength = overrides.get(tag, EVIDENCE_STRENGTH_MAP[tag])
+        magnitude = _PATHOGENIC_POINTS[strength]
         if tag in _BENIGN_TAGS:
             total -= magnitude
         else:
@@ -83,16 +96,20 @@ def score_points(tags: frozenset[EvidenceTag]) -> int:
     return total
 
 
-def classify_by_points(tags: frozenset[EvidenceTag]) -> ACMGClassification:
+def classify_by_points(
+    tags: frozenset[EvidenceTag],
+    strength_overrides: dict[EvidenceTag, EvidenceStrength] | None = None,
+) -> ACMGClassification:
     """Classify a variant by summed evidence points.
 
     BA1 short-circuits to Benign. Otherwise the signed total is mapped
-    through the SVI threshold ladder.
+    through the SVI threshold ladder. ``strength_overrides`` is passed through
+    to :func:`score_points`; see that function for the audit semantics.
     """
     if EvidenceTag.BA1 in tags:
         return ACMGClassification.BENIGN
 
-    total = score_points(tags)
+    total = score_points(tags, strength_overrides)
 
     if total >= _PATHOGENIC_THRESHOLD:
         return ACMGClassification.PATHOGENIC

@@ -22,6 +22,7 @@ from __future__ import annotations
 from vartriage.classification.points import classify_by_points
 from vartriage.models.variant import (
     ACMGClassification,
+    EvidenceStrength,
     EvidenceTag,
 )
 
@@ -40,6 +41,7 @@ _BENIGN_TAGS: frozenset[EvidenceTag] = frozenset(
 
 def combine_evidence(
     tags: frozenset[EvidenceTag],
+    strength_overrides: dict[EvidenceTag, EvidenceStrength] | None = None,
 ) -> ACMGClassification:
     """Combine evidence tags into a final ACMG classification.
 
@@ -51,6 +53,10 @@ def combine_evidence(
     ----------
     tags : frozenset[EvidenceTag]
         Evidence tags assigned to a variant.
+    strength_overrides : dict[EvidenceTag, EvidenceStrength] | None
+        Optional per-call criterion-strength overrides, passed through to
+        the point engine. Omit to use the committed ClinGen SVI defaults
+        (PM2 at Supporting).
 
     Returns
     -------
@@ -58,7 +64,7 @@ def combine_evidence(
         Final classification: PATHOGENIC, LIKELY_PATHOGENIC, VUS,
         LIKELY_BENIGN, or BENIGN.
     """
-    return classify_by_points(tags)
+    return classify_by_points(tags, strength_overrides)
 
 
 def has_conflicting_evidence(tags: frozenset[EvidenceTag]) -> bool:

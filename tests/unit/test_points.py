@@ -21,7 +21,7 @@ class TestPointAssignment:
         assert score_points(frozenset({EvidenceTag.PP3})) == 1
 
     def test_moderate_pathogenic_is_two_points(self) -> None:
-        assert score_points(frozenset({EvidenceTag.PM2})) == 2
+        assert score_points(frozenset({EvidenceTag.PM1})) == 2
 
     def test_strong_pathogenic_is_four_points(self) -> None:
         assert score_points(frozenset({EvidenceTag.PS1})) == 4
@@ -40,7 +40,7 @@ class TestPointAssignment:
 
     def test_points_sum_across_tags(self) -> None:
         # 1 Strong (4) + 1 Moderate (2) + 1 Supporting (1) = 7
-        tags = frozenset({EvidenceTag.PS1, EvidenceTag.PM2, EvidenceTag.PP3})
+        tags = frozenset({EvidenceTag.PS1, EvidenceTag.PM1, EvidenceTag.PP3})
         assert score_points(tags) == 7
 
     def test_opposing_evidence_nets_out(self) -> None:
@@ -54,13 +54,13 @@ class TestTierThresholds:
         assert classify_by_points(frozenset()) == ACMGClassification.VUS
 
     def test_pathogenic_at_ten_points(self) -> None:
-        # PVS1 (8) + PM2 (2) = 10 -> Pathogenic
-        tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PM2})
+        # PVS1 (8) + PM1 (2) = 10 -> Pathogenic
+        tags = frozenset({EvidenceTag.PVS1, EvidenceTag.PM1})
         assert classify_by_points(tags) == ACMGClassification.PATHOGENIC
 
     def test_likely_pathogenic_at_six_points(self) -> None:
-        # PS1 (4) + PM2 (2) = 6 -> Likely Pathogenic
-        tags = frozenset({EvidenceTag.PS1, EvidenceTag.PM2})
+        # PS1 (4) + PM1 (2) = 6 -> Likely Pathogenic
+        tags = frozenset({EvidenceTag.PS1, EvidenceTag.PM1})
         assert classify_by_points(tags) == ACMGClassification.LIKELY_PATHOGENIC
 
     def test_likely_pathogenic_upper_boundary_nine(self) -> None:
@@ -70,12 +70,12 @@ class TestTierThresholds:
 
     def test_two_moderate_is_vus_not_likely_pathogenic(self) -> None:
         # The central correction: 2 Moderate = 4 points = VUS, never LP.
-        tags = frozenset({EvidenceTag.PM2, EvidenceTag.PM4})
+        tags = frozenset({EvidenceTag.PM1, EvidenceTag.PM4})
         assert classify_by_points(tags) == ACMGClassification.VUS
 
     def test_three_moderate_reaches_likely_pathogenic(self) -> None:
         # 3 Moderate = 6 points -> Likely Pathogenic (the real point route)
-        tags = frozenset({EvidenceTag.PM1, EvidenceTag.PM2, EvidenceTag.PM4})
+        tags = frozenset({EvidenceTag.PM1, EvidenceTag.PM4, EvidenceTag.PM5})
         assert classify_by_points(tags) == ACMGClassification.LIKELY_PATHOGENIC
 
     def test_single_moderate_is_vus(self) -> None:
@@ -114,4 +114,27 @@ class TestStandaloneAndConflict:
         # PVS1 (8) + BS1 (-4) = 4 -> VUS, decided by the arithmetic, not a
         # boolean "both signs present" veto.
         tags = frozenset({EvidenceTag.PVS1, EvidenceTag.BS1})
+        assert classify_by_points(tags) == ACMGClassification.VUS
+
+
+class TestPM2SupportingStrength:
+    def test_pm2_scores_one_point_at_supporting(self) -> None:
+        # PM2 (absence/rarity) carries Supporting weight per ClinGen SVI 2020,
+        # not Moderate. Supporting is one point.
+        assert score_points(frozenset({EvidenceTag.PM2})) == 1
+
+    def test_pm2_plus_strong_computational_is_likely_pathogenic_not_pathogenic(
+        self,
+    ) -> None:
+        # PP3_Strong (4) + PM2 (1) = 5 -> VUS; with a second Strong it reaches
+        # the LP band. At Supporting, PM2 can no longer push a single Strong
+        # criterion into Likely Pathogenic on its own.
+        tags = frozenset({EvidenceTag.PP3_STRONG, EvidenceTag.PM2})
+        assert classify_by_points(tags) == ACMGClassification.VUS
+
+    def test_pm2_does_not_lift_strong_to_pathogenic_tier(self) -> None:
+        # PS1 (4) + PM2 (1) = 5 -> VUS. Under the former Moderate weight this
+        # summed to 6 and reached Likely Pathogenic; the downgrade is the
+        # intended behaviour change.
+        tags = frozenset({EvidenceTag.PS1, EvidenceTag.PM2})
         assert classify_by_points(tags) == ACMGClassification.VUS

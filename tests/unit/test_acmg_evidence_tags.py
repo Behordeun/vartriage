@@ -174,11 +174,13 @@ class TestPP3Assignment:
         assert EvidenceTag.PP3_MODERATE in tags
         assert EvidenceTag.PP3_STRONG not in tags
 
-    def test_high_revel_missense_absent_reaches_likely_pathogenic(self) -> None:
-        # A missense absent from gnomAD (PM2, Moderate=2) with REVEL 0.95
-        # (PP3_Strong, 4) sums to 6 points, reaching Likely Pathogenic under
-        # the SVI point system. Guards against the missense arm collapsing to
-        # VUS when only computational + absence evidence is available.
+    def test_high_revel_missense_absent_is_vus_under_pm2_supporting(self) -> None:
+        # A missense absent from gnomAD (PM2, Supporting=1) with REVEL 0.95
+        # (PP3_Strong, 4) sums to 5 points, which is VUS. Under the former PM2
+        # Moderate weight this summed to 6 and reached Likely Pathogenic; with
+        # PM2 at the ClinGen SVI Supporting weight, computational evidence plus
+        # mere absence is no longer enough on its own to reach Likely
+        # Pathogenic, which is the intended conservative behaviour.
         sv = _make_scored_variant(
             revel_score=0.95, allele_frequency=None, frequency_unknown=True
         )
@@ -187,7 +189,7 @@ class TestPP3Assignment:
         tags = results[0].evidence_tags
         assert EvidenceTag.PM2 in tags
         assert EvidenceTag.PP3_STRONG in tags
-        assert results[0].classification == ACMGClassification.LIKELY_PATHOGENIC
+        assert results[0].classification == ACMGClassification.VUS
 
     def test_does_not_assign_pp3_at_threshold(self) -> None:
         # REVEL 0.644 is at the boundary, not above — should not fire
