@@ -20,7 +20,7 @@ The thresholds were pre-registered before the figures existed (`.kiro/specs/vali
 
 Confusion counts: 8,050 true positive, 12 false positive, 1,175 true negative, 4,495 false negative. Of the P/LP variants not recovered, 4,486 were classified VUS rather than mis-called benign. Specificity recovered from 0.0 (frequency-blind REVEL-only run) to 0.990 once gnomAD frequency was available, confirming the benign-evidence path depends on frequency data rather than any classifier defect.
 
-**Coverage boundaries (these bound the figures):** frequency is from gnomAD exomes v4.1.1 only (genomes not queried); the 127 mitochondrial truth variants received no gnomAD frequency; CADD and SpliceAI were not used, so REVEL was the only in-silico score. Each plausibly suppresses sensitivity and is the subject of the sensitivity-evidence-coverage work scoped for v1.2.0.
+**Coverage boundaries (these bound the figures):** frequency is from gnomAD exomes v4.1.1 only (genomes not queried); the 127 mitochondrial truth variants received no gnomAD frequency; CADD and SpliceAI were not used, so REVEL was the only in-silico score. Each plausibly suppresses sensitivity and is the subject of the sensitivity-evidence-coverage work scoped for a future release.
 
 **Reproducibility:** the gnomAD remote cache is pinned (entries never expire), the truth set is built deterministically from a pinned ClinVar release, and reference versions are fixed, so a re-run reproduces these figures.
 
@@ -28,7 +28,7 @@ Confusion counts: 8,050 true positive, 12 false positive, 1,175 true negative, 4
 
 Clinical-grade status has two distinct requirements, and both must hold.
 
-1. **Clear the pre-registered gate honestly.** The only unmet threshold is sensitivity (0.642, needs ≥ 0.70). It must rise by giving the classifier evidence it currently lacks — gnomAD genomes, CADD, SpliceAI, and chrM frequency let PP3, splice, and rarity criteria fire on variants presently held at VUS — never by fitting thresholds to the truth set, which the pre-registration forbids. Whether sensitivity reaches 0.70 is then measured on a re-run under the same frozen rule. This is scoped in the sensitivity-evidence-coverage spec for v1.2.0.
+1. **Clear the pre-registered gate honestly.** The only unmet threshold is sensitivity (0.642, needs ≥ 0.70). It must rise by giving the classifier evidence it currently lacks — gnomAD genomes, CADD, SpliceAI, and chrM frequency let PP3, splice, and rarity criteria fire on variants presently held at VUS — never by fitting thresholds to the truth set, which the pre-registration forbids. Whether sensitivity reaches 0.70 is then measured on a re-run under the same frozen rule. This is scoped in the sensitivity-evidence-coverage spec for a future release.
 2. **Validate beyond ClinVar.** The current benchmark measures concordance against ClinVar, and the classifier itself uses ClinVar-derived evidence (PP5/BP6, review status), so the study carries a circularity risk stated plainly here. Clinical-grade validation requires an independent, orthogonal truth set the classifier did not learn from, per-gene and per-disease breakdowns rather than one global number, and concordance against the full ACMG five-tier rather than the collapsed P/VUS/B this run produced. Formal CAP/CLIA validation and regulatory review are a separate organizational track required before any diagnostic use. This is a later milestone.
 
 ### Historical run (v0.17.5 eRepo, superseded)
@@ -42,7 +42,7 @@ The earlier eRepo figures below predate both the ClinGen SVI Bayesian point engi
 
 **Known limitations:**
 
-- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than escalated, pending the additional in-silico and frequency evidence scoped for v1.2.0 (gnomAD genomes, CADD, SpliceAI, chrM frequency). Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
+- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than escalated, pending the additional in-silico and frequency evidence scoped for a future release (gnomAD genomes, CADD, SpliceAI, chrM frequency). Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
 - NPV 0.207: a non-pathogenic call is weak evidence of benignity, a consequence of the VUS-heavy behavior.
 - Validation is concordance against ClinVar, which also supplies some classifier evidence (PP5/BP6, review status); an independent, orthogonal truth set is required for clinical-grade validation.
 - BS2 is emitted for dominant-disorder genes when gnomAD homozygote counts are available; it does not fire for recessive genes or without homozygote-count data.
@@ -243,17 +243,19 @@ Unlike GIAB (which tests runtime and specificity on a healthy genome), the eRepo
 | Splice_Site | 55.9% |
 | Synonymous | 0.0% |
 
-### Interpretation
+> The two tables above are the v0.17.5 measurement, kept as a historical record of that release. The current shipped engine is v1.2.0, whose PVS1 gate and PM2 strength differ (see the changelog). The v1.2.0 headline on the 6,476 expert-P/LP eRepo benchmark is 47.3% pathogenic sensitivity at 91.6% PPV, strict point-system combining with PM2 at Supporting. The per-consequence breakdown at v1.2.0 is regenerated with the paper figures; this page is updated when that run lands.
 
-**High PPV (99.2%)** means when vartriage calls something Pathogenic or Likely Pathogenic, it is almost always correct. The tool is conservative and precise — it does not over-call.
+### Interpretation (v1.2.0)
 
-**Moderate sensitivity (70.5%)** means vartriage misses about 30% of known pathogenic variants. This is expected given:
+**High PPV (91.6%)** means when vartriage calls something Pathogenic or Likely Pathogenic, it is usually correct. The tool is conservative and precise: it does not over-call.
 
-- Missense sensitivity is 46.9%: many pathogenic missense variants don't exceed the ClinGen-calibrated REVEL threshold (0.644)
-- Splice-site sensitivity is 55.9%: splice calls depend on precomputed SpliceAI delta scores being available for the variant
-- Some pathogenic variants require functional evidence the tool cannot assess computationally
+**Moderate sensitivity (47.3%)** means vartriage misses roughly half of known pathogenic variants on this benchmark. The number reflects the shipped v1.2.0 configuration (strict point-system combining, full evidence, PM2 at Supporting strength per ClinGen SVI 2020, 6,476 expert P/LP variants). PM2 at Supporting is the dominant reason the figure sits below the earlier PM2-Moderate headline: a variant whose pathogenic case rests on rarity plus one other line of evidence is held at VUS rather than Likely Pathogenic, which is the intended guideline-concordant conservatism. The trade is higher precision: PPV rises with the Supporting weight.
 
-**Low benign sensitivity (6.0%)** means most benign variants are classified as VUS rather than Benign/Likely Benign. This is because:
+- Missense variants depend on REVEL coverage: a pathogenic missense without a REVEL score above the ClinGen-calibrated threshold cannot reach Likely Pathogenic through PP3 + PM2 alone.
+- Splice-site calls depend on precomputed SpliceAI delta scores being available for the variant.
+- Some pathogenic variants require functional evidence the tool cannot assess computationally.
+
+**Low benign sensitivity** means most benign variants are classified as VUS rather than Benign/Likely Benign. This is because:
 
 - BP1 (missense in a gene where truncating variants cause disease) is not yet implemented
 - BP3 (in-frame in repetitive region without known function) is not yet implemented

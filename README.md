@@ -54,7 +54,7 @@ Thresholds were pre-registered before the figures existed. The PPV lower bound (
 
 **Known limitations:**
 
-- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than overcalled; the v1.2.0 evidence-coverage work (gnomAD genomes, CADD, SpliceAI, chrM frequency) targets this. Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
+- Pathogenic sensitivity 0.642: uncertain P/LP variants are held at VUS rather than overcalled; a future evidence-coverage release (gnomAD genomes, CADD, SpliceAI, chrM frequency) targets this. Sensitivity must improve through added evidence, never by fitting thresholds to the truth set.
 - Validation is concordance against ClinVar, which also supplies some classifier evidence; an independent truth set is required for clinical-grade validation.
 - BS2 (observed in healthy controls) is emitted for dominant-disorder genes when gnomAD homozygote counts are available; it does not fire for recessive genes or without homozygote-count data.
 - BP1, BP3, BP6 benign criteria are not implemented.
@@ -500,8 +500,8 @@ When only two scores are available, weights redistribute proportionally. Single 
 
 | Tag           | Strength    | Condition                                                                                                        |
 | ------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| PVS1          | Very Strong | Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 (strength modulated by pLI/LOEUF)                          |
-| PVS1_Strong   | Strong      | PVS1 downgraded: gene not LoF-intolerant, no constraint data, or the null variant escapes NMD (last exon, within 50 nt of the final junction, or single-exon gene) |
+| PVS1          | Very Strong | Nonsense/Frameshift in a gene with an established LoF mechanism (ClinGen-curated set), or Splice_Site + SpliceAI > 0.8 |
+| PVS1_Strong   | Strong      | PVS1 downgraded: gene not on the curated LoF-mechanism set, or the null variant escapes NMD (last exon, within 50 nt of the final junction, or single-exon gene) |
 | PS1           | Strong      | Same amino acid change as ClinVar Pathogenic via different nucleotide (requires protein index + reference FASTA) |
 | PM1           | Moderate    | Missense in a critical functional domain (missense constraint region, gnomAD mis_z > 3.09)                       |
 | PM2           | Moderate    | All population AFs < 0.0001, or absent from gnomAD (population-aware)                                            |
