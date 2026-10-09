@@ -314,8 +314,8 @@ Pathogenic criteria:
 
 | Tag | Strength | Condition |
 | ----- | ---------- | ----------- |
-| PVS1 | Very Strong | Consequence is Nonsense, Frameshift, or Splice_Site + SpliceAI > 0.8 (strength modulated by pLI/LOEUF) |
-| PVS1_Strong | Strong | PVS1 downgraded when gene constraint is moderate (0.5 < pLI < 0.9) |
+| PVS1 | Very Strong | Nonsense/Frameshift in a gene with an established LoF mechanism (ClinGen-curated set), or Splice_Site + SpliceAI > 0.8 |
+| PVS1_Strong | Strong | PVS1 downgraded: gene not on the curated LoF-mechanism set, or the null variant escapes NMD (last exon, within 50 nt of the final junction, or single-exon gene) |
 | PS1 | Strong | Same amino acid change as established ClinVar Pathogenic, via different nucleotide (requires protein index + codon resolution) |
 | PM1 | Moderate | Missense in a critical functional domain (missense constraint region, gnomAD mis_z > 3.09) |
 | PM2 | Supporting | All population AFs < 0.0001, or absent from gnomAD (population-specific when available) |

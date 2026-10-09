@@ -92,7 +92,10 @@ class TestPVS1NMDEscape:
         assert EvidenceTag.PVS1_STRONG in tags
 
     def test_variant_before_last_exon_stays_very_strong(self) -> None:
-        classifier = ACMGClassifier(nmd_lookup=_plus_strand_two_exon_index())
+        classifier = ACMGClassifier(
+            nmd_lookup=_plus_strand_two_exon_index(),
+            lof_gene_list=frozenset({"GENE"}),
+        )
         variant = _scored(
             FunctionalConsequence.NONSENSE, constraint=_LOF_INTOLERANT, pos=50
         )
@@ -100,7 +103,7 @@ class TestPVS1NMDEscape:
         assert EvidenceTag.PVS1 in tags
 
     def test_no_lookup_keeps_very_strong_and_records_source(self) -> None:
-        classifier = ACMGClassifier()
+        classifier = ACMGClassifier(lof_gene_list=frozenset({"GENE"}))
         variant = _scored(
             FunctionalConsequence.NONSENSE, constraint=_LOF_INTOLERANT, pos=250
         )

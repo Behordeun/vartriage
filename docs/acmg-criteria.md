@@ -16,16 +16,19 @@ Null variant in a gene where loss-of-function is a known mechanism of disease.
 
 | Condition | Fires when | Strength |
 | --------- | ---------- | -------- |
-| Nonsense or Frameshift in LoF-intolerant gene (pLI > 0.9) | Always | Very Strong (downgraded to Strong on NMD escape) |
-| Nonsense or Frameshift in LoF-tolerant gene (pLI < 0.9) | Always | Strong (PVS1_Strong) |
-| Nonsense or Frameshift without constraint data | Always | Strong (mechanism unknown; not Very Strong on absence of data) |
+| Nonsense or Frameshift in a gene with an established LoF disease mechanism | Always | Very Strong (downgraded to Strong on NMD escape) |
+| Nonsense or Frameshift in a gene not established as LoF-mechanism | Always | Strong (PVS1_Strong) |
 | Splice site | SpliceAI max delta > 0.8 | Very Strong |
 
-When an explicit `lof_gene_list` is provided to the classifier, genes on the list always receive Very Strong PVS1. Genes not on the list receive Strong (downgraded), regardless of pLI. This allows labs to curate a trusted list of LoF-mechanism genes.
+PVS1 reaches Very Strong only when loss of function is an **established disease mechanism** for the gene, determined from a curated LoF-mechanism gene set. The bundled set (`vartriage/data/lof_mechanism_genes.tsv`, since v1.2.0) is derived from the ClinGen gene curation list: a gene qualifies when its ClinGen Haploinsufficiency Score is 3 (sufficient evidence for dominant haploinsufficiency) or 30 (gene associated with an autosomal recessive phenotype). Both encode an established LoF mechanism per the ClinGen PVS1 decision tree (Abou Tayoun et al. 2018). A gene not on the set fails closed to Strong.
+
+gnomAD constraint (pLI/LOEUF) is **not** used to grant Very Strong. Those metrics measure intolerance to heterozygous loss of function in the population, which misclassifies recessive and viable-carrier disease genes: BRCA1/2, CFTR, the mismatch-repair genes, and PAH are definitive LoF-disease genes yet score low pLI because carriers survive and appear in gnomAD. Gating on curated mechanism rather than constraint is what lets a nonsense variant in BRCA2 correctly reach Very Strong.
+
+A lab can supply its own `lof_gene_list` to the classifier to override the bundled set, for example a VCEP-curated mechanism list. Genes on the supplied list receive Very Strong; genes off it fail closed to Strong.
 
 If a splice-site variant lacks SpliceAI data, PVS1 is not assigned and "SpliceAI" is recorded as a missing source.
 
-**Required data:** Functional consequence (from GTF annotation). SpliceAI scores for splice-site variants. gnomAD constraint data (pLI) for strength determination. Transcript CDS structure (from the GTF annotation already loaded for consequence calling) for the NMD-escape downgrade.
+**Required data:** Functional consequence (from GTF annotation). SpliceAI scores for splice-site variants. The curated LoF-mechanism gene set (bundled by default) for Very Strong determination. Transcript CDS structure (from the GTF annotation already loaded for consequence calling) for the NMD-escape downgrade.
 
 **NMD escape (v0.19.0):** when a transcript CDS index is available, a Very Strong PVS1 for a nonsense or frameshift variant is downgraded to Strong (PVS1_Strong) if the variant escapes nonsense-mediated decay: it falls in the last exon, within 50 nt of the final exon-exon junction, or in a single-exon gene. Such a variant may produce a truncated but partially functional protein, so the Very Strong assignment is not warranted. The downgrade only ever lowers strength and never applies to a non-null variant. When no transcript structure is available the strength is unchanged and `transcript_structure` is recorded as a missing source for any Very Strong PVS1.
 

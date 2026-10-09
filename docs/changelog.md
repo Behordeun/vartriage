@@ -6,9 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
-_Nothing yet. The most recent release is 1.1.0, below._
+_Nothing yet. The most recent release is 1.2.0, below._
+
+## [1.2.0] - 2026-10-09
+
+### Changed
+
+- **PVS1 Very Strong is gated on an established loss-of-function disease mechanism, not population constraint**: a null variant (nonsense, frameshift) reaches PVS1 Very Strong only when the gene has an established LoF disease mechanism, determined from a curated gene set bundled with the package (`vartriage/data/lof_mechanism_genes.tsv`). The set is derived from the ClinGen gene curation list: a gene qualifies when its Haploinsufficiency Score is 3 (sufficient evidence for dominant haploinsufficiency) or 30 (gene associated with an autosomal recessive phenotype), both of which encode an established LoF mechanism per the ClinGen PVS1 decision tree (Abou Tayoun et al. 2018). A gene not on the set fails closed to Strong. gnomAD pLI/LOEUF are no longer used to grant Very Strong: those metrics measure intolerance to heterozygous loss of function in the population, which under-weights truncating variants in recessive and viable-carrier disease genes such as BRCA1, BRCA2, CFTR, the mismatch-repair genes, and PAH, where loss of function is nonetheless the definitive mechanism. On the ClinGen eRepo cohort (strict point-system combining, full evidence, 6,476 expert Pathogenic/Likely-Pathogenic variants) the shipped configuration (PM2 at Supporting with this gate) reaches 47.3 percent pathogenic sensitivity at 91.6 percent PPV. The gate change itself is close to sensitivity-neutral: holding PM2 at Moderate, correcting the gate moves sensitivity 69.6 to 67.1 percent, because at Moderate most truncating variants already clear the Likely-Pathogenic threshold through PM2's point. Its effect is on the evidence trail, not the headline count: 1,805 truncating variants (96 percent of them expert Pathogenic or Likely Pathogenic, in BRCA1/2, the mismatch-repair genes, CFTR, PAH and other established LoF genes) now reach Very Strong through the correct mechanism rather than through population constraint. A lab may supply its own `lof_gene_list` to the classifier to override the bundled set with a VCEP-curated mechanism list; the applied list is explicit and traceable.
+
+### Added
+
+- **Curated LoF-mechanism gene set and loader**: `vartriage.knowledge.lof_mechanism.LofMechanismGeneSet` loads the bundled set, and `default_lof_mechanism_path()` resolves its packaged location. `scripts/derive_lof_mechanism_genes.py` reproduces the set deterministically from the ClinGen gene curation list. The pipeline wires the bundled set into the classifier automatically, so mechanism-gated PVS1 is active in normal runs.
+
+### Known limitation
+
+- ClinGen dosage curation is not exhaustive. A small number of genuine LoF-disease genes that ClinGen has not yet dosage-curated (for example GAA, ITGA2B, RPGR) are absent from the bundled set and so fail closed to PVS1 Strong rather than Very Strong. Supply a `lof_gene_list` to extend coverage for a specific panel.
 
 ## [1.1.0] - 2026-10-07
+
+> **Known issue, fixed in 1.2.0 — upgrade recommended.** This release pairs PM2 at Supporting (below) with a PVS1 Very Strong gate still keyed to gnomAD pLI. The two together under-call truncating variants in recessive and viable-carrier LoF-disease genes (BRCA1/2, CFTR, the mismatch-repair genes, PAH): with PM2 contributing one point, a null variant that pLI fails to raise to Very Strong no longer clears the Likely-Pathogenic threshold and lands at VUS. The effect is concentrated in exactly the genes where loss of function is the definitive mechanism, so cohort results from 1.1.0 systematically under-report pathogenic calls in those genes. 1.2.0 gates PVS1 on an established LoF mechanism (a ClinGen-curated gene set) instead, which restores those calls. Run `pip install --upgrade vartriage>=1.2.0`; results produced on 1.1.0 should be re-run on 1.2.0 before use.
 
 ### Changed
 
