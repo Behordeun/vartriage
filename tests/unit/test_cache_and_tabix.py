@@ -516,3 +516,51 @@ class TestAnnotationEngineBackendSelection:
                 engine._build_frequency_db(gnomad_path)
 
         assert "tabix" in caplog.text.lower() or "backend" in caplog.text.lower()
+
+
+class TestTabixPerPopulationLookup:
+    """lookup_batch_populations parses global + ancestry AF for the matched ALT."""
+
+    def _record(self) -> str:
+        info = (
+            "AF=0.0004;AF_afr=0.051;AF_amr=0.0002;AF_asj=0.0;AF_eas=0.0;"
+            "AF_fin=0.0;AF_nfe=0.00001;AF_sas=0.0;nhomalt=3"
+        )
+        return "\t".join(["chr22", "19500000", "rs1", "A", "G", ".", "PASS", info])
+
+    def _backend(self, record_lines: list[str]) -> object:
+        from vartriage.annotation.frequency_tabix import TabixFrequencyDatabase
+
+        db = TabixFrequencyDatabase()
+        mock_tabix = MagicMock()
+        mock_tabix.fetch.return_value = iter(record_lines)
+        db._tabix = mock_tabix
+        return db
+
+    def test_parses_each_ancestry_af_for_matched_alt(self) -> None:
+        db = self._backend([self._record()])
+        maps = db.lookup_batch_populations([("chr22", 19500000, "A", "G")])
+        assert len(maps) == 1
+        m = maps[0]
+        assert m is not None
+        assert m["AF"] == pytest.approx(0.0004)
+        assert m["AF_afr"] == pytest.approx(0.051)
+        assert m["AF_nfe"] == pytest.approx(0.00001)
+        assert m["nhomalt"] == pytest.approx(3.0)
+
+    def test_multiallelic_selects_correct_alt_index(self) -> None:
+        info = "AF=0.01,0.002;AF_afr=0.09,0.001;AF_nfe=0.0,0.5"
+        line = "\t".join(["chr22", "19500000", "rs2", "A", "G,T", ".", "PASS", info])
+        db = self._backend([line])
+        # second ALT (T) -> index 1
+        m = db.lookup_batch_populations([("chr22", 19500000, "A", "T")])[0]
+        assert m is not None
+        assert m["AF"] == pytest.approx(0.002)
+        assert m["AF_afr"] == pytest.approx(0.001)
+        assert m["AF_nfe"] == pytest.approx(0.5)
+
+    def test_absent_variant_returns_none(self) -> None:
+        db = self._backend([self._record()])
+        # ref/alt mismatch -> no map
+        maps = db.lookup_batch_populations([("chr22", 19500000, "C", "T")])
+        assert maps == [None]

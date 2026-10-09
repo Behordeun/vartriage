@@ -108,6 +108,97 @@ class TabixFrequencyDatabase:
 
         return results
 
+    # Ancestry-group AF keys read from the gnomAD VCF INFO column, mapped onto
+    # PopulationFrequencies by the annotation engine. Keeping the global AF and
+    # nhomalt here lets a single tabix pass feed per-population PM2/BA1/BS1
+    # evaluation without a second query.
+    _POPULATION_INFO_KEYS: tuple[str, ...] = (
+        "AF",
+        "AF_afr",
+        "AF_amr",
+        "AF_asj",
+        "AF_eas",
+        "AF_fin",
+        "AF_nfe",
+        "AF_sas",
+        "nhomalt",
+    )
+
+    def lookup_batch_populations(
+        self, variants: list[tuple[str, int, str, str]]
+    ) -> list[dict[str, float] | None]:
+        """Query global and per-ancestry allele frequencies for a batch.
+
+        Returns, per variant, a dict of the gnomAD INFO AF keys
+        (``AF`` plus ``AF_<pop>`` and ``nhomalt``) for the matched ALT
+        allele, or ``None`` when the variant is absent from the
+        reference. The annotation engine maps these onto
+        ``PopulationFrequencies``; a reference VCF lacking an ancestry
+        key simply omits it, so downstream code falls back to the global
+        AF for that population.
+        """
+        return [self._lookup_populations_single(*v) for v in variants]
+
+    def _lookup_populations_single(
+        self, chrom: str, pos: int, ref: str, alt: str
+    ) -> dict[str, float] | None:
+        """Query tabix for one variant's global + per-population AF map."""
+        if self._tabix is None:
+            return None
+
+        try:
+            records = self._tabix.fetch(chrom, pos - 1, pos)
+        except ValueError:
+            return None
+
+        for record_line in records:
+            af_map = self._parse_populations_from_record(record_line, ref, alt)
+            if af_map:
+                return af_map
+
+        return None
+
+    def _parse_populations_from_record(
+        self, record_line: str, ref: str, alt: str
+    ) -> dict[str, float] | None:
+        """Parse the per-population AF keys for the matching ALT allele."""
+        fields = record_line.split("\t")
+        if len(fields) < 8:
+            return None
+
+        if fields[3] != ref:
+            return None
+
+        record_alts = fields[4].split(",")
+        if alt not in record_alts:
+            return None
+        alt_index = record_alts.index(alt)
+
+        info = self._parse_info_dict(fields[7])
+        af_map: dict[str, float] = {}
+        for key in self._POPULATION_INFO_KEYS:
+            raw = info.get(key)
+            if raw is None:
+                continue
+            parts = raw.split(",")
+            if alt_index >= len(parts):
+                continue
+            try:
+                af_map[key] = float(parts[alt_index])
+            except ValueError:
+                continue
+        return af_map or None
+
+    @staticmethod
+    def _parse_info_dict(info_field: str) -> dict[str, str]:
+        """Split a VCF INFO column into a key -> raw-value dict."""
+        out: dict[str, str] = {}
+        for entry in info_field.split(";"):
+            if "=" in entry:
+                key, _, value = entry.partition("=")
+                out[key] = value
+        return out
+
     def _lookup_single(self, chrom: str, pos: int, ref: str, alt: str) -> float | None:
         """Query tabix for a single variant's allele frequency."""
         if self._tabix is None:
