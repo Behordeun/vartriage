@@ -34,6 +34,7 @@ def _make_scored_variant(
     spliceai_score: float | None = None,
     cadd_phred: float | None = 25.0,
     gene_context: GeneContext | None = None,
+    gene_name: str | None = None,
 ) -> ScoredVariant:
     """Create a ScoredVariant with configurable fields for testing."""
     v = Variant(
@@ -53,6 +54,7 @@ def _make_scored_variant(
         frequency_unknown=frequency_unknown,
         clinvar_unknown=clinvar_unknown,
         gene_context=gene_context,
+        gene_name=gene_name,
     )
     cadd_normalized = None
     if cadd_phred is not None:
@@ -80,8 +82,9 @@ class TestClassifyCombiningWiring:
             revel_score=0.70,  # Above 0.644 (supporting PP3) but below 0.773 (moderate)
             clinvar_assertion=ClinVarAssertion.PATHOGENIC,
             gene_context=_LOF_INTOLERANT,
+            gene_name="LOFGENE",
         )
-        classifier = ACMGClassifier()
+        classifier = ACMGClassifier(lof_gene_list=frozenset({"LOFGENE"}))
         results = list(classifier.classify(iter([sv])))
 
         assert len(results) == 1
@@ -100,8 +103,9 @@ class TestClassifyCombiningWiring:
             clinvar_assertion=None,
             clinvar_unknown=True,
             gene_context=_LOF_INTOLERANT,
+            gene_name="LOFGENE",
         )
-        classifier = ACMGClassifier()
+        classifier = ACMGClassifier(lof_gene_list=frozenset({"LOFGENE"}))
         results = list(classifier.classify(iter([sv])))
 
         assert len(results) == 1
@@ -136,8 +140,9 @@ class TestClassifyCombiningWiring:
             revel_score=0.5,
             clinvar_assertion=ClinVarAssertion.VUS,
             gene_context=_LOF_INTOLERANT,
+            gene_name="LOFGENE",
         )
-        classifier = ACMGClassifier()
+        classifier = ACMGClassifier(lof_gene_list=frozenset({"LOFGENE"}))
         results = list(classifier.classify(iter([sv])))
 
         assert len(results) == 1
@@ -155,8 +160,9 @@ class TestClassifyCombiningWiring:
             clinvar_assertion=None,
             clinvar_unknown=True,
             gene_context=_LOF_INTOLERANT,
+            gene_name="LOFGENE",
         )
-        classifier = ACMGClassifier()
+        classifier = ACMGClassifier(lof_gene_list=frozenset({"LOFGENE"}))
         results = list(classifier.classify(iter([sv])))
 
         result = results[0]
@@ -176,8 +182,9 @@ class TestClassifyCombiningWiring:
             revel_score=0.70,  # Above 0.644 (supporting PP3) but below 0.773 (moderate)
             clinvar_assertion=ClinVarAssertion.PATHOGENIC,
             gene_context=_LOF_INTOLERANT,
+            gene_name="LOFGENE",
         )
-        classifier = ACMGClassifier()
+        classifier = ACMGClassifier(lof_gene_list=frozenset({"LOFGENE"}))
         results = list(classifier.classify(iter([sv])))
 
         result = results[0]

@@ -19,6 +19,10 @@ from vartriage.annotation.engine import AnnotationEngine
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.filter.quality_filter import QualityFilter
 from vartriage.io.vcf_parser import VCFParser
+from vartriage.knowledge.lof_mechanism import (
+    LofMechanismGeneSet,
+    default_lof_mechanism_path,
+)
 from vartriage.mito.genetic_code import is_mitochondrial
 from vartriage.models.config import (
     AnnotationConfig,
@@ -570,14 +574,17 @@ class Pipeline:
     def _build_acmg_classifier(self) -> ACMGClassifier:
         """Construct the ACMG classifier with the v0.19.0 refinements wired in.
 
-        Supplies the NMD-escape lookup (from the GTF) and the disease-threshold
-        flag (from config) so PVS1 NMD downgrades and disease-specific
-        PM2/BA1/BS1 thresholds are active in normal pipeline runs, not only when
-        a caller constructs the classifier directly.
+        Supplies the NMD-escape lookup (from the GTF), the disease-threshold
+        flag (from config), and the curated LoF-mechanism gene set that gates
+        PVS1 Very Strong, so PVS1 NMD downgrades, disease-specific PM2/BA1/BS1
+        thresholds, and mechanism-based PVS1 strength are active in normal
+        pipeline runs, not only when a caller constructs the classifier directly.
         """
+        lof_genes = LofMechanismGeneSet(default_lof_mechanism_path()).genes
         return ACMGClassifier(
             nmd_lookup=self._build_nmd_lookup(),  # type: ignore[arg-type]
             use_disease_thresholds=self._config.use_disease_thresholds,
+            lof_gene_list=lof_genes if lof_genes else None,
         )
 
     def _inject_remote_gnomad(self, annotation_engine: AnnotationEngine | None) -> None:

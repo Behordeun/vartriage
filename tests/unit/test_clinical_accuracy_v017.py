@@ -119,12 +119,14 @@ def _missense_constrained_context() -> GeneContext:
 class TestPVS1LoFGating:
     """PVS1 strength depends on LoF constraint evidence."""
 
-    def test_pvs1_very_strong_for_lof_intolerant_gene(self) -> None:
+    def test_pvs1_very_strong_for_lof_mechanism_gene(self) -> None:
+        # Very Strong now comes from the curated LoF-mechanism list, not from pLI.
         sv = _make_scored(
             consequence=FunctionalConsequence.NONSENSE,
             gene_context=_lof_intolerant_context(),
+            gene_name="LOFGENE",
         )
-        classifier = ACMGClassifier()
+        classifier = ACMGClassifier(lof_gene_list=frozenset({"LOFGENE"}))
         results = list(classifier.classify(iter([sv])))
         assert EvidenceTag.PVS1 in results[0].evidence_tags
         assert EvidenceTag.PVS1_STRONG not in results[0].evidence_tags

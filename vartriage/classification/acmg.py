@@ -291,9 +291,9 @@ class ACMGClassifier:
         """Assign PVS1 for null variants with LoF constraint gating.
 
         For NONSENSE or FRAMESHIFT: fires PVS1 at Very Strong when LoF
-        is the established mechanism (pLI > 0.9 or gene on lof_gene_list),
-        at Strong otherwise, including when the mechanism is unknown for
-        want of constraint data.
+        is an established mechanism (gene on the curated lof_gene_list), at
+        Strong otherwise, including when no curated list establishes the
+        mechanism.
 
         For SPLICE_SITE: fires PVS1 at Very Strong only when SpliceAI > 0.8.
         """
@@ -321,11 +321,13 @@ class ACMGClassifier:
         """Determine PVS1 strength based on gene LoF mechanism evidence.
 
         PVS1 at Very Strong is warranted only when loss of function is an
-        established disease mechanism for the gene. Priority:
-        1. Explicit lof_gene_list (gene on list -> Very Strong, off -> Strong)
-        2. gnomAD pLI constraint (pLI > 0.9 -> Very Strong, otherwise Strong)
-        3. No mechanism evidence -> Strong (the mechanism is unknown, so the
-           criterion does not reach Very Strong on absence of data).
+        established disease mechanism for the gene, supplied as a curated
+        lof_gene_list (ClinGen dosage haploinsufficiency 3 or recessive-
+        phenotype 30). gnomAD pLI/LOEUF are deliberately NOT used to grant Very
+        Strong: they measure intolerance to heterozygous loss of function in the
+        population, which recessive and viable-carrier disease genes fail despite
+        LoF being their definitive mechanism. When no curated list establishes
+        the mechanism, PVS1 fails closed to Strong.
 
         A Very Strong result is then downgraded to Strong when the variant
         escapes nonsense-mediated decay (NMD), because such a truncating
@@ -334,20 +336,21 @@ class ACMGClassifier:
         """
         gene_name = variant.annotated.gene_name
 
-        # Explicit gene list takes priority when provided
+        # Explicit gene list establishes the LoF disease mechanism.
         if self._lof_gene_list is not None and gene_name is not None:
             if gene_name in self._lof_gene_list:
                 return self._apply_nmd_downgrade(variant, EvidenceTag.PVS1)
             return EvidenceTag.PVS1_STRONG
 
-        # Fall back to gnomAD pLI constraint
-        gene_context = variant.annotated.gene_context
-        if gene_context is None or gene_context.constraint is None:
-            return EvidenceTag.PVS1_STRONG
-
-        if gene_context.constraint.is_lof_intolerant:
-            return self._apply_nmd_downgrade(variant, EvidenceTag.PVS1)
-
+        # No curated mechanism list establishes LoF for this gene: fail closed
+        # to Strong. gnomAD pLI/LOEUF measure intolerance to heterozygous loss of
+        # function in the population, which is not an established-LoF-disease-
+        # mechanism signal. Recessive and viable-carrier disease genes (BRCA1/2,
+        # CFTR, the mismatch-repair genes, PAH) are definitive LoF genes yet score
+        # low pLI because carriers survive and appear in gnomAD, so constraint
+        # would both miss them and over-call unrelated constrained genes. The
+        # ClinGen PVS1 decision tree (Abou Tayoun et al. 2018) gates Very Strong
+        # on a curated gene mechanism, never on a population-constraint threshold.
         return EvidenceTag.PVS1_STRONG
 
     def _apply_nmd_downgrade(

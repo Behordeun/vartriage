@@ -1,9 +1,9 @@
 """PVS1 strength is conservative when the LoF mechanism is unknown.
 
 PVS1 at Very Strong is valid only when loss of function is an established
-disease mechanism for the gene. With no gene-list membership and no
-constraint data, the mechanism is unknown, so a truncating variant gets
-Strong, not Very Strong. Established LoF intolerance still earns Very Strong.
+disease mechanism for the gene. With no gene-list membership the mechanism is not established, so a truncating
+variant gets Strong, not Very Strong. Only membership in the curated LoF
+mechanism list earns Very Strong; population constraint (pLI) never does.
 """
 
 from __future__ import annotations
@@ -63,11 +63,16 @@ class TestPVS1UnknownMechanism:
         assert EvidenceTag.PVS1_STRONG in tags
         assert EvidenceTag.PVS1 not in tags
 
-    def test_lof_intolerant_constraint_earns_very_strong(self) -> None:
+    def test_lof_intolerant_constraint_alone_is_strong_not_very_strong(self) -> None:
+        # Superseded contract: population constraint (high pLI) formerly earned
+        # Very Strong. It no longer does. pLI measures intolerance to heterozygous
+        # LoF, not an established LoF disease mechanism, so constraint alone fails
+        # closed to Strong. Very Strong now comes only from the curated gene list.
         constraint = GeneConstraint(pli=0.99, loeuf=0.1, mis_z=1.0)
         variant = _nonsense(gene_name="LOFGENE", constraint=constraint)
         tags = _pvs1_tag(variant)
-        assert EvidenceTag.PVS1 in tags
+        assert EvidenceTag.PVS1_STRONG in tags
+        assert EvidenceTag.PVS1 not in tags
 
     def test_lof_tolerant_constraint_is_strong(self) -> None:
         constraint = GeneConstraint(pli=0.01, loeuf=1.5, mis_z=0.0)
