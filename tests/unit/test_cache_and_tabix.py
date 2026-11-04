@@ -564,3 +564,19 @@ class TestTabixPerPopulationLookup:
         # ref/alt mismatch -> no map
         maps = db.lookup_batch_populations([("chr22", 19500000, "C", "T")])
         assert maps == [None]
+
+    def test_absent_variant_accumulates_missing_data_warning(self) -> None:
+        # The per-population path must trail an absent variant the same way
+        # lookup_batch does, so a variant missing from the reference is
+        # provenance-tracked rather than silently dropped.
+        db = self._backend([self._record()])
+        maps = db.lookup_batch_populations([("chr22", 19500000, "C", "T")])
+        assert maps == [None]
+        assert len(db.warnings) == 1
+        warning = db.warnings[0]
+        assert warning.chrom == "chr22"
+        assert warning.pos == 19500000
+        assert warning.ref == "C"
+        assert warning.alt == "T"
+        assert warning.source == "gnomAD"
+        assert warning.reason == "not_found"

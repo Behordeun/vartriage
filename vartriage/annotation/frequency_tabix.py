@@ -136,8 +136,29 @@ class TabixFrequencyDatabase:
         ``PopulationFrequencies``; a reference VCF lacking an ancestry
         key simply omits it, so downstream code falls back to the global
         AF for that population.
+
+        Absent variants accumulate a ``MissingDataWarning`` exactly as
+        ``lookup_batch`` does, so the per-population path keeps the same
+        provenance trail for a variant missing from the reference.
         """
-        return [self._lookup_populations_single(*v) for v in variants]
+        results: list[dict[str, float] | None] = []
+
+        for chrom, pos, ref, alt in variants:
+            af_map = self._lookup_populations_single(chrom, pos, ref, alt)
+            if af_map is None:
+                self.warnings.append(
+                    MissingDataWarning(
+                        chrom=chrom,
+                        pos=pos,
+                        ref=ref,
+                        alt=alt,
+                        source="gnomAD",
+                        reason="not_found",
+                    )
+                )
+            results.append(af_map)
+
+        return results
 
     def _lookup_populations_single(
         self, chrom: str, pos: int, ref: str, alt: str
