@@ -57,11 +57,13 @@ Absent from controls (or at extremely low frequency if recessive).
 
 Fires when all population-specific allele frequencies are below 0.0001. Uses gnomAD per-population data when available (AFR, AMR, ASJ, EAS, FIN, NFE, SAS). If any single population exceeds the threshold, PM2 does not fire.
 
-When a variant is entirely absent from gnomAD (no frequency data available), PM2 fires. Per ACMG/AMP 2015, "absent from controls" satisfies PM2. With gnomAD v4.1.1 covering 730K+ exomes, absence from the database indicates the variant is rare in the general population.
+When a variant is confirmed absent from gnomAD (queried and confirmed absent from the database), PM2 fires. Per ACMG/AMP 2015, "absent from controls" satisfies PM2. With gnomAD v4.1.1 covering 730K+ exomes, absence from the database indicates the variant is rare in the general population.
+
+Crucially, unconsulted frequency sources (when `--gnomad` is omitted, annotation is bypassed via `--skip-annotation`, or an external lookup fails) never trigger PM2. In clinical genomics, the absence of evidence must not be conflated with evidence of rarity. Unconsulted or failed lookups leave the frequency state unconfirmed and record `gnomAD` in `missing_data_sources` rather than failing open to PM2.
 
 PM2 is applied at Supporting strength (one point), following the ClinGen SVI 2020 recommendation. Absence from population databases is weak standalone evidence, so it contributes Supporting rather than Moderate weight. The strength is the committed default in `EVIDENCE_STRENGTH_MAP` and can be overridden per call through the point engine's `strength_overrides` parameter where a gene-specific VCEP specification applies.
 
-Falls back to global allele frequency when per-population data is absent. When all frequency fields are None, "gnomAD" is recorded as missing.
+Falls back to global allele frequency when per-population data is absent. When all frequency fields are None and the variant was not confirmed absent from a queried database, "gnomAD" is recorded as missing.
 
 **Required data:** gnomAD allele frequencies (local TSV/tabix or API).
 

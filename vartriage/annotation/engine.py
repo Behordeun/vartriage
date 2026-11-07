@@ -18,6 +18,7 @@ from typing import Any
 from vartriage._internal.path_safety import resolve_path
 from vartriage.annotation.consequence_refine import refine_coding_snv_consequence
 from vartriage.models.config import AnnotationConfig
+from vartriage.models.resolution import ResolutionState
 from vartriage.models.variant import (
     AnnotatedVariant,
     ClinVarAssertion,
@@ -236,10 +237,26 @@ class AnnotationEngine:
                 for c, p, r, a in variant_keys
             ]
 
-        if self._frequency_db is not None:
-            frequencies = self._frequency_db.lookup_batch(variant_keys)
+        frequency_consulted = self._frequency_db is not None
+        frequencies: list[float | None]
+        freq_states: list[ResolutionState | None]
+
+        if frequency_consulted and self._frequency_db is not None:
+            if hasattr(self._frequency_db, "lookup_batch_resolutions"):
+                resolutions = self._frequency_db.lookup_batch_resolutions(variant_keys)
+                frequencies = [res.value for res in resolutions]
+                freq_states = [res.state for res in resolutions]
+            else:
+                frequencies = self._frequency_db.lookup_batch(variant_keys)
+                freq_states = [
+                    ResolutionState.FOUND
+                    if f is not None
+                    else ResolutionState.CONFIRMED_ABSENT
+                    for f in frequencies
+                ]
         else:
             frequencies = [None] * len(batch)
+            freq_states = [None] * len(batch)
 
         # Per-population frequencies, when the backend can provide them. This
         # lets BA1/BS1/PM2 reason about a variant common in one ancestry but
@@ -263,23 +280,36 @@ class AnnotationEngine:
         results: list[AnnotatedVariant] = []
         for i, variant in enumerate(batch):
             freq = frequencies[i]
+            state = freq_states[i]
             clinvar = clinvar_assertions[i]
 
-            frequency_unknown = freq is None
+            frequency_unknown = state is ResolutionState.CONFIRMED_ABSENT
             clinvar_unknown = clinvar is None
 
-            # Emit warnings for missing data
-            if frequency_unknown:
-                self._warnings.append(
-                    MissingDataWarning(
-                        chrom=variant.chrom,
-                        pos=variant.pos,
-                        ref=variant.ref,
-                        alt=variant.alt,
-                        source="gnomAD",
-                        reason="not_found",
+            # Emit warnings for missing data only when databases were consulted
+            if frequency_consulted:
+                if state is ResolutionState.CONFIRMED_ABSENT:
+                    self._warnings.append(
+                        MissingDataWarning(
+                            chrom=variant.chrom,
+                            pos=variant.pos,
+                            ref=variant.ref,
+                            alt=variant.alt,
+                            source="gnomAD",
+                            reason="not_found",
+                        )
                     )
-                )
+                elif state is ResolutionState.LOOKUP_FAILED:
+                    self._warnings.append(
+                        MissingDataWarning(
+                            chrom=variant.chrom,
+                            pos=variant.pos,
+                            ref=variant.ref,
+                            alt=variant.alt,
+                            source="gnomAD",
+                            reason="lookup_failed",
+                        )
+                    )
 
             if clinvar_unknown and self._clinvar_db is not None:
                 self._warnings.append(
@@ -305,6 +335,7 @@ class AnnotationEngine:
                     gene_name=gene_names[i],
                     protein_change=protein_changes[i],
                     population_frequencies=population_frequencies[i],
+                    frequency_state=state,
                 )
             )
 

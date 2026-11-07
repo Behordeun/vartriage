@@ -21,6 +21,7 @@ from vartriage.models.config import (
     RECESSIVE_THRESHOLDS,
     DiseaseThresholds,
 )
+from vartriage.models.resolution import ResolutionState
 from vartriage.models.variant import (
     ClassifiedVariant,
     ClinVarAssertion,
@@ -474,18 +475,27 @@ class ACMGClassifier:
         PM2 encodes "absent from, or rare in, population controls", which
         requires the population database to have been consulted. Two inputs
         satisfy that: an observed allele frequency below the threshold in
-        every available population, or ``frequency_unknown`` set, which the
-        annotation stage sets when gnomAD was queried and returned no record
-        for the variant.
+        every available population, or a confirmed absence from population
+        controls (frequency_unknown=True or frequency_state=CONFIRMED_ABSENT).
 
-        A variant with no frequency data and ``frequency_unknown`` not set
-        was never consulted (annotation not run, or the lookup did not
-        complete). That is the absence of evidence, not evidence of rarity,
-        so PM2 does not fire and gnomAD is recorded as a missing source.
+        A variant with no frequency data and neither confirmed absence nor
+        a usable frequency lookup was never successfully consulted (annotation
+        not run, frequency database omitted, or the remote lookup failed/timed out).
+        That is the absence of evidence, not evidence of rarity, so PM2 does not
+        fire and gnomAD is recorded as a missing source.
         """
         annotated = variant.annotated
         pop_freq = annotated.population_frequencies
         pm2_threshold = self._resolve_thresholds(variant).pm2_af
+
+        if annotated.frequency_state is ResolutionState.LOOKUP_FAILED:
+            missing_sources.add(_MISSING_SOURCE_GNOMAD)
+            return
+
+        is_confirmed_absent = (
+            annotated.frequency_state is ResolutionState.CONFIRMED_ABSENT
+            or (annotated.frequency_state is None and annotated.frequency_unknown)
+        )
 
         if pop_freq is not None:
             has_any_data = any(
@@ -506,9 +516,8 @@ class ACMGClassifier:
                     tags.add(EvidenceTag.PM2)
                 return
             # Every per-population field is None. Only a confirmed gnomAD
-            # miss (frequency_unknown) counts as absence; otherwise the data
-            # was never obtained.
-            if annotated.frequency_unknown:
+            # miss counts as absence; otherwise the data was never obtained.
+            if is_confirmed_absent:
                 tags.add(EvidenceTag.PM2)
             else:
                 missing_sources.add(_MISSING_SOURCE_GNOMAD)
@@ -520,9 +529,9 @@ class ACMGClassifier:
                 tags.add(EvidenceTag.PM2)
             return
 
-        # No observed AF. A confirmed gnomAD miss is absence; a bare None
-        # with no such confirmation is missing data.
-        if annotated.frequency_unknown:
+        # No observed AF. A confirmed gnomAD miss is absence; an unconsulted
+        # or failed lookup is missing data.
+        if is_confirmed_absent:
             tags.add(EvidenceTag.PM2)
         else:
             missing_sources.add(_MISSING_SOURCE_GNOMAD)

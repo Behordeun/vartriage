@@ -19,6 +19,7 @@ from vartriage.api._rate_limiter import RateLimiter
 from vartriage.api.clinvar_client import ClinVarClient
 from vartriage.api.config import APIConfig
 from vartriage.api.vep_client import VEPAnnotation, VEPClient
+from vartriage.models.resolution import ResolutionState
 from vartriage.models.variant import (
     AnnotatedVariant,
     ClinVarAssertion,
@@ -144,13 +145,22 @@ class APIAnnotationEngine:
             consequence = FunctionalConsequence.INTERGENIC
             gene_name: str | None = None
             allele_frequency: float | None = None
+            freq_state: ResolutionState
 
             if vep_ann is not None:
                 consequence = vep_ann.consequence
                 gene_name = vep_ann.gene_name
                 allele_frequency = vep_ann.allele_frequency
+                if allele_frequency is not None:
+                    freq_state = ResolutionState.FOUND
+                    frequency_unknown = False
+                else:
+                    freq_state = ResolutionState.CONFIRMED_ABSENT
+                    frequency_unknown = True
+            else:
+                freq_state = ResolutionState.LOOKUP_FAILED
+                frequency_unknown = False
 
-            frequency_unknown = allele_frequency is None
             clinvar_unknown = clinvar_assertion is None
 
             # Track missing data for the limitations section
@@ -200,6 +210,7 @@ class APIAnnotationEngine:
                     frequency_unknown=frequency_unknown,
                     clinvar_unknown=clinvar_unknown,
                     gene_name=gene_name,
+                    frequency_state=freq_state,
                 )
             )
 

@@ -85,7 +85,7 @@ class TestPassthroughAnnotation:
         assert av.consequence == FunctionalConsequence.INTERGENIC
         assert av.allele_frequency is None
         assert av.clinvar_assertion is None
-        assert av.frequency_unknown is True
+        assert av.frequency_unknown is False
         assert av.clinvar_unknown is True
         assert av.variant.chrom == "chr7"
 
@@ -189,7 +189,7 @@ class TestReattachAnnotations:
 
         results = pipeline._reattach_annotations([orphan], [av])
         assert results[0].consequence == FunctionalConsequence.INTERGENIC
-        assert results[0].frequency_unknown is True
+        assert results[0].frequency_unknown is False
         assert results[0].clinvar_unknown is True
 
 

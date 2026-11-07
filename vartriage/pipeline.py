@@ -974,7 +974,7 @@ class Pipeline:
                     AnnotatedVariant(
                         variant=v,
                         consequence=FunctionalConsequence.INTERGENIC,
-                        frequency_unknown=True,
+                        frequency_unknown=False,
                         clinvar_unknown=True,
                     )
                 )
@@ -1042,7 +1042,7 @@ class Pipeline:
                 consequence=FunctionalConsequence.INTERGENIC,
                 allele_frequency=None,
                 clinvar_assertion=None,
-                frequency_unknown=True,
+                frequency_unknown=False,
                 clinvar_unknown=True,
             )
 
