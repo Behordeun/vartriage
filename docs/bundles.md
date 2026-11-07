@@ -44,6 +44,7 @@ Options:
 - `--dest DIR` - custom storage directory
 - `--no-transform` - download raw file only, skip TSV conversion
 - `--no-progress` - suppress progress bar
+- `--strict-checksums` - enforce download checksum verification, rejecting bundles lacking recorded SHA-256 digests
 
 ### `vartriage bundle list`
 
@@ -57,12 +58,19 @@ vartriage bundle list --json
 
 ### `vartriage bundle verify`
 
-Check integrity of installed bundles.
+Check cryptographic integrity of installed bundles (validates both raw downloads and transformed reference tables).
 
 ```bash
 vartriage bundle verify
 vartriage bundle verify --bundle clinvar
+vartriage bundle verify --strict
 ```
+
+Options:
+
+- `--bundle NAME` - specific bundle to verify
+- `--build BUILD` - target genome assembly build
+- `--strict` - fail verification if any raw or transformed checksum is missing from the bundle manifest
 
 ### `vartriage bundle status`
 
@@ -124,6 +132,7 @@ Override with environment variable:
 
 ```bash
 export VARTRIAGE_BUNDLE_STORAGE=/data/vartriage/bundles
+export VARTRIAGE_STRICT_CHECKSUMS=1
 ```
 
 ## Configuration
@@ -136,11 +145,14 @@ default_build = "grch38"
 download_concurrency = 2
 storage_path = "~/.vartriage/bundles"
 auto_verify = true
+strict_checksums = false
 
 [bundle.proxy]
 http_proxy = ""
 https_proxy = ""
 ```
+
+When `strict_checksums` is enabled (or `VARTRIAGE_STRICT_CHECKSUMS=1`), bundle downloads and on-disk path resolution require valid, non-empty SHA-256 digests in manifests and registries, preventing unverified or modified reference tables from reaching downstream pipeline stages.
 
 ## Chromosome naming
 

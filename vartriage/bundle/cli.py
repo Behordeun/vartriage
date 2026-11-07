@@ -46,6 +46,12 @@ def add_bundle_subcommands(subparsers: Any) -> None:
     dl.add_argument("--no-transform", action="store_true", help="Skip transformation")
     dl.add_argument("--no-progress", action="store_true", help="Suppress progress bar")
 
+    dl.add_argument(
+        "--strict-checksums",
+        action="store_true",
+        help="Enforce checksum validation; fail if bundle checksum is unregistered",
+    )
+
     ls = subparsers.add_parser("list", help="List available and installed bundles")
     ls.add_argument("--build", default=None, help="Filter by genome build")
     ls.add_argument(
@@ -55,6 +61,11 @@ def add_bundle_subcommands(subparsers: Any) -> None:
     vf = subparsers.add_parser("verify", help="Verify installed bundle checksums")
     vf.add_argument("--bundle", default=None, help="Specific bundle to verify")
     vf.add_argument("--build", default=None, help="Genome build")
+    vf.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enforce that manifests contain valid raw and transformed checksums",
+    )
 
     subparsers.add_parser("status", help="Show installed bundles and disk usage")
     subparsers.add_parser("update-registry", help="Fetch latest bundle registry")
@@ -200,12 +211,16 @@ def _cmd_download(
     show_progress = not getattr(args, "no_progress", False)
     downloader = BundleDownloader(show_progress=show_progress)
 
+    strict_checksum = (
+        getattr(args, "strict_checksums", False) or config.strict_checksums
+    )
     try:
         result = downloader.download(
             url=url,
             dest=raw_dest,
             expected_size=entry.expected_size_bytes,
             expected_checksum=entry.checksum_sha256,
+            strict_checksum=strict_checksum,
         )
     except (DownloadError, OSError) as exc:
         print(f"\nError: {exc}", file=sys.stderr)
@@ -220,6 +235,17 @@ def _cmd_download(
         args, entry, storage, build, bundle_name, raw_dest, raw_filename
     )
 
+    transformed_path = (
+        storage.bundle_dir(build, bundle_name) / transformed_filename
+        if transformed_filename
+        else None
+    )
+    transformed_checksum = (
+        compute_sha256(transformed_path)
+        if (transformed_path is not None and transformed_path.exists())
+        else ""
+    )
+
     # Write manifest
     timestamp = datetime.now(timezone.utc).isoformat()
     manifest = BundleManifest(
@@ -229,7 +255,7 @@ def _cmd_download(
         download_timestamp=timestamp,
         source_url=url,
         raw_checksum=compute_sha256(raw_dest) if raw_dest.exists() else "",
-        transformed_checksum="",
+        transformed_checksum=transformed_checksum,
         transformed_filename=transformed_filename,
         raw_filename=raw_filename,
         transform_type=entry.transform_type,
@@ -289,8 +315,13 @@ def _cmd_download_all(
     )
     storage = BundleStorage(storage_path)
     show_progress = not getattr(args, "no_progress", False)
+    strict_checksum = (
+        getattr(args, "strict_checksums", False) or config.strict_checksums
+    )
 
-    requests = _build_download_requests(available, storage, build)
+    requests = _build_download_requests(
+        available, storage, build, strict_checksum=strict_checksum
+    )
 
     if not requests:
         print(f"All bundles already installed for {build}.")
@@ -328,7 +359,10 @@ def _cmd_download_all(
 
 
 def _build_download_requests(
-    available: list[BundleEntry], storage: BundleStorage, build: str
+    available: list[BundleEntry],
+    storage: BundleStorage,
+    build: str,
+    strict_checksum: bool = False,
 ) -> list[DownloadRequest]:
     """Build download requests for bundles not already installed."""
     requests: list[DownloadRequest] = []
@@ -353,6 +387,7 @@ def _build_download_requests(
                 expected_size=entry.expected_size_bytes,
                 expected_checksum=entry.checksum_sha256,
                 label=entry.name,
+                strict_checksum=strict_checksum,
             )
         )
     return requests
@@ -377,6 +412,17 @@ def _process_batch_results(
             entry, storage, build, raw_dest, no_transform
         )
 
+        transformed_path = (
+            storage.bundle_dir(build, entry.name) / transformed_filename
+            if transformed_filename
+            else None
+        )
+        transformed_checksum = (
+            compute_sha256(transformed_path)
+            if (transformed_path is not None and transformed_path.exists())
+            else ""
+        )
+
         timestamp = datetime.now(timezone.utc).isoformat()
         url = entry.source_urls.get(build.lower(), "")
         manifest = BundleManifest(
@@ -386,12 +432,13 @@ def _process_batch_results(
             download_timestamp=timestamp,
             source_url=url,
             raw_checksum=compute_sha256(raw_dest) if raw_dest.exists() else "",
-            transformed_checksum="",
+            transformed_checksum=transformed_checksum,
             transformed_filename=transformed_filename,
             raw_filename=raw_dest.name,
             transform_type=entry.transform_type,
             file_size_bytes=raw_dest.stat().st_size if raw_dest.exists() else 0,
         )
+        manifest.save(storage.manifest_path(build, entry.name))
         manifest.save(storage.manifest_path(build, entry.name))
 
 
@@ -491,6 +538,7 @@ def _cmd_verify(args: argparse.Namespace, config: BundleConfig, build: str) -> i
     """Handle 'vartriage bundle verify'."""
     storage = BundleStorage(config.storage_path)
     manifests = storage.list_installed(build)
+    strict = getattr(args, "strict", False) or config.strict_checksums
 
     if not manifests:
         print(f"No bundles installed for {build}.")
@@ -507,7 +555,7 @@ def _cmd_verify(args: argparse.Namespace, config: BundleConfig, build: str) -> i
 
     errors = 0
     for manifest in manifests:
-        if not _verify_manifest(manifest, storage, build):
+        if not _verify_manifest(manifest, storage, build, strict=strict):
             errors += 1
 
     if errors:
@@ -519,7 +567,10 @@ def _cmd_verify(args: argparse.Namespace, config: BundleConfig, build: str) -> i
 
 
 def _verify_manifest(
-    manifest: BundleManifest, storage: BundleStorage, build: str
+    manifest: BundleManifest,
+    storage: BundleStorage,
+    build: str,
+    strict: bool = False,
 ) -> bool:
     """Verify a single bundle manifest. Returns True if OK, False on failure."""
     bundle_dir = storage.bundle_dir(build, manifest.bundle_name)
@@ -529,15 +580,35 @@ def _verify_manifest(
         print(f"  {manifest.bundle_name}: MISSING ({transformed})")
         return False
 
+    # Check transformed checksum
+    if manifest.transformed_checksum:
+        actual = compute_sha256(transformed)
+        if actual.lower() != manifest.transformed_checksum.lower():
+            print(f"  {manifest.bundle_name}: CHECKSUM MISMATCH (transformed)")
+            print(f"    expected: {manifest.transformed_checksum}")
+            print(f"    actual:   {actual}")
+            return False
+    elif strict:
+        print(
+            f"  {manifest.bundle_name}: UNVERIFIED (transformed checksum missing in manifest)"
+        )
+        return False
+
+    # Check raw checksum if raw file is present
     if manifest.raw_checksum:
         raw_path = storage.raw_dir(build, manifest.bundle_name) / manifest.raw_filename
         if raw_path.exists():
             actual = compute_sha256(raw_path)
-            if actual != manifest.raw_checksum:
+            if actual.lower() != manifest.raw_checksum.lower():
                 print(f"  {manifest.bundle_name}: CHECKSUM MISMATCH (raw)")
                 print(f"    expected: {manifest.raw_checksum}")
                 print(f"    actual:   {actual}")
                 return False
+    elif strict:
+        print(
+            f"  {manifest.bundle_name}: UNVERIFIED (raw checksum missing in manifest)"
+        )
+        return False
 
     print(f"  {manifest.bundle_name}: OK (v{manifest.version})")
     return True

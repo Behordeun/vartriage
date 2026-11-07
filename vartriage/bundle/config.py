@@ -54,6 +54,8 @@ class BundleConfig:
         Root storage directory for bundles.
     auto_verify : bool
         Verify checksums automatically after download (default: True).
+    strict_checksums : bool
+        Fail downloads and verification when bundle checksums are absent (default: False).
     http_proxy : str
         HTTP proxy URL, empty string if none.
     https_proxy : str
@@ -66,6 +68,7 @@ class BundleConfig:
         default_factory=lambda: Path.home() / ".vartriage" / "bundles"
     )
     auto_verify: bool = True
+    strict_checksums: bool = False
     http_proxy: str = ""
     https_proxy: str = ""
 
@@ -133,6 +136,8 @@ class BundleConfig:
                 )
         if "auto_verify" in bundle_section:
             self.auto_verify = bool(bundle_section["auto_verify"])
+        if "strict_checksums" in bundle_section:
+            self.strict_checksums = bool(bundle_section["strict_checksums"])
 
         proxy_section = bundle_section.get("proxy", {})
         if "http_proxy" in proxy_section:
@@ -152,3 +157,12 @@ class BundleConfig:
         env_build = os.environ.get("VARTRIAGE_DEFAULT_BUILD")
         if env_build:
             self.default_build = env_build
+
+        env_strict = os.environ.get("VARTRIAGE_STRICT_CHECKSUMS")
+        if env_strict:
+            self.strict_checksums = env_strict.strip().lower() in (
+                "1",
+                "true",
+                "yes",
+                "on",
+            )
