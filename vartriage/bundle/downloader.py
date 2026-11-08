@@ -19,8 +19,8 @@ from urllib.request import Request, urlopen
 
 from vartriage._internal.path_safety import safe_write_path
 from vartriage.bundle._checksums import (
+    ChecksumMismatchError,
     UnverifiedChecksumError,
-    compute_sha256,
     verify_checksum,
 )
 from vartriage.bundle._disk import check_disk_space
@@ -168,19 +168,20 @@ class BundleDownloader:
         if expected_checksum or strict_checksum:
             try:
                 checksum_ok = verify_checksum(
-                    dest, expected_checksum, strict=strict_checksum
+                    dest,
+                    expected_checksum,
+                    strict=strict_checksum,
+                    raise_on_mismatch=True,
                 )
             except UnverifiedChecksumError as exc:
                 dest.unlink(missing_ok=True)
                 raise DownloadError(url, f"Unverified bundle download: {exc}") from exc
-
-            if not checksum_ok:
-                actual = compute_sha256(dest)
+            except ChecksumMismatchError as exc:
                 dest.unlink(missing_ok=True)
                 raise DownloadError(
                     url,
-                    f"Checksum mismatch: expected {expected_checksum}, got {actual}",
-                )
+                    f"Checksum mismatch: expected {exc.expected}, got {exc.actual}",
+                ) from exc
 
         return DownloadResult(
             path=dest,

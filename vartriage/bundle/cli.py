@@ -439,7 +439,6 @@ def _process_batch_results(
             file_size_bytes=raw_dest.stat().st_size if raw_dest.exists() else 0,
         )
         manifest.save(storage.manifest_path(build, entry.name))
-        manifest.save(storage.manifest_path(build, entry.name))
 
 
 def _transform_entry(
@@ -595,20 +594,24 @@ def _verify_manifest(
         return False
 
     # Check raw checksum if raw file is present
-    if manifest.raw_checksum:
-        raw_path = storage.raw_dir(build, manifest.bundle_name) / manifest.raw_filename
-        if raw_path.exists():
+    raw_path = (
+        storage.raw_dir(build, manifest.bundle_name) / manifest.raw_filename
+        if manifest.raw_filename
+        else None
+    )
+    if raw_path and raw_path.exists():
+        if manifest.raw_checksum:
             actual = compute_sha256(raw_path)
             if actual.lower() != manifest.raw_checksum.lower():
                 print(f"  {manifest.bundle_name}: CHECKSUM MISMATCH (raw)")
                 print(f"    expected: {manifest.raw_checksum}")
                 print(f"    actual:   {actual}")
                 return False
-    elif strict:
-        print(
-            f"  {manifest.bundle_name}: UNVERIFIED (raw checksum missing in manifest)"
-        )
-        return False
+        elif strict:
+            print(
+                f"  {manifest.bundle_name}: UNVERIFIED (raw checksum missing in manifest)"
+            )
+            return False
 
     print(f"  {manifest.bundle_name}: OK (v{manifest.version})")
     return True

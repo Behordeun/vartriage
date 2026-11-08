@@ -41,7 +41,13 @@ def compute_sha256(path: Path, chunk_size: int = 65536) -> str:
     return f"sha256:{sha256.hexdigest()}"
 
 
-def verify_checksum(path: Path, expected: str, *, strict: bool = False) -> bool:
+def verify_checksum(
+    path: Path,
+    expected: str,
+    *,
+    strict: bool = False,
+    raise_on_mismatch: bool = False,
+) -> bool:
     """Verify a file's SHA-256 checksum against an expected value.
 
     Parameters
@@ -55,6 +61,10 @@ def verify_checksum(path: Path, expected: str, *, strict: bool = False) -> bool:
     strict : bool, optional
         When True, an empty or missing expected checksum raises
         UnverifiedChecksumError rather than returning True. Default is False.
+    raise_on_mismatch : bool, optional
+        When True, a checksum mismatch raises ChecksumMismatchError directly
+        with the computed digest, avoiding redundant re-computation of large files.
+        Default is False.
 
     Returns
     -------
@@ -65,6 +75,8 @@ def verify_checksum(path: Path, expected: str, *, strict: bool = False) -> bool:
     ------
     UnverifiedChecksumError
         If strict is True and expected is empty.
+    ChecksumMismatchError
+        If raise_on_mismatch is True and the actual checksum does not match expected.
     """
     if not expected:
         if strict:
@@ -74,7 +86,11 @@ def verify_checksum(path: Path, expected: str, *, strict: bool = False) -> bool:
         return True
 
     actual = compute_sha256(path)
-    return actual.lower() == expected.lower()
+    if actual.lower() != expected.lower():
+        if raise_on_mismatch:
+            raise ChecksumMismatchError(path, expected, actual)
+        return False
+    return True
 
 
 class ChecksumMismatchError(Exception):
