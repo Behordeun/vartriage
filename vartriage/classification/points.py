@@ -51,6 +51,8 @@ _BENIGN_TAGS: frozenset[EvidenceTag] = frozenset(
         EvidenceTag.BA1,
         EvidenceTag.BS1,
         EvidenceTag.BS2,
+        EvidenceTag.BP1,
+        EvidenceTag.BP3,
         EvidenceTag.BP4,
         EvidenceTag.BP4_MODERATE,
         EvidenceTag.BP7,

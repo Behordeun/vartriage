@@ -110,6 +110,7 @@ class ClinVarProteinIndex:
     def __init__(self) -> None:
         # Key: (gene, amino_acid_position) -> ProteinPositionEntry
         self._index: dict[tuple[str, int], ProteinPositionEntry] = {}
+        self._genes_with_pathogenic_missense: set[str] = set()
         self._loaded: bool = False
 
     @classmethod
@@ -126,6 +127,7 @@ class ClinVarProteinIndex:
                     gene=v.gene, position=v.position
                 )
             instance._index[key].variants.append(v)
+            instance._genes_with_pathogenic_missense.add(v.gene)
         instance._loaded = True
         return instance
 
@@ -133,6 +135,10 @@ class ClinVarProteinIndex:
     def is_loaded(self) -> bool:
         """True if the index has been loaded from a reference file."""
         return self._loaded
+
+    def has_pathogenic_missense_in_gene(self, gene: str) -> bool:
+        """True if the index contains any pathogenic missense variants for the gene."""
+        return gene in self._genes_with_pathogenic_missense
 
     @property
     def variant_count(self) -> int:
@@ -384,3 +390,4 @@ class ClinVarProteinIndex:
                         gene=gene, position=position
                     )
                 self._index[key].variants.append(variant)
+                self._genes_with_pathogenic_missense.add(gene)
