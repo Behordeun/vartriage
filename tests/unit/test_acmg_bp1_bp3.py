@@ -71,7 +71,8 @@ class TestBP1:
 
     def test_fires_for_missense_in_established_lof_gene(self) -> None:
         lof_genes = frozenset({"TESTGENE"})
-        classifier = ACMGClassifier(lof_gene_list=lof_genes)
+        pindex = ClinVarProteinIndex.from_variants([])
+        classifier = ACMGClassifier(protein_index=pindex, lof_gene_list=lof_genes)
         sv = _make_variant(
             consequence=FunctionalConsequence.MISSENSE,
             gene_name="TESTGENE",
@@ -84,9 +85,26 @@ class TestBP1:
 
         assert EvidenceTag.BP1 in tags
 
+    def test_missing_protein_index_records_missing_source(self) -> None:
+        lof_genes = frozenset({"TESTGENE"})
+        classifier = ACMGClassifier(protein_index=None, lof_gene_list=lof_genes)
+        sv = _make_variant(
+            consequence=FunctionalConsequence.MISSENSE,
+            gene_name="TESTGENE",
+            mis_z=-0.8,
+        )
+        tags: set[EvidenceTag] = set()
+        missing: set[str] = set()
+
+        classifier._evaluate_bp1(sv, tags, missing)
+
+        assert EvidenceTag.BP1 not in tags
+        assert "ClinVar_protein_index" in missing
+
     def test_does_not_fire_when_gene_not_in_lof_list(self) -> None:
         lof_genes = frozenset({"OTHERGENE"})
-        classifier = ACMGClassifier(lof_gene_list=lof_genes)
+        pindex = ClinVarProteinIndex.from_variants([])
+        classifier = ACMGClassifier(protein_index=pindex, lof_gene_list=lof_genes)
         sv = _make_variant(
             consequence=FunctionalConsequence.MISSENSE,
             gene_name="TESTGENE",
@@ -99,7 +117,8 @@ class TestBP1:
         assert EvidenceTag.BP1 not in tags
 
     def test_missing_lof_list_records_missing_source(self) -> None:
-        classifier = ACMGClassifier(lof_gene_list=None)
+        pindex = ClinVarProteinIndex.from_variants([])
+        classifier = ACMGClassifier(protein_index=pindex, lof_gene_list=None)
         sv = _make_variant(
             consequence=FunctionalConsequence.MISSENSE,
             gene_name="TESTGENE",
@@ -114,7 +133,8 @@ class TestBP1:
 
     def test_does_not_fire_for_non_missense(self) -> None:
         lof_genes = frozenset({"TESTGENE"})
-        classifier = ACMGClassifier(lof_gene_list=lof_genes)
+        pindex = ClinVarProteinIndex.from_variants([])
+        classifier = ACMGClassifier(protein_index=pindex, lof_gene_list=lof_genes)
         sv = _make_variant(
             consequence=FunctionalConsequence.SYNONYMOUS,
             gene_name="TESTGENE",
@@ -153,7 +173,8 @@ class TestBP1:
 
     def test_does_not_fire_when_gene_is_missense_constrained(self) -> None:
         lof_genes = frozenset({"TESTGENE"})
-        classifier = ACMGClassifier(lof_gene_list=lof_genes)
+        pindex = ClinVarProteinIndex.from_variants([])
+        classifier = ACMGClassifier(protein_index=pindex, lof_gene_list=lof_genes)
         sv = _make_variant(
             consequence=FunctionalConsequence.MISSENSE,
             gene_name="TESTGENE",
@@ -168,7 +189,8 @@ class TestBP1:
 
     def test_does_not_fire_when_conflicting_pathogenic_tag_present(self) -> None:
         lof_genes = frozenset({"TESTGENE"})
-        classifier = ACMGClassifier(lof_gene_list=lof_genes)
+        pindex = ClinVarProteinIndex.from_variants([])
+        classifier = ACMGClassifier(protein_index=pindex, lof_gene_list=lof_genes)
         sv = _make_variant(
             consequence=FunctionalConsequence.MISSENSE,
             gene_name="TESTGENE",
@@ -217,6 +239,44 @@ class TestBP3:
         assert EvidenceTag.BP3 in tags
         assert EvidenceTag.PM4 not in tags
 
+    def test_falsy_repeat_values_do_not_fire_bp3(self) -> None:
+        classifier = ACMGClassifier()
+        for falsy in ("0", False, "false", "no", 0):
+            sv = _make_variant(
+                consequence=FunctionalConsequence.IN_FRAME_DELETION,
+                info={"REPEAT": falsy},
+            )
+            tags: set[EvidenceTag] = set()
+            missing: set[str] = set()
+
+            classifier._evaluate_pm4(sv, tags, missing)
+            classifier._evaluate_bp3(sv, tags, missing)
+
+            assert EvidenceTag.BP3 not in tags
+            assert EvidenceTag.PM4 in tags
+
+    def test_truthy_repeat_values_fire_bp3(self) -> None:
+        classifier = ACMGClassifier()
+        for key, truthy in [
+            ("repeat", True),
+            ("REPEAT", "1"),
+            ("In_Repeat", "true"),
+            ("str", 1),
+            ("RMSK", "yes"),
+        ]:
+            sv = _make_variant(
+                consequence=FunctionalConsequence.IN_FRAME_DELETION,
+                info={key: truthy},
+            )
+            tags: set[EvidenceTag] = set()
+            missing: set[str] = set()
+
+            classifier._evaluate_pm4(sv, tags, missing)
+            classifier._evaluate_bp3(sv, tags, missing)
+
+            assert EvidenceTag.BP3 in tags
+            assert EvidenceTag.PM4 not in tags
+
     def test_non_repeat_inframe_deletion_fires_pm4_not_bp3(self) -> None:
         classifier = ACMGClassifier()
         sv = _make_variant(
@@ -251,7 +311,8 @@ class TestBenignCombiningWithBP1BP3:
 
     def test_bp1_plus_bp4_yields_likely_benign(self) -> None:
         lof_genes = frozenset({"TESTGENE"})
-        classifier = ACMGClassifier(lof_gene_list=lof_genes)
+        pindex = ClinVarProteinIndex.from_variants([])
+        classifier = ACMGClassifier(protein_index=pindex, lof_gene_list=lof_genes)
         # Low REVEL (0.25) triggers BP4; missense in LoF gene triggers BP1
         sv = _make_variant(
             consequence=FunctionalConsequence.MISSENSE,

@@ -105,19 +105,19 @@ _PM4_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset(
 _MISSING_SOURCE_GNOMAD = "gnomAD"
 _MISSING_SOURCE_GNOMAD_CONSTRAINT = "gnomAD_constraint"
 _REPEAT_INFO_KEYS = frozenset(
-    {"REPEAT", "IN_REPEAT", "REPETITIVE", "SIMPLE_REPEAT", "STR", "RMSK"}
+    {"repeat", "in_repeat", "repetitive", "simple_repeat", "str", "rmsk"}
 )
 
 
 def _is_repeat_region(variant: ScoredVariant) -> bool:
     """Check if variant falls in a tandem repeat, homopolymer, or repetitive region."""
     info = variant.annotated.variant.info
-    if any(k.upper() in _REPEAT_INFO_KEYS for k in info):
-        return True
-    for key in ("repeat", "in_repeat", "repetitive", "simple_repeat"):
-        val = info.get(key)
-        if val is True or val == "1" or val == 1:
-            return True
+    for k, v in info.items():
+        if k.lower() in _REPEAT_INFO_KEYS:
+            if v is True or v == 1:
+                return True
+            if isinstance(v, str) and v.strip().lower() in ("true", "t", "yes", "1"):
+                return True
     return False
 
 
@@ -920,11 +920,17 @@ class ACMGClassifier:
         if gene_name not in self._lof_gene_list:
             return
 
-        # Check if ClinVar protein index has known pathogenic missense variants in this gene
-        if self._protein_index is not None and self._protein_index.is_loaded:
-            if self._protein_index.has_pathogenic_missense_in_gene(gene_name):
-                return
-        elif variant.annotated.clinvar_assertion in (
+        # Check if ClinVar protein index is loaded
+        if self._protein_index is None or not self._protein_index.is_loaded:
+            missing_sources.add("ClinVar_protein_index")
+            return
+
+        # Check if ClinVar records known pathogenic missense variants in this gene
+        if self._protein_index.has_pathogenic_missense_in_gene(gene_name):
+            return
+
+        # Do not fire if current variant itself is reported pathogenic in ClinVar
+        if variant.annotated.clinvar_assertion in (
             ClinVarAssertion.PATHOGENIC,
             ClinVarAssertion.LIKELY_PATHOGENIC,
         ):
