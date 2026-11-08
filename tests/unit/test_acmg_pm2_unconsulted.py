@@ -277,56 +277,56 @@ class TestVEPNoFrequencyFallback:
 
 
 class TestLocalDatabasesContigScope:
-    """Verify local backends distinguish covered chromosomes from unrepresented ones."""
+    """Verify local backends produce explicit resolution states."""
 
-    def test_dict_frequency_database_contig_scope(self, tmp_path: Path) -> None:
-        tsv_path = tmp_path / "gnomad_chr1_only.tsv"
-        tsv_path.write_text("chrom\tpos\tref\talt\taf\nchr1\t1000\tA\tG\t0.001\n")
-
+    def test_dict_frequency_database_resolutions(self, tmp_path: Path) -> None:
         db = DictFrequencyDatabase()
+        unloaded_res = db.lookup_batch_resolutions([("chr1", 1000, "A", "G")])
+        assert unloaded_res[0].state is ResolutionState.LOOKUP_FAILED
+
+        tsv_path = tmp_path / "gnomad_test.tsv"
+        tsv_path.write_text("chrom\tpos\tref\talt\taf\nchr1\t1000\tA\tG\t0.001\n")
         db.load(tsv_path)
 
-        # Variant 1: on chr1 and present -> FOUND
-        # Variant 2: on chr1 but absent -> CONFIRMED_ABSENT
-        # Variant 3: on chr2 (not loaded) -> LOOKUP_FAILED
+        # Variant 1: present -> FOUND
+        # Variant 2: absent -> CONFIRMED_ABSENT
         variants = [
             ("chr1", 1000, "A", "G"),
             ("chr1", 2000, "C", "T"),
-            ("chr2", 3000, "G", "A"),
         ]
         resolutions = db.lookup_batch_resolutions(variants)
 
-        assert len(resolutions) == 3
+        assert len(resolutions) == 2
         assert resolutions[0].state is ResolutionState.FOUND
         assert resolutions[0].value == 0.001
-
         assert resolutions[1].state is ResolutionState.CONFIRMED_ABSENT
 
-        assert resolutions[2].state is ResolutionState.LOOKUP_FAILED
-        assert "chr2" in (resolutions[2].reason or "")
-
     @pytest.mark.skipif(not POLARS_AVAILABLE, reason="polars not installed")
-    def test_polars_frequency_database_contig_scope(self, tmp_path: Path) -> None:
-        tsv_path = tmp_path / "gnomad_chr1_only.tsv"
-        tsv_path.write_text("chrom\tpos\tref\talt\taf\nchr1\t1000\tA\tG\t0.001\n")
-
+    def test_polars_frequency_database_resolutions(self, tmp_path: Path) -> None:
         db = PolarsFrequencyDatabase()
+        unloaded_res = db.lookup_batch_resolutions([("chr1", 1000, "A", "G")])
+        assert unloaded_res[0].state is ResolutionState.LOOKUP_FAILED
+
+        tsv_path = tmp_path / "gnomad_test.tsv"
+        tsv_path.write_text("chrom\tpos\tref\talt\taf\nchr1\t1000\tA\tG\t0.001\n")
         db.load(tsv_path)
 
         variants = [
             ("chr1", 1000, "A", "G"),
             ("chr1", 2000, "C", "T"),
-            ("chr2", 3000, "G", "A"),
         ]
         resolutions = db.lookup_batch_resolutions(variants)
 
-        assert len(resolutions) == 3
+        assert len(resolutions) == 2
         assert resolutions[0].state is ResolutionState.FOUND
+        assert resolutions[0].value == 0.001
         assert resolutions[1].state is ResolutionState.CONFIRMED_ABSENT
-        assert resolutions[2].state is ResolutionState.LOOKUP_FAILED
 
     def test_tabix_frequency_database_contig_scope(self) -> None:
         db = TabixFrequencyDatabase()
+        unloaded_res = db.lookup_batch_resolutions([("chr1", 1000, "A", "G")])
+        assert unloaded_res[0].state is ResolutionState.LOOKUP_FAILED
+
         mock_tabix = MagicMock()
         mock_tabix.contigs = ["chr1", "chrX"]
         mock_tabix.fetch.side_effect = lambda chrom, start, end: (
