@@ -99,8 +99,6 @@ The earlier eRepo figures below predate both the ClinGen SVI Bayesian point engi
 
 ---
 
----
-
 ## GIAB Validation
 
 This document describes how to validate vartriage against Genome in a Bottle (GIAB) benchmark data, the gold standard for germline variant calling evaluation.
@@ -262,7 +260,7 @@ This runs on-demand rather than on every PR (too slow and too much data).
 
 ## ClinVar Expert-Panel (eRepo) Validation
 
-> **Historical (v0.17.5), superseded by the v1.0.0 full-genome run at the top of this document.** The figures in this section predate the ClinGen SVI Bayesian point engine (the combining path since v0.18.3) and the v1.0.0 benchmark. They are retained to document the eRepo methodology and the pre-point-engine behavior, and do not describe the current release.
+> **Historical (v0.17.5), superseded by the v1.2.0 eRepo benchmark at the top of this document.** The figures in this section predate the ClinGen SVI Bayesian point engine (the combining path since v0.18.3) and the v1.2.0 benchmark. They are retained to document the eRepo methodology and the pre-point-engine behavior, and do not describe the current release.
 
 The eRepo validation uses ClinVar submissions from Expert Panels only (review status 3+ stars). These are the highest-confidence clinical variant interpretations available, representing consensus multi-lab assessments.
 
