@@ -19,6 +19,7 @@ from vartriage.api._rate_limiter import RateLimiter
 from vartriage.api.clinvar_client import ClinVarClient
 from vartriage.api.config import APIConfig
 from vartriage.api.vep_client import VEPAnnotation, VEPClient
+from vartriage.models.resolution import ResolutionState
 from vartriage.models.variant import (
     AnnotatedVariant,
     ClinVarAssertion,
@@ -144,13 +145,25 @@ class APIAnnotationEngine:
             consequence = FunctionalConsequence.INTERGENIC
             gene_name: str | None = None
             allele_frequency: float | None = None
+            freq_state: ResolutionState
 
             if vep_ann is not None:
                 consequence = vep_ann.consequence
                 gene_name = vep_ann.gene_name
                 allele_frequency = vep_ann.allele_frequency
+                if allele_frequency is not None:
+                    freq_state = ResolutionState.FOUND
+                    frequency_unknown = False
+                else:
+                    # VEP's gnomAD annotation coverage is not exhaustive across all
+                    # builds/regions; a missing frequency field in VEP is not evidence of
+                    # absence. Fail closed to LOOKUP_FAILED so PM2 is not assigned.
+                    freq_state = ResolutionState.LOOKUP_FAILED
+                    frequency_unknown = False
+            else:
+                freq_state = ResolutionState.LOOKUP_FAILED
+                frequency_unknown = False
 
-            frequency_unknown = allele_frequency is None
             clinvar_unknown = clinvar_assertion is None
 
             # Track missing data for the limitations section
@@ -166,7 +179,7 @@ class APIAnnotationEngine:
                     )
                 )
 
-            if frequency_unknown and vep_ann is not None:
+            if freq_state is ResolutionState.LOOKUP_FAILED and vep_ann is not None:
                 # VEP responded but had no gnomAD data for this position
                 self._warnings.append(
                     MissingDataWarning(
@@ -175,7 +188,7 @@ class APIAnnotationEngine:
                         ref=variant.ref,
                         alt=variant.alt,
                         source="gnomAD",
-                        reason="not_found",
+                        reason="lookup_failed",
                     )
                 )
 
@@ -200,6 +213,7 @@ class APIAnnotationEngine:
                     frequency_unknown=frequency_unknown,
                     clinvar_unknown=clinvar_unknown,
                     gene_name=gene_name,
+                    frequency_state=freq_state,
                 )
             )
 

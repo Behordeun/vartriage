@@ -210,8 +210,10 @@ When gnomAD data includes per-population columns (AFR, AMR, ASJ, EAS, FIN, NFE, 
 
 **Missing data handling:**
 
-- Variant not in gnomAD: `allele_frequency=None`, `frequency_unknown=True`, emits `MissingDataWarning`
-- Variant not in ClinVar: `clinvar_assertion=None`, `clinvar_unknown=True`, emits `MissingDataWarning`
+- Variant queried in gnomAD and not found: `allele_frequency=None`, `frequency_unknown=True`, `frequency_state=CONFIRMED_ABSENT`, emits `MissingDataWarning`.
+- Variant unconsulted (gnomAD reference omitted or `--skip-annotation`): `allele_frequency=None`, `frequency_unknown=False`, `frequency_state=None`, records `gnomAD` in missing sources and does not fire PM2.
+- Remote gnomAD lookup failed (network error or open circuit breaker): `allele_frequency=None`, `frequency_unknown=False`, `frequency_state=LOOKUP_FAILED`, emits `MissingDataWarning(reason="lookup_failed")`, does not fire PM2.
+- Variant not in ClinVar: `clinvar_assertion=None`, `clinvar_unknown=True`, emits `MissingDataWarning`.
 
 **Configuration:** `AnnotationConfig(gene_annotation_path, gnomad_path, clinvar_path=None, batch_size=10_000)`
 
@@ -318,7 +320,7 @@ Pathogenic criteria:
 | PVS1_Strong | Strong | PVS1 downgraded: gene not on the curated LoF-mechanism set, or the null variant escapes NMD (last exon, within 50 nt of the final junction, or single-exon gene) |
 | PS1 | Strong | Same amino acid change as established ClinVar Pathogenic, via different nucleotide (requires protein index + codon resolution) |
 | PM1 | Moderate | Missense in a critical functional domain (missense constraint region, gnomAD mis_z > 3.09) |
-| PM2 | Supporting | All population AFs < 0.0001, or absent from gnomAD (population-specific when available) |
+| PM2 | Supporting | All population AFs < 0.0001, or confirmed absent from gnomAD (population-specific when available; unconsulted data never triggers PM2) |
 | PM4 | Moderate | In-frame insertion/deletion or stop-loss variant in a non-repetitive region |
 | PM5 | Moderate | Novel missense at an amino acid position with known pathogenic missense in ClinVar (requires protein index) |
 | PP3 | Supporting | REVEL > 0.644, or SpliceAI > 0.5 on a splice-adjacent variant |

@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pysam
 
+from vartriage.models.resolution import Resolution
 from vartriage.remote.cache import RemoteScoreCache
 from vartriage.remote.circuit_breaker import CircuitBreaker
 from vartriage.remote.config import RemoteTabixConfig
@@ -98,6 +99,96 @@ class RemoteTabixGnomAD:
         configured via RemoteTabixConfig at construction time.
         """
 
+    def lookup_batch_resolutions(
+        self, variants: list[_VariantKey]
+    ) -> list[Resolution[float]]:
+        """Query allele frequencies with explicit tri-state resolution outcomes.
+
+        Checks the local cache first, then queries uncached variants
+        via remote tabix. Returns a Resolution per variant:
+        - Resolution.found(af) for variants observed in gnomAD.
+        - Resolution.confirmed_absent() for variants queried and confirmed absent.
+        - Resolution.lookup_failed(reason) when circuit breaker is open or query failed.
+
+        Parameters
+        ----------
+        variants : list[tuple[str, int, str, str]]
+            (chrom, pos, ref, alt) tuples.
+
+        Returns
+        -------
+        list[Resolution[float]]
+            Tri-state resolutions positionally matched to input.
+        """
+        if not variants:
+            return []
+
+        resolutions: list[Resolution[float] | None] = [None] * len(variants)
+        uncached_indices: list[int] = []
+
+        # Phase 1: check cache. A score hit returns found; a confirmed
+        # absence returns confirmed_absent without a remote query.
+        variant_list = list(variants)
+        cached_scores = self._cache.get_batch(self._source_id, variant_list)
+        absent_flags: list[bool] | None = None
+
+        for i, score in enumerate(cached_scores):
+            if score is not None:
+                resolutions[i] = Resolution.found(score)
+                self._cache_hits += 1
+            else:
+                if absent_flags is None:
+                    absent_flags = self._cache.get_absent_batch(
+                        self._source_id, variant_list
+                    )
+                if absent_flags[i]:
+                    resolutions[i] = Resolution.confirmed_absent()
+                    self._cache_hits += 1
+                else:
+                    uncached_indices.append(i)
+
+        if not uncached_indices:
+            return [res for res in resolutions if res is not None]
+
+        # Phase 2: query remote for cache misses
+        if self._breaker.is_open:
+            logger.debug(
+                "Circuit breaker open — skipping %d remote gnomAD queries",
+                len(uncached_indices),
+            )
+            for idx in uncached_indices:
+                resolutions[idx] = Resolution.lookup_failed("Circuit breaker open")
+            return [res for res in resolutions if res is not None]
+
+        uncached_variants = [variants[i] for i in uncached_indices]
+        remote_results, confirmed_absent = self._query_remote_batched(uncached_variants)
+        confirmed_absent_set = set(confirmed_absent)
+
+        # Phase 3: merge results and cache. Present variants cache their score;
+        # variants a successful fetch did not find cache as confirmed absent so
+        # the next run is a hit, not a re-query. A failed fetch yields lookup_failed.
+        cache_entries: list[tuple[str, int, str, str, float]] = []
+
+        for idx, variant in zip(uncached_indices, uncached_variants, strict=True):
+            af = remote_results.get(variant)
+            if af is not None:
+                resolutions[idx] = Resolution.found(af)
+                chrom, pos, ref, alt = variant
+                cache_entries.append((chrom, pos, ref, alt, af))
+            elif variant in confirmed_absent_set:
+                resolutions[idx] = Resolution.confirmed_absent()
+            else:
+                resolutions[idx] = Resolution.lookup_failed(
+                    "Remote range query failed or timed out"
+                )
+
+        if cache_entries:
+            self._cache.put_batch(self._source_id, cache_entries)
+        if confirmed_absent:
+            self._cache.put_absent_batch(self._source_id, confirmed_absent)
+
+        return [res for res in resolutions if res is not None]
+
     def lookup_batch(self, variants: list[_VariantKey]) -> list[float | None]:
         """Query allele frequencies for a batch of variants.
 
@@ -116,65 +207,8 @@ class RemoteTabixGnomAD:
             Allele frequencies positionally matched. None for
             variants not found or when the circuit breaker is open.
         """
-        if not variants:
-            return []
-
-        results: list[float | None] = [None] * len(variants)
-        uncached_indices: list[int] = []
-
-        # Phase 1: check cache. A score hit returns the frequency; a confirmed
-        # absence returns None without a remote query. Only variants in neither
-        # table are queried remotely.
-        variant_list = list(variants)
-        cached_scores = self._cache.get_batch(self._source_id, variant_list)
-        absent_flags: list[bool] | None = None
-
-        for i, score in enumerate(cached_scores):
-            if score is not None:
-                results[i] = score
-                self._cache_hits += 1
-            else:
-                if absent_flags is None:
-                    absent_flags = self._cache.get_absent_batch(
-                        self._source_id, variant_list
-                    )
-                if absent_flags[i]:
-                    self._cache_hits += 1
-                else:
-                    uncached_indices.append(i)
-
-        if not uncached_indices:
-            return results
-
-        # Phase 2: query remote for cache misses
-        if self._breaker.is_open:
-            logger.debug(
-                "Circuit breaker open — skipping %d remote gnomAD queries",
-                len(uncached_indices),
-            )
-            return results
-
-        uncached_variants = [variants[i] for i in uncached_indices]
-        remote_results, confirmed_absent = self._query_remote_batched(uncached_variants)
-
-        # Phase 3: merge results and cache. Present variants cache their score;
-        # variants a successful fetch did not find cache as confirmed absent so
-        # the next run is a hit, not a re-query. A failed fetch yields neither.
-        cache_entries: list[tuple[str, int, str, str, float]] = []
-
-        for idx, variant in zip(uncached_indices, uncached_variants, strict=True):
-            af = remote_results.get(variant)
-            if af is not None:
-                results[idx] = af
-                chrom, pos, ref, alt = variant
-                cache_entries.append((chrom, pos, ref, alt, af))
-
-        if cache_entries:
-            self._cache.put_batch(self._source_id, cache_entries)
-        if confirmed_absent:
-            self._cache.put_absent_batch(self._source_id, confirmed_absent)
-
-        return results
+        resolutions = self.lookup_batch_resolutions(variants)
+        return [res.value if res.is_found else None for res in resolutions]
 
     def lookup_batch_populations(
         self, variants: list[_VariantKey]

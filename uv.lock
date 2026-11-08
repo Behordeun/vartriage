@@ -2343,6 +2343,7 @@ docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
+    { name = "pymdown-extensions" },
 ]
 docx = [
     { name = "python-docx" },
@@ -2372,6 +2373,7 @@ requires-dist = [
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.6.2" },
     { name = "pydyf", marker = "extra == 'all'", specifier = ">=0.11,<0.13" },
     { name = "pydyf", marker = "extra == 'clinical'", specifier = ">=0.11,<0.13" },
+    { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = "<12.0" },
     { name = "pyranges", marker = "extra == 'accelerated'", specifier = ">=0.1.0,<1.0" },
     { name = "pyranges", marker = "extra == 'all'", specifier = ">=0.1.0,<1.0" },
     { name = "pysam", specifier = ">=0.22.0,<1.0" },

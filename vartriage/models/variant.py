@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from vartriage.models.resolution import ResolutionState
+
 if TYPE_CHECKING:
     from vartriage.knowledge.models import GeneContext
 
@@ -398,7 +400,8 @@ class AnnotatedVariant:
     clinvar_assertion : Optional[ClinVarAssertion]
         ClinVar clinical significance or None if not found.
     frequency_unknown : bool
-        True if variant was absent from gnomAD.
+        True if variant was queried and confirmed absent from gnomAD.
+        False if frequency database was unconsulted, lookup failed, or observed.
     clinvar_unknown : bool
         True if variant was absent from ClinVar.
     gene_name : Optional[str]
@@ -406,6 +409,9 @@ class AnnotatedVariant:
     protein_change : Optional[ProteinChange]
         Amino acid substitution from codon resolution, or None if not a
         coding SNV or resolution failed.
+    frequency_state : Optional[ResolutionState]
+        Tri-state lookup outcome (FOUND, CONFIRMED_ABSENT, LOOKUP_FAILED),
+        or None if unconsulted.
     """
 
     variant: Variant
@@ -421,6 +427,7 @@ class AnnotatedVariant:
     quality_metrics: VariantQualityMetrics | None = None
     gene_context: GeneContext | None = None
     protein_change: ProteinChange | None = None
+    frequency_state: ResolutionState | None = None
 
 
 @dataclass(frozen=True, slots=True)

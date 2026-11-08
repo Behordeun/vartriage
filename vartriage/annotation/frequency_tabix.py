@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import pysam
 
 from vartriage._internal.path_safety import resolve_path
 from vartriage.io.exceptions import ReferenceFileError
+from vartriage.models.resolution import Resolution
 from vartriage.models.warnings import MissingDataWarning
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,73 @@ class TabixFrequencyDatabase:
                 f"{reference_path}: cannot open tabix file: {exc}"
             ) from exc
 
+    def _fetch_records(
+        self, chrom: str, pos: int
+    ) -> tuple[Any | None, Resolution[float] | None]:
+        """Fetch records from tabix for pos-1..pos, tolerating 'chr' prefix differences."""
+        if self._tabix is None:
+            return None, Resolution.lookup_failed("No tabix reference loaded")
+
+        # When contigs metadata is available, verify contig representation upfront
+        contigs = getattr(self._tabix, "contigs", None)
+        if isinstance(contigs, (list, tuple, set)) and len(contigs) > 0:
+            contig_set = set(contigs)
+            alt_chrom = chrom[3:] if chrom.startswith("chr") else f"chr{chrom}"
+            if chrom not in contig_set and alt_chrom not in contig_set:
+                return None, Resolution.lookup_failed(
+                    f"Contig '{chrom}' not present in tabix index"
+                )
+
+        try:
+            return self._tabix.fetch(chrom, pos - 1, pos), None
+        except ValueError:
+            # Chromosome might be named without or with 'chr' in the index
+            alt_chrom = chrom[3:] if chrom.startswith("chr") else f"chr{chrom}"
+            try:
+                return self._tabix.fetch(alt_chrom, pos - 1, pos), None
+            except ValueError:
+                return None, Resolution.lookup_failed(
+                    f"Contig '{chrom}' not present in tabix index"
+                )
+            except Exception as exc:
+                return None, Resolution.lookup_failed(f"Tabix query error: {exc}")
+        except Exception as exc:
+            return None, Resolution.lookup_failed(f"Tabix query error: {exc}")
+
+    def _lookup_single_resolution(
+        self, chrom: str, pos: int, ref: str, alt: str
+    ) -> Resolution[float]:
+        """Query tabix for a single variant with explicit tri-state resolution."""
+        records, err = self._fetch_records(chrom, pos)
+        if records is None:
+            return err or Resolution.lookup_failed("Tabix fetch failed")
+
+        for record_line in records:
+            af = self._parse_af_from_record(record_line, ref, alt)
+            if af is not None:
+                return Resolution.found(af)
+
+        return Resolution.confirmed_absent()
+
+    def lookup_batch_resolutions(
+        self, variants: list[tuple[str, int, str, str]]
+    ) -> list[Resolution[float]]:
+        """Query allele frequencies with explicit tri-state resolution outcomes.
+
+        Returns a Resolution per variant:
+        - Resolution.found(af) for variants observed in gnomAD.
+        - Resolution.confirmed_absent() for variants queried and confirmed absent.
+        - Resolution.lookup_failed(reason) when contig is not indexed or fetch fails.
+        """
+        if self._tabix is None:
+            return [
+                Resolution.lookup_failed("No tabix reference loaded") for _ in variants
+            ]
+        return [
+            self._lookup_single_resolution(chrom, pos, ref, alt)
+            for chrom, pos, ref, alt in variants
+        ]
+
     def lookup_batch(
         self, variants: list[tuple[str, int, str, str]]
     ) -> list[float | None]:
@@ -87,13 +156,15 @@ class TabixFrequencyDatabase:
         -------
         list[Optional[float]]
             Allele frequencies, positionally matched. None for
-            variants not found.
+            variants not found or on unindexed contigs.
         """
+        resolutions = self.lookup_batch_resolutions(variants)
         results: list[float | None] = []
 
-        for chrom, pos, ref, alt in variants:
-            af = self._lookup_single(chrom, pos, ref, alt)
-            if af is None:
+        for (chrom, pos, ref, alt), res in zip(variants, resolutions, strict=True):
+            if res.is_found:
+                results.append(res.value)
+            else:
                 self.warnings.append(
                     MissingDataWarning(
                         chrom=chrom,
@@ -101,10 +172,12 @@ class TabixFrequencyDatabase:
                         ref=ref,
                         alt=alt,
                         source="gnomAD",
-                        reason="not_found",
+                        reason="not_found"
+                        if res.is_confirmed_absent
+                        else "lookup_failed",
                     )
                 )
-            results.append(af)
+                results.append(None)
 
         return results
 
@@ -164,12 +237,8 @@ class TabixFrequencyDatabase:
         self, chrom: str, pos: int, ref: str, alt: str
     ) -> dict[str, float] | None:
         """Query tabix for one variant's global + per-population AF map."""
-        if self._tabix is None:
-            return None
-
-        try:
-            records = self._tabix.fetch(chrom, pos - 1, pos)
-        except ValueError:
+        records, _ = self._fetch_records(chrom, pos)
+        if records is None:
             return None
 
         for record_line in records:
@@ -222,21 +291,8 @@ class TabixFrequencyDatabase:
 
     def _lookup_single(self, chrom: str, pos: int, ref: str, alt: str) -> float | None:
         """Query tabix for a single variant's allele frequency."""
-        if self._tabix is None:
-            return None
-
-        try:
-            records = self._tabix.fetch(chrom, pos - 1, pos)
-        except ValueError:
-            # Chromosome not in the tabix index
-            return None
-
-        for record_line in records:
-            af = self._parse_af_from_record(record_line, ref, alt)
-            if af is not None:
-                return af
-
-        return None
+        res = self._lookup_single_resolution(chrom, pos, ref, alt)
+        return res.value if res.is_found else None
 
     def _parse_af_from_record(
         self, record_line: str, ref: str, alt: str

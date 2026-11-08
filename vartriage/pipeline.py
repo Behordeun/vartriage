@@ -967,6 +967,7 @@ class Pipeline:
                         frequency_unknown=original.frequency_unknown,
                         clinvar_unknown=original.clinvar_unknown,
                         gene_name=original.gene_name,
+                        frequency_state=original.frequency_state,
                     )
                 )
             else:
@@ -974,8 +975,9 @@ class Pipeline:
                     AnnotatedVariant(
                         variant=v,
                         consequence=FunctionalConsequence.INTERGENIC,
-                        frequency_unknown=True,
+                        frequency_unknown=False,
                         clinvar_unknown=True,
+                        frequency_state=None,
                     )
                 )
         return results
@@ -1042,7 +1044,7 @@ class Pipeline:
                 consequence=FunctionalConsequence.INTERGENIC,
                 allele_frequency=None,
                 clinvar_assertion=None,
-                frequency_unknown=True,
+                frequency_unknown=False,
                 clinvar_unknown=True,
             )
 
