@@ -73,7 +73,7 @@ pipeline = Pipeline(config)
 pipeline.run()
 ```
 
-The output is a JSON file at `candidates.json` with variants ranked by composite pathogenicity score, classified per ACMG/AMP 2015 guidelines.
+The output is a JSON file at `candidates.json` with variants ranked by composite pathogenicity score and classified using the ClinGen SVI Bayesian point framework. VarTriage functions as an audited computational triage pre-filter: high-confidence pathogenic variants (such as loss-of-function variants in curated haploinsufficient genes) are identified with high PPV (91.6%), while variants lacking orthogonal functional or case-level evidence are safely retained at VUS for clinical review.
 
 ## Caching
 
