@@ -218,7 +218,9 @@ vartriage/bundle/
 
 Bundles are reference files packaged for automatic download and transformation. `--use-bundles` in the CLI auto-resolves paths from installed bundles. Explicit path flags always take precedence.
 
-Storage layout: `~/.vartriage/bundles/grch38/clinvar/clinvar.tsv` (configurable via `VARTRIAGE_BUNDLE_STORAGE` env var).
+Integrity verification: SHA-256 digests are computed and recorded in `manifest.json` for both raw downloaded files and transformed reference artifacts. When strict checksum enforcement is enabled (via `--strict-checksums`, `vartriage bundle verify --strict`, or `VARTRIAGE_STRICT_CHECKSUMS=true` in `config.toml`), missing, unrecorded, or mismatched checksums fail closed with `UnverifiedChecksumError`.
+
+Storage layout: `~/.vartriage/bundles/{build}/{bundle_name}/` (configurable via `VARTRIAGE_BUNDLE_STORAGE` env var).
 
 ## Clinical report generation (v0.5.0+)
 

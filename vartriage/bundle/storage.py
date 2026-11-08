@@ -9,7 +9,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from vartriage.bundle._checksums import ChecksumMismatchError, compute_sha256
+from vartriage.bundle._checksums import (
+    ChecksumMismatchError,
+    UnverifiedChecksumError,
+    compute_sha256,
+)
 from vartriage.bundle.manifest import BundleManifest
 
 
@@ -74,11 +78,34 @@ class BundleStorage:
         except (FileNotFoundError, ValueError):
             return None
 
-    def resolve_path(self, build: str, bundle_name: str) -> Path | None:
+    def resolve_path(
+        self, build: str, bundle_name: str, strict: bool = False
+    ) -> Path | None:
         """Resolve the path to the transformed file if installed.
 
-        Returns None if the bundle is not installed or the
-        transformed file doesn't exist on disk.
+        Parameters
+        ----------
+        build : str
+            Genome assembly build (e.g., "grch38").
+        bundle_name : str
+            Name of the bundle.
+        strict : bool, optional
+            When True, requires the bundle manifest to contain a valid
+            transformed checksum, and verifies that the on-disk file
+            matches it. If no checksum is recorded, raises
+            UnverifiedChecksumError. Default is False.
+
+        Returns
+        -------
+        Path | None
+            Path to transformed reference file, or None if not installed.
+
+        Raises
+        ------
+        ChecksumMismatchError
+            If transformed checksum does not match the on-disk file.
+        UnverifiedChecksumError
+            If strict is True and no transformed checksum is recorded.
         """
         try:
             manifest = BundleManifest.load(self.manifest_path(build, bundle_name))
@@ -97,13 +124,17 @@ class BundleStorage:
         # When the manifest records a checksum for the transformed file,
         # verify the on-disk copy before handing it to the pipeline so a
         # truncated or altered reference is caught rather than used. An empty
-        # checksum (nothing recorded) skips verification.
+        # checksum (nothing recorded) skips verification unless strict=True.
         if manifest.transformed_checksum:
             actual = compute_sha256(transformed)
-            if actual != manifest.transformed_checksum:
+            if actual.lower() != manifest.transformed_checksum.lower():
                 raise ChecksumMismatchError(
                     transformed, manifest.transformed_checksum, actual
                 )
+        elif strict:
+            raise UnverifiedChecksumError(
+                f"Bundle '{bundle_name}' ({build}) has no recorded transformed checksum in manifest"
+            )
 
         return transformed
 

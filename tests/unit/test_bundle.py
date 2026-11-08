@@ -8,6 +8,7 @@ import pytest
 
 from vartriage.bundle._checksums import (
     ChecksumMismatchError,
+    UnverifiedChecksumError,
     compute_sha256,
     verify_checksum,
 )
@@ -198,6 +199,46 @@ class TestBundleStorage:
 
         assert storage.resolve_path("grch38", "clinvar") is not None
 
+    def test_resolve_path_strict_raises_when_no_checksum(self, tmp_path: Path) -> None:
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+        bundle_dir = storage.bundle_dir("grch38", "clinvar")
+        (bundle_dir / "clinvar.tsv").write_text("chrom\tpos\n")
+
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            transformed_filename="clinvar.tsv",
+        )
+        manifest.save(storage.manifest_path("grch38", "clinvar"))
+
+        with pytest.raises(
+            UnverifiedChecksumError, match="no recorded transformed checksum"
+        ):
+            storage.resolve_path("grch38", "clinvar", strict=True)
+
+    def test_resolve_path_strict_succeeds_when_checksum_matches(
+        self, tmp_path: Path
+    ) -> None:
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+        bundle_dir = storage.bundle_dir("grch38", "clinvar")
+        tsv_path = bundle_dir / "clinvar.tsv"
+        tsv_path.write_text("chrom\tpos\n")
+        checksum = compute_sha256(tsv_path)
+
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            transformed_filename="clinvar.tsv",
+            transformed_checksum=checksum,
+        )
+        manifest.save(storage.manifest_path("grch38", "clinvar"))
+
+        assert storage.resolve_path("grch38", "clinvar", strict=True) == tsv_path
+
     def test_list_installed_empty(self, tmp_path: Path) -> None:
         storage = BundleStorage(tmp_path)
         assert storage.list_installed("grch38") == []
@@ -236,12 +277,30 @@ class TestChecksums:
         test_file.write_text("anything")
         assert verify_checksum(test_file, "") is True
 
+    def test_verify_empty_expected_strict_raises(self, tmp_path: Path) -> None:
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("anything")
+        with pytest.raises(
+            UnverifiedChecksumError, match="no expected checksum provided"
+        ):
+            verify_checksum(test_file, "", strict=True)
+
+    def test_verify_checksum_strict_matches(self, tmp_path: Path) -> None:
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("hello world")
+        checksum = compute_sha256(test_file)
+        assert verify_checksum(test_file, checksum, strict=True) is True
+
     def test_checksum_mismatch_error(self) -> None:
         err = ChecksumMismatchError(
             Path("/tmp/test"), "sha256:expected", "sha256:actual"
         )
         assert "expected" in str(err)
         assert "actual" in str(err)
+
+    def test_unverified_checksum_error(self) -> None:
+        err = UnverifiedChecksumError("unverified bundle")
+        assert "unverified bundle" in str(err)
 
 
 class TestDiskUtilities:
@@ -408,6 +467,68 @@ class TestBundleDownloader:
                 expected_checksum="sha256:0000000000000000000000000000000000000000000000000000000000000000",
             )
 
+    def test_strict_checksum_missing_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When strict_checksum is True and expected_checksum is empty, DownloadError is raised."""
+        from unittest.mock import MagicMock
+
+        fake_response = MagicMock()
+        fake_response.status = 200
+        fake_response.read = MagicMock(side_effect=[b"some data", b""])
+
+        def mock_urlopen(request: object, timeout: object = None) -> MagicMock:
+            return fake_response
+
+        monkeypatch.setattr("vartriage.bundle.downloader.urlopen", mock_urlopen)
+
+        dest = tmp_path / "strict_empty.txt"
+        downloader = BundleDownloader(
+            timeout=(5, 10), max_retries=0, show_progress=False
+        )
+
+        with pytest.raises(DownloadError, match="Unverified bundle download"):
+            downloader.download(
+                url="http://example.com/strict.txt",
+                dest=dest,
+                expected_checksum="",
+                strict_checksum=True,
+            )
+        assert not dest.exists()
+
+    def test_strict_checksum_valid_succeeds(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When strict_checksum is True and checksum matches, download succeeds."""
+        import hashlib
+        from unittest.mock import MagicMock
+
+        content = b"verified content"
+        digest = f"sha256:{hashlib.sha256(content).hexdigest()}"
+
+        fake_response = MagicMock()
+        fake_response.status = 200
+        fake_response.read = MagicMock(side_effect=[content, b""])
+
+        def mock_urlopen(request: object, timeout: object = None) -> MagicMock:
+            return fake_response
+
+        monkeypatch.setattr("vartriage.bundle.downloader.urlopen", mock_urlopen)
+
+        dest = tmp_path / "strict_ok.txt"
+        downloader = BundleDownloader(
+            timeout=(5, 10), max_retries=0, show_progress=False
+        )
+
+        result = downloader.download(
+            url="http://example.com/strict_ok.txt",
+            dest=dest,
+            expected_checksum=digest,
+            strict_checksum=True,
+        )
+        assert dest.exists()
+        assert result.checksum_verified is True
+
 
 class TestDiskSpaceInsufficient:
     """Test check_disk_space raises on insufficient space."""
@@ -529,3 +650,93 @@ class TestParallelDownload:
         assert "good" in result.results
         assert "bad" in result.errors
         assert (tmp_path / "good.txt").exists()
+
+
+class TestBundleVerification:
+    """Tests for bundle verification logic and strict checksum enforcement."""
+
+    def test_verify_manifest_success(self, tmp_path: Path) -> None:
+        from vartriage.bundle.cli import _verify_manifest
+
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+
+        bundle_dir = storage.bundle_dir("grch38", "clinvar")
+        transformed = bundle_dir / "clinvar.tsv"
+        transformed.write_text("chrom\tpos\tref\talt\n")
+        transformed_hash = compute_sha256(transformed)
+
+        raw_dir = storage.raw_dir("grch38", "clinvar")
+        raw = raw_dir / "clinvar.vcf.gz"
+        raw.write_bytes(b"raw vcf bytes")
+        raw_hash = compute_sha256(raw)
+
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            raw_filename="clinvar.vcf.gz",
+            transformed_filename="clinvar.tsv",
+            raw_checksum=raw_hash,
+            transformed_checksum=transformed_hash,
+        )
+
+        assert _verify_manifest(manifest, storage, "grch38", strict=True) is True
+
+    def test_verify_manifest_missing_transformed(self, tmp_path: Path) -> None:
+        from vartriage.bundle.cli import _verify_manifest
+
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            transformed_filename="nonexistent.tsv",
+        )
+
+        assert _verify_manifest(manifest, storage, "grch38", strict=False) is False
+
+    def test_verify_manifest_transformed_mismatch(self, tmp_path: Path) -> None:
+        from vartriage.bundle.cli import _verify_manifest
+
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+
+        bundle_dir = storage.bundle_dir("grch38", "clinvar")
+        transformed = bundle_dir / "clinvar.tsv"
+        transformed.write_text("altered content\n")
+
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            transformed_filename="clinvar.tsv",
+            transformed_checksum="sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        )
+
+        assert _verify_manifest(manifest, storage, "grch38", strict=True) is False
+
+    def test_verify_manifest_strict_missing_checksum(self, tmp_path: Path) -> None:
+        from vartriage.bundle.cli import _verify_manifest
+
+        storage = BundleStorage(tmp_path)
+        storage.ensure_dirs("grch38", "clinvar")
+
+        bundle_dir = storage.bundle_dir("grch38", "clinvar")
+        transformed = bundle_dir / "clinvar.tsv"
+        transformed.write_text("chrom\tpos\n")
+
+        manifest = BundleManifest(
+            bundle_name="clinvar",
+            version="2026-07-01",
+            genome_build="grch38",
+            transformed_filename="clinvar.tsv",
+            transformed_checksum="",
+        )
+
+        # Passes non-strict
+        assert _verify_manifest(manifest, storage, "grch38", strict=False) is True
+        # Fails strict
+        assert _verify_manifest(manifest, storage, "grch38", strict=True) is False

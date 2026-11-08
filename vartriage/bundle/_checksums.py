@@ -41,7 +41,13 @@ def compute_sha256(path: Path, chunk_size: int = 65536) -> str:
     return f"sha256:{sha256.hexdigest()}"
 
 
-def verify_checksum(path: Path, expected: str) -> bool:
+def verify_checksum(
+    path: Path,
+    expected: str,
+    *,
+    strict: bool = False,
+    raise_on_mismatch: bool = False,
+) -> bool:
     """Verify a file's SHA-256 checksum against an expected value.
 
     Parameters
@@ -50,18 +56,41 @@ def verify_checksum(path: Path, expected: str) -> bool:
         Path to the file to verify.
     expected : str
         Expected checksum in "sha256:<hex>" format. If empty
-        string, verification is skipped (returns True).
+        string, verification is skipped (returns True) unless
+        strict is True.
+    strict : bool, optional
+        When True, an empty or missing expected checksum raises
+        UnverifiedChecksumError rather than returning True. Default is False.
+    raise_on_mismatch : bool, optional
+        When True, a checksum mismatch raises ChecksumMismatchError directly
+        with the computed digest, avoiding redundant re-computation of large files.
+        Default is False.
 
     Returns
     -------
     bool
-        True if checksum matches or expected is empty.
+        True if checksum matches or (when strict is False) expected is empty.
+
+    Raises
+    ------
+    UnverifiedChecksumError
+        If strict is True and expected is empty.
+    ChecksumMismatchError
+        If raise_on_mismatch is True and the actual checksum does not match expected.
     """
     if not expected:
+        if strict:
+            raise UnverifiedChecksumError(
+                f"Checksum verification failed for {path}: no expected checksum provided"
+            )
         return True
 
     actual = compute_sha256(path)
-    return actual == expected
+    if actual.lower() != expected.lower():
+        if raise_on_mismatch:
+            raise ChecksumMismatchError(path, expected, actual)
+        return False
+    return True
 
 
 class ChecksumMismatchError(Exception):
@@ -76,3 +105,10 @@ class ChecksumMismatchError(Exception):
             f"  expected: {expected}\n"
             f"  actual:   {actual}"
         )
+
+
+class UnverifiedChecksumError(Exception):
+    """Raised when strict checksum verification fails due to missing checksum metadata."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)

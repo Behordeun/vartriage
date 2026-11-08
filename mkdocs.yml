@@ -99,4 +99,5 @@ nav:
 
 not_in_nav: |
   /archives/**
+  /release-notes/**
   /examples/README.md

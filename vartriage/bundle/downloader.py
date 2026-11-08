@@ -18,7 +18,11 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from vartriage._internal.path_safety import safe_write_path
-from vartriage.bundle._checksums import compute_sha256, verify_checksum
+from vartriage.bundle._checksums import (
+    ChecksumMismatchError,
+    UnverifiedChecksumError,
+    verify_checksum,
+)
 from vartriage.bundle._disk import check_disk_space
 from vartriage.bundle._progress import ProgressBar
 
@@ -100,6 +104,7 @@ class BundleDownloader:
         expected_size: int | None = None,
         expected_checksum: str = "",
         resume: bool = True,
+        strict_checksum: bool = False,
     ) -> DownloadResult:
         """Download a single file with resume support.
 
@@ -112,9 +117,12 @@ class BundleDownloader:
         expected_size : int, optional
             Expected file size for progress display and disk check.
         expected_checksum : str
-            SHA-256 checksum to verify after download. Empty to skip.
+            SHA-256 checksum to verify after download. Empty to skip unless
+            strict_checksum is enabled.
         resume : bool
             Attempt to resume partial downloads.
+        strict_checksum : bool
+            When True, requires expected_checksum to be present and non-empty.
 
         Returns
         -------
@@ -124,7 +132,7 @@ class BundleDownloader:
         Raises
         ------
         DownloadError
-            If download fails after all retries.
+            If download fails after all retries or fails checksum verification.
         OSError
             If disk space is insufficient.
         """
@@ -157,15 +165,23 @@ class BundleDownloader:
 
         # Verify checksum
         checksum_ok = True
-        if expected_checksum:
-            checksum_ok = verify_checksum(dest, expected_checksum)
-            if not checksum_ok:
-                actual = compute_sha256(dest)
+        if expected_checksum or strict_checksum:
+            try:
+                checksum_ok = verify_checksum(
+                    dest,
+                    expected_checksum,
+                    strict=strict_checksum,
+                    raise_on_mismatch=True,
+                )
+            except UnverifiedChecksumError as exc:
+                dest.unlink(missing_ok=True)
+                raise DownloadError(url, f"Unverified bundle download: {exc}") from exc
+            except ChecksumMismatchError as exc:
                 dest.unlink(missing_ok=True)
                 raise DownloadError(
                     url,
-                    f"Checksum mismatch: expected {expected_checksum}, got {actual}",
-                )
+                    f"Checksum mismatch: expected {exc.expected}, got {exc.actual}",
+                ) from exc
 
         return DownloadResult(
             path=dest,
@@ -283,6 +299,8 @@ class DownloadRequest:
         SHA-256 checksum to verify. Empty string to skip.
     label : str
         Human-readable label for progress display (e.g., bundle name).
+    strict_checksum : bool
+        When True, requires expected_checksum to be present and verified.
     """
 
     url: str
@@ -290,6 +308,7 @@ class DownloadRequest:
     expected_size: int | None = None
     expected_checksum: str = ""
     label: str = ""
+    strict_checksum: bool = False
 
 
 @dataclass
@@ -401,4 +420,5 @@ def _execute_single_download(
         dest=req.dest,
         expected_size=req.expected_size,
         expected_checksum=req.expected_checksum,
+        strict_checksum=req.strict_checksum,
     )
