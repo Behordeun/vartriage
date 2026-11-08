@@ -9,8 +9,19 @@ or an unannotated run) must not be conflated with evidence of absence.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
 
 from vartriage.annotation.engine import AnnotationEngine
+from vartriage.annotation.frequency import DictFrequencyDatabase
+from vartriage.annotation.frequency_polars import (
+    POLARS_AVAILABLE,
+    PolarsFrequencyDatabase,
+)
+from vartriage.annotation.frequency_tabix import TabixFrequencyDatabase
+from vartriage.api.annotation_engine import APIAnnotationEngine
+from vartriage.api.vep_client import VEPAnnotation
 from vartriage.classification.acmg import ACMGClassifier
 from vartriage.models.config import AnnotationConfig
 from vartriage.models.resolution import ResolutionState
@@ -181,3 +192,182 @@ class TestPipelinePassthroughUnconsulted:
         assert len(results) == 1
         assert results[0].frequency_unknown is False
         assert results[0].frequency_state is None
+
+
+class TestLegacyBackendFallback:
+    """Verify AnnotationEngine maps legacy lookup_batch None to LOOKUP_FAILED."""
+
+    def test_legacy_backend_none_maps_to_lookup_failed(self, tmp_path: Path) -> None:
+        gtf_file = tmp_path / "annotations.gtf"
+        gtf_file.write_text("")
+        config = AnnotationConfig(
+            gene_annotation_path=gtf_file,
+            gnomad_path=None,
+            clinvar_path=None,
+        )
+        engine = AnnotationEngine(config)
+
+        # Mock a legacy backend that only implements lookup_batch
+        legacy_mock = MagicMock(spec=["lookup_batch"])
+        legacy_mock.lookup_batch.return_value = [None]
+        engine._frequency_db = legacy_mock
+
+        variant = _make_variant("chr1", 1000, "A", "G")
+        results = list(engine.annotate(iter([variant])))
+
+        assert len(results) == 1
+        res = results[0]
+        assert res.allele_frequency is None
+        assert res.frequency_unknown is False
+        assert res.frequency_state is ResolutionState.LOOKUP_FAILED
+
+        # Classification must NOT fire PM2 and must add gnomAD to missing sources
+        classifier = ACMGClassifier()
+        tags: set[EvidenceTag] = set()
+        missing: set[str] = set()
+        classifier._evaluate_pm2(ScoredVariant(annotated=res), tags, missing)
+
+        assert EvidenceTag.PM2 not in tags
+        assert "gnomAD" in missing
+
+
+class TestVEPNoFrequencyFallback:
+    """Verify APIAnnotationEngine maps VEP missing frequency to LOOKUP_FAILED."""
+
+    def test_vep_missing_frequency_maps_to_lookup_failed(self) -> None:
+        engine = APIAnnotationEngine.__new__(APIAnnotationEngine)
+        engine._warnings = []
+        engine._batch_size = 100
+
+        mock_vep_client = MagicMock()
+        mock_vep_ann = VEPAnnotation(
+            consequence=FunctionalConsequence.MISSENSE,
+            gene_name="TESTG",
+            allele_frequency=None,  # No gnomAD frequency reported by VEP
+            cadd_phred=None,
+            transcript_id="ENST00000001",
+            hgvsc="c.123A>G",
+            hgvsp="p.Lys41Arg",
+            ensembl_release="112",
+        )
+        mock_vep_client.annotate_batch.return_value = [mock_vep_ann]
+        engine._vep = mock_vep_client
+
+        mock_clinvar_client = MagicMock()
+        mock_clinvar_client.lookup_batch.return_value = [None]
+        engine._clinvar = mock_clinvar_client
+
+        variant = _make_variant("chr1", 1000, "A", "G")
+        results = list(engine.annotate(iter([variant])))
+
+        assert len(results) == 1
+        res = results[0]
+        assert res.allele_frequency is None
+        assert res.frequency_unknown is False
+        assert res.frequency_state is ResolutionState.LOOKUP_FAILED
+
+        # Verify PM2 does not fire
+        classifier = ACMGClassifier()
+        tags: set[EvidenceTag] = set()
+        missing: set[str] = set()
+        classifier._evaluate_pm2(ScoredVariant(annotated=res), tags, missing)
+
+        assert EvidenceTag.PM2 not in tags
+        assert "gnomAD" in missing
+
+
+class TestLocalDatabasesContigScope:
+    """Verify local backends distinguish covered chromosomes from unrepresented ones."""
+
+    def test_dict_frequency_database_contig_scope(self, tmp_path: Path) -> None:
+        tsv_path = tmp_path / "gnomad_chr1_only.tsv"
+        tsv_path.write_text("chrom\tpos\tref\talt\taf\nchr1\t1000\tA\tG\t0.001\n")
+
+        db = DictFrequencyDatabase()
+        db.load(tsv_path)
+
+        # Variant 1: on chr1 and present -> FOUND
+        # Variant 2: on chr1 but absent -> CONFIRMED_ABSENT
+        # Variant 3: on chr2 (not loaded) -> LOOKUP_FAILED
+        variants = [
+            ("chr1", 1000, "A", "G"),
+            ("chr1", 2000, "C", "T"),
+            ("chr2", 3000, "G", "A"),
+        ]
+        resolutions = db.lookup_batch_resolutions(variants)
+
+        assert len(resolutions) == 3
+        assert resolutions[0].state is ResolutionState.FOUND
+        assert resolutions[0].value == 0.001
+
+        assert resolutions[1].state is ResolutionState.CONFIRMED_ABSENT
+
+        assert resolutions[2].state is ResolutionState.LOOKUP_FAILED
+        assert "chr2" in (resolutions[2].reason or "")
+
+    @pytest.mark.skipif(not POLARS_AVAILABLE, reason="polars not installed")
+    def test_polars_frequency_database_contig_scope(self, tmp_path: Path) -> None:
+        tsv_path = tmp_path / "gnomad_chr1_only.tsv"
+        tsv_path.write_text("chrom\tpos\tref\talt\taf\nchr1\t1000\tA\tG\t0.001\n")
+
+        db = PolarsFrequencyDatabase()
+        db.load(tsv_path)
+
+        variants = [
+            ("chr1", 1000, "A", "G"),
+            ("chr1", 2000, "C", "T"),
+            ("chr2", 3000, "G", "A"),
+        ]
+        resolutions = db.lookup_batch_resolutions(variants)
+
+        assert len(resolutions) == 3
+        assert resolutions[0].state is ResolutionState.FOUND
+        assert resolutions[1].state is ResolutionState.CONFIRMED_ABSENT
+        assert resolutions[2].state is ResolutionState.LOOKUP_FAILED
+
+    def test_tabix_frequency_database_contig_scope(self) -> None:
+        db = TabixFrequencyDatabase()
+        mock_tabix = MagicMock()
+        mock_tabix.contigs = ["chr1", "chrX"]
+        mock_tabix.fetch.side_effect = lambda chrom, start, end: (
+            iter(["chr1\t1000\t.\tA\tG\t.\tPASS\tAF=0.0005"])
+            if chrom == "chr1" and start == 999
+            else iter([])
+        )
+        db._tabix = mock_tabix
+
+        variants = [
+            ("chr1", 1000, "A", "G"),  # FOUND
+            ("chr1", 2000, "C", "T"),  # CONFIRMED_ABSENT
+            ("chr2", 3000, "G", "A"),  # LOOKUP_FAILED (not in contigs)
+        ]
+        resolutions = db.lookup_batch_resolutions(variants)
+
+        assert len(resolutions) == 3
+        assert resolutions[0].state is ResolutionState.FOUND
+        assert resolutions[0].value == 0.0005
+
+        assert resolutions[1].state is ResolutionState.CONFIRMED_ABSENT
+
+        assert resolutions[2].state is ResolutionState.LOOKUP_FAILED
+        assert "chr2" in (resolutions[2].reason or "")
+
+
+class TestPipelineReattachmentPreservesFrequencyState:
+    """Verify Pipeline._reattach_annotations preserves frequency_state."""
+
+    def test_reattach_forwards_frequency_state(self) -> None:
+        pipeline = Pipeline.__new__(Pipeline)
+        variant = _make_variant("chr1", 1000, "A", "G")
+        annotated = AnnotatedVariant(
+            variant=variant,
+            consequence=FunctionalConsequence.MISSENSE,
+            allele_frequency=None,
+            frequency_unknown=False,
+            frequency_state=ResolutionState.LOOKUP_FAILED,
+        )
+
+        reattached = pipeline._reattach_annotations([variant], [annotated])
+        assert len(reattached) == 1
+        assert reattached[0].frequency_state is ResolutionState.LOOKUP_FAILED
+        assert reattached[0].frequency_unknown is False

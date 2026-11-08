@@ -155,8 +155,11 @@ class APIAnnotationEngine:
                     freq_state = ResolutionState.FOUND
                     frequency_unknown = False
                 else:
-                    freq_state = ResolutionState.CONFIRMED_ABSENT
-                    frequency_unknown = True
+                    # VEP's gnomAD annotation coverage is not exhaustive across all
+                    # builds/regions; a missing frequency field in VEP is not evidence of
+                    # absence. Fail closed to LOOKUP_FAILED so PM2 is not assigned.
+                    freq_state = ResolutionState.LOOKUP_FAILED
+                    frequency_unknown = False
             else:
                 freq_state = ResolutionState.LOOKUP_FAILED
                 frequency_unknown = False
@@ -176,7 +179,7 @@ class APIAnnotationEngine:
                     )
                 )
 
-            if frequency_unknown and vep_ann is not None:
+            if freq_state is ResolutionState.LOOKUP_FAILED and vep_ann is not None:
                 # VEP responded but had no gnomAD data for this position
                 self._warnings.append(
                     MissingDataWarning(
@@ -185,7 +188,7 @@ class APIAnnotationEngine:
                         ref=variant.ref,
                         alt=variant.alt,
                         source="gnomAD",
-                        reason="not_found",
+                        reason="lookup_failed",
                     )
                 )
 

@@ -13,6 +13,7 @@ from vartriage.api.annotation_engine import APIAnnotationEngine
 from vartriage.api.config import APIConfig
 from vartriage.api.score_provider import APIScoreProvider
 from vartriage.api.vep_client import VEPAnnotation
+from vartriage.models.resolution import ResolutionState
 from vartriage.models.variant import ClinVarAssertion, FunctionalConsequence, Variant
 
 # --- Helpers ---
@@ -148,9 +149,11 @@ class TestAPIAnnotationEngineAnnotation:
         variants = [_make_variant()]
         results = list(engine.annotate(iter(variants)))
 
-        assert results[0].frequency_unknown is True
+        assert results[0].frequency_state is ResolutionState.LOOKUP_FAILED
+        assert results[0].frequency_unknown is False
         gnomad_warnings = [w for w in engine.warnings if w.source == "gnomAD"]
         assert len(gnomad_warnings) == 1
+        assert gnomad_warnings[0].reason == "lookup_failed"
 
     def test_clinvar_miss_tracked_in_warnings(self, api_config: APIConfig) -> None:
         engine = APIAnnotationEngine(api_config)

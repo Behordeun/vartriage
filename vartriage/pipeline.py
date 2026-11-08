@@ -967,6 +967,7 @@ class Pipeline:
                         frequency_unknown=original.frequency_unknown,
                         clinvar_unknown=original.clinvar_unknown,
                         gene_name=original.gene_name,
+                        frequency_state=original.frequency_state,
                     )
                 )
             else:
@@ -976,6 +977,7 @@ class Pipeline:
                         consequence=FunctionalConsequence.INTERGENIC,
                         frequency_unknown=False,
                         clinvar_unknown=True,
+                        frequency_state=None,
                     )
                 )
         return results

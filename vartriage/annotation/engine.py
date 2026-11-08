@@ -251,7 +251,7 @@ class AnnotationEngine:
                 freq_states = [
                     ResolutionState.FOUND
                     if f is not None
-                    else ResolutionState.CONFIRMED_ABSENT
+                    else ResolutionState.LOOKUP_FAILED
                     for f in frequencies
                 ]
         else:
