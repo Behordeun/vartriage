@@ -4,7 +4,7 @@ How vartriage evaluates ACMG/AMP 2015 evidence criteria and combines them into a
 
 ## Overview
 
-The `ACMGClassifier` evaluates each scored variant against 13 evidence criteria (8 pathogenic: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5; 5 benign: BA1, BS1, BS2, BP4, BP7) and combines them through the ClinGen SVI point system to produce a final classification: Pathogenic, Likely Pathogenic, VUS, Likely Benign, or Benign. PVS1, PP3, PP5, and BP4 fire at multiple strength levels (PVS1 very-strong or strong; PP3 and BP4 supporting or moderate; PP5 supporting or strong) based on ClinGen-calibrated thresholds and, for PVS1, nonsense-mediated-decay geometry and, for PP5, ClinVar review status; these are single criteria with strength modulation, not separate criteria.
+The `ACMGClassifier` evaluates each scored variant against 15 evidence criteria (8 pathogenic: PVS1, PS1, PM1, PM2, PM4, PM5, PP3, PP5; 7 benign: BA1, BS1, BS2, BP1, BP3, BP4, BP7) and combines them through the ClinGen SVI point system to produce a final classification: Pathogenic, Likely Pathogenic, VUS, Likely Benign, or Benign. PVS1, PP3, PP5, and BP4 fire at multiple strength levels (PVS1 very-strong or strong; PP3 and BP4 supporting or moderate; PP5 supporting or strong) based on ClinGen-calibrated thresholds and, for PVS1, nonsense-mediated-decay geometry and, for PP5, ClinVar review status; these are single criteria with strength modulation, not separate criteria.
 
 When a required data source is unavailable for a criterion, that criterion is skipped and the source is recorded in `missing_data_sources` on the output. This makes the system additive: providing more reference data enables more criteria without changing behavior for the criteria you already have.
 
@@ -155,6 +155,40 @@ Implemented in v0.19.0. Fires when all of the following hold:
 A homozygous observation of an allegedly dominant-pathogenic variant in a healthy-control database argues strongly against pathogenicity. BS2 does not fire for recessive disorders, where homozygous carriers are expected. It is applicable only when a dominant association is known: for a gene with no dominant association the criterion is not applicable and nothing is recorded. When the gene is dominant but the homozygote count is unavailable, `gnomAD_homozygotes` is recorded as a missing source.
 
 **Required data:** gnomAD homozygote counts (nhomalt / AC_Hom, from the gnomAD VCF or an extended frequency source) and gene-disease inheritance mode.
+
+### BP1 (Supporting)
+
+Missense variant in a gene for which primarily truncating variants are known to cause disease.
+
+ACMG/AMP 2015 BP1 provides supporting benign evidence (-1 point) for missense changes in genes where loss-of-function (truncating) alterations are the established mechanism of disease, and missense variants are not known to be pathogenic.
+
+Fires when:
+1. Consequence is Missense.
+2. The gene has an established loss-of-function disease mechanism (present in the ClinGen-curated `lof_gene_list`).
+3. Missense variants in this gene are not an established pathogenic mechanism:
+   - ClinVar protein index contains no pathogenic missense variants for this gene.
+   - The query variant itself is not reported Pathogenic/Likely Pathogenic in ClinVar.
+   - The gene is not missense-constrained (gnomAD $mis\_z \le 0.0$).
+4. No conflicting computational pathogenic predictions (PP3) or critical functional domain overlaps (PM1).
+
+**Required data:** ClinGen LoF-mechanism gene set (bundled), ClinVar protein index or assertion, and gnomAD gene constraint.
+
+### BP3 (Supporting)
+
+In-frame deletions/insertions in a repetitive region without a known function.
+
+ACMG/AMP 2015 BP3 provides supporting benign evidence (-1 point) for in-frame insertions and deletions that occur in repetitive sequence regions (such as short tandem repeats or homopolymers) where length variation is tolerated and does not disrupt an established functional domain.
+
+When BP3 fires, pathogenic length-change evidence (PM4) is suppressed so the variant does not simultaneously claim pathogenic and benign length-variation evidence.
+
+Fires when:
+1. Consequence is In_Frame_Insertion or In_Frame_Deletion.
+2. Variant is annotated as falling in a repetitive sequence region (`REPEAT`, `IN_REPEAT`, `STR`, `RMSK` in VCF INFO).
+3. Variant does not overlap a missense-constrained domain (PM1) and has no computational pathogenic prediction (PP3).
+
+**Required data:** In-frame indel consequence and VCF repeat annotations.
+
+### BP4 (Supporting / Moderate)
 
 Computational evidence supports no impact on gene or gene product.
 
@@ -369,6 +403,8 @@ Complete mapping of tags to strength tiers in vartriage:
 | BA1 | Standalone | Benign | Evaluated |
 | BS1 | Strong | Benign | Evaluated |
 | BS2 | Strong | Benign | Evaluated (v0.19.0) |
+| BP1 | Supporting | Benign | Evaluated |
+| BP3 | Supporting | Benign | Evaluated |
 | BP4 | Supporting | Benign | Evaluated |
 | BP4_MODERATE | Moderate | Benign | Evaluated |
 | BP7 | Supporting | Benign | Evaluated |

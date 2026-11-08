@@ -104,12 +104,27 @@ _PM4_CONSEQUENCES: frozenset[FunctionalConsequence] = frozenset(
 
 _MISSING_SOURCE_GNOMAD = "gnomAD"
 _MISSING_SOURCE_GNOMAD_CONSTRAINT = "gnomAD_constraint"
+_REPEAT_INFO_KEYS = frozenset(
+    {"repeat", "in_repeat", "repetitive", "simple_repeat", "str", "rmsk"}
+)
+
+
+def _is_repeat_region(variant: ScoredVariant) -> bool:
+    """Check if variant falls in a tandem repeat, homopolymer, or repetitive region."""
+    info = variant.annotated.variant.info
+    for k, v in info.items():
+        if k.lower() in _REPEAT_INFO_KEYS:
+            if v is True or v == 1:
+                return True
+            if isinstance(v, str) and v.strip().lower() in ("true", "t", "yes", "1"):
+                return True
+    return False
 
 
 class ACMGClassifier:
     """Assign ACMG/AMP evidence tags and final classification.
 
-    The classifier evaluates each ScoredVariant against 13 evidence criteria
+    The classifier evaluates each ScoredVariant against 15 evidence criteria
     and combines them through the ClinGen SVI point system.
 
     Pathogenic:
@@ -133,6 +148,8 @@ class ACMGClassifier:
     - BA1: any population AF above the benign ceiling (standalone).
     - BS1: any population AF above the strong-benign threshold.
     - BS2: observed homozygous in gnomAD for a dominant-disorder gene.
+    - BP1: missense in a gene where LoF is the established disease mechanism.
+    - BP3: in-frame insertion/deletion in a repetitive sequence region.
     - BP4: low computational pathogenicity score, supporting to moderate.
     - BP7: synonymous with no predicted splice impact.
 
@@ -247,6 +264,8 @@ class ACMGClassifier:
         self._evaluate_ba1(variant, tags, missing_sources)
         self._evaluate_bs1(variant, tags, missing_sources)
         self._evaluate_bs2(variant, tags, missing_sources)
+        self._evaluate_bp1(variant, tags, missing_sources)
+        self._evaluate_bp3(variant, tags, missing_sources)
         self._evaluate_bp4(variant, tags, missing_sources)
         self._evaluate_bp7(variant, tags, missing_sources)
 
@@ -855,11 +874,138 @@ class ACMGClassifier:
         tags: set[EvidenceTag],
         _missing_sources: set[str],
     ) -> None:
-        """Assign PM4 for protein-length-changing variants.
+        """Assign PM4 for protein-length-changing variants in non-repetitive regions.
 
         Fires for in-frame insertions, in-frame deletions, and
-        stop-loss variants. These alter the protein without truncating
-        the reading frame.
+        stop-loss variants outside repetitive sequence. In-frame indels
+        in repetitive regions are evaluated under BP3 instead.
         """
-        if variant.annotated.consequence in _PM4_CONSEQUENCES:
+        if variant.annotated.consequence in _PM4_CONSEQUENCES and not _is_repeat_region(
+            variant
+        ):
             tags.add(EvidenceTag.PM4)
+
+    def _evaluate_bp1(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        missing_sources: set[str],
+    ) -> None:
+        """Assign BP1 for missense in a gene where LoF is the known disease mechanism.
+
+        ACMG/AMP 2015 BP1 applies to missense variants in genes where truncating
+        loss-of-function variants are the established mechanism of disease, and
+        missense variants are not known to cause the phenotype.
+
+        Fires when:
+        1. Consequence is MISSENSE.
+        2. Gene has an established LoF mechanism (present in lof_gene_list).
+        3. Missense variants in this gene are not an established pathogenic mechanism:
+           - ClinVar protein index (if available) contains no pathogenic missense in this gene.
+           - Variant itself is not reported Pathogenic/Likely_Pathogenic in ClinVar.
+           - Gene is not intolerant to missense variation (mis_z <= 0.0 or not missense constrained).
+        4. No conflicting computational pathogenic (PP3) or critical domain (PM1) evidence.
+        """
+        if variant.annotated.consequence != FunctionalConsequence.MISSENSE:
+            return
+
+        gene_name = variant.annotated.gene_name
+        if gene_name is None:
+            return
+
+        if self._lof_gene_list is None:
+            missing_sources.add("lof_mechanism_genes")
+            return
+
+        if gene_name not in self._lof_gene_list:
+            return
+
+        # Check if ClinVar protein index is loaded
+        if self._protein_index is None or not self._protein_index.is_loaded:
+            missing_sources.add("ClinVar_protein_index")
+            return
+
+        # Check if ClinVar records known pathogenic missense variants in this gene
+        if self._protein_index.has_pathogenic_missense_in_gene(gene_name):
+            return
+
+        # Do not fire if current variant itself is reported pathogenic in ClinVar
+        if variant.annotated.clinvar_assertion in (
+            ClinVarAssertion.PATHOGENIC,
+            ClinVarAssertion.LIKELY_PATHOGENIC,
+        ):
+            return
+
+        # Check missense constraint
+        gene_context = variant.annotated.gene_context
+        if (
+            gene_context is not None
+            and gene_context.constraint is not None
+            and (
+                gene_context.constraint.is_missense_constrained
+                or gene_context.constraint.mis_z > 0.0
+            )
+        ):
+            return
+
+        # Do not fire if conflicting pathogenic prediction or domain hotspot fired
+        if any(
+            t in tags
+            for t in (
+                EvidenceTag.PM1,
+                EvidenceTag.PP3,
+                EvidenceTag.PP3_MODERATE,
+                EvidenceTag.PP3_STRONG,
+                EvidenceTag.PS1,
+                EvidenceTag.PM5,
+            )
+        ):
+            return
+
+        tags.add(EvidenceTag.BP1)
+
+    def _evaluate_bp3(
+        self,
+        variant: ScoredVariant,
+        tags: set[EvidenceTag],
+        _missing_sources: set[str],
+    ) -> None:
+        """Assign BP3 for in-frame indels in repetitive regions without known function.
+
+        ACMG/AMP 2015 BP3 applies to in-frame insertions and deletions that occur
+        in repetitive sequence regions (e.g. short tandem repeats, homopolymers)
+        where length variation is well-tolerated and does not disrupt an established
+        functional domain.
+        """
+        consequence = variant.annotated.consequence
+        if consequence not in (
+            FunctionalConsequence.IN_FRAME_INSERTION,
+            FunctionalConsequence.IN_FRAME_DELETION,
+        ):
+            return
+
+        if not _is_repeat_region(variant):
+            return
+
+        # Must not disrupt a missense/domain constrained region or have pathogenic prediction
+        gene_context = variant.annotated.gene_context
+        if (
+            gene_context is not None
+            and gene_context.constraint is not None
+            and gene_context.constraint.is_missense_constrained
+        ):
+            return
+
+        if any(
+            t in tags
+            for t in (
+                EvidenceTag.PM1,
+                EvidenceTag.PP3,
+                EvidenceTag.PP3_MODERATE,
+                EvidenceTag.PP3_STRONG,
+            )
+        ):
+            return
+
+        tags.add(EvidenceTag.BP3)
+        tags.discard(EvidenceTag.PM4)

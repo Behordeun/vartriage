@@ -333,6 +333,8 @@ Benign criteria:
 | ----- | ---------- | ----------- |
 | BA1 | Standalone | Any population AF > 5% (overrides all pathogenic evidence) |
 | BS1 | Strong | Any population AF > 1% (only when BA1 not already assigned) |
+| BP1 | Supporting | Missense in a gene where LoF is the established mechanism and missense is not known pathogenic |
+| BP3 | Supporting | In-frame indel in a repetitive sequence region without functional domain disruption |
 | BP4 | Supporting | Missense with REVEL < 0.290, or non-missense with CADD Phred < 10 |
 | BP4 | Moderate | Missense with REVEL < 0.183 (ClinGen-calibrated, Pejaver et al. 2022) |
 | BP7 | Supporting | Synonymous with SpliceAI < 0.1 |

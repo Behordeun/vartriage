@@ -185,6 +185,8 @@ class EvidenceTag(Enum):
     BA1 = "BA1"
     BS1 = "BS1"
     BS2 = "BS2"
+    BP1 = "BP1"
+    BP3 = "BP3"
     BP4 = "BP4"
     BP4_MODERATE = "BP4_Moderate"
     BP7 = "BP7"
@@ -234,6 +236,8 @@ EVIDENCE_STRENGTH_MAP: dict[EvidenceTag, EvidenceStrength] = {
     EvidenceTag.BA1: EvidenceStrength.STANDALONE,
     EvidenceTag.BS1: EvidenceStrength.STRONG,
     EvidenceTag.BS2: EvidenceStrength.STRONG,
+    EvidenceTag.BP1: EvidenceStrength.SUPPORTING,
+    EvidenceTag.BP3: EvidenceStrength.SUPPORTING,
     EvidenceTag.BP4: EvidenceStrength.SUPPORTING,
     EvidenceTag.BP4_MODERATE: EvidenceStrength.MODERATE,
     EvidenceTag.BP7: EvidenceStrength.SUPPORTING,
