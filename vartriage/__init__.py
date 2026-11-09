@@ -85,10 +85,11 @@ from vartriage.structural import (
 )
 
 try:
+    from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as _get_version
 
     __version__ = _get_version("vartriage")
-except Exception:
+except PackageNotFoundError:
     __version__ = "1.3.0"
 
 __all__ = [
