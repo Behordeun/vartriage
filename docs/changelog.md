@@ -6,7 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
-_Nothing yet. The most recent release is 1.2.0, below._
+_Nothing yet. The most recent release is 1.3.0, below._
+
+## [1.3.0] - 2026-11-09
+
+### Added
+
+- **ACMG Benign Criteria BP1 and BP3**: Implemented ACMG/AMP 2015 criteria BP1 (missense variant in an established loss-of-function disease mechanism gene) and BP3 (in-frame insertion or deletion in a repetitive sequence region) under the ClinGen SVI Bayesian point framework at Supporting strength (-1 point each). BP1 is strictly gated on the curated LoF mechanism gene set, absence of pathogenic missense variation in ClinVar at the gene level (via `ClinVarProteinIndex`), and missense tolerance (`mis_z <= 0.0`), failing closed to `missing_sources` when the ClinVar protein index is not loaded. BP3 evaluates in-frame indels within repetitive sequence contexts (e.g., homopolymers, STRs, repeat masks), and suppresses redundant length-change PM4 tags.
+- **Per-Population Allele Frequency Resolution in TabixFrequencyDatabase**: Added ancestry-aware population frequency lookup to the bgzipped tabix frequency backend. `TabixFrequencyDatabase` now extracts population-stratified allele frequencies (e.g. `AF_afr`, `AF_eas`, `AF_nfe`, `AF_asj`, `AF_amr`, `AF_fin`, `AF_sas`) and homozygote counts directly from INFO fields matching configured population mappings, enabling full multi-population BA1, BS1, BS2, and PM2 calibration on indexed local references without loading the database into memory.
+- **Strict Data Bundle Checksum Verification and Digest Tracking**: Hardened data bundle management with mandatory SHA-256 integrity verification across bundle manifests, downloading pipelines, and extraction stages. Transformed local reference files compute and record persistent digest metadata, preventing silent reference corruption and enforcing reproducible clinical execution.
+
+### Changed
+
+- **Tri-State Frequency Resolution Model**: Refactored variant population frequency resolution across all annotation backends (`DictFrequencyDatabase`, `PolarsFrequencyDatabase`, `TabixFrequencyDatabase`, and API client) from an ambiguous nullable float to an explicit tri-state model: `FOUND` (variant present with valid allele frequency), `CONFIRMED_ABSENT` (genomic region successfully queried and variant confirmed absent, setting `frequency_unknown=True` for PM2 eligibility), and `LOOKUP_FAILED` (backend not loaded, unrepresented chromosome, parse error, or network timeout).
+- **Repositioning to Audited Computational Triage Pre-Filter**: Realigned VarTriage's clinical positioning from a standalone diagnostic classifier to an audited computational triage pre-filter and VUS stratifier. Updated `README.md`, `docs/index.md`, `docs/getting-started.md`, and `docs/validation.md` with measured v1.2.0 ClinGen eRepo expert benchmark figures (91.6% PPV, 47.3% sensitivity across 6,476 expert P/LP variants), clarifying the clinical missense bottleneck under the ClinGen SVI framework where unobserved missense changes are safely held at VUS rather than inflating computational calls.
+
+### Fixed
+
+- **Defused Fail-Open PM2 on Unconsulted Frequency Data**: Resolved a critical clinical safety gap where variants in unconsulted frequency backends, unrepresented chromosomes, or failed API queries could inherit `frequency_unknown=True` and falsely fire PM2. Unqueried states now map to `LOOKUP_FAILED`, recording the missing data source and suppressing PM2.
+- **Fail-Closed Protein Index Evaluation for BP1**: Removed single-variant assertion fallback when `ClinVarProteinIndex` is missing or unconfigured. The classifier now explicitly records `"ClinVar_protein_index"` in `missing_sources` and skips BP1 evaluation to prevent unverified benign point assignment.
+- **Case-Insensitive Value-Aware Repeat Flag Evaluation**: Upgraded `_is_repeat_region` to evaluate repeat keys (`repeat`, `in_repeat`, `repetitive`, `simple_repeat`, `str`, `rmsk`) case-insensitively and truth-sensitively. Explicitly falsy values (e.g., `"0"`, `0`, `False`, `"false"`, `"no"`) are recognized as non-repeats, properly preserving PM4 eligibility and preventing false BP3 assignments.
+- **Documentation Build and CI Pinning**: Pinned `pymdown-extensions<12.0` in `pyproject.toml` and pinned runner environments to `ubuntu-22.04` in `.github/workflows/ci.yml`, ensuring stable, warning-free documentation compilation and CI execution.
 
 ## [1.2.0] - 2026-10-09
 
