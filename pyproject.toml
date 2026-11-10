@@ -41,7 +41,7 @@ dev = [
     "hypothesis>=6.0,<7.0",
     "pytest-cov>=4.0,<6.0",
     "mypy>=1.0,<2.0",
-    "pre-commit>=4.6.2",
+    "pre-commit>=4.6.2; python_version >= '3.11'",
 ]
 test = [
     "pytest>=7.0,<10.0",
@@ -163,9 +163,4 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.",
     "@(abc\\.)?abstractmethod",
-]
-
-[tool.uv]
-override-dependencies = [
-    "filelock<3.30.0",
 ]
