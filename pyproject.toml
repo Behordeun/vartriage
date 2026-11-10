@@ -167,5 +167,5 @@ exclude_lines = [
 
 [tool.uv]
 override-dependencies = [
-    "filelock<3.30.0; python_version < '3.11'",
+    "filelock<3.30.0",
 ]
