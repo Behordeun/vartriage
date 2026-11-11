@@ -73,6 +73,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Remote CADD preset name or URL (e.g. cadd-v1.7-grch38).",
     )
+    parser.add_argument(
+        "--knowledge-dir",
+        type=Path,
+        default=None,
+        help="Optional path to directory containing knowledge base TSVs.",
+    )
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--scope", default="harness")
     args = parser.parse_args(argv)
@@ -96,6 +102,12 @@ def main(argv: list[str] | None = None) -> int:
             cache_ttl_days=-1,
         )
 
+    knowledge = None
+    if args.knowledge_dir is not None:
+        from vartriage.knowledge.config import KnowledgeBaseConfig
+
+        knowledge = KnowledgeBaseConfig(data_dir=args.knowledge_dir)
+
     config = PipelineConfig(
         vcf_path=args.truth_vcf,
         output_path=args.out.with_suffix(".classified.json"),
@@ -109,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             cadd_scores_path=args.cadd,
         ),
         remote=remote,
+        knowledge=knowledge,
     )
 
     pipeline = Pipeline(config)
@@ -121,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
 
     ppv = report.ppv
     sens = report.sensitivity
+    spec = report.specificity
+    npv = report.npv
     print(f"[{args.scope}] matched {report.matched}/{report.truth_total}")
     print(
         f"  PPV         {ppv.value:.3f}  95% CI [{ppv.low:.3f}, {ppv.high:.3f}]"
@@ -129,6 +144,14 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"  sensitivity {sens.value:.3f}  95% CI [{sens.low:.3f}, {sens.high:.3f}]"
         f"  n={sens.denominator}"
+    )
+    print(
+        f"  specificity {spec.value:.3f}  95% CI [{spec.low:.3f}, {spec.high:.3f}]"
+        f"  n={spec.denominator}"
+    )
+    print(
+        f"  NPV         {npv.value:.3f}  95% CI [{npv.low:.3f}, {npv.high:.3f}]"
+        f"  n={npv.denominator}"
     )
     print(f"  Cohen kappa {report.cohen_kappa:.3f}")
     print(f"  counts      {report.counts}")
