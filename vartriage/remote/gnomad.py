@@ -23,7 +23,11 @@ from vartriage.models.resolution import Resolution
 from vartriage.remote.cache import RemoteScoreCache
 from vartriage.remote.circuit_breaker import CircuitBreaker
 from vartriage.remote.config import RemoteTabixConfig
-from vartriage.remote.presets import resolve_cache_source_id, resolve_preset
+from vartriage.remote.presets import (
+    get_preset,
+    resolve_cache_source_id,
+    resolve_preset,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +78,6 @@ class RemoteTabixGnomAD:
         If gnomad_remote_url is None.
     """
 
-    _genomes_url_template: str | None = None
-
     def __init__(self, config: RemoteTabixConfig) -> None:
         if config.gnomad_remote_url is None:
             raise ValueError("gnomad_remote_url is required for RemoteTabixGnomAD")
@@ -85,13 +87,17 @@ class RemoteTabixGnomAD:
         self._source_id = resolve_cache_source_id(_SOURCE_ID, config.gnomad_remote_url)
 
         # Genomes fallback support
-        self._genomes_url_template: str | None = None
-        if config.gnomad_remote_url == "gnomad-v4-grch38":
-            self._genomes_url_template = resolve_preset("gnomad-genomes-v4-grch38")
-        elif config.gnomad_genomes_remote_url is not None:
-            self._genomes_url_template = resolve_preset(
+        preset = get_preset(config.gnomad_remote_url)
+        if config.gnomad_genomes_remote_url is not None:
+            self._genomes_url_template: str | None = resolve_preset(
                 config.gnomad_genomes_remote_url
             )
+        elif preset is not None and preset.genomes_url is not None:
+            self._genomes_url_template = preset.genomes_url
+        elif "gnomad.exomes.v4" in self._url_template:
+            self._genomes_url_template = resolve_preset("gnomad-genomes-v4-grch38")
+        else:
+            self._genomes_url_template = None
 
         self._cache = RemoteScoreCache(
             db_path=config.cache_path,

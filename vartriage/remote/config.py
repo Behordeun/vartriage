@@ -22,6 +22,10 @@ class RemoteTabixConfig:
         URL or named preset for remote gnomAD frequency queries. When
         None, remote gnomAD is disabled. Supports {chrom} placeholder
         for per-chromosome files.
+    gnomad_genomes_remote_url : str | None
+        Optional secondary URL or named preset for remote gnomAD genomes
+        frequency queries. When configured alongside an exomes remote URL,
+        variants unobserved in exomes fall back to this genomes resource.
     cache_ttl_days : int
         Score cache TTL in days. -1 pins entries indefinitely (clinical
         reproducibility mode). Must be >= -1.

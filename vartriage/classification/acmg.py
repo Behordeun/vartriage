@@ -627,13 +627,6 @@ class ACMGClassifier:
                 tags.add(EvidenceTag.PP3)
                 return
 
-        if not revel_available:
-            missing_sources.add("REVEL")
-        if not spliceai_available:
-            missing_sources.add("SpliceAI")
-        if not cadd_available:
-            missing_sources.add("CADD")
-
     def _evaluate_pp5(
         self,
         variant: ScoredVariant,

@@ -307,7 +307,7 @@ def score_variants(
     revel_scores: Sequence[float | None],
     spliceai_scores: Sequence[float | None] | None = None,
     warning_sink: list[MissingDataWarning] | None = None,
-    emit_warnings: bool = True,
+    emit_warnings: bool | None = None,
 ) -> list[ScoredVariant]:
     """Score a batch of annotated variants and sort by composite rank.
 
@@ -328,6 +328,11 @@ def score_variants(
     spliceai_scores : Optional[Sequence[Optional[float]]]
         Raw SpliceAI scores aligned with the variants sequence. None
         means SpliceAI is not configured (legacy mode).
+    warning_sink : list[MissingDataWarning] | None, optional
+        Sink list to collect missing data warnings.
+    emit_warnings : bool | None, optional
+        Whether to emit UserWarning to stderr. Defaults to True when
+        warning_sink is None, and False when warning_sink is provided.
 
     Returns
     -------
@@ -408,7 +413,8 @@ def score_variants(
     if warning_sink is not None:
         warning_sink.extend(missing_data_warnings)
 
-    if emit_warnings:
+    should_emit = emit_warnings if emit_warnings is not None else (warning_sink is None)
+    if should_emit:
         for w in missing_data_warnings:
             warnings.warn(
                 f"MissingDataWarning: {w.chrom}:{w.pos} {w.ref}>{w.alt} - {w.reason}",

@@ -15,6 +15,7 @@ from vartriage.remote.presets import (
     get_preset,
     is_preset_name,
     list_presets,
+    resolve_cache_source_id,
     resolve_preset,
 )
 
@@ -162,6 +163,41 @@ class TestPresets:
 
     def test_is_preset_name_false_for_unknown(self) -> None:
         assert not is_preset_name("unknown-preset")
+
+    def test_composite_shares_cache_source_id_with_exomes(self) -> None:
+        composite_id = resolve_cache_source_id("gnomad-remote", "gnomad-v4-grch38")
+        exomes_id = resolve_cache_source_id("gnomad-remote", "gnomad-exomes-v4-grch38")
+        assert composite_id == exomes_id == "gnomad-remote:gnomad-exomes-v4-grch38"
+
+    def test_gnomad_backend_resolves_genomes_fallback_dynamically(self) -> None:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        # Composite preset activates genomes fallback
+        c1 = RemoteTabixConfig(gnomad_remote_url="gnomad-v4-grch38")
+        b1 = RemoteTabixGnomAD(c1)
+        assert b1._genomes_url_template is not None
+        assert "genomes" in b1._genomes_url_template
+
+        # Raw v4 exomes URL activates genomes fallback
+        raw_exomes = "https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1.1/vcf/exomes/gnomad.exomes.v4.1.1.sites.{chrom}.vcf.bgz"
+        c2 = RemoteTabixConfig(gnomad_remote_url=raw_exomes)
+        b2 = RemoteTabixGnomAD(c2)
+        assert b2._genomes_url_template is not None
+        assert "genomes" in b2._genomes_url_template
+
+        # Custom genomes URL explicitly provided
+        c3 = RemoteTabixConfig(
+            gnomad_remote_url="https://custom.org/exomes.vcf.bgz",
+            gnomad_genomes_remote_url="gnomad-genomes-v4-grch38",
+        )
+        b3 = RemoteTabixGnomAD(c3)
+        assert b3._genomes_url_template is not None
+        assert "genomes" in b3._genomes_url_template
+
+        # Genomes-only preset has no secondary fallback
+        c4 = RemoteTabixConfig(gnomad_remote_url="gnomad-genomes-v4-grch38")
+        b4 = RemoteTabixGnomAD(c4)
+        assert b4._genomes_url_template is None
 
 
 # ============================================================
@@ -1084,6 +1120,8 @@ class TestPopulationLookupBatch:
         config = RemoteTabixConfig(gnomad_remote_url="gnomad-genomes-v4-grch38")
         backend = object.__new__(RemoteTabixGnomAD)
         backend._config = config
+        backend._genomes_url_template = None
+        backend._genomes_tabix_handles = {}
         backend._breaker = CircuitBreaker()
         backend._network_fetches = 0
         backend._source_id = "gnomad-genomes-v4-grch38"
@@ -1174,6 +1212,8 @@ class TestPopulationCacheTransientFailure:
         config = RemoteTabixConfig(gnomad_remote_url="gnomad-genomes-v4-grch38")
         backend = object.__new__(RemoteTabixGnomAD)
         backend._config = config
+        backend._genomes_url_template = None
+        backend._genomes_tabix_handles = {}
         backend._breaker = CircuitBreaker()
         backend._network_fetches = 0
         backend._source_id = "gnomad-genomes-v4-grch38"

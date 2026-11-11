@@ -493,29 +493,6 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
         expected_missing.add("REVEL")
         expected_missing.add("SpliceAI")
         expected_missing.add("CADD")
-    elif (
-        (revel_available and revel > 0.644)
-        or (
-            spliceai_available
-            and spliceai > 0.5
-            and consequence
-            in (
-                FunctionalConsequence.SPLICE_SITE,
-                FunctionalConsequence.MISSENSE,
-            )
-        )
-        or (not revel_available and cadd_available and cadd >= 22.7)
-    ):
-        # A predictor triggered PP3, no missing sources from PP3
-        pass
-    else:
-        # Neither triggered, record whichever is unavailable
-        if not revel_available:
-            expected_missing.add("REVEL")
-        if not spliceai_available:
-            expected_missing.add("SpliceAI")
-        if not cadd_available:
-            expected_missing.add("CADD")
 
     # BP4 fallback records REVEL missing for a missense variant that has
     # neither a REVEL score nor a CADD score to fall back on.

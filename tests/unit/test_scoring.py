@@ -238,14 +238,24 @@ class TestScoreVariants:
         sink: list[MissingDataWarning] = []
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            result = score_variants(
-                variants, [None], [None], warning_sink=sink, emit_warnings=False
-            )
+            # When warning_sink is supplied and emit_warnings is omitted,
+            # emit_warnings defaults to False (preventing stderr spam).
+            result = score_variants(variants, [None], [None], warning_sink=sink)
             assert result[0].composite_rank is None
             assert len(w) == 0
             assert len(sink) == 1
             assert sink[0].chrom == "chr1"
             assert sink[0].source == "pathogenicity_scores"
+
+        # Explicitly opt-in to both sink and stderr emission
+        sink.clear()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            score_variants(
+                variants, [None], [None], warning_sink=sink, emit_warnings=True
+            )
+            assert len(w) == 1
+            assert len(sink) == 1
 
     def test_negative_cadd_excluded_from_composite(self) -> None:
         variants = [_make_annotated_variant(pos=1)]

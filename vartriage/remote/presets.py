@@ -29,6 +29,13 @@ class PresetEntry:
         Reference build ("grch38" or "grch37").
     description : str
         Human-readable one-liner shown by list-presets.
+    genomes_url : str | None, optional
+        Secondary genomes URL for composite resources that fall back
+        to whole-genome data when unobserved in exomes.
+    cache_source_name : str | None, optional
+        Alternative preset name to use when deriving the cache source ID,
+        allowing composite presets to share cached queries with single-source
+        presets that query the same underlying VCF.
     """
 
     name: str
@@ -36,6 +43,8 @@ class PresetEntry:
     source: Literal["cadd", "gnomad"]
     genome_build: str
     description: str
+    genomes_url: str | None = None
+    cache_source_name: str | None = None
 
 
 _PRESET_REGISTRY: tuple[PresetEntry, ...] = (
@@ -80,6 +89,8 @@ _PRESET_REGISTRY: tuple[PresetEntry, ...] = (
         source="gnomad",
         genome_build="grch38",
         description="gnomAD v4.1.1 composite exomes with genomes fallback, GRCh38",
+        genomes_url="https://gnomad-public-us-east-1.s3.amazonaws.com/release/4.1.1/vcf/genomes/gnomad.genomes.v4.1.1.sites.{chrom}.vcf.bgz",
+        cache_source_name="gnomad-exomes-v4-grch38",
     ),
 )
 
@@ -151,15 +162,16 @@ def resolve_cache_source_id(base: str, name_or_url: str) -> str:
 
     Cached remote scores are keyed on this id plus coordinates, so it must
     differ whenever the underlying reference differs. A registered preset
-    contributes its name, which already encodes build, version, and dataset
-    kind (for example ``gnomad-genomes-v4-grch38``). A raw URL contributes a
-    short stable hash of the URL, so two different URLs never collide. The
-    ``base`` scoring system (``cadd`` or ``gnomad``) is prefixed so the id
-    stays attributable in cache statistics.
+    contributes its name (or canonical cache_source_name), which already encodes
+    build, version, and dataset kind (for example ``gnomad-genomes-v4-grch38``).
+    A raw URL contributes a short stable hash of the URL, so two different URLs
+    never collide. The ``base`` scoring system (``cadd`` or ``gnomad``) is
+    prefixed so the id stays attributable in cache statistics.
     """
     preset = _PRESET_BY_NAME.get(name_or_url)
     if preset is not None:
-        return f"{base}:{preset.name}"
+        source_name = preset.cache_source_name or preset.name
+        return f"{base}:{source_name}"
 
     digest = hashlib.sha256(name_or_url.encode("utf-8")).hexdigest()[:16]
     return f"{base}:url:{digest}"

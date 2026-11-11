@@ -199,10 +199,14 @@ class TestPP3Assignment:
         assert EvidenceTag.PP3 not in results[0].evidence_tags
 
     def test_does_not_assign_pp3_below_threshold(self) -> None:
-        sv = _make_scored_variant(revel_score=0.5)
+        sv = _make_scored_variant(revel_score=0.5, cadd_phred=None)
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert EvidenceTag.PP3 not in results[0].evidence_tags
+        # REVEL was present and evaluated (found below threshold) — no PP3 predictors are missing
+        assert "REVEL" not in results[0].missing_data_sources
+        assert "CADD" not in results[0].missing_data_sources
+        assert "SpliceAI" not in results[0].missing_data_sources
 
     def test_omits_pp3_when_revel_unavailable(self) -> None:
         sv = _make_scored_variant(revel_score=None, cadd_phred=None)
