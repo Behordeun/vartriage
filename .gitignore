@@ -65,6 +65,8 @@ e2e_results
 # Local working notes and run logs (never committed)
 logs/
 review/
+runs/
+*.local.md
 
 paper*.py
 # Manuscript figure-pipeline scripts (renamed from paper*.py; kept local like the manuscript)

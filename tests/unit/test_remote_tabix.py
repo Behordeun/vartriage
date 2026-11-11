@@ -632,6 +632,43 @@ class TestRemoteTabixGnomAD:
         assert elapsed < 5.0
 
     @patch("vartriage.remote.gnomad.pysam.TabixFile")
+    def test_stalled_query_fetch_degrades_without_hanging(
+        self, mock_tabix_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        from vartriage.remote.gnomad import RemoteTabixGnomAD
+
+        config = RemoteTabixConfig(
+            gnomad_remote_url="https://example.com/{chrom}.vcf.bgz",
+            cache_path=tmp_path / "stalled_fetch_cache.db",
+            cache_ttl_days=30,
+            connect_timeout=10.0,
+            read_timeout=0.2,
+            max_retries=0,
+        )
+
+        mock_tabix = MagicMock()
+
+        def _slow_fetch(*_args: object, **_kwargs: object) -> object:
+            time.sleep(0.8)
+            return iter([])
+
+        mock_tabix.fetch.side_effect = _slow_fetch
+        mock_tabix_cls.return_value = mock_tabix
+
+        backend = RemoteTabixGnomAD(config)
+        start = time.monotonic()
+        results = backend.lookup_batch([("chr22", 100, "A", "T")])
+        elapsed = time.monotonic() - start
+
+        assert results == [None]
+        assert elapsed < 0.6
+        assert "chr22" not in backend._tabix_handles
+
+        time.sleep(1.5)
+        assert mock_tabix.close.call_count == 1
+        backend.close()
+
+    @patch("vartriage.remote.gnomad.pysam.TabixFile")
     def test_lookup_batch_parses_gnomad_vcf(
         self, mock_tabix_cls: MagicMock, tmp_path: Path
     ) -> None:

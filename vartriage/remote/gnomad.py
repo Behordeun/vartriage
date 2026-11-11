@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import contextlib
+import functools
 import logging
 import time
 from collections import defaultdict
@@ -444,7 +445,7 @@ class RemoteTabixGnomAD:
         current_group: list[_VariantKey] = [sorted_variants[0]]
 
         for variant in sorted_variants[1:]:
-            if variant[1] - current_group[-1][1] <= window:
+            if variant[1] - current_group[0][1] <= window:
                 current_group.append(variant)
             else:
                 groups.append(current_group)
@@ -526,7 +527,44 @@ class RemoteTabixGnomAD:
         for attempt in range(max_retries + 1):
             try:
                 tabix = self._get_tabix_for_chrom(chrom, is_genomes=is_genomes)
+            except concurrent.futures.TimeoutError:
+                tier = "genomes" if is_genomes else "exomes"
+                logger.warning(
+                    "Remote gnomAD %s open timed out after %.0fs for %s "
+                    "(attempt %d/%d)",
+                    tier,
+                    self._config.connect_timeout,
+                    chrom,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                if attempt == max_retries:
+                    self._breaker.record_failure()
+                    return None
+                time.sleep(backoff)
+                backoff *= 2.0
+                continue
+            except (OSError, ValueError, pysam.utils.SamtoolsError) as exc:
+                if attempt == max_retries:
+                    self._breaker.record_failure()
+                    logger.warning(
+                        "Remote gnomAD open exhausted retries for %s: %s",
+                        chrom,
+                        exc,
+                    )
+                    return None
+                logger.debug(
+                    "Remote gnomAD open attempt %d failed, retrying in %.1fs: %s",
+                    attempt + 1,
+                    backoff,
+                    exc,
+                )
+                time.sleep(backoff)
+                backoff *= 2.0
+                self._reset_chrom_connection(chrom, is_genomes=is_genomes)
+                continue
 
+            try:
                 pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                 try:
 
@@ -558,7 +596,10 @@ class RemoteTabixGnomAD:
                     attempt + 1,
                     max_retries + 1,
                 )
-                self._reset_chrom_connection(chrom, is_genomes=is_genomes)
+                self._detach_chrom_connection(chrom, is_genomes=is_genomes)
+                future.add_done_callback(
+                    functools.partial(_close_orphaned_tabix, handle=tabix)
+                )
                 if attempt == max_retries:
                     self._breaker.record_failure()
                     return None
@@ -757,6 +798,20 @@ class RemoteTabixGnomAD:
         handles[chrom] = handle
         return handle
 
+    def _detach_chrom_connection(
+        self, chrom: str, is_genomes: bool = False
+    ) -> pysam.TabixFile | None:
+        """Detach and return the active tabix handle without closing it.
+
+        Used when a query times out while a background worker thread may still
+        be actively executing inside C-level htslib/libcurl routines. Closing
+        the handle immediately causes a use-after-free and SIGSEGV. Instead,
+        the handle is removed from the active connection pool, and safe closing
+        is deferred until the worker thread exits.
+        """
+        handles = self._genomes_tabix_handles if is_genomes else self._tabix_handles
+        return handles.pop(chrom, None)
+
     def _reset_chrom_connection(self, chrom: str, is_genomes: bool = False) -> None:
         """Close and discard the tabix handle for a chromosome."""
         handles = self._genomes_tabix_handles if is_genomes else self._tabix_handles
@@ -764,6 +819,15 @@ class RemoteTabixGnomAD:
         if handle is not None:
             with contextlib.suppress(Exception):
                 handle.close()
+
+
+def _close_orphaned_tabix(
+    _future: concurrent.futures.Future[list[str]],
+    handle: pysam.TabixFile,
+) -> None:
+    """Close a TabixFile once an orphaned worker thread has exited."""
+    with contextlib.suppress(Exception):
+        handle.close()
 
 
 def _close_late_tabix_handle(
