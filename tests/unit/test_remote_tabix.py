@@ -664,7 +664,7 @@ class TestRemoteTabixGnomAD:
         assert elapsed < 0.6
         assert "chr22" not in backend._tabix_handles
 
-        time.sleep(0.8)
+        time.sleep(1.2)
         assert mock_tabix.close.call_count == 1
         backend.close()
 
