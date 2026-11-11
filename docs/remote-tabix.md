@@ -10,16 +10,16 @@ vartriage --vcf panel.vcf --output results.json \
   --gene-annotation gencode.gtf \
   --cadd-remote cadd-v1.7-grch38
 
-# gnomAD frequencies via remote tabix
+# gnomAD frequencies via remote tabix (composite exomes with genomes fallback)
 vartriage --vcf panel.vcf --output results.json \
   --gene-annotation gencode.gtf \
-  --gnomad-remote gnomad-exomes-v4-grch38
+  --gnomad-remote gnomad-v4-grch38
 
 # Both together
 vartriage --vcf patient.vcf.gz --output report.json \
   --gene-annotation gencode.gtf --clinvar clinvar.tsv \
   --cadd-remote cadd-v1.7-grch38 \
-  --gnomad-remote gnomad-exomes-v4-grch38
+  --gnomad-remote gnomad-v4-grch38
 ```
 
 ## How It Works

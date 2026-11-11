@@ -442,7 +442,7 @@ Common missing data patterns:
 
 ## Conflicting evidence
 
-When both pathogenic and benign evidence tags are present for the same variant, the classifier returns VUS and sets `has_conflicting_evidence = True` on the output. This distinguishes "VUS because insufficient evidence" from "VUS because contradictory evidence." Clinical reports display a note when this flag is set.
+When both pathogenic and benign evidence criteria are present for the same variant, opposing evidence resolves through the ClinGen SVI Bayesian point framework: the variant takes its net signed point total through the classification threshold ladder rather than being forced to VUS. The classifier records `has_conflicting_evidence = True` as an auditable metadata flag to distinguish variants with balanced or opposing evidence from variants with no evidence. Clinical reports display an advisory note whenever this flag is set.
 
 ## Limitations and assumptions
 
