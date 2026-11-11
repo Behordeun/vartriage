@@ -61,6 +61,12 @@ _PP3_REVEL_MODERATE_THRESHOLD: float = 0.773
 # Strong level: REVEL > 0.932 (Pejaver et al. 2022 calibrated threshold)
 _PP3_REVEL_STRONG_THRESHOLD: float = 0.932
 
+# ClinGen-calibrated CADD v1.7 thresholds (Pejaver et al., 2022 / ClinGen SVI)
+# Supporting level: CADD Phred >= 22.7
+_PP3_CADD_THRESHOLD: float = 22.7
+# Moderate level: CADD Phred >= 28.1
+_PP3_CADD_MODERATE_THRESHOLD: float = 28.1
+
 _PP3_SPLICEAI_THRESHOLD: float = 0.5
 
 _PVS1_SPLICEAI_THRESHOLD: float = 0.8
@@ -561,27 +567,30 @@ class ACMGClassifier:
         tags: set[EvidenceTag],
         missing_sources: set[str],
     ) -> None:
-        """Assign PP3 based on ClinGen-calibrated REVEL or SpliceAI thresholds.
+        """Assign PP3 based on ClinGen-calibrated REVEL, SpliceAI, or CADD thresholds.
 
         Strength-modulated per Pejaver et al. (2022):
         - PP3_Strong: REVEL > 0.932
-        - PP3_Moderate: REVEL > 0.773
-        - PP3 (supporting): REVEL > 0.644
-        - PP3 (supporting): SpliceAI > 0.5 on splice-adjacent variant
+        - PP3_Moderate: REVEL > 0.773, or CADD >= 28.1 (when REVEL is unavailable)
+        - PP3 (supporting): REVEL > 0.644, SpliceAI > 0.5 on splice-adjacent,
+          or CADD >= 22.7 (when REVEL is unavailable)
 
-        Only the highest applicable strength fires. When neither predictor
-        is available, both are recorded as missing.
+        Only the highest applicable strength fires. When no predictor
+        is available, missing predictors are recorded.
         """
         revel = variant.revel_score
         spliceai = variant.spliceai_score
+        cadd = variant.cadd_phred
         consequence = variant.annotated.consequence
 
         revel_available = revel is not None
         spliceai_available = spliceai is not None
+        cadd_available = cadd is not None
 
-        if not revel_available and not spliceai_available:
+        if not revel_available and not spliceai_available and not cadd_available:
             missing_sources.add("REVEL")
             missing_sources.add("SpliceAI")
+            missing_sources.add("CADD")
             return
 
         # Check REVEL at strong threshold first (highest bar = strongest evidence)
@@ -589,7 +598,7 @@ class ACMGClassifier:
             tags.add(EvidenceTag.PP3_STRONG)
             return
 
-        # Then moderate threshold
+        # Then moderate threshold for REVEL
         if revel is not None and revel > _PP3_REVEL_MODERATE_THRESHOLD:
             tags.add(EvidenceTag.PP3_MODERATE)
             return
@@ -609,10 +618,21 @@ class ACMGClassifier:
             tags.add(EvidenceTag.PP3)
             return
 
+        # CADD-based PP3 when REVEL is unavailable (e.g. non-missense or unindexed)
+        if not revel_available and cadd is not None:
+            if cadd >= _PP3_CADD_MODERATE_THRESHOLD:
+                tags.add(EvidenceTag.PP3_MODERATE)
+                return
+            if cadd >= _PP3_CADD_THRESHOLD:
+                tags.add(EvidenceTag.PP3)
+                return
+
         if not revel_available:
             missing_sources.add("REVEL")
         if not spliceai_available:
             missing_sources.add("SpliceAI")
+        if not cadd_available:
+            missing_sources.add("CADD")
 
     def _evaluate_pp5(
         self,

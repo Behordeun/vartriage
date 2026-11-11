@@ -74,6 +74,8 @@ class RemoteTabixGnomAD:
         If gnomad_remote_url is None.
     """
 
+    _genomes_url_template: str | None = None
+
     def __init__(self, config: RemoteTabixConfig) -> None:
         if config.gnomad_remote_url is None:
             raise ValueError("gnomad_remote_url is required for RemoteTabixGnomAD")
@@ -81,12 +83,23 @@ class RemoteTabixGnomAD:
         self._config = config
         self._url_template = resolve_preset(config.gnomad_remote_url)
         self._source_id = resolve_cache_source_id(_SOURCE_ID, config.gnomad_remote_url)
+
+        # Genomes fallback support
+        self._genomes_url_template: str | None = None
+        if config.gnomad_remote_url == "gnomad-v4-grch38":
+            self._genomes_url_template = resolve_preset("gnomad-genomes-v4-grch38")
+        elif config.gnomad_genomes_remote_url is not None:
+            self._genomes_url_template = resolve_preset(
+                config.gnomad_genomes_remote_url
+            )
+
         self._cache = RemoteScoreCache(
             db_path=config.cache_path,
             ttl_days=config.cache_ttl_days,
         )
         self._breaker = CircuitBreaker()
         self._tabix_handles: dict[str, pysam.TabixFile] = {}
+        self._genomes_tabix_handles: dict[str, pysam.TabixFile] = {}
 
         # Stats for audit trail
         self._network_fetches = 0
@@ -262,6 +275,19 @@ class RemoteTabixGnomAD:
 
         for chrom, group in self._iter_groups(uncached_variants):
             fetch_ok, group_maps = self._query_range_populations(chrom, group)
+
+            # Query genomes fallback for variants unobserved in exomes
+            if fetch_ok and self._genomes_url_template is not None:
+                missing_variants = [v for v in group if not group_maps.get(v)]
+                if missing_variants:
+                    g_fetch_ok, g_maps = self._query_range_populations(
+                        chrom, missing_variants, is_genomes=True
+                    )
+                    if g_fetch_ok:
+                        for v, af_map in g_maps.items():
+                            if af_map:
+                                group_maps[v] = af_map
+
             for variant, af_map in group_maps.items():
                 for idx in indices_by_variant.get(variant, ()):
                     results[idx] = af_map
@@ -286,7 +312,10 @@ class RemoteTabixGnomAD:
         return results
 
     def _query_range_populations(
-        self, chrom: str, group: list[_VariantKey]
+        self,
+        chrom: str,
+        group: list[_VariantKey],
+        is_genomes: bool = False,
     ) -> tuple[bool, dict[_VariantKey, dict[str, float]]]:
         """Range-query the remote gnomAD VCF, returning per-population AF maps.
 
@@ -307,7 +336,9 @@ class RemoteTabixGnomAD:
         end_pos = max(v[1] for v in group)
         query_chrom = chrom if chrom.startswith("chr") else f"chr{chrom}"
 
-        records = self._fetch_records(chrom, query_chrom, start_pos - 1, end_pos)
+        records = self._fetch_records(
+            chrom, query_chrom, start_pos - 1, end_pos, is_genomes=is_genomes
+        )
         if records is None:
             return False, results
 
@@ -329,6 +360,12 @@ class RemoteTabixGnomAD:
             with contextlib.suppress(Exception):
                 handle.close()
         self._tabix_handles.clear()
+
+        for handle in self._genomes_tabix_handles.values():
+            with contextlib.suppress(Exception):
+                handle.close()
+        self._genomes_tabix_handles.clear()
+
         self._cache.close()
 
     @property
@@ -362,7 +399,16 @@ class RemoteTabixGnomAD:
             fetch_ok, group_results = self._query_range(chrom, group)
             results.update(group_results)
             if fetch_ok:
-                confirmed_absent.extend(v for v in group if v not in group_results)
+                absent = [v for v in group if v not in group_results]
+                if self._genomes_url_template is not None and absent:
+                    g_fetch_ok, g_results = self._query_range(
+                        chrom, absent, is_genomes=True
+                    )
+                    results.update(g_results)
+                    if g_fetch_ok:
+                        confirmed_absent.extend(v for v in absent if v not in g_results)
+                else:
+                    confirmed_absent.extend(absent)
         return results, confirmed_absent
 
     def _iter_groups(
@@ -406,7 +452,10 @@ class RemoteTabixGnomAD:
     # ------------------------------------------------------------------
 
     def _query_range(
-        self, chrom: str, group: list[_VariantKey]
+        self,
+        chrom: str,
+        group: list[_VariantKey],
+        is_genomes: bool = False,
     ) -> tuple[bool, dict[_VariantKey, float]]:
         """Query a range from the remote gnomAD VCF.
 
@@ -429,7 +478,9 @@ class RemoteTabixGnomAD:
         # gnomAD VCFs use "chr" prefix for GRCh38
         query_chrom = chrom if chrom.startswith("chr") else f"chr{chrom}"
 
-        records = self._fetch_records(chrom, query_chrom, start_pos - 1, end_pos)
+        records = self._fetch_records(
+            chrom, query_chrom, start_pos - 1, end_pos, is_genomes=is_genomes
+        )
         if records is None:
             return False, results
 
@@ -448,7 +499,12 @@ class RemoteTabixGnomAD:
         return True, results
 
     def _fetch_records(
-        self, chrom: str, query_chrom: str, start: int, end: int
+        self,
+        chrom: str,
+        query_chrom: str,
+        start: int,
+        end: int,
+        is_genomes: bool = False,
     ) -> list[str] | None:
         """Fetch records with retries, exponential backoff, and circuit breaker.
 
@@ -463,7 +519,7 @@ class RemoteTabixGnomAD:
 
         for attempt in range(max_retries + 1):
             try:
-                tabix = self._get_tabix_for_chrom(chrom)
+                tabix = self._get_tabix_for_chrom(chrom, is_genomes=is_genomes)
 
                 pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                 try:
@@ -484,9 +540,11 @@ class RemoteTabixGnomAD:
                 self._breaker.record_success()
                 return records
             except concurrent.futures.TimeoutError:
+                tier = "genomes" if is_genomes else "exomes"
                 logger.warning(
-                    "Remote gnomAD query timed out after %.0fs for %s:%d-%d "
+                    "Remote gnomAD %s query timed out after %.0fs for %s:%d-%d "
                     "(attempt %d/%d)",
+                    tier,
                     timeout,
                     chrom,
                     start,
@@ -494,7 +552,7 @@ class RemoteTabixGnomAD:
                     attempt + 1,
                     max_retries + 1,
                 )
-                self._reset_chrom_connection(chrom)
+                self._reset_chrom_connection(chrom, is_genomes=is_genomes)
                 if attempt == max_retries:
                     self._breaker.record_failure()
                     return None
@@ -520,14 +578,8 @@ class RemoteTabixGnomAD:
                 )
                 time.sleep(backoff)
                 backoff *= 2.0
-                self._reset_chrom_connection(chrom)
+                self._reset_chrom_connection(chrom, is_genomes=is_genomes)
             except Exception as exc:
-                # htslib surfaces transient S3/BGZF read failures (libcurl socket
-                # errors, truncated BGZF blocks) as exceptions outside the OSError
-                # hierarchy. A single bad range read must never abort a
-                # genome-wide run, so treat any remote read failure the same as a
-                # retryable fetch error: back off and retry, then degrade to no
-                # frequency for this range.
                 if attempt == max_retries:
                     self._breaker.record_failure()
                     logger.warning(
@@ -549,7 +601,7 @@ class RemoteTabixGnomAD:
                 )
                 time.sleep(backoff)
                 backoff *= 2.0
-                self._reset_chrom_connection(chrom)
+                self._reset_chrom_connection(chrom, is_genomes=is_genomes)
 
         return None  # unreachable, satisfies type checker
 
@@ -651,17 +703,27 @@ class RemoteTabixGnomAD:
 
         return entries or None
 
-    def _get_tabix_for_chrom(self, chrom: str) -> pysam.TabixFile:
+    def _get_tabix_for_chrom(
+        self, chrom: str, is_genomes: bool = False
+    ) -> pysam.TabixFile:
         """Get or open the tabix handle for a chromosome.
 
         gnomAD distributes per-chromosome VCFs. The URL template uses
         a {chrom} placeholder that gets formatted per chromosome.
         """
-        if chrom in self._tabix_handles:
-            return self._tabix_handles[chrom]
+        handles = self._genomes_tabix_handles if is_genomes else self._tabix_handles
+        url_template = self._genomes_url_template if is_genomes else self._url_template
+        if url_template is None:
+            raise ValueError(
+                f"No genomes URL template configured for chromosome {chrom}"
+            )
 
-        url = self._url_template.format(chrom=chrom)
-        logger.info("Opening remote gnomAD tabix for %s: %s", chrom, url)
+        if chrom in handles:
+            return handles[chrom]
+
+        url = url_template.format(chrom=chrom)
+        tier = "genomes" if is_genomes else "exomes"
+        logger.info("Opening remote gnomAD %s tabix for %s: %s", tier, chrom, url)
 
         # pysam.TabixFile opens the remote index over HTTP with no connect
         # timeout (htslib has none), so a stalled S3 connection would block the
@@ -686,12 +748,13 @@ class RemoteTabixGnomAD:
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
 
-        self._tabix_handles[chrom] = handle
+        handles[chrom] = handle
         return handle
 
-    def _reset_chrom_connection(self, chrom: str) -> None:
+    def _reset_chrom_connection(self, chrom: str, is_genomes: bool = False) -> None:
         """Close and discard the tabix handle for a chromosome."""
-        handle = self._tabix_handles.pop(chrom, None)
+        handles = self._genomes_tabix_handles if is_genomes else self._tabix_handles
+        handle = handles.pop(chrom, None)
         if handle is not None:
             with contextlib.suppress(Exception):
                 handle.close()

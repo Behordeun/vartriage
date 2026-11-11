@@ -127,3 +127,42 @@ def test_annotator_processes_stream_in_order(knowledge_dir: Path) -> None:
     assert results[0].gene_context.is_actionable is True
     assert results[1].gene_context is not None
     assert results[1].gene_context.is_actionable is False
+
+
+def test_annotator_flag_actionable_preserves_all_variants(
+    knowledge_dir: Path,
+) -> None:
+    config = KnowledgeBaseConfig(data_dir=knowledge_dir, flag_actionable=True)
+    annotator = GeneKnowledgeAnnotator(config)
+
+    v1 = _make_variant("BRCA1")
+    v2 = _make_variant("NON_ACTIONABLE_GENE")
+    v3 = _make_variant(None)
+
+    results = list(annotator.annotate(iter([v1, v2, v3])))
+    assert len(results) == 3
+    assert results[0].gene_context is not None
+    assert results[0].gene_context.is_actionable is True
+    assert results[1].gene_context is not None
+    assert results[1].gene_context.is_actionable is False
+    assert results[2].gene_context is not None
+    assert results[2].gene_context.is_actionable is False
+
+
+def test_annotator_filter_actionable_excludes_non_actionable_genes(
+    knowledge_dir: Path,
+) -> None:
+    config = KnowledgeBaseConfig(data_dir=knowledge_dir, filter_actionable=True)
+    annotator = GeneKnowledgeAnnotator(config)
+
+    v1 = _make_variant("BRCA1")
+    v2 = _make_variant("NON_ACTIONABLE_GENE")
+    v3 = _make_variant(None)
+
+    results = list(annotator.annotate(iter([v1, v2, v3])))
+    assert len(results) == 2
+    assert results[0].gene_name == "BRCA1"
+    assert results[0].gene_context is not None
+    assert results[0].gene_context.is_actionable is True
+    # Intergenic passes through
+    assert results[1].gene_name is None

@@ -306,6 +306,8 @@ def score_variants(
     cadd_scores: Sequence[float | None],
     revel_scores: Sequence[float | None],
     spliceai_scores: Sequence[float | None] | None = None,
+    warning_sink: list[MissingDataWarning] | None = None,
+    emit_warnings: bool = True,
 ) -> list[ScoredVariant]:
     """Score a batch of annotated variants and sort by composite rank.
 
@@ -403,12 +405,16 @@ def score_variants(
         )
         scored.append(scored_variant)
 
-    for w in missing_data_warnings:
-        warnings.warn(
-            f"MissingDataWarning: {w.chrom}:{w.pos} {w.ref}>{w.alt} - {w.reason}",
-            UserWarning,
-            stacklevel=2,
-        )
+    if warning_sink is not None:
+        warning_sink.extend(missing_data_warnings)
+
+    if emit_warnings:
+        for w in missing_data_warnings:
+            warnings.warn(
+                f"MissingDataWarning: {w.chrom}:{w.pos} {w.ref}>{w.alt} - {w.reason}",
+                UserWarning,
+                stacklevel=2,
+            )
 
     return sort_by_composite_rank(scored)
 

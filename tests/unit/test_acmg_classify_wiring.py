@@ -157,6 +157,7 @@ class TestClassifyCombiningWiring:
             allele_frequency=None,
             frequency_unknown=True,
             revel_score=None,
+            cadd_phred=None,
             clinvar_assertion=None,
             clinvar_unknown=True,
             gene_context=_LOF_INTOLERANT,

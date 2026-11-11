@@ -148,6 +148,15 @@ class AnnotationEngine:
             config.clinvar_path
         )
 
+        # Mitochondrial population frequency database (HelixMTdb)
+        self._helix_db = None
+        try:
+            from vartriage.mito.frequency import HelixMTdbDatabase
+
+            self._helix_db = HelixMTdbDatabase()
+        except Exception as exc:
+            logger.debug("HelixMTdbDatabase unavailable: %s", exc)
+
         # Capability flags (determined once at init, not per-call hasattr)
         self._supports_batch_gene_names: bool = hasattr(
             self._consequence_annotator, "gene_names_batch"
@@ -262,6 +271,19 @@ class AnnotationEngine:
         # lets BA1/BS1/PM2 reason about a variant common in one ancestry but
         # globally rare, instead of only the single global number.
         population_frequencies = self._lookup_population_frequencies(variant_keys)
+
+        # Mitochondrial frequency fallback for chrM variants
+        from vartriage.mito.genetic_code import is_mitochondrial
+
+        if self._helix_db is not None:
+            for i, variant in enumerate(batch):
+                if is_mitochondrial(variant.chrom) and frequencies[i] is None:
+                    mt_af = self._helix_db.get_af(variant.pos, variant.ref, variant.alt)
+                    if mt_af is not None:
+                        frequencies[i] = mt_af
+                        freq_states[i] = ResolutionState.FOUND
+                    else:
+                        freq_states[i] = ResolutionState.CONFIRMED_ABSENT
 
         # ClinVar lookup
         clinvar_assertions: list[ClinVarAssertion | None] = []

@@ -299,7 +299,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help=(
             "Flag variants in medically actionable genes (ClinGen "
-            "actionability curations). Adds is_actionable to output."
+            "actionability curations). Adds is_actionable to output "
+            "without filtering non-actionable variants."
+        ),
+    )
+    parser.add_argument(
+        "--filter-actionable-only",
+        action="store_true",
+        default=False,
+        help=(
+            "Filter output to variants in medically actionable genes "
+            "(ClinGen actionability curations). Non-actionable variants "
+            "are excluded from output."
         ),
     )
     parser.add_argument(
@@ -719,6 +730,7 @@ def _build_knowledge_config(
     hpo_terms_raw: str | None = getattr(args, "hpo_terms", None)
     knowledge_dir: Path | None = getattr(args, "knowledge_dir", None)
     flag_actionable: bool = getattr(args, "flag_actionable", False)
+    filter_actionable: bool = getattr(args, "filter_actionable_only", False)
     inheritance_mode: str | None = getattr(args, "inheritance_mode", None)
 
     # Only create config when at least one gene-knowledge feature is active
@@ -726,6 +738,7 @@ def _build_knowledge_config(
         hpo_terms_raw is not None
         or knowledge_dir is not None
         or flag_actionable
+        or filter_actionable
         or inheritance_mode is not None
     )
 
@@ -742,6 +755,7 @@ def _build_knowledge_config(
         hpo_terms=hpo_terms,
         inheritance_mode=inheritance_mode,
         flag_actionable=flag_actionable,
+        filter_actionable=filter_actionable,
     )
 
 

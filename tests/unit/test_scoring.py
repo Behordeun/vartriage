@@ -231,6 +231,22 @@ class TestScoreVariants:
             warning_messages = [str(x.message) for x in w]
             assert any("MissingDataWarning" in msg for msg in warning_messages)
 
+    def test_warning_sink_and_suppress_emit(self) -> None:
+        from vartriage.models.warnings import MissingDataWarning
+
+        variants = [_make_annotated_variant(pos=1)]
+        sink: list[MissingDataWarning] = []
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = score_variants(
+                variants, [None], [None], warning_sink=sink, emit_warnings=False
+            )
+            assert result[0].composite_rank is None
+            assert len(w) == 0
+            assert len(sink) == 1
+            assert sink[0].chrom == "chr1"
+            assert sink[0].source == "pathogenicity_scores"
+
     def test_negative_cadd_excluded_from_composite(self) -> None:
         variants = [_make_annotated_variant(pos=1)]
         with warnings.catch_warnings(record=True):

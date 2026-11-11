@@ -210,18 +210,20 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
 
     revel = variant.revel_score
     spliceai = variant.spliceai_score
+    cadd = variant.cadd_phred
     consequence = variant.annotated.consequence
 
     revel_available = revel is not None
     spliceai_available = spliceai is not None
+    cadd_available = cadd is not None
 
     splice_adjacent = consequence in (
         FunctionalConsequence.SPLICE_SITE,
         FunctionalConsequence.MISSENSE,
     )
 
-    # PP3 cannot fire if neither predictor is available
-    if not revel_available and not spliceai_available:
+    # PP3 cannot fire if no predictor is available
+    if not revel_available and not spliceai_available and not cadd_available:
         assert EvidenceTag.PP3 not in classified.evidence_tags
         assert EvidenceTag.PP3_MODERATE not in classified.evidence_tags
         assert EvidenceTag.PP3_STRONG not in classified.evidence_tags
@@ -254,13 +256,26 @@ def test_pp3_assigned_iff_revel_or_spliceai_triggers(
         )
         return
 
+    # CADD path when REVEL is unavailable
+    if not revel_available and cadd_available:
+        if cadd >= 28.1:
+            assert EvidenceTag.PP3_MODERATE in classified.evidence_tags, (
+                f"PP3_Moderate should be assigned for CADD={cadd} >= 28.1"
+            )
+            return
+        if cadd >= 22.7:
+            assert EvidenceTag.PP3 in classified.evidence_tags, (
+                f"PP3 should be assigned for CADD={cadd} >= 22.7"
+            )
+            return
+
     # Neither trigger met
     assert EvidenceTag.PP3 not in classified.evidence_tags, (
         f"PP3 should NOT be assigned: REVEL={revel}, "
-        f"SpliceAI={spliceai}, consequence={consequence.value}"
+        f"SpliceAI={spliceai}, CADD={cadd}, consequence={consequence.value}"
     )
     assert EvidenceTag.PP3_MODERATE not in classified.evidence_tags, (
-        f"PP3_Moderate should NOT be assigned: REVEL={revel}"
+        f"PP3_Moderate should NOT be assigned: REVEL={revel}, CADD={cadd}"
     )
     assert EvidenceTag.PP3_STRONG not in classified.evidence_tags, (
         f"PP3_Strong should NOT be assigned: REVEL={revel}"
@@ -361,29 +376,31 @@ def test_tag_set_is_exactly_satisfied_criteria(variant: ScoredVariant) -> None:
         # Absent from gnomAD = not observed in controls → PM2
         expected_tags.add(EvidenceTag.PM2)
 
-    # PP3: ClinGen-calibrated REVEL thresholds (Pejaver et al. 2022)
-    # Strong: REVEL > 0.932
-    # Moderate: REVEL > 0.773
-    # Supporting: REVEL > 0.644
-    # OR SpliceAI > 0.5 on splice-adjacent (supporting only)
+    # PP3: ClinGen-calibrated REVEL / SpliceAI / CADD thresholds
     revel = variant.revel_score
+    cadd = variant.cadd_phred
     revel_available = revel is not None
     spliceai_available = spliceai is not None
+    cadd_available = cadd is not None
 
-    if revel_available or spliceai_available:
-        if revel_available and revel > 0.932:
-            expected_tags.add(EvidenceTag.PP3_STRONG)
-        elif revel_available and revel > 0.773:
+    if revel_available and revel > 0.932:
+        expected_tags.add(EvidenceTag.PP3_STRONG)
+    elif revel_available and revel > 0.773:
+        expected_tags.add(EvidenceTag.PP3_MODERATE)
+    elif (revel_available and revel > 0.644) or (
+        spliceai_available
+        and spliceai > 0.5
+        and consequence
+        in (
+            FunctionalConsequence.SPLICE_SITE,
+            FunctionalConsequence.MISSENSE,
+        )
+    ):
+        expected_tags.add(EvidenceTag.PP3)
+    elif not revel_available and cadd_available:
+        if cadd >= 28.1:
             expected_tags.add(EvidenceTag.PP3_MODERATE)
-        elif (revel_available and revel > 0.644) or (
-            spliceai_available
-            and spliceai > 0.5
-            and consequence
-            in (
-                FunctionalConsequence.SPLICE_SITE,
-                FunctionalConsequence.MISSENSE,
-            )
-        ):
+        elif cadd >= 22.7:
             expected_tags.add(EvidenceTag.PP3)
 
     # PP5: ClinVar == Pathogenic (skip if assertion is None)
@@ -466,27 +483,30 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
     # PP3 missing source tracking
     revel = variant.revel_score
     spliceai = variant.spliceai_score
+    cadd = variant.cadd_phred
     consequence = variant.annotated.consequence
     revel_available = revel is not None
     spliceai_available = spliceai is not None
+    cadd_available = cadd is not None
 
-    if not revel_available and not spliceai_available:
-        # Both unavailable, both recorded
+    if not revel_available and not spliceai_available and not cadd_available:
         expected_missing.add("REVEL")
         expected_missing.add("SpliceAI")
-    elif revel_available and revel > 0.644:
-        # REVEL triggered PP3 or PP3_Moderate, no missing sources from PP3
-        pass
+        expected_missing.add("CADD")
     elif (
-        spliceai_available
-        and spliceai > 0.5
-        and consequence
-        in (
-            FunctionalConsequence.SPLICE_SITE,
-            FunctionalConsequence.MISSENSE,
+        (revel_available and revel > 0.644)
+        or (
+            spliceai_available
+            and spliceai > 0.5
+            and consequence
+            in (
+                FunctionalConsequence.SPLICE_SITE,
+                FunctionalConsequence.MISSENSE,
+            )
         )
+        or (not revel_available and cadd_available and cadd >= 22.7)
     ):
-        # SpliceAI triggered PP3, no missing sources from PP3
+        # A predictor triggered PP3, no missing sources from PP3
         pass
     else:
         # Neither triggered, record whichever is unavailable
@@ -494,6 +514,8 @@ def test_missing_sources_reported_correctly(variant: ScoredVariant) -> None:
             expected_missing.add("REVEL")
         if not spliceai_available:
             expected_missing.add("SpliceAI")
+        if not cadd_available:
+            expected_missing.add("CADD")
 
     # BP4 fallback records REVEL missing for a missense variant that has
     # neither a REVEL score nor a CADD score to fall back on.

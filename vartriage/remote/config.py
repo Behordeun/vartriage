@@ -47,6 +47,7 @@ class RemoteTabixConfig:
 
     cadd_remote_url: str | None = None
     gnomad_remote_url: str | None = None
+    gnomad_genomes_remote_url: str | None = None
     cache_ttl_days: int = 30
     cache_path: Path = field(default=_DEFAULT_CACHE_PATH)
     connect_timeout: float = 10.0

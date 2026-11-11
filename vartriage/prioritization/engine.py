@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from vartriage.models.config import PrioritizationConfig
 from vartriage.models.variant import AnnotatedVariant, ScoredVariant
+from vartriage.models.warnings import MissingDataWarning
 from vartriage.prioritization.score_loader import CoordinateKey, ScoreLoader
 from vartriage.prioritization.scoring import score_variants
 
@@ -70,6 +71,7 @@ class PrioritizationEngine:
         self._spliceai_scores: dict[CoordinateKey, float] = {}
         self._spliceai_db: SpliceAISQLiteLoader | None = None
         self._remote_cadd: RemoteTabixCADD | None = None
+        self._warnings: list[MissingDataWarning] = []
 
         if config.cadd_scores_path is not None:
             self._cadd_scores = self._score_loader.load_cadd(config.cadd_scores_path)
@@ -97,6 +99,11 @@ class PrioritizationEngine:
             self._spliceai_scores = self._score_loader.load_spliceai(
                 config.spliceai_scores_path
             )
+
+    @property
+    def warnings(self) -> list[MissingDataWarning]:
+        """Missing data warnings accumulated during variant scoring."""
+        return self._warnings
 
     def close(self) -> None:
         """Release resources held by the engine."""
@@ -203,7 +210,14 @@ class PrioritizationEngine:
                 keys, self._spliceai_scores
             )
 
-        return score_variants(batch, cadd_scores, revel_scores, spliceai_scores)
+        return score_variants(
+            batch,
+            cadd_scores,
+            revel_scores,
+            spliceai_scores,
+            warning_sink=self._warnings,
+            emit_warnings=False,
+        )
 
     def _chunked_fallback(self, batch: list[AnnotatedVariant]) -> list[ScoredVariant]:
         """Process a batch in smaller chunks after a MemoryError.

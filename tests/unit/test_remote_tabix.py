@@ -139,7 +139,7 @@ class TestPresets:
 
     def test_list_presets_returns_all(self) -> None:
         presets = list_presets()
-        assert len(presets) == 5
+        assert len(presets) == 6
 
     def test_list_presets_filtered_by_source(self) -> None:
         cadd_presets = list_presets(source="cadd")
@@ -147,7 +147,7 @@ class TestPresets:
         assert all(p.source == "cadd" for p in cadd_presets)
         assert all(p.source == "gnomad" for p in gnomad_presets)
         assert len(cadd_presets) == 3
-        assert len(gnomad_presets) == 2
+        assert len(gnomad_presets) == 3
 
     def test_list_presets_sorted_by_name(self) -> None:
         presets = list_presets()
