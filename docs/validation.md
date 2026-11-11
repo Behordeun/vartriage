@@ -87,7 +87,9 @@ All metrics are computed with two-sided 95% Wilson score confidence intervals:
 | Specificity | **0.994** | [0.988, 0.997] | 1,364 |
 | Pathogenic Sensitivity | **0.492** | [0.483, 0.500] | 12,545 |
 | Negative Predictive Value (NPV) | **0.175** | [0.167, 0.184] | 7,734 |
-| Cohen's $\kappa$ (unweighted, 5-tier) | **0.024** | — | 18,166 |
+| Cohen's $\kappa$ (unweighted, 5-tier) | **0.024** | —* | 18,166 |
+
+*\* $\kappa$ is an inter-rater agreement coefficient rather than a binomial proportion; Wilson score confidence intervals do not apply.*
 
 ### Confusion Matrix & Classification Breakdown
 
