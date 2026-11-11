@@ -100,6 +100,31 @@ All metrics are computed with two-sided 95% Wilson score confidence intervals:
 | **Benign** | 0 | 600 | 600 |
 | **Total Truth** | 12,545 | 5,621 | 18,166 |
 
+### Metric Derivations & VUS Handling
+
+In an audited clinical triage pre-filter, variants fall into three operational categories: **actionable pathogenic** (Pathogenic / Likely Pathogenic), **indeterminate / held** (VUS), and **benign** (Benign / Likely Benign). The benchmark harness reports metrics based on explicit definitions of true and false calls:
+
+- **Positive Predictive Value (PPV = 0.999, $n = 6,175$)**:
+  $$\text{PPV} = \frac{\text{TP}}{\text{TP} + \text{FP}} = \frac{30 + 6,137}{(30 + 6,137) + (0 + 8)} = \frac{6,167}{6,175} = 0.9987$$
+  Of all variants classified as Pathogenic or Likely Pathogenic, 99.87% are verified true pathogenic variants (only 8 false positives).
+
+- **Specificity (0.994, $n = 1,364$)**:
+  $$\text{Specificity} = \frac{\text{TN}}{\text{TN} + \text{FP}} = \frac{756 + 600}{(756 + 600) + 8} = \frac{1,356}{1,364} = 0.9941$$
+  Evaluated across all definitive benign classifications ($B / LB$) plus false-positive pathogenic classifications ($FP = 8$).
+
+- **Pathogenic Sensitivity (0.492, $n = 12,545$)**:
+  $$\text{Sensitivity} = \frac{\text{TP}}{\text{Total Positive Truth}} = \frac{6,167}{12,545} = 0.4916$$
+  Here, non-detected pathogenic variants ($FN = 6,378$) consist of $6,321$ variants held at VUS and $57$ variants classified as Likely Benign.
+
+- **Negative Predictive Value (Harness $\text{NPV} = 0.175, n = 7,734$ vs. Resolved Benign $\text{PV} = 0.960, n = 1,413$)**:
+  In the automated benchmark runner, negative predictive value is defined conservatively as:
+  $$\text{NPV}_{\text{harness}} = \frac{\text{TN}}{\text{TN} + \text{FN}} = \frac{1,356}{1,356 + 6,378} = \frac{1,356}{7,734} = 0.1753$$
+  Because the automated test harness includes all uncalled pathogenic variants held at VUS ($6,321$) in the false-negative pool ($FN = 6,378$), the harness NPV ($17.5\%$) reflects sensitivity holding rather than misclassification.
+
+  When evaluated on **resolved benign calls** (Benign and Likely Benign, $n = 1,413$ total calls):
+  $$\text{Benign Predictive Value} = \frac{\text{TN}}{\text{TN} + \text{Directional FN}} = \frac{1,356}{1,356 + 57} = \frac{1,356}{1,413} = 0.9597 \; (96.0\%)$$
+  Only $57$ true-positive variants ($0.45\%$ of positive truth) received a Likely Benign classification (zero received Benign), while $1,356$ were concordant benign.
+
 ### Clinical Takeaways
 
 1. **Near-Zero False Positive Rate (0.13% FP)**: Across 6,175 total pathogenic calls (Pathogenic and Likely Pathogenic), only 8 were true benign variants ($\text{PPV} = 99.87\%$). In clinical diagnostic pre-filtering, suppressing false positives is paramount to prevent unwarranted invasive interventions.

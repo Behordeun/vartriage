@@ -85,15 +85,19 @@ When `--inheritance-mode AR` is set:
 
 This is useful for consanguineous families where you expect homozygous AR variants to be causative.
 
-## Actionability filtering
+## Actionability tagging and filtering
 
-When `--flag-actionable` is set:
+VarTriage provides two complementary actionability controls:
 
-- Only variants in genes with ClinGen actionability curations pass through
-- Intergenic variants pass through
-- Genes without actionability data are filtered out
+1. **Non-destructive annotation (`--flag-actionable`)**:
+   - Annotates each variant's `gene_context` with ClinGen actionability status and intervention type (surveillance, therapeutic, or surgical).
+   - Preserves all variants in the stream without excluding non-actionable or uncurated genes.
+   - Ideal for comprehensive reports where actionability is highlighted for downstream clinical review.
 
-This surfaces findings where established medical interventions exist (surveillance, prophylactic surgery, therapeutic options).
+2. **Exclusion filtering (`--filter-actionable-only`)**:
+   - Strictly filters the variant stream to retain only variants in genes with ClinGen actionability curations (intergenic variants pass through).
+   - Filters out variants in genes lacking actionability curations.
+   - Ideal for targeted secondary-findings analysis or focused actionable-variant triage.
 
 ## Output fields
 
