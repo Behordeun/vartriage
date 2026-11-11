@@ -405,6 +405,7 @@ class Pipeline:
 
                 if annotation_engine is not None:
                     self._warning_accumulator.add_batch(annotation_engine.warnings)
+                self._warning_accumulator.add_batch(prioritization_engine.warnings)
             finally:
                 prioritization_engine.close()
 

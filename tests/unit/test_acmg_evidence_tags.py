@@ -205,11 +205,27 @@ class TestPP3Assignment:
         assert EvidenceTag.PP3 not in results[0].evidence_tags
 
     def test_omits_pp3_when_revel_unavailable(self) -> None:
-        sv = _make_scored_variant(revel_score=None)
+        sv = _make_scored_variant(revel_score=None, cadd_phred=None)
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
         assert EvidenceTag.PP3 not in results[0].evidence_tags
         assert "REVEL" in results[0].missing_data_sources
+
+    def test_assigns_pp3_from_cadd_when_revel_absent(self) -> None:
+        # CADD 25.0 >= 22.7 (supporting threshold) when REVEL is absent
+        sv = _make_scored_variant(revel_score=None, cadd_phred=25.0)
+        classifier = ACMGClassifier()
+        results = list(classifier.classify(iter([sv])))
+        assert EvidenceTag.PP3 in results[0].evidence_tags
+        assert EvidenceTag.PP3_MODERATE not in results[0].evidence_tags
+
+    def test_assigns_pp3_moderate_from_cadd_when_revel_absent(self) -> None:
+        # CADD 29.0 >= 28.1 (moderate threshold) when REVEL is absent
+        sv = _make_scored_variant(revel_score=None, cadd_phred=29.0)
+        classifier = ACMGClassifier()
+        results = list(classifier.classify(iter([sv])))
+        assert EvidenceTag.PP3_MODERATE in results[0].evidence_tags
+        assert EvidenceTag.PP3_STRONG not in results[0].evidence_tags
 
 
 class TestPP5Assignment:
@@ -263,6 +279,7 @@ class TestMissingDataSources:
             clinvar_assertion=None,
             clinvar_unknown=True,
             revel_score=None,
+            cadd_phred=None,
         )
         classifier = ACMGClassifier()
         results = list(classifier.classify(iter([sv])))
@@ -271,6 +288,7 @@ class TestMissingDataSources:
         # reporting as missing data
         assert "ClinVar" in missing
         assert "REVEL" in missing
+        assert "CADD" in missing
 
     def test_no_missing_sources_when_all_available(self) -> None:
         # Uses NONSENSE consequence to avoid PS1/PM5 (which need protein_change data).

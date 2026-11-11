@@ -40,6 +40,7 @@ class GeneKnowledgeAnnotator:
         self._registry = GeneKnowledgeRegistry(config)
         self._inheritance_mode: str | None = config.inheritance_mode
         self._flag_actionable: bool = config.flag_actionable
+        self._filter_actionable: bool = config.filter_actionable
 
     @property
     def registry(self) -> GeneKnowledgeRegistry:
@@ -54,7 +55,7 @@ class GeneKnowledgeAnnotator:
         Filtering order:
         1. Inheritance mode check (cheap OMIM lookup, avoids full context build)
         2. Build gene context (registry lookup + phenotype overlap)
-        3. Actionability filter (when --flag-actionable is set)
+        3. Actionability filter (when filter_actionable is set)
 
         Intergenic variants (gene_name=None) pass through all filters.
 
@@ -79,10 +80,10 @@ class GeneKnowledgeAnnotator:
 
             gene_context = self._registry.build_gene_context(gene_symbol)
 
-            # Actionability filter: when --flag-actionable is set, only
+            # Actionability filter: when filter_actionable is set, only
             # yield variants in actionable genes (intergenic passes through)
             if (
-                self._flag_actionable
+                self._filter_actionable
                 and gene_symbol is not None
                 and not gene_context.is_actionable
             ):

@@ -31,8 +31,11 @@ class KnowledgeBaseConfig:
         (AD, AR, XL, XLD, XLR, MT). None disables the filter.
     flag_actionable : bool
         When True, gene_context.is_actionable is populated from
-        ClinGen actionability curations. When False, actionability
-        annotation still occurs but no filtering is applied.
+        ClinGen actionability curations without filtering variants.
+    filter_actionable : bool
+        When True, only variants in medically actionable genes
+        (and intergenic variants) pass through. All non-actionable
+        variants are filtered out.
 
     Raises
     ------
@@ -46,6 +49,7 @@ class KnowledgeBaseConfig:
     hpo_terms: frozenset[str] = field(default_factory=frozenset)
     inheritance_mode: str | None = field(default=None)
     flag_actionable: bool = False
+    filter_actionable: bool = False
 
     def __post_init__(self) -> None:
         for term in self.hpo_terms:
