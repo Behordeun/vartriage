@@ -25,10 +25,15 @@ vartriage --vcf patient.vcf.gz --output results.json \
   --gene-annotation gencode.gtf --gnomad gnomad.tsv \
   --inheritance-mode AR
 
-# Show only medically actionable findings
+# Annotate medically actionable findings (non-destructive tagging)
 vartriage --vcf patient.vcf.gz --output results.json \
   --gene-annotation gencode.gtf --gnomad gnomad.tsv \
   --flag-actionable
+
+# Filter output strictly to medically actionable genes
+vartriage --vcf patient.vcf.gz --output results.json \
+  --gene-annotation gencode.gtf --gnomad gnomad.tsv \
+  --filter-actionable-only
 
 # Custom knowledge data directory
 vartriage --vcf patient.vcf.gz --output results.json \
@@ -38,12 +43,13 @@ vartriage --vcf patient.vcf.gz --output results.json \
 
 ## CLI flags
 
-| Flag                | Description                                                                 |
-| ------------------- | --------------------------------------------------------------------------- |
-| `--hpo-terms`       | Comma-separated HPO term IDs (HP:NNNNNNN format). Activates phenotype boost |
-| `--inheritance-mode`| Filter to genes matching this mode: AD, AR, XL, XLD, XLR, MT                |
-| `--flag-actionable` | Only pass variants in ClinGen actionable genes                              |
-| `--knowledge-dir`   | Path to custom TSV data directory (defaults to bundled package data)        |
+| Flag                     | Description                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `--hpo-terms`            | Comma-separated HPO term IDs (HP:NNNNNNN format). Activates phenotype boost     |
+| `--inheritance-mode`     | Filter to genes matching this mode: AD, AR, XL, XLD, XLR, MT                    |
+| `--flag-actionable`      | Annotate ClinGen actionable genes without filtering out non-actionable variants |
+| `--filter-actionable-only` | Filter stream to retain only variants in ClinGen actionable genes             |
+| `--knowledge-dir`        | Path to custom TSV data directory (defaults to bundled package data)            |
 
 Any of these flags activates the gene-disease linkage pipeline stage.
 
@@ -79,15 +85,19 @@ When `--inheritance-mode AR` is set:
 
 This is useful for consanguineous families where you expect homozygous AR variants to be causative.
 
-## Actionability filtering
+## Actionability tagging and filtering
 
-When `--flag-actionable` is set:
+VarTriage provides two complementary actionability controls:
 
-- Only variants in genes with ClinGen actionability curations pass through
-- Intergenic variants pass through
-- Genes without actionability data are filtered out
+1. **Non-destructive annotation (`--flag-actionable`)**:
+   - Annotates each variant's `gene_context` with ClinGen actionability status and intervention type (surveillance, therapeutic, or surgical).
+   - Preserves all variants in the stream without excluding non-actionable or uncurated genes.
+   - Ideal for comprehensive reports where actionability is highlighted for downstream clinical review.
 
-This surfaces findings where established medical interventions exist (surveillance, prophylactic surgery, therapeutic options).
+2. **Exclusion filtering (`--filter-actionable-only`)**:
+   - Strictly filters the variant stream to retain only variants in genes with ClinGen actionability curations (intergenic variants pass through).
+   - Filters out variants in genes lacking actionability curations.
+   - Ideal for targeted secondary-findings analysis or focused actionable-variant triage.
 
 ## Output fields
 

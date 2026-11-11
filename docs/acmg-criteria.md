@@ -92,14 +92,16 @@ Thresholds are calibrated per ClinGen SVI recommendations (Pejaver et al., Am J 
 | Strength | Threshold | Rationale |
 | -------- | --------- | --------- |
 | Moderate | REVEL > 0.773 | Odds of pathogenicity > 4.33 (moderate evidence) |
+| Moderate | CADD $\ge$ 28.1 | ClinGen SVI calibrated moderate pathogenic evidence |
 | Supporting | REVEL > 0.644 | Odds of pathogenicity > 2.08 (supporting evidence) |
+| Supporting | CADD $\ge$ 22.7 | ClinGen SVI calibrated supporting pathogenic evidence |
 | Supporting | SpliceAI > 0.5 on splice-adjacent variant | Moderate splice disruption predicted |
 
-Only the highest applicable strength fires. When REVEL > 0.773, PP3 fires at moderate strength (not both moderate and supporting).
+Only the highest applicable strength fires. When REVEL > 0.773 or CADD $\ge$ 28.1, PP3 fires at moderate strength (not both moderate and supporting). CADD thresholds are evaluated when REVEL is uninformative or unavailable.
 
 SpliceAI-based PP3 applies only to variants with SPLICE_SITE or MISSENSE consequence near splice junctions.
 
-**Required data:** REVEL scores and/or SpliceAI scores. When neither is available, both are recorded as missing.
+**Required data:** REVEL, CADD, and/or SpliceAI scores. When none is available, missing sources are recorded.
 
 **Previous behavior (v0.13.0):** PP3 fired at supporting level only, with REVEL > 0.7. The ClinGen-calibrated thresholds in v0.14.0 lower the supporting threshold to 0.644 and add a moderate tier at 0.773.
 
@@ -198,11 +200,11 @@ ClinGen-calibrated thresholds (Pejaver et al., 2022):
 | -------- | --------- | --------- |
 | Moderate | Missense + REVEL < 0.183 | Odds of pathogenicity < 0.23 (moderate benign) |
 | Supporting | Missense + REVEL < 0.290 | Odds of pathogenicity < 0.48 (supporting benign) |
-| Supporting | Non-missense + CADD Phred < 10 | Low overall deleteriousness |
+| Supporting | CADD Phred $\le$ 10.0 | ClinGen SVI calibrated supporting benign evidence (evaluated when REVEL is unavailable or uninformative, or for non-missense) |
 
 Only the strongest applicable level fires. Does not apply to nonsense or frameshift variants (low computational scores on a truncating variant are not meaningful benign evidence).
 
-**Required data:** REVEL scores (for missense) or CADD scores (for non-missense).
+**Required data:** REVEL scores or CADD scores.
 
 **Previous behavior (v0.13.0):** BP4 fired at supporting level only, with REVEL < 0.15. The ClinGen-calibrated thresholds raise the supporting boundary to 0.290 and add a moderate tier at 0.183.
 
@@ -440,7 +442,7 @@ Common missing data patterns:
 
 ## Conflicting evidence
 
-When both pathogenic and benign evidence tags are present for the same variant, the classifier returns VUS and sets `has_conflicting_evidence = True` on the output. This distinguishes "VUS because insufficient evidence" from "VUS because contradictory evidence." Clinical reports display a note when this flag is set.
+When both pathogenic and benign evidence criteria are present for the same variant, opposing evidence resolves through the ClinGen SVI Bayesian point framework: the variant takes its net signed point total through the classification threshold ladder rather than being forced to VUS. The classifier records `has_conflicting_evidence = True` as an auditable metadata flag to distinguish variants with balanced or opposing evidence from variants with no evidence. Clinical reports display an advisory note whenever this flag is set.
 
 ## Limitations and assumptions
 

@@ -10,16 +10,16 @@ vartriage --vcf panel.vcf --output results.json \
   --gene-annotation gencode.gtf \
   --cadd-remote cadd-v1.7-grch38
 
-# gnomAD frequencies via remote tabix
+# gnomAD frequencies via remote tabix (composite exomes with genomes fallback)
 vartriage --vcf panel.vcf --output results.json \
   --gene-annotation gencode.gtf \
-  --gnomad-remote gnomad-exomes-v4-grch38
+  --gnomad-remote gnomad-v4-grch38
 
 # Both together
 vartriage --vcf patient.vcf.gz --output report.json \
   --gene-annotation gencode.gtf --clinvar clinvar.tsv \
   --cadd-remote cadd-v1.7-grch38 \
-  --gnomad-remote gnomad-exomes-v4-grch38
+  --gnomad-remote gnomad-v4-grch38
 ```
 
 ## How It Works
@@ -51,9 +51,12 @@ Name                           Source   Build    Description
 cadd-v1.7-grch37               cadd     grch37   CADD v1.7 all possible SNVs, GRCh37
 cadd-v1.7-grch38               cadd     grch38   CADD v1.7 all possible SNVs, GRCh38
 cadd-v1.7-indels-grch38        cadd     grch38   CADD v1.7 pre-scored gnomAD indels, GRCh38
+gnomad-v4-grch38               gnomad   grch38   gnomAD v4.1.1 composite (exomes with genomes fallback), GRCh38
 gnomad-exomes-v4-grch38        gnomad   grch38   gnomAD exomes v4.1.1 per-chromosome VCF, GRCh38
 gnomad-genomes-v4-grch38       gnomad   grch38   gnomAD genomes v4.1.1 per-chromosome VCF, GRCh38
 ```
+
+The `gnomad-v4-grch38` preset queries exomes first, and for variants unobserved in exomes, automatically queries gnomAD v4.1.1 genomes. Both share the local cache (`~/.vartriage/remote_cache.db`), avoiding redundant remote queries across subsequent runs.
 
 Filter by source:
 
