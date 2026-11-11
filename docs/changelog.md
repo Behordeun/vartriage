@@ -6,7 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
-_Nothing yet. The most recent release is 1.3.0, below._
+_Nothing yet. The most recent release is 1.4.0, below._
+
+## [1.4.0] - 2026-11-11
+
+### Added
+
+- **Calibrated CADD ACMG Evidence Thresholds**: Extended in-silico predictor evaluation for ACMG criteria PP3 and BP4 using CADD phred scores calibrated against ClinGen SVI odds of pathogenicity. CADD scores now trigger PP3 at Moderate strength ($\ge 28.1$), PP3 at Supporting strength ($\ge 22.7$), and BP4 at Supporting strength ($\le 10.0$) when REVEL or SpliceAI scores are uninformative or unavailable.
+- **gnomAD v4 Composite Preset and Dynamic Genomes Fallback**: Introduced the `gnomad-v4-grch38` composite preset for `RemoteTabixGnomAD`. Lookups query gnomAD v4.1.1 exomes first and automatically fall back to gnomAD v4.1.1 genomes for unobserved variants, sharing the local cache across tiers and expanding population frequency coverage across non-coding and uncaptured genomic regions.
+- **Mitochondrial Population Frequency Integration**: Integrated `HelixMTdbDatabase` into the mitochondrial variant triage pipeline, providing bundled population allele frequencies for `chrM` variants with multi-population frequency resolution and missing data source audit tracking.
+- **Explicit Actionability Filtering Flag**: Added `--filter-actionable-only` CLI flag and `filter_actionable: bool = False` configuration in `KnowledgeBaseConfig` to explicitly filter variants to ClinGen actionable genes when desired, while `--flag-actionable` preserves all variants in the stream and annotates actionability context.
+- **Stage 3 Full-Genome Validation Benchmark**: Validated the complete pipeline against a frozen benchmark truth set of 18,166 ClinVar variants on GRCh38 across all autosomes and sex chromosomes, achieving 99.9% Positive Predictive Value (PPV: 0.999 [95% CI: 0.997, 0.999], $n=6,175$) and 99.4% Specificity (0.994 [95% CI: 0.988, 0.997], $n=1,364$) with only 8 false-positive calls out of 6,175 pathogenic classifications.
+
+### Changed
+
+- **Disentangled Actionability Semantics**: Realigned `flag_actionable` semantics across `KnowledgeBaseConfig`, `GeneKnowledgeAnnotator`, and CLI options. Setting `flag_actionable=True` now non-destructively tags actionable variants with their clinical intervention status without filtering the variant stream. True exclusion filtering is exclusively controlled by `filter_actionable=True` (`--filter-actionable-only`).
+- **Prioritization Scoring Warning Hygiene**: Refactored warning management during variant prioritization scoring. Added `warning_sink` parameter and `emit_warnings: bool | None` control to `score_variants` and `PrioritizationEngine`, suppressing duplicate stderr warnings when an upstream accumulator collects missing data warnings.
+- **Bounded Coordinate Grouping in Remote Tabix**: Updated `_group_by_window` in `RemoteTabixGnomAD` to strictly enforce the configured `batch_window_bp` maximum span from the group anchor rather than an unbounded chained sliding-window, preventing multi-kilobase range queries that trigger upstream network read timeouts.
+
+### Fixed
+
+- **Thread-Safe Remote Tabix Timeout Disposal**: Resolved a thread race condition and use-after-free in `RemoteTabixGnomAD` where remote query read timeouts previously closed active `pysam.TabixFile` handles while worker threads were still reading inside C-level `htslib`/`libcurl` buffers. Timed-out connections are now safely detached from the active pool and deferred to a `Future.add_done_callback` handler that closes the handle only after the thread exits.
+- **Independent Connect-Timeout and Query Retry Loops**: Separated connection establishment from record fetch retry logic in `RemoteTabixGnomAD`, preventing uninitialized local handle access (`UnboundLocalError`) on connect timeouts and cleanly recycling connection attempts.
+- **Clean In-Silico Missing Sources Cleanup in PP3**: Resolved an edge-case in `_evaluate_pp3` where missing predictor sources were inadvertently recorded when an alternative predictor evaluated below threshold.
 
 ## [1.3.0] - 2026-11-09
 

@@ -25,10 +25,15 @@ vartriage --vcf patient.vcf.gz --output results.json \
   --gene-annotation gencode.gtf --gnomad gnomad.tsv \
   --inheritance-mode AR
 
-# Show only medically actionable findings
+# Annotate medically actionable findings (non-destructive tagging)
 vartriage --vcf patient.vcf.gz --output results.json \
   --gene-annotation gencode.gtf --gnomad gnomad.tsv \
   --flag-actionable
+
+# Filter output strictly to medically actionable genes
+vartriage --vcf patient.vcf.gz --output results.json \
+  --gene-annotation gencode.gtf --gnomad gnomad.tsv \
+  --filter-actionable-only
 
 # Custom knowledge data directory
 vartriage --vcf patient.vcf.gz --output results.json \
@@ -38,12 +43,13 @@ vartriage --vcf patient.vcf.gz --output results.json \
 
 ## CLI flags
 
-| Flag                | Description                                                                 |
-| ------------------- | --------------------------------------------------------------------------- |
-| `--hpo-terms`       | Comma-separated HPO term IDs (HP:NNNNNNN format). Activates phenotype boost |
-| `--inheritance-mode`| Filter to genes matching this mode: AD, AR, XL, XLD, XLR, MT                |
-| `--flag-actionable` | Only pass variants in ClinGen actionable genes                              |
-| `--knowledge-dir`   | Path to custom TSV data directory (defaults to bundled package data)        |
+| Flag                     | Description                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `--hpo-terms`            | Comma-separated HPO term IDs (HP:NNNNNNN format). Activates phenotype boost     |
+| `--inheritance-mode`     | Filter to genes matching this mode: AD, AR, XL, XLD, XLR, MT                    |
+| `--flag-actionable`      | Annotate ClinGen actionable genes without filtering out non-actionable variants |
+| `--filter-actionable-only` | Filter stream to retain only variants in ClinGen actionable genes             |
+| `--knowledge-dir`        | Path to custom TSV data directory (defaults to bundled package data)            |
 
 Any of these flags activates the gene-disease linkage pipeline stage.
 

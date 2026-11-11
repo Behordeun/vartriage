@@ -123,6 +123,8 @@ python scripts/download_mitomap.py --output vartriage/data/mito/mitomap_pathogen
 
 Population allele frequencies from [HelixMTdb](https://www.helix.com/pages/mitochondrial-variant-database), a large-scale mitochondrial database (~200k samples). Used to distinguish common haplogroup markers from rare potentially pathogenic variants.
 
+Since v1.4.0, `HelixMTdbDatabase` is also integrated as an automatic fallback in the primary `AnnotationEngine` for `chrM`/`MT` coordinates. Because public gnomAD releases do not distribute per-chromosome VCFs for `chrM`, this fallback resolves local population allele frequencies for mitochondrial variants during genome-wide triage, ensuring seamless BA1, BS1, and PM2 evaluation without external network calls.
+
 Update the bundled data:
 
 ```bash
